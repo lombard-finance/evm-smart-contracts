@@ -4,7 +4,7 @@ import { ethers, upgrades } from "hardhat";
 async function main() {
   const lbtc = await ethers.getContractAt(
     "LBTC",
-    "0x91B534EE3618c8f62B8D6f4BB3967312C5bdE272"
+    "0xfD18D35A327bb5BA1a1A6cd1b9be6b33FC5Da3e4"
   );
 
   let buf = Buffer.from(

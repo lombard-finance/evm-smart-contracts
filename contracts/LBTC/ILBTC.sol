@@ -5,7 +5,6 @@ import "../libs/DepositDataCodec.sol";
 
 interface ILBTC {
     error ProofAlreadyUsed();
-    error BadSignature();
     error BadChainId(uint256 expected, uint256 received);
     error ZeroAmount();
     error WithdrawalsDisabled();

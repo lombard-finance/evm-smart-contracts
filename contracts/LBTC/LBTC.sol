@@ -11,6 +11,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 
 import "./ILBTC.sol";
 import "../libs/DepositDataCodec.sol";
+import "../libs/EIP1271SignatureUtils.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -97,15 +98,17 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         bytes32 proofHash = keccak256(data);
 
-        if ($._usedProofs[proofHash]) {
+        // The problem is if we will change signer its open ability to reuse same signatures
+        // But Consortium save signature forever and it will not be changed if we change signer
+        bytes32 signatureHash = keccak256(proofSignature);
+
+        if ($._usedProofs[signatureHash]) {
             revert ProofAlreadyUsed();
         }
 
         // we can trust data only if proof is signed by Consortium
-        if (ECDSA.recover(proofHash, proofSignature) != owner()) {
-            revert BadSignature();
-        }
-        $._usedProofs[proofHash] = true;
+        EIP1271SignatureUtils.checkSignature(owner(), proofHash, proofSignature);
+        $._usedProofs[signatureHash] = true;
 
         // parse deposit
         DepositData memory depositData = DepositDataCodec.decode(data);
