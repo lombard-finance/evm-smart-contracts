@@ -26,10 +26,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         mapping(bytes32 => bool) _usedProofs;
 
-        string _name;
-        string _symbol;
+        string name;
+        string symbol;
 
         bool isWithdrawalsEnabled;
+        address consortium;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -47,22 +48,22 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _disableInitializers();
     }
 
-    function __LBTC_init(string memory name_, string memory symbol_) internal onlyInitializing {
+    function __LBTC_init(string memory name_, string memory symbol_, address consortium_) internal onlyInitializing {
         LBTCStorage storage $ = _getLBTCStorage();
-        $._name = name_;
-        $._symbol = symbol_;
+        _changeNameAndSymbol(name_, symbol_);
+        $.consortium = consortium_;
     }
 
     function initialize(address consortium_) external initializer {
         __ERC20_init("LBTC", "LBTC");
         __ERC20Pausable_init();
 
-        __Ownable_init(consortium_);
+        __Ownable_init(_msgSender());
         __Ownable2Step_init();
 
         __ReentrancyGuard_init();
 
-        __LBTC_init("Lombard Staked Bitcoin", "LBTC");
+        __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_);
     }
 
     function pause() external onlyOwner {
@@ -83,10 +84,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _changeNameAndSymbol(name_, symbol_);
     }
 
-    function _changeNameAndSymbol(string calldata name_, string calldata symbol_) internal {
+    function _changeNameAndSymbol(string memory name_, string memory symbol_) internal {
         LBTCStorage storage $ = _getLBTCStorage();
-        $._name = name_;
-        $._symbol = symbol_;
+        $.name = name_;
+        $.symbol = symbol_;
         emit NameAndSymbolChanged(name_, symbol_);
     }
 
@@ -107,7 +108,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature(owner(), proofHash, proofSignature);
+        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
         $._usedProofs[signatureHash] = true;
 
         // parse deposit
@@ -153,6 +154,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         );
     }
 
+    function consortium() external view virtual returns (address) {
+        return _getLBTCStorage().consortium;
+    }
+
     /**
      * @dev Returns the number of decimals used to get its user representation.
      *
@@ -167,7 +172,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @dev Returns the name of the token.
      */
     function name() public override view virtual returns (string memory) {
-        return _getLBTCStorage()._name;
+        return _getLBTCStorage().name;
     }
 
     /**
@@ -175,6 +180,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * name.
      */
     function symbol() public override view virtual returns (string memory) {
-        return _getLBTCStorage()._symbol;
+        return _getLBTCStorage().symbol;
     }
 }

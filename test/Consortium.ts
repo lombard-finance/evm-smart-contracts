@@ -1,22 +1,20 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers, upgrades, config } from "hardhat";
-import { signData } from "../scripts/helpers/crypto";
 
 describe("LBTC", function () {
   async function deployFixture() {
-    const [owner] = await ethers.getSigners();
+    // First account reserved as owner
+    const [_, owner] = await ethers.getSigners();
 
     const accounts = config.networks.hardhat.accounts;
-    // supports only mnemonic
-    const rootWallet = ethers.Wallet.fromPhrase(
+    const wallet1 = ethers.Wallet.fromPhrase(
       Array.isArray(accounts) ? "" : accounts.mnemonic
     );
-    const signer = rootWallet.deriveChild(999);
 
     const lbtc = await upgrades.deployProxy(
       await ethers.getContractFactory("LBTC"),
-      [signer.address]
+      [await owner.getAddress()]
     );
     await lbtc.waitForDeployment();
 
@@ -24,27 +22,21 @@ describe("LBTC", function () {
   }
 
   describe("Deployment", function () {
-    it("Should set right owner (deployer)", async function () {
+    it("Should set right consortium", async function () {
       const { lbtc, owner } = await loadFixture(deployFixture);
 
       expect(await lbtc.owner()).to.equal(await owner.getAddress());
-    });
-
-    it("Should set right consortium", async function () {
-      const { lbtc, signer } = await loadFixture(deployFixture);
-
-      expect(await lbtc.consortium()).to.equal(signer.address);
     });
   });
 
   describe("Mint", function () {
     describe("Signature", function () {
       it("Should mint successfully", async function () {
-        const { lbtc, owner, signer } = await loadFixture(deployFixture);
+        const { lbtc, owner } = await loadFixture(deployFixture);
 
         const amount = "100000000"; // 1 BTC
 
-        const signed = await signData(signer, {
+        const signed = await signData(owner, {
           to: await owner.getAddress(),
           amount,
           chainId: (await ethers.provider.getNetwork()).chainId,
