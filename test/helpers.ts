@@ -1,14 +1,16 @@
-import { ethers, network } from "hardhat";
+import { config, ethers, network } from "hardhat";
 import secp256k1 from "secp256k1";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
-export const signData = async (
+
+export async function signData(
   privateKey: string,
   data: { to: string; amount: bigint; chainId?: number }
 ): Promise<{
   data: string;
   hash: string;
   signature: string;
-}> => {
+}> {
   //pack and hash
   const packed = ethers.AbiCoder.defaultAbiCoder().encode(
     ["uint256", "address", "uint64"],
@@ -28,4 +30,17 @@ export const signData = async (
     hash: hash,
     signature: signedHash,
   };
-};
+}
+
+export async function enrichWithPrivateKeys(signers: HardhatEthersSigner[], phrase?: string) {
+  const mnemonic = ethers.Mnemonic.fromPhrase(phrase || config.networks.hardhat.accounts.mnemonic);
+  for (let i = 0; i < signers.length; i++) {
+    const wallet = ethers.HDNodeWallet.fromMnemonic(
+      mnemonic,
+      `m/44'/60'/0'/0/${i}`
+    );
+    if (wallet.address === signers[i].address) {
+      signers[i].privateKey = wallet.privateKey;
+    }
+  }
+}
