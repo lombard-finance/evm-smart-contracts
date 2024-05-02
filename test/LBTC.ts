@@ -32,84 +32,89 @@ describe("LBTC", function () {
     const result = await init(consortium);
     lbtc = result.lbtc;
     snapshot = await takeSnapshot();
-  })
+  });
 
   describe("Setters and getters", function () {
     beforeEach(async function () {
       await snapshot.restore();
-    })
+    });
 
     it("owner() is deployer", async function () {
       expect(await lbtc.owner()).to.equal(deployer.address);
-    })
+    });
 
     it("consortium() set at initialization", async function () {
       expect(await lbtc.consortium()).to.equal(consortium.address);
-    })
+    });
 
     it("decimals()", async function () {
       expect(await lbtc.decimals()).to.equal(8n);
-    })
+    });
 
-    it("pause() turns on enforced pause", async function() {
+    it("pause() turns on enforced pause", async function () {
       expect(await lbtc.paused()).to.be.false;
       await expect(lbtc.pause())
-          .to.emit(lbtc, "Paused")
-          .withArgs(deployer.address);
+        .to.emit(lbtc, "Paused")
+        .withArgs(deployer.address);
       expect(await lbtc.paused()).to.be.true;
-    })
+    });
 
-    it("pause() reverts when called by not an owner", async function() {
-      await expect(lbtc.connect(signer1).pause())
-          .to.revertedWithCustomError(lbtc,"OwnableUnauthorizedAccount");
-    })
+    it("pause() reverts when called by not an owner", async function () {
+      await expect(lbtc.connect(signer1).pause()).to.revertedWithCustomError(
+        lbtc,
+        "OwnableUnauthorizedAccount"
+      );
+    });
 
-    it("unpause() turns off enforced pause", async function() {
+    it("unpause() turns off enforced pause", async function () {
       await lbtc.pause();
       expect(await lbtc.paused()).to.be.true;
       await expect(lbtc.unpause())
-          .to.emit(lbtc, "Unpaused")
-          .withArgs(deployer.address);
+        .to.emit(lbtc, "Unpaused")
+        .withArgs(deployer.address);
       expect(await lbtc.paused()).to.be.false;
-    })
+    });
 
-    it("unpause() reverts when called by not an owner", async function() {
+    it("unpause() reverts when called by not an owner", async function () {
       await lbtc.pause();
       expect(await lbtc.paused()).to.be.true;
-      await expect(lbtc.connect(signer1).unpause())
-          .to.revertedWithCustomError(lbtc,"OwnableUnauthorizedAccount");
-    })
+      await expect(lbtc.connect(signer1).unpause()).to.revertedWithCustomError(
+        lbtc,
+        "OwnableUnauthorizedAccount"
+      );
+    });
 
-    it("changeNameAndSymbol", async function() {
+    it("changeNameAndSymbol", async function () {
       const newName = "NEW_NAME";
       const newSymbol = "NEW_SYMBOL";
       await expect(lbtc.changeNameAndSymbol(newName, newSymbol))
-          .to.emit(lbtc, "NameAndSymbolChanged")
-          .withArgs(newName, newSymbol);
+        .to.emit(lbtc, "NameAndSymbolChanged")
+        .withArgs(newName, newSymbol);
       expect(await lbtc.name()).to.be.eq(newName);
       expect(await lbtc.symbol()).to.be.eq(newSymbol);
-    })
+    });
 
-    it("toggleWithdrawals() enables or disables burn", async function() {
+    it("toggleWithdrawals() enables or disables burn", async function () {
       await expect(lbtc.toggleWithdrawals())
-          .to.emit(lbtc, "WithdrawalsEnabled")
-          .withArgs(true);
+        .to.emit(lbtc, "WithdrawalsEnabled")
+        .withArgs(true);
 
       await expect(lbtc.toggleWithdrawals())
-          .to.emit(lbtc, "WithdrawalsEnabled")
-          .withArgs(false);
-    })
+        .to.emit(lbtc, "WithdrawalsEnabled")
+        .withArgs(false);
+    });
 
-    it("toggleWithdrawals() reverts when called by not an owner", async function() {
-      await expect(lbtc.connect(signer1).toggleWithdrawals())
-          .to.revertedWithCustomError(lbtc,"OwnableUnauthorizedAccount");
-    })
-  })
+    it("toggleWithdrawals() reverts when called by not an owner", async function () {
+      await expect(
+        lbtc.connect(signer1).toggleWithdrawals()
+      ).to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+  });
 
   describe("Mint positive cases", function () {
     before(async function () {
       await snapshot.restore();
-    })
+    });
 
     const args = [
       {
@@ -148,14 +153,14 @@ describe("LBTC", function () {
 
         expect(balanceAfter - balanceBefore).to.be.eq(amount);
         expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(amount);
-      })
-    })
-  })
+      });
+    });
+  });
 
   describe("Mint negative cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
-    })
+    });
 
     const args = [
       {
@@ -186,7 +191,7 @@ describe("LBTC", function () {
           return {
             data: result1.data,
             hash: "",
-            signature: result2.signature
+            signature: result2.signature,
           };
         },
         recipient: () => signer1.address,
@@ -246,7 +251,7 @@ describe("LBTC", function () {
             .reverted;
         }
       });
-    })
+    });
 
     it("Reverts when proof already used", async function () {
       const amount = 100_000_000n;
@@ -258,34 +263,36 @@ describe("LBTC", function () {
       await expect(
         lbtc.mint(signedData.data, signedData.signature)
       ).to.revertedWithCustomError(lbtc, "ProofAlreadyUsed");
-    })
+    });
 
-    it("Reverts when paused", async function() {
+    it("Reverts when paused", async function () {
       await lbtc.pause();
       const amount = 100_000_000n;
       const signedData = await signData(consortium.privateKey, {
         to: signer1.address,
         amount,
       });
-      await expect(lbtc.mint(signedData.data, signedData.signature))
-          .to.revertedWithCustomError( lbtc,"EnforcedPause");
-    })
-  })
+      await expect(
+        lbtc.mint(signedData.data, signedData.signature)
+      ).to.revertedWithCustomError(lbtc, "EnforcedPause");
+    });
+  });
 
   describe("Burn negative cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
-    })
+    });
 
-    it("Reverts when withdrawals off", async function() {
+    it("Reverts when withdrawals off", async function () {
       await lbtc.pause();
       const amount = 100_000_000n;
       const signedData = await signData(consortium.privateKey, {
         to: signer1.address,
         amount,
       });
-      await expect(lbtc.burn(ethers.encodeBytes32String("script"), 50_000_000n))
-          .to.revertedWithCustomError( lbtc,"WithdrawalsDisabled");
-    })
-  })
-})
+      await expect(
+        lbtc.burn(ethers.encodeBytes32String("script"), 50_000_000n)
+      ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
+    });
+  });
+});
