@@ -6,8 +6,9 @@ export const signData = async (
   signer: HDNodeWallet,
   data: { to: string; amount: BigNumberish; chainId: BigNumberish }
 ): Promise<{
-  data: any;
-  signature: any;
+  data: string;
+  signature: string;
+  hash: string;
 }> => {
   // encode data and produce hash
   const packed = ethers.AbiCoder.defaultAbiCoder().encode(
@@ -26,5 +27,6 @@ export const signData = async (
   return {
     data: packed,
     signature: signedHash,
+    hash,
   };
 };
