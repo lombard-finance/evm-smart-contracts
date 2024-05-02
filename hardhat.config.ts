@@ -7,11 +7,9 @@ const config: HardhatUserConfig = {
   networks: {
     holesky: {
       loggingEnabled: true,
-      url: "https://rpc.ankr.com/eth_holesky/6e02f60591b5500824114c276484ebe66635f6530640f783a785fef89458804f",
+      url: process.env.HOLESKY_RPC || "https://rpc.ankr.com/eth_holesky",
       chainId: 17_000,
-      accounts: [
-        "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5",
-      ],
+      accounts: [process.env.DEPLOYER_SK || ""],
       timeout: 90_000,
       gas: 8_000_000,
       gasMultiplier: 1.5,
@@ -19,7 +17,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      holesky: "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1",
+      holesky: process.env.ETHERSCAN_API_KEY || "",
     },
   },
 };
