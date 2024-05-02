@@ -4,15 +4,15 @@ pragma solidity ^0.8.24;
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 /**
  * @title The contract utilize consortium governance functions
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
  */
-contract LombardConsortium is Initializable, IERC1271 {
+contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
     error BadSignature();
 
@@ -47,13 +47,24 @@ contract LombardConsortium is Initializable, IERC1271 {
     }
 
     function __Consortium_init(address thresholdKey) internal onlyInitializing {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-        $.thresholdKey = thresholdKey;
-        emit ThresholdKeyChanged(address(0), thresholdKey);
+        _changeThresholdKey(thresholdKey);
     }
 
-    function initialize(address thresholdKey) external initializer {
+    function initialize(address thresholdKey, address ownerKey) external initializer {
+        __Ownable_init(ownerKey);
+        __Ownable2Step_init();
+
         __Consortium_init(thresholdKey);
+    }
+
+    function changeThresholdKey(address newVal) external onlyOwner {
+        _changeThresholdKey(newVal);
+    }
+
+    function _changeThresholdKey(address newVal) internal {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        emit ThresholdKeyChanged($.thresholdKey, newVal);
+        $.thresholdKey = newVal;
     }
 
     function isValidSignature(
@@ -67,5 +78,9 @@ contract LombardConsortium is Initializable, IERC1271 {
         }
 
         return EIP1271_MAGICVALUE;
+    }
+
+    function thresholdKey() external view returns (address) {
+        return _getConsortiumStorage().thresholdKey;
     }
 }

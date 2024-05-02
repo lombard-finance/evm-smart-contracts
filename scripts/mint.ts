@@ -8,17 +8,15 @@ async function main() {
   );
 
   let buf = Buffer.from(
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAABi8Qzltyft94fqRXdr0FAwimEVCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAe",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAABi8Qzltyft94fqRXdr0FAwimEVCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACOf",
     "base64"
   );
-  console.log(buf.toString("hex"));
 
   const myBuffer = Buffer.from(
-    "dvqZ6uHmGhfMVZOkNtrUoYRhTWcV2Nl+nvpsyDTy39NK93RJHJCPl7ba7Ho1ipjiwksuH09/zEWOUpPAPCIdyQA=",
+    "zC8UnBMC2+oNpaTDJTMITrkMqaTEWTxB2ULANwzIZe1jHRfPZma31bGtaD+Thspp6g0ylm0durAgLhiQ/O2VdwE=",
     "base64"
   );
   myBuffer[myBuffer.length - 1] += 27;
-  console.log(myBuffer.toString("hex"));
 
   const tx = await lbtc.mint(
     `0x${buf.toString("hex")}`,
