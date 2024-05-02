@@ -1,83 +1,55 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { expect } from "chai";
-import hre, { ethers, upgrades } from "hardhat";
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { BigNumberish } from "ethers";
-import secp256k1 from "secp256k1";
+import {ethers, upgrades} from "hardhat";
+import {expect} from "chai";
+import {takeSnapshot} from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import {signData} from "./helpers";
+import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
+import {LBTC} from "../typechain-types";
+import {SnapshotRestorer} from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 
-const signData = async (
-  signer: SignerWithAddress,
-  data: { to: string; amount: BigNumberish; chainId: BigNumberish }
-): Promise<{
-  data: any;
-  signature: any;
-}> => {
-  const packed = ethers.AbiCoder.defaultAbiCoder().encode(
-    ["uint256", "address", "uint64"],
-    [data.chainId, data.to, data.amount]
-  );
-  const hash = ethers.keccak256(packed);
-
-  const accounts = hre.config.networks.hardhat.accounts;
-  const wallet1 = ethers.Wallet.fromPhrase(
-    Array.isArray(accounts) ? "" : accounts.mnemonic
-  );
-
-  const signature = sign(wallet1.privateKey, hash);
-
-  return {
-    data: packed,
-    signature,
-  };
-};
-
-function sign(privateKey: string, data: string) {
-  const { signature, recid } = secp256k1.ecdsaSign(
-    ethers.getBytes(data),
-    ethers.getBytes(privateKey)
-  );
-  return ethers.hexlify(signature) + (recid === 0 ? "1b" : "1c");
+async function init(owner: HardhatEthersSigner) {
+  console.log("=== LBTC");
+  const LBTC = await ethers.getContractFactory("LBTC");
+  const lbtc = (await upgrades.deployProxy(LBTC, [owner.address])) as LBTC;
+  await lbtc.waitForDeployment();
+  return {lbtc};
 }
 
 describe("LBTC", function () {
-  async function deployFixture() {
-    // Contracts are deployed using the first signer/account by default
-    const [owner, otherAccount] = await hre.ethers.getSigners();
 
-    const lbtc = await upgrades.deployProxy(
-      await ethers.getContractFactory("LBTC"),
-      [await owner.getAddress()]
-    );
-    await lbtc.waitForDeployment();
+  let owner: HardhatEthersSigner, signer1: HardhatEthersSigner, signer2: HardhatEthersSigner, signer3: HardhatEthersSigner;
+  let lbtc: LBTC;
+  let snapshot: SnapshotRestorer;
 
-    return { lbtc, owner, otherAccount };
-  }
+  before(async function() {
+    [owner, signer1, signer2, signer3] = await ethers.getSigners();
+    const result = await init(owner);
+    lbtc = result.lbtc;
+    snapshot = await takeSnapshot();
+  })
 
   describe("Deployment", function () {
-    it("Should set right consortium", async function () {
-      const { lbtc, owner } = await loadFixture(deployFixture);
+    before(async function(){
+      await snapshot.restore();
+    })
 
-      expect(await lbtc.owner()).to.equal(await owner.getAddress());
+    it("Should set right consortium", async function () {
+      expect(await lbtc.owner()).to.equal(owner.address);
     });
   });
 
   describe("Mint", function () {
-    describe("Signature", function () {
-      it("Should mint successfully", async function () {
-        const { lbtc, owner } = await loadFixture(deployFixture);
+    before(async function(){
+      await snapshot.restore();
+    })
 
-        const amount = "100000000"; // 1 BTC
+    it("Should mint successfully", async function () {
+      const amount = 100_000_000n; // 1 BTC
 
-        const signed = await signData(owner, {
-          to: await owner.getAddress(),
-          amount,
-          chainId: (await ethers.provider.getNetwork()).chainId,
-        });
+      const signed = await signData(owner, {to: owner.address, amount});
 
-        expect(lbtc.mint(signed.data, signed.signature))
+      expect(lbtc.mint(signed.data, signed.signature))
           .to.emit(lbtc, "Transfer")
-          .withArgs(ethers.ZeroAddress, await owner.getAddress(), amount);
-      });
+          .withArgs(ethers.ZeroAddress, owner.address, amount);
     });
   });
 });
