@@ -278,6 +278,7 @@ describe("LBTC", function () {
     });
   });
 
+  //TODO: finish when burn will be ready
   describe("Burn negative cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
