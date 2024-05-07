@@ -10,7 +10,7 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import "./ILBTC.sol";
-import "../libs/DepositDataCodec.sol";
+import "../libs/OutputCodec.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 
 /**
@@ -99,20 +99,17 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         bytes32 proofHash = keccak256(data);
 
-        // The problem is if we will change signer its open ability to reuse same signatures
-        // But Consortium save signature forever and it will not be changed if we change signer
-        bytes32 signatureHash = keccak256(proofSignature);
-
-        if ($._usedProofs[signatureHash]) {
+        if ($._usedProofs[proofHash]) {
             revert ProofAlreadyUsed();
         }
 
         // we can trust data only if proof is signed by Consortium
         EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
-        $._usedProofs[signatureHash] = true;
+        // We can save the proof, because output with index in unique pair
+        $._usedProofs[proofHash] = true;
 
         // parse deposit
-        DepositData memory depositData = DepositDataCodec.decode(data);
+        OutputWithPayload memory output = OutputCodec.decode(data);
 
         // verify chainId
         uint256 chainId = block.chainid;

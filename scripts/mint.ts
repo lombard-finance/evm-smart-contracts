@@ -8,17 +8,20 @@ async function main() {
   );
 
   let buf = Buffer.from(
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAABi8Qzltyft94fqRXdr0FAwimEVCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACOf",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAABNSVl3GjEzTYXa8l2sViU2MyzpMgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACcQ",
     "base64"
   );
 
   const myBuffer = Buffer.from(
-    "zC8UnBMC2+oNpaTDJTMITrkMqaTEWTxB2ULANwzIZe1jHRfPZma31bGtaD+Thspp6g0ylm0durAgLhiQ/O2VdwE=",
+    "yYd6EmPpOldLhg7GvPrlYynEgzvgDwb1TI7fHs0+ZYM/YCNjzmRRRk/PIC9BK/XE4Z/6e4wNqkn6aSy/9jUMlgA=",
     "base64"
   );
   myBuffer[myBuffer.length - 1] += 27;
 
-  const tx = await lbtc.mint(
+  console.log("data", `0x${buf.toString("hex")}`);
+  console.log("proofSignature", `0x${myBuffer.toString("hex")}`);
+
+  const tx = await lbtc.mint.estimateGas(
     `0x${buf.toString("hex")}`,
     `0x${myBuffer.toString("hex")}`
   );
