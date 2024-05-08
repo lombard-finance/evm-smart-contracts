@@ -22,8 +22,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        uint256 _globalNonce;
-
         mapping(bytes32 => bool) _usedProofs;
 
         string name;
@@ -34,11 +32,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant LBTCStorageLocation = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+    bytes32 private constant LBTC_STORAGE_LOCATION = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
         assembly {
-            $.slot := LBTCStorageLocation
+            $.slot := LBTC_STORAGE_LOCATION
         }
     }
 
@@ -113,41 +111,40 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // verify chainId
         uint256 chainId = block.chainid;
-        if (chainId != depositData.chainId) {
-            revert BadChainId(chainId, depositData.chainId);
+        if (chainId != output.chainId) {
+            revert BadChainId(chainId, output.chainId);
         }
 
         // verify amount
-        if (depositData.amount == 0) {
+        if (output.amount == 0) {
             revert ZeroAmount();
         }
 
-        _mint(depositData.to, uint256(depositData.amount));
+        _mint(output.to, uint256(output.amount));
+
+        emit OutputProcessed(output.txId, output.index, proofHash);
     }
 
     /**
      * @dev Burns LBTC to initiate withdrawal of BTC to provided `script` with `amount`
      * 
-     * @param script BigEndian Bitcoin ScriptPubKey address
+     * @param btcAddress BigEndian Bitcoin ScriptPubKey address
      * @param amount Amount of LBTC to burn
      */
-    function burn(bytes32 script, uint256 amount) external {
+    function burn(bytes32 btcAddress, uint256 amount) external {
         LBTCStorage storage $ = _getLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
             revert WithdrawalsDisabled();
         }
 
-        // TODO: verify script
-
         address fromAddress = address(_msgSender());
         _burn(fromAddress, amount);
 
-        emit Burned(
+        emit UnstakeRequest(
             fromAddress,
-            script,
-            amount,
-            $._globalNonce++
+            btcAddress,
+            amount
         );
     }
 

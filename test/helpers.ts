@@ -2,10 +2,15 @@ import { config, ethers, network } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
-
 export async function signData(
   privateKey: string,
-  data: { to: string; amount: bigint; chainId?: number }
+  data: {
+    to: string;
+    amount: bigint;
+    chainId?: number;
+    txId?: string;
+    outputIndex?: number;
+  }
 ): Promise<{
   data: string;
   hash: string;
@@ -13,9 +18,16 @@ export async function signData(
 }> {
   //pack and hash
   const packed = ethers.AbiCoder.defaultAbiCoder().encode(
-    ["uint256", "address", "uint64"],
-    [data.chainId || network.config.chainId, data.to, data.amount]
+    ["uint256", "address", "uint64", "bytes32", "uint32"],
+    [
+      data.chainId || network.config.chainId,
+      data.to,
+      data.amount,
+      data.txId || ethers.randomBytes(32),
+      data.outputIndex || Math.floor(Math.random() * 4294967295),
+    ]
   );
+  console.log("packed", packed);
   const hash = ethers.keccak256(packed);
 
   // sign hash
@@ -32,8 +44,13 @@ export async function signData(
   };
 }
 
-export async function enrichWithPrivateKeys(signers: HardhatEthersSigner[], phrase?: string) {
-  const mnemonic = ethers.Mnemonic.fromPhrase(phrase || config.networks.hardhat.accounts.mnemonic);
+export async function enrichWithPrivateKeys(
+  signers: HardhatEthersSigner[],
+  phrase?: string
+) {
+  const mnemonic = ethers.Mnemonic.fromPhrase(
+    phrase || config.networks.hardhat.accounts.mnemonic
+  );
   for (let i = 0; i < signers.length; i++) {
     const wallet = ethers.HDNodeWallet.fromMnemonic(
       mnemonic,

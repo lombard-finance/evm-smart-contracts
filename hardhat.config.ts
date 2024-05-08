@@ -22,7 +22,8 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      holesky: process.env.ETHERSCAN_API_KEY || "",
+      holesky:
+        process.env.ETHERSCAN_API_KEY || "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1",
     },
   },
 };

@@ -224,7 +224,7 @@ describe("LBTC", function () {
         recipient: () => ethers.ZeroAddress,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "ERC20InvalidReceiver",
+        customError: "WrongAddressEncoding",
       },
     ];
     args.forEach(function (arg) {

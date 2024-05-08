@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Uncomment this line to use console.log
-// import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "../libs/EIP1271SignatureUtils.sol";
 
 /**
  * @title The contract utilize consortium governance functions
@@ -16,18 +15,15 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
     error BadSignature();
 
-    event ThresholdKeyChanged(address prevValue, address newValue);
+    event ThresholdAddrChanged(address prevValue, address newValue);
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Consortium
     struct ConsortiumStorage {
-        address thresholdKey;
+        address thresholdAddr;
     }
 
-    // bytes4(keccak256("isValidSignature(bytes32,bytes)")
-    bytes4 internal constant EIP1271_MAGICVALUE = 0x1626ba7e;
-
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ConsortiumStorageLocation =
+    bytes32 private constant CONSORTIUM_STORAGE_LOCATION =
         0xbac09a3ab0e06910f94a49c10c16eb53146536ec1a9e948951735cde3a58b500;
 
     function _getConsortiumStorage()
@@ -36,7 +32,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         returns (ConsortiumStorage storage $)
     {
         assembly {
-            $.slot := ConsortiumStorageLocation
+            $.slot := CONSORTIUM_STORAGE_LOCATION
         }
     }
 
@@ -46,25 +42,25 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         _disableInitializers();
     }
 
-    function __Consortium_init(address thresholdKey) internal onlyInitializing {
-        _changeThresholdKey(thresholdKey);
+    function __Consortium_init(address thresholdAddr) internal onlyInitializing {
+        _changeThresholdAddr(thresholdAddr);
     }
 
-    function initialize(address thresholdKey, address ownerKey) external initializer {
+    function initialize(address thresholdAddr, address ownerKey) external initializer {
         __Ownable_init(ownerKey);
         __Ownable2Step_init();
 
-        __Consortium_init(thresholdKey);
+        __Consortium_init(thresholdAddr);
     }
 
-    function changeThresholdKey(address newVal) external onlyOwner {
-        _changeThresholdKey(newVal);
+    function changeThresholdAddr(address newVal) external onlyOwner {
+        _changeThresholdAddr(newVal);
     }
 
-    function _changeThresholdKey(address newVal) internal {
+    function _changeThresholdAddr(address newVal) internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        emit ThresholdKeyChanged($.thresholdKey, newVal);
-        $.thresholdKey = newVal;
+        emit ThresholdAddrChanged($.thresholdAddr, newVal);
+        $.thresholdAddr = newVal;
     }
 
     function isValidSignature(
@@ -73,14 +69,14 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     ) external view override returns (bytes4 magicValue) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        if (ECDSA.recover(hash, signature) != $.thresholdKey) {
+        if (ECDSA.recover(hash, signature) != $.thresholdAddr) {
                 revert BadSignature();
         }
 
-        return EIP1271_MAGICVALUE;
+        return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
     }
 
-    function thresholdKey() external view returns (address) {
-        return _getConsortiumStorage().thresholdKey;
+    function thresholdAddr() external view returns (address) {
+        return _getConsortiumStorage().thresholdAddr;
     }
 }

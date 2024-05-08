@@ -4,26 +4,23 @@ import { ethers, upgrades } from "hardhat";
 async function main() {
   const lbtc = await ethers.getContractAt(
     "LBTC",
-    "0xfD18D35A327bb5BA1a1A6cd1b9be6b33FC5Da3e4"
+    "0xD27cdA6E1eD6C807280670Ea0E06D1342f778B3E"
   );
 
-  let buf = Buffer.from(
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAABNSVl3GjEzTYXa8l2sViU2MyzpMgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACcQ",
+  let data = Buffer.from(
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAADnWqHbC2ruhb+FLX1GIMQEDI2q0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPowSHQTQoeIaaktL6/SBHHq4CunZtpedjPPVtVlYG/NOIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ==",
     "base64"
   );
 
-  const myBuffer = Buffer.from(
-    "yYd6EmPpOldLhg7GvPrlYynEgzvgDwb1TI7fHs0+ZYM/YCNjzmRRRk/PIC9BK/XE4Z/6e4wNqkn6aSy/9jUMlgA=",
+  const proofSignature = Buffer.from(
+    "z77KwYlTn9NKtrrESYmUxxjdsDUTyocWQ7HLCAHOpBsTVq8RuZUA37hgaRlsoDx3v9SNHmfqwOiCKPlx5W3regA=",
     "base64"
   );
-  myBuffer[myBuffer.length - 1] += 27;
+  proofSignature[proofSignature.length - 1] += 27;
 
-  console.log("data", `0x${buf.toString("hex")}`);
-  console.log("proofSignature", `0x${myBuffer.toString("hex")}`);
-
-  const tx = await lbtc.mint.estimateGas(
-    `0x${buf.toString("hex")}`,
-    `0x${myBuffer.toString("hex")}`
+  const tx = await lbtc.mint(
+    `0x${data.toString("hex")}`,
+    `0x${proofSignature.toString("hex")}`
   );
   console.log(tx);
 }

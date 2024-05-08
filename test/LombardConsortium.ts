@@ -50,15 +50,15 @@ describe("LombardConsortium", function () {
       expect(await lombard.owner()).to.equal(deployer.address);
     });
     it("Should set right threshold owner", async function () {
-      expect(await lombard.thresholdKey()).to.equal(threshold.address);
+      expect(await lombard.thresholdAddr()).to.equal(threshold.address);
     });
-    it("changeThresholdKey()", async function () {
-      const prevValue = await lombard.thresholdKey();
+    it("changeThresholdAdrr()", async function () {
+      const prevValue = await lombard.thresholdAddr();
       const newValue = signer1.address;
-      await expect(lombard.changeThresholdKey(newValue))
-        .to.emit(lombard, "ThresholdKeyChanged")
+      await expect(lombard.changeThresholdAddr(newValue))
+        .to.emit(lombard, "ThresholdAddrChanged")
         .withArgs(prevValue, newValue);
-      expect(await lombard.thresholdKey()).to.be.eq(newValue);
+      expect(await lombard.thresholdAddr()).to.be.eq(newValue);
 
       //Validate with new key
       const amount = 100_000_000n;
@@ -73,9 +73,9 @@ describe("LombardConsortium", function () {
       ).to.be.gt(1n);
     });
 
-    it("changeThresholdKey() reverts when called by not an owner", async function () {
+    it("changeThresholdAddr() reverts when called by not an owner", async function () {
       await expect(
-        lombard.connect(signer1).changeThresholdKey(signer1.address)
+        lombard.connect(signer1).changeThresholdAddr(signer1.address)
       ).to.revertedWithCustomError(lombard, "OwnableUnauthorizedAccount");
     });
   });
