@@ -22,7 +22,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        mapping(bytes32 => bool) _usedProofs;
+        mapping(bytes32 => bool) usedProofs;
 
         string name;
         string symbol;
@@ -97,14 +97,14 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         bytes32 proofHash = keccak256(data);
 
-        if ($._usedProofs[proofHash]) {
+        if ($.usedProofs[proofHash]) {
             revert ProofAlreadyUsed();
         }
 
         // we can trust data only if proof is signed by Consortium
         EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
         // We can save the proof, because output with index in unique pair
-        $._usedProofs[proofHash] = true;
+        $.usedProofs[proofHash] = true;
 
         // parse deposit
         OutputWithPayload memory output = OutputCodec.decode(data);
@@ -146,6 +146,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             btcAddress,
             amount
         );
+    }
+
+    function isUsed(bytes32 proof) external view returns (bool) {
+        return _getLBTCStorage().usedProofs[proof];
     }
 
     function consortium() external view virtual returns (address) {
