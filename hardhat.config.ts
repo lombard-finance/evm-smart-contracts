@@ -9,7 +9,12 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get("HOLESKY_RPC", "https://rpc.ankr.com/eth_holesky"),
       chainId: 17_000,
-      accounts: [vars.get("TESTNET_DEPLOYER_SK")],
+      accounts: [
+        vars.get(
+          "TESTNET_DEPLOYER_SK",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ),
+      ],
       timeout: 90_000,
       gas: 8_000_000,
       gasMultiplier: 1.5,
@@ -18,7 +23,12 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get("MAINNET_RPC", "https://rpc.ankr.com/eth"),
       chainId: 1,
-      accounts: [vars.get("DEPLOYER_SK")],
+      accounts: [
+        vars.get(
+          "DEPLOYER_SK",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ),
+      ],
       timeout: 90_000,
       gas: 8_000_000,
       gasMultiplier: 1,
@@ -27,6 +37,10 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: {
       holesky: vars.get(
+        "ETHERSCAN_API_KEY",
+        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
+      ),
+      mainnet: vars.get(
         "ETHERSCAN_API_KEY",
         "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
       ),
