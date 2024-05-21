@@ -13,6 +13,7 @@ interface ILBTC {
     event UnstakeRequest(address fromAddress, bytes32 toAddress, uint256 amount);
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
+    event ConsortiumChanged(address prevVal, address newVal);
     event OutputProcessed(bytes32 transactionId, uint32 index, bytes32 hash);
     event WBTCStaked(address staker, address to, uint256 amount);
     event WBTCStakingEnabled(bool);

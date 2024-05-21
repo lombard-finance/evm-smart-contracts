@@ -49,9 +49,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function __LBTC_init(string memory name_, string memory symbol_, address consortium_) internal onlyInitializing {
-        LBTCStorage storage $ = _getLBTCStorage();
         _changeNameAndSymbol(name_, symbol_);
-        $.consortium = consortium_;
+        _changeConsortium(consortium_);
     }
 
     function initialize(address consortium_) external initializer {
@@ -114,15 +113,25 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit NameAndSymbolChanged(name_, symbol_);
     }
 
-    function stake(uint256 amount) external nonReentrant {
-        _stake(amount, _msgSender());
+    function changeConsortium(address newVal) external onlyOwner {
+        _changeConsortium(newVal);
     }
 
-    function stakeFor(uint256 amount, address to) external nonReentrant {
-        _stake(amount, to);
+    function _changeConsortium(address newVal) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        emit ConsortiumChanged($.consortium, newVal);
+        $.consortium = newVal;
     }
 
-    function _stake(uint256 amount, address to) internal {
+    function stakeWBTC(uint256 amount) external nonReentrant {
+        _stakeWBTC(amount, _msgSender());
+    }
+
+    function stakeWBTCFor(uint256 amount, address to) external nonReentrant {
+        _stakeWBTC(amount, to);
+    }
+
+    function _stakeWBTC(uint256 amount, address to) internal {
         LBTCStorage storage $ = _getLBTCStorage();
         if (!$.isWBTCEnabled) {
             revert WBTCStakingDisabled();
