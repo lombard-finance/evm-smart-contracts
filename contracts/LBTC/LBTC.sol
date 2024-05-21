@@ -74,6 +74,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function changeWBTC(address wbtc_) external onlyOwner {
+        if (wbtc_ == address(0)) {
+            revert ZeroAddress();
+        }
+
         uint8 expectedDecimals = decimals();
         uint8 tokenDecimals = IERC20Metadata(wbtc_).decimals();
 
@@ -118,6 +122,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function _changeConsortium(address newVal) internal {
+        if (newVal == address(0)) {
+            revert ZeroAddress();
+        }
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;

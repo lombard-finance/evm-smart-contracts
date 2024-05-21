@@ -5,6 +5,7 @@ interface ILBTC {
     error ProofAlreadyUsed();
     error BadChainId(uint256 expected, uint256 received);
     error ZeroAmount();
+    error ZeroAddress();
     error WithdrawalsDisabled();
     error WBTCStakingDisabled();
     error WBTCNotSet();
