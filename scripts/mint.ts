@@ -4,23 +4,23 @@ import { ethers, upgrades } from "hardhat";
 async function main() {
   const lbtc = await ethers.getContractAt(
     "LBTC",
-    "0xfD18D35A327bb5BA1a1A6cd1b9be6b33FC5Da3e4"
+    "0xD27cdA6E1eD6C807280670Ea0E06D1342f778B3E"
   );
 
-  let buf = Buffer.from(
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAABi8Qzltyft94fqRXdr0FAwimEVCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACOf",
+  let data = Buffer.from(
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQmgAAAAAAAAAAAAAAADnWqHbC2ruhb+FLX1GIMQEDI2q0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPowSHQTQoeIaaktL6/SBHHq4CunZtpedjPPVtVlYG/NOIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ==",
     "base64"
   );
 
-  const myBuffer = Buffer.from(
-    "zC8UnBMC2+oNpaTDJTMITrkMqaTEWTxB2ULANwzIZe1jHRfPZma31bGtaD+Thspp6g0ylm0durAgLhiQ/O2VdwE=",
+  const proofSignature = Buffer.from(
+    "z77KwYlTn9NKtrrESYmUxxjdsDUTyocWQ7HLCAHOpBsTVq8RuZUA37hgaRlsoDx3v9SNHmfqwOiCKPlx5W3regA=",
     "base64"
   );
-  myBuffer[myBuffer.length - 1] += 27;
+  proofSignature[proofSignature.length - 1] += 27;
 
   const tx = await lbtc.mint(
-    `0x${buf.toString("hex")}`,
-    `0x${myBuffer.toString("hex")}`
+    `0x${data.toString("hex")}`,
+    `0x${proofSignature.toString("hex")}`
   );
   console.log(tx);
 }
