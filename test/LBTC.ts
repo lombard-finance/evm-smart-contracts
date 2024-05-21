@@ -3,15 +3,24 @@ import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { enrichWithPrivateKeys, signData } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTC } from "../typechain-types";
+import { LBTC, WBTCMock } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
+import { lcov } from "node:test/reporters";
 
 async function init(consortium: HardhatEthersSigner) {
   console.log("=== LBTC");
   const LBTC = await ethers.getContractFactory("LBTC");
-  const lbtc = (await upgrades.deployProxy(LBTC, [consortium.address])) as LBTC;
+  const lbtc = (await upgrades.deployProxy(LBTC, [
+    consortium.address,
+  ])) as unknown as LBTC;
   await lbtc.waitForDeployment();
-  return { lbtc };
+
+  console.log("=== LBTC");
+  const WBTC = await ethers.getContractFactory("WBTCMock");
+  const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
+  await wbtc.waitForDeployment();
+
+  return { lbtc, wbtc };
 }
 
 describe("LBTC", function () {
@@ -23,6 +32,7 @@ describe("LBTC", function () {
   let signers;
   let lbtc: LBTC;
   let snapshot: SnapshotRestorer;
+  let wbtc: WBTCMock;
 
   before(async function () {
     [deployer, consortium, signer1, signer2, signer3] =
@@ -31,6 +41,7 @@ describe("LBTC", function () {
     await enrichWithPrivateKeys(signers);
     const result = await init(consortium);
     lbtc = result.lbtc;
+    wbtc = result.wbtc;
     snapshot = await takeSnapshot();
   });
 
@@ -49,6 +60,14 @@ describe("LBTC", function () {
 
     it("decimals()", async function () {
       expect(await lbtc.decimals()).to.equal(8n);
+    });
+
+    it("WBTC() unset", async function () {
+      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
+    });
+
+    it("WBTC() unset", async function () {
+      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
     });
 
     it("pause() turns on enforced pause", async function () {
@@ -108,6 +127,29 @@ describe("LBTC", function () {
       await expect(
         lbtc.connect(signer1).toggleWithdrawals()
       ).to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("WBTC() set", async function () {
+      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
+        .to.emit(lbtc, "WBTCChanged")
+        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
+      expect(await lbtc.WBTC()).to.be.equal(await wbtc.getAddress());
+    });
+
+    it("Enable WBTC staking if WBTC not set", async function () {
+      await expect(lbtc.enableWBTCStaking()).to.be.revertedWithCustomError(
+        lbtc,
+        "WBTCNotSet"
+      );
+    });
+
+    it("Enable WBTC staking if WBTC set", async function () {
+      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
+        .to.emit(lbtc, "WBTCChanged")
+        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
+      expect(await lbtc.enableWBTCStaking())
+        .to.emit(lbtc, "WBTCStakingEnabled")
+        .withArgs(true);
     });
   });
 
@@ -275,6 +317,69 @@ describe("LBTC", function () {
       await expect(
         lbtc.mint(signedData.data, signedData.signature)
       ).to.revertedWithCustomError(lbtc, "EnforcedPause");
+    });
+  });
+
+  describe("Stake WBTC", function () {
+    const stakeAm = 10n ** 8n; // 1 WBTC
+
+    beforeEach(async function () {
+      await snapshot.restore();
+    });
+
+    it("WBTC stake disabled", async function () {
+      await expect(lbtc.stake(stakeAm)).to.revertedWithCustomError(
+        lbtc,
+        "WBTCStakingDisabled"
+      );
+    });
+
+    it("Stake WBTC", async function () {
+      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
+        .to.emit(lbtc, "WBTCChanged")
+        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
+      expect(await lbtc.enableWBTCStaking())
+        .to.emit(lbtc, "WBTCStakingEnabled")
+        .withArgs(true);
+
+      await wbtc.mint(await signer3.getAddress(), stakeAm);
+      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
+
+      await expect(lbtc.connect(signer3).stake(stakeAm))
+        .to.emit(lbtc, "WBTCStaked")
+        .withArgs(
+          await signer3.getAddress(),
+          await signer3.getAddress(),
+          stakeAm
+        );
+    });
+
+    it("Stake WBT if not enough funds", async function () {
+      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
+        .to.emit(lbtc, "WBTCChanged")
+        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
+      expect(await lbtc.enableWBTCStaking())
+        .to.emit(lbtc, "WBTCStakingEnabled")
+        .withArgs(true);
+
+      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
+
+      await expect(
+        lbtc.connect(signer3).stake(stakeAm)
+      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
+    });
+
+    it("Stake WBTC if amount not allowed", async function () {
+      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
+        .to.emit(lbtc, "WBTCChanged")
+        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
+      expect(await lbtc.enableWBTCStaking())
+        .to.emit(lbtc, "WBTCStakingEnabled")
+        .withArgs(true);
+
+      await expect(
+        lbtc.connect(signer3).stake(stakeAm)
+      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientAllowance");
     });
   });
 
