@@ -62,14 +62,6 @@ describe("LBTC", function () {
       expect(await lbtc.decimals()).to.equal(8n);
     });
 
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
     it("pause() turns on enforced pause", async function () {
       expect(await lbtc.paused()).to.be.false;
       await expect(lbtc.pause())
@@ -127,29 +119,6 @@ describe("LBTC", function () {
       await expect(
         lbtc.connect(signer1).toggleWithdrawals()
       ).to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
-    });
-
-    it("WBTC() set", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.WBTC()).to.be.equal(await wbtc.getAddress());
-    });
-
-    it("Enable WBTC staking if WBTC not set", async function () {
-      await expect(lbtc.enableWBTCStaking()).to.be.revertedWithCustomError(
-        lbtc,
-        "WBTCNotSet"
-      );
-    });
-
-    it("Enable WBTC staking if WBTC set", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
     });
   });
 
@@ -317,102 +286,6 @@ describe("LBTC", function () {
       await expect(
         lbtc.mint(signedData.data, signedData.signature)
       ).to.revertedWithCustomError(lbtc, "EnforcedPause");
-    });
-  });
-
-  describe("Stake WBTC", function () {
-    const stakeAm = 10n ** 8n; // 1 WBTC
-
-    beforeEach(async function () {
-      await snapshot.restore();
-    });
-
-    it("WBTC stake disabled", async function () {
-      await expect(lbtc.stakeWBTC(stakeAm)).to.revertedWithCustomError(
-        lbtc,
-        "WBTCStakingDisabled"
-      );
-    });
-
-    it("Stake WBTC", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await wbtc.mint(await signer3.getAddress(), stakeAm);
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(lbtc.connect(signer3).stakeWBTC(stakeAm))
-        .to.emit(lbtc, "WBTCStaked")
-        .withArgs(
-          await signer3.getAddress(),
-          await signer3.getAddress(),
-          stakeAm
-        );
-
-      expect(await lbtc.balanceOf(await signer3.getAddress())).to.be.eq(
-        stakeAm
-      );
-    });
-
-    it("Stake WBT if not enough funds", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTC(stakeAm)
-      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
-    });
-
-    it("Stake WBTC if amount not allowed", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTC(stakeAm)
-      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientAllowance");
-    });
-
-    it("Stake WBTC for another address", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await wbtc.mint(await signer3.getAddress(), stakeAm);
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTCFor(stakeAm, await signer2.getAddress())
-      )
-        .to.emit(lbtc, "WBTCStaked")
-        .withArgs(
-          await signer3.getAddress(),
-          await signer2.getAddress(),
-          stakeAm
-        );
-
-      expect(await wbtc.balanceOf(await signer3.getAddress())).to.be.eq(0);
-      expect(await lbtc.balanceOf(await signer3.getAddress())).to.be.eq(0);
-
-      expect(await lbtc.balanceOf(await signer2.getAddress())).to.be.eq(
-        stakeAm
-      );
     });
   });
 
