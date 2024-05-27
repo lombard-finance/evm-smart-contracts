@@ -5,6 +5,7 @@ type TAddressesWithNetwork = {
 export type TAddresses = {
   LBTC?: string;
   ThresholdKey?: string;
+  Owner?: string;
 };
 
 export function getAddresses(network: string): TAddresses {
