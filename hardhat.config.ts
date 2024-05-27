@@ -46,6 +46,9 @@ const config: HardhatUserConfig = {
       ),
     },
   },
+  sourcify: {
+    enabled: false,
+  },
 };
 
 export default config;

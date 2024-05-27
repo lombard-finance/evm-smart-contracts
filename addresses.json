@@ -1,0 +1,10 @@
+{
+  "mainnet": {
+    "ThresholdKey": "0xA1c3A191695c947d55EeE428cd7EeaC1DA98f05A",
+    "LBCT": "0x8236a87084f8B84306f72007F36F2618A5634494"
+  },
+  "holesky": {
+    "ThresholdKey": "0x1820b9218cb2D9a3790EDe3b5F20851BEc8971B0",
+    "LBTC": "0xED7bfd5C1790576105Af4649817f6d35A75CD818"
+  }
+}
