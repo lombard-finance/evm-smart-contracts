@@ -12,7 +12,7 @@ async function main() {
 
   const constructorArguments = [
     "3600", // 1 hour
-    [await deployer.getAddress()],
+    [await deployer.getAddress(), addresses.Owner],
     [addresses.Owner],
   ];
 
