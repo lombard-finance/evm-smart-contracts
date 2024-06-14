@@ -3,11 +3,11 @@ pragma solidity ^0.8.16;
 
 import "./CallDataRLPReader.sol";
 import "./Utils.sol";
-import "../bridge/ILBTCBridge.sol";
+import "../LBTC/ILBTC.sol";
 
 library EthereumVerifier {
 
-    bytes32 constant TOPIC_PEG_IN_WARPED = keccak256("DepositWarped(uint256,address,address,address,address,uint256,uint256,(bytes32,bytes32,uint256,address))");
+    bytes32 constant TOPIC_PEG_IN_WARPED = keccak256("Deposit(uint256,address,address,address,address,uint256,uint256,(bytes32,bytes32,uint256,address))");
 
     enum PegInType {
         None,
@@ -34,9 +34,9 @@ library EthereumVerifier {
     function getMetadata(State memory state)
     internal
     pure
-    returns (ILBTCBridge.Metadata memory)
+    returns (ILBTC.Metadata memory)
     {
-        ILBTCBridge.Metadata memory metadata;
+        ILBTC.Metadata memory metadata;
         assembly {
             metadata := add(state, 0x120)
         }
