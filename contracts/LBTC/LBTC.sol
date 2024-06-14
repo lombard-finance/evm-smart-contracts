@@ -387,7 +387,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().destinations[chain];
     }
 
-    function getTreasure() public view returns (address) {
+    function getTreasury() public view returns (address) {
         return _getLBTCStorage().treasure;
     }
 
