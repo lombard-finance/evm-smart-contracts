@@ -44,7 +44,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
-    uint16 constant MAX_COMMISSION = 10000; // 100.00%
+    uint16 public constant MAX_COMMISSION = 10000; // 100.00%
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
         assembly {
