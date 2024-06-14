@@ -35,7 +35,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         bool isWBTCEnabled;
 
         IERC20 wbtc;
-        address treasure;
+        address treasury;
         mapping(uint256 => address) destinations;
         mapping(uint256 => uint16) depositCommission;
         uint256 globalNonce;
