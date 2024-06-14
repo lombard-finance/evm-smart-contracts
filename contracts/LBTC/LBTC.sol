@@ -267,7 +267,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param toAddress claimer of 'totalAmount' on destination chain.
      * @param totalAmount amout of tokens to be warped.
      */
-    function _depositWarped(uint256 toChain, address toAddress, uint256 totalAmount) internal {
+    function _depositEVM(uint256 toChain, address toAddress, uint256 totalAmount) internal {
         uint256 fee = Utils.multiplyAndDivideCeil(
             totalAmount,
             getDepositCommission(toChain),
