@@ -257,7 +257,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     // --- Bridge ---
     function depositToken(uint256 toChain, address toAddress, uint256 amount) external override nonReentrant whenNotPaused {
         if (getDestination(toChain) != address(0)) {
-            _depositWarped(toChain, toAddress, amount);
+            _depositEVM(toChain, toAddress, amount);
         } else revert UnknownDestination();
     }
     /**
