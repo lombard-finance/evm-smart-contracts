@@ -6,11 +6,11 @@ import "../LBTC/ILBTC.sol";
 
 library EthereumVerifier {
 
-    bytes32 constant TOPIC_PEG_IN_WARPED = keccak256("Deposit(uint256,address,address,address,address,uint256,uint256,(bytes32,bytes32,uint256,address))");
+    bytes32 constant TOPIC_PEG_IN_BRIDGED = keccak256("Deposit(uint256,address,address,address,address,uint256,uint256)");
 
     enum PegInType {
         None,
-        Warp
+        Bridged
     }
 
     struct State {
@@ -23,23 +23,6 @@ library EthereumVerifier {
         address toToken;
         uint256 totalAmount;
         uint256 nonce;
-        // metadata fields (we can't use Metadata struct here because of Solidity struct memory layout)
-        bytes32 symbol;
-        bytes32 name;
-        uint256 originChain;
-        address originToken;
-    }
-
-    function getMetadata(State memory state)
-    internal
-    pure
-    returns (ILBTC.Metadata memory)
-    {
-        ILBTC.Metadata memory metadata;
-        assembly {
-            metadata := add(state, 0x120)
-        }
-        return metadata;
     }
 
     function parseTransactionReceipt(uint256 receiptOffset)
@@ -133,9 +116,9 @@ library EthereumVerifier {
         {
             // parse logs based on topic type and check that event data has correct length
             uint256 expectedLen;
-            if (mainTopic == TOPIC_PEG_IN_WARPED) {
+            if (mainTopic == TOPIC_PEG_IN_BRIDGED) {
                 expectedLen = 0x120;
-                pegInType = PegInType.Warp;
+                pegInType = PegInType.Bridged;
             } else {
                 return PegInType.None;
             }

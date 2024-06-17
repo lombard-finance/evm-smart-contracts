@@ -254,7 +254,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     // --- Bridge ---
-    function depositToken(uint256 toChain, address toAddress, uint256 amount) external override nonReentrant whenNotPaused {
+    function depositToBridge(uint256 toChain, address toAddress, uint256 amount) external override nonReentrant whenNotPaused {
         if (getDestination(toChain) != address(0)) {
             _depositEVM(toChain, toAddress, amount);
         } else revert UnknownDestination();
@@ -264,7 +264,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * Burns tokens on source chain (to later mint on destination chain).
      * @param toChain one of many destination chain ID.
      * @param toAddress claimer of 'totalAmount' on destination chain.
-     * @param totalAmount amout of tokens to be warped.
+     * @param totalAmount amout of tokens to be bridged.
      */
     function _depositEVM(uint256 toChain, address toAddress, uint256 totalAmount) internal {
         uint256 fee = Math.mulDiv(
@@ -274,23 +274,17 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             Math.Rounding.Ceil
         );
 
-        address fromAddress = address(msg.sender);
+        address fromAddress = msg.sender;
         _transfer(fromAddress, getTreasury(), fee);
         uint256 amountWithoutFee = totalAmount - fee;
         _burn(fromAddress, amountWithoutFee);
 
-        emit Deposit(
+        emit DepositToBridge(
             toChain, fromAddress, toAddress, address(this),
-            getDestination(toChain), amountWithoutFee, _incrementNonce(),
-            ILBTC.Metadata(
-                "",
-                "",
-                0,
-                address(0)
-            ));
+            getDestination(toChain), amountWithoutFee, _incrementNonce());
     }
 
-    function withdraw(bytes calldata, /* encodedProof */ bytes calldata rawReceipt, bytes memory proofSignature) external override nonReentrant whenNotPaused {
+    function withdrawFromBridge(bytes calldata, /* encodedProof */ bytes calldata rawReceipt, bytes memory proofSignature) external override nonReentrant whenNotPaused {
         uint256 proofOffset;
         uint256 receiptOffset;
         assembly {
@@ -301,7 +295,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         (EthereumVerifier.State memory state, EthereumVerifier.PegInType pegInType) = EthereumVerifier.parseTransactionReceipt(receiptOffset);
 
         if (state.chainId != block.chainid) {
-            revert BadChain();
+            revert BadChainId(block.chainid, state.chainId);
         }
 
         ProofParser.Proof memory proof = ProofParser.parseProof(proofOffset);
@@ -336,14 +330,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
         $.usedBridgeProofs[proofHash] = true;
 
-        // withdraw funds to recipient
         _withdraw(state, pegInType);
     }
 
     function _withdraw(EthereumVerifier.State memory state, EthereumVerifier.PegInType pegInType) internal {
-        if (pegInType == EthereumVerifier.PegInType.Warp) {
+        if (pegInType == EthereumVerifier.PegInType.Bridged) {
             _mint(state.toAddress, state.totalAmount);
-            emit WithdrawMinted(state.receiptHash, state.fromAddress, state.toAddress, state.fromToken, state.toToken, state.totalAmount);
+            emit WithdrawFromBridge(state.receiptHash, state.fromAddress, state.toAddress, state.fromToken, state.toToken, state.totalAmount);
         } else revert InvalidType();
     }
 
@@ -365,19 +358,19 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         $.destinations[toChain] = toToken;
         $.depositCommission[toChain] = commission;
         emit DepositCommissionChanged(commission, toChain);
-        emit WarpDestinationAdded(toChain, toToken);
+        emit BridgeDestinationAdded(toChain, toToken);
     }
 
     function removeDestination(uint256 toChain) external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
         address toToken = $.destinations[toChain];
         if (toToken == address(0)) {
-            revert BadChain();
+            revert ZeroAddress();
         }
         delete $.destinations[toChain];
         delete $.depositCommission[toChain];
 
-        emit WarpDestinationRemoved(toChain, toToken);
+        emit BridgeDestinationRemoved(toChain, toToken);
     }
 
 
@@ -415,7 +408,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit DepositCommissionChanged(newValue, chain);
     }
 
-    function changeTreasureAddress(address newValue)
+    function changeTreasuryAddress(address newValue)
     external
     onlyOwner
     {
