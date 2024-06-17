@@ -2,7 +2,6 @@
 pragma solidity ^0.8.6;
 
 import "./CallDataRLPReader.sol";
-import "./Utils.sol";
 
 library ProofParser {
     // Proof is message format signed by the protocol. It contains somewhat redundant information, so only part

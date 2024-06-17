@@ -7,13 +7,13 @@ import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./ILBTC.sol";
 import "../libs/OutputCodec.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 import "../libs/EthereumVerifier.sol";
 import "../libs/ProofParser.sol";
-import "../libs/Utils.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -267,10 +267,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param totalAmount amout of tokens to be warped.
      */
     function _depositEVM(uint256 toChain, address toAddress, uint256 totalAmount) internal {
-        uint256 fee = Utils.multiplyAndDivideCeil(
+        uint256 fee = Math.mulDiv(
             totalAmount,
             getDepositCommission(toChain),
-            MAX_COMMISSION
+            MAX_COMMISSION,
+            Math.Rounding.Ceil
         );
 
         address fromAddress = address(msg.sender);

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.16;
 
 import "./CallDataRLPReader.sol";
-import "./Utils.sol";
 import "../LBTC/ILBTC.sol";
 
 library EthereumVerifier {
@@ -150,7 +149,6 @@ library EthereumVerifier {
             assembly {
                 chainId := calldataload(ptr)
             }
-            //  if (chainId != Utils.currentChain()) return PegInType.None;
             // All checks are passed after this point, no errors allowed and we can modify state
             state.chainId = chainId;
             ptr += 0x20;
