@@ -6,7 +6,7 @@ import "../LBTC/ILBTC.sol";
 
 library EthereumVerifier {
 
-    bytes32 constant TOPIC_PEG_IN_BRIDGED = keccak256("Deposit(uint256,address,address,address,address,uint256,uint256)");
+    bytes32 constant TOPIC_PEG_IN_BRIDGED = keccak256("DepositToBridge(uint256,address,address,address,address,uint256,uint256)");
 
     enum PegInType {
         None,
