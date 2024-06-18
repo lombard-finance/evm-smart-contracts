@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity ^0.8.16;
+pragma solidity ^0.8.19;
 
 library CallDataRLPReader {
     uint8 constant STRING_SHORT_START = 0x80;

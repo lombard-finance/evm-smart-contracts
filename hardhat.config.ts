@@ -1,9 +1,19 @@
 import { HardhatUserConfig, vars } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
+import { version } from "os";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.24",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.24",
+      },
+      {
+        version: "0.8.19",
+      },
+    ],
+  },
   networks: {
     // testnets
     holesky: {
@@ -17,8 +27,6 @@ const config: HardhatUserConfig = {
         ),
       ],
       timeout: 90_000,
-      gas: 8_000_000,
-      gasMultiplier: 1.5,
     },
     bsc_testnet: {
       loggingEnabled: true,
@@ -34,7 +42,6 @@ const config: HardhatUserConfig = {
         ),
       ],
       timeout: 90_000,
-      gas: 8_000_000,
     },
 
     // mainnets
