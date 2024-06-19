@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { ERC20Upgradeable, IERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import { ERC20PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./ILBTC.sol";
 import "../libs/OutputCodec.sol";
 import "../libs/EIP1271SignatureUtils.sol";
+import "../libs/EthereumVerifier.sol";
+import "../libs/ProofParser.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -28,10 +32,19 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         bool isWithdrawalsEnabled;
         address consortium;
+        bool isWBTCEnabled;
+
+        IERC20 wbtc;
+        address treasury;
+        mapping(uint256 => address) destinations;
+        mapping(uint256 => uint16) depositCommission;
+        mapping(bytes32 => bool) usedBridgeProofs;
+        uint256 globalNonce;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+    uint16 public constant MAX_COMMISSION = 10000; // 100.00%
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
         assembly {
@@ -137,12 +150,18 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     /**
-     * @dev Burns LBTC to initiate withdrawal of BTC to provided `script` with `amount`
+     * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      * 
-     * @param btcAddress BigEndian Bitcoin ScriptPubKey address
+     * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of LBTC to burn
      */
-    function burn(bytes32 btcAddress, uint256 amount) external {
+    function burn(bytes calldata scriptPubkey, uint256 amount) external {
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+
+        if (outType == OutputType.UNSUPPORTED) {
+            revert ScriptPubkeyUnsupported();
+        }
+
         LBTCStorage storage $ = _getLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
@@ -154,7 +173,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         emit UnstakeRequest(
             fromAddress,
-            btcAddress,
+            scriptPubkey,
             amount
         );
     }
@@ -190,5 +209,173 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      */
     function symbol() public override view virtual returns (string memory) {
         return _getLBTCStorage().symbol;
+    }
+
+    // --- Bridge ---
+    function depositToBridge(uint256 toChain, address toAddress, uint256 amount) external override nonReentrant whenNotPaused {
+        if (getDestination(toChain) != address(0)) {
+            _depositEVM(toChain, toAddress, amount);
+        } else revert UnknownDestination();
+    }
+    /**
+     * @dev Tokens on source and destination chains are linked with independent supplies.
+     * Burns tokens on source chain (to later mint on destination chain).
+     * @param toChain one of many destination chain ID.
+     * @param toAddress claimer of 'totalAmount' on destination chain.
+     * @param totalAmount amout of tokens to be bridged.
+     */
+    function _depositEVM(uint256 toChain, address toAddress, uint256 totalAmount) internal {
+        uint256 fee = Math.mulDiv(
+            totalAmount,
+            getDepositCommission(toChain),
+            MAX_COMMISSION,
+            Math.Rounding.Ceil
+        );
+
+        address fromAddress = msg.sender;
+        _transfer(fromAddress, getTreasury(), fee);
+        uint256 amountWithoutFee = totalAmount - fee;
+        _burn(fromAddress, amountWithoutFee);
+
+        emit DepositToBridge(
+            toChain, fromAddress, toAddress, address(this),
+            getDestination(toChain), amountWithoutFee, _incrementNonce());
+    }
+
+    function withdrawFromBridge(bytes calldata, /* encodedProof */ bytes calldata rawReceipt, bytes memory proofSignature) external override nonReentrant whenNotPaused {
+        uint256 proofOffset;
+        uint256 receiptOffset;
+        assembly {
+            proofOffset := add(0x4, calldataload(4))
+            receiptOffset := add(0x4, calldataload(36))
+        }
+        /* we must parse and verify that tx and receipt matches */
+        (EthereumVerifier.State memory state, EthereumVerifier.PegInType pegInType) = EthereumVerifier.parseTransactionReceipt(receiptOffset);
+
+        if (state.chainId != block.chainid) {
+            revert BadChainId(block.chainid, state.chainId);
+        }
+
+        ProofParser.Proof memory proof = ProofParser.parseProof(proofOffset);
+        if (state.contractAddress == address(0)) {
+            revert InvalidContractAddress();
+        }
+
+        if (getDestination(proof.chainId) != state.contractAddress) {
+            revert EventFromUnknownContract();
+        }
+        if (state.contractAddress != state.fromToken) {
+            revert BadFromToken();
+        }
+
+        state.receiptHash = keccak256(rawReceipt);
+        proof.status = 0x01;
+        proof.receiptHash = state.receiptHash;
+
+        bytes32 proofHash;
+        assembly {
+            proofHash := keccak256(proof, 0x100)
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+
+
+        // we can trust receipt only if proof is signed by consortium
+        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
+
+        if ($.usedBridgeProofs[proofHash]) {
+            revert ProofAlreadyUsed();
+        }
+        $.usedBridgeProofs[proofHash] = true;
+
+        _withdraw(state, pegInType);
+    }
+
+    function _withdraw(EthereumVerifier.State memory state, EthereumVerifier.PegInType pegInType) internal {
+        if (pegInType == EthereumVerifier.PegInType.Bridged) {
+            _mint(state.toAddress, state.totalAmount);
+            emit WithdrawFromBridge(state.receiptHash, state.fromAddress, state.toAddress, state.fromToken, state.toToken, state.totalAmount);
+        } else revert InvalidType();
+    }
+
+
+    function _incrementNonce() internal returns (uint256) {
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.globalNonce += 1;
+        return $.globalNonce;
+    }
+
+    function addDestination(uint256 toChain, address toToken, uint16 commission) external onlyOwner {
+        if (toToken == address(0)) {
+            revert ZeroAddress();
+        }
+        LBTCStorage storage $ = _getLBTCStorage();
+        if ($.destinations[toChain] != address(0)) {
+            revert KnownDestination();
+        }
+        $.destinations[toChain] = toToken;
+        $.depositCommission[toChain] = commission;
+        emit DepositCommissionChanged(commission, toChain);
+        emit BridgeDestinationAdded(toChain, toToken);
+    }
+
+    function removeDestination(uint256 toChain) external onlyOwner {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address toToken = $.destinations[toChain];
+        if (toToken == address(0)) {
+            revert ZeroAddress();
+        }
+        delete $.destinations[toChain];
+        delete $.depositCommission[toChain];
+
+        emit BridgeDestinationRemoved(toChain, toToken);
+    }
+
+
+    /**
+     * @dev Get destination token for bridging for chainId
+     *
+     * @param chain Id of the destination chain
+     */
+    function getDestination(uint256 chain) public view returns (address) {
+        return _getLBTCStorage().destinations[chain];
+    }
+
+    function getTreasury() public view returns (address) {
+        return _getLBTCStorage().treasury;
+    }
+
+    function getDepositCommission(uint256 toChain)
+    public
+    view
+    returns (uint16 commission)
+    {
+        LBTCStorage storage $ = _getLBTCStorage();
+        commission = $.depositCommission[toChain];
+    }
+
+    function changeDepositCommission(uint16 newValue, uint256 chain)
+    external
+    onlyOwner
+    {
+        if (newValue > MAX_COMMISSION) {
+            revert BadCommission();
+        }
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.depositCommission[chain] = newValue;
+        emit DepositCommissionChanged(newValue, chain);
+    }
+
+    function changeTreasuryAddress(address newValue)
+    external
+    onlyOwner
+    {
+        if (newValue == address(0)) {
+            revert ZeroAddress();
+        }
+        LBTCStorage storage $ = _getLBTCStorage();
+        address prevValue = $.treasury;
+        $.treasury = newValue;
+        emit TreasuryAddressChanged(prevValue, newValue);
     }
 }
