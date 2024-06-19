@@ -42,15 +42,15 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         _disableInitializers();
     }
 
-    function __Consortium_init(address thresholdAddr) internal onlyInitializing {
-        _changeThresholdAddr(thresholdAddr);
+    function __Consortium_init(address thresholdAddr_) internal onlyInitializing {
+        _changeThresholdAddr(thresholdAddr_);
     }
 
-    function initialize(address thresholdAddr, address ownerKey) external initializer {
+    function initialize(address thresholdAddr_, address ownerKey) external initializer {
         __Ownable_init(ownerKey);
         __Ownable2Step_init();
 
-        __Consortium_init(thresholdAddr);
+        __Consortium_init(thresholdAddr_);
     }
 
     function changeThresholdAddr(address newVal) external onlyOwner {

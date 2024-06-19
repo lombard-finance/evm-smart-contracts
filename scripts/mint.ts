@@ -1,5 +1,4 @@
-import { hexlify } from "ethers";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "hardhat";
 
 async function main() {
   const lbtc = await ethers.getContractAt(

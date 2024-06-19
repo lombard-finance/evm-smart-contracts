@@ -27,7 +27,6 @@ export async function signData(
       data.outputIndex || Math.floor(Math.random() * 4294967295),
     ]
   );
-  console.log("packed", packed);
   const hash = ethers.keccak256(packed);
 
   // sign hash
