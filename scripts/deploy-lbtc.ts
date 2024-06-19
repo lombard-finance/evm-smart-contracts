@@ -11,10 +11,10 @@ const testEnv = vars.get("LOMBARD_TEST_ENV", "disabled") === "enabled";
 
 async function main() {
   const res = await upgrades.deployProxy(
-    await ethers.getContractFactory(!testEnv ? "LBTCMock" : "LBTC"),
+    await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
     [consortiumAddress]
   );
-  // await res.waitForDeployment();
+  await res.waitForDeployment();
 
   console.log(await res.getAddress());
   await verify(await res.getAddress());

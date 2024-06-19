@@ -1,6 +1,9 @@
 import { ethers, upgrades } from "hardhat";
 import { getAddresses, verify } from "./helpers";
 import hardhat from "hardhat";
+import { vars } from "hardhat/config";
+
+const testEnv = vars.get("LOMBARD_TEST_ENV", "disabled") === "enabled";
 
 async function main() {
   const addresses = getAddresses(hardhat.network.name);
@@ -11,7 +14,7 @@ async function main() {
 
   const res = await upgrades.upgradeProxy(
     addresses.LBTC,
-    await ethers.getContractFactory("LBTC"),
+    await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
     {
       redeployImplementation: "always",
     }
