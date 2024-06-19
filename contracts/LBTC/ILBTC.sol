@@ -18,19 +18,13 @@ interface ILBTC {
     error UnknownDestination();
     error BadSignature();
     error BadCommission();
+    error ScriptPubkeyUnsupported();
 
-    struct Metadata {
-        bytes32 symbol;
-        bytes32 name;
-        uint256 originChain;
-        address originAddress;
-    }
-
-    event UnstakeRequest(address fromAddress, bytes32 toAddress, uint256 amount);
+    event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address prevVal, address newVal);
-    event OutputProcessed(bytes32 transactionId, uint32 index, bytes32 hash);
+    event OutputProcessed(bytes32 indexed transactionId, uint32 indexed index, bytes32 hash);
     event WBTCStaked(address staker, address to, uint256 amount);
     event WBTCStakingEnabled(bool);
     event WBTCChanged(address prevVal, address newVal);

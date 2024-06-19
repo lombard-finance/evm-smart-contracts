@@ -7,7 +7,8 @@ import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./ILBTC.sol";
 import "../libs/OutputCodec.sol";
@@ -194,12 +195,18 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     /**
-     * @dev Burns LBTC to initiate withdrawal of BTC to provided `script` with `amount`
+     * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      * 
-     * @param btcAddress BigEndian Bitcoin ScriptPubKey address
+     * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of LBTC to burn
      */
-    function burn(bytes32 btcAddress, uint256 amount) external {
+    function burn(bytes calldata scriptPubkey, uint256 amount) external {
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+
+        if (outType == OutputType.UNSUPPORTED) {
+            revert ScriptPubkeyUnsupported();
+        }
+
         LBTCStorage storage $ = _getLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
@@ -211,7 +218,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         emit UnstakeRequest(
             fromAddress,
-            btcAddress,
+            scriptPubkey,
             amount
         );
     }
