@@ -1,13 +1,16 @@
-# Sample Hardhat Project
+# Lombard Finance EVM smart-contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+Smart contracts for EVM-compatible chains
 
-Try running some of the following tasks:
+## Deploy
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.ts
+```bash
+yarn hardhat run scripts/deploy-lbtc.ts --network holesky
+yarn hardhat run scripts/deploy-consortium.ts --network holesky
+```
+
+## Upgrade
+
+```bash
+yarn hardhat run scripts/upgrade-lbtc.ts --network holesky 
 ```
