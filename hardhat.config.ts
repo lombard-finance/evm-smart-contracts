@@ -49,13 +49,45 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get(
         "MANTLE_TESTNET_RPC",
-        "https://rpc.ankr.com/mantle_sepolia"
+        "https://rpc.sepolia.mantle.xyz"
       ),
       chainId: 5003,
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001"
+          "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5"
+        ),
+      ],
+      timeout: 90_000,
+      gas: 8_000_000,
+    },
+    zircuit_testnet: {
+      loggingEnabled: true,
+      url: vars.get(
+        "ZIRCUIT_TESTNET_RPC",
+        "https://zircuit1.p2pify.com/"
+      ),
+      chainId: 48899,
+      accounts: [
+        vars.get(
+          "TESTNET_DEPLOYER_SK",
+          "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5"
+        ),
+      ],
+      timeout: 90_000,
+      gas: 8_000_000,
+    },
+    linea_testnet: {
+      loggingEnabled: true,
+      url: vars.get(
+        "LINEA_TESTNET_RPC",
+        "https://rpc.sepolia.linea.build"
+      ),
+      chainId: 59141,
+      accounts: [
+        vars.get(
+          "TESTNET_DEPLOYER_SK",
+          "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5"
         ),
       ],
       timeout: 90_000,
@@ -118,7 +150,30 @@ const config: HardhatUserConfig = {
           browserURL: "https://sepolia.scrollscan.com/address",
         },
       },
-
+      {
+        network: "linea_testnet",
+        chainId: 59141,
+        urls: {
+          apiURL: "https://api-sepolia.lineascan.build/api",
+          browserURL: "https://sepolia.lineascan.build/address"
+        }
+      },
+      {
+        network: 'zircuit_testnet',
+        chainId: 48899,
+        urls: {
+          apiURL: 'https://explorer.zircuit.com/api/contractVerifyHardhat',
+          browserURL: 'https://explorer.zircuit.com',
+        },
+      },
+      {
+        network: 'mantle_testnet',
+        chainId: 5003,
+        urls: {
+          apiURL: "https://explorer.sepolia.mantle.xyz/api",
+          browserURL: "https://explorer.sepolia.mantle.xyz"
+        },
+      },
       // mainnets
       {
         network: "scroll",
@@ -142,6 +197,14 @@ const config: HardhatUserConfig = {
       scroll_testnet: vars.get(
         "SCROLLSCAN_API_KEY",
         "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
+      ),
+      zircuit_testnet: vars.get(
+        "ZIRCUIT_API_KEY",
+        "006A14771D1AF73D736D10F008030F9079"
+      ),
+      linea_testnet: vars.get(
+        "LINEA_API_KEY",
+        "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
       ),
 
       // mainnets
