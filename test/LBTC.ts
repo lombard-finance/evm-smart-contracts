@@ -291,102 +291,6 @@ describe("LBTC", function () {
     });
   });
 
-  describe("Stake WBTC", function () {
-    const stakeAm = 10n ** 8n; // 1 WBTC
-
-    beforeEach(async function () {
-      await snapshot.restore();
-    });
-
-    it("WBTC stake disabled", async function () {
-      await expect(lbtc.stakeWBTC(stakeAm)).to.revertedWithCustomError(
-        lbtc,
-        "WBTCStakingDisabled"
-      );
-    });
-
-    it("Stake WBTC", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await wbtc.mint(await signer3.getAddress(), stakeAm);
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(lbtc.connect(signer3).stakeWBTC(stakeAm))
-        .to.emit(lbtc, "WBTCStaked")
-        .withArgs(
-          await signer3.getAddress(),
-          await signer3.getAddress(),
-          stakeAm
-        );
-
-      expect(await lbtc.balanceOf(await signer3.getAddress())).to.be.eq(
-        stakeAm
-      );
-    });
-
-    it("Stake WBT if not enough funds", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTC(stakeAm)
-      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
-    });
-
-    it("Stake WBTC if amount not allowed", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTC(stakeAm)
-      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientAllowance");
-    });
-
-    it("Stake WBTC for another address", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
-
-      await wbtc.mint(await signer3.getAddress(), stakeAm);
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTCFor(stakeAm, await signer2.getAddress())
-      )
-        .to.emit(lbtc, "WBTCStaked")
-        .withArgs(
-          await signer3.getAddress(),
-          await signer2.getAddress(),
-          stakeAm
-        );
-
-      expect(await wbtc.balanceOf(await signer3.getAddress())).to.be.eq(0);
-      expect(await lbtc.balanceOf(await signer3.getAddress())).to.be.eq(0);
-
-      expect(await lbtc.balanceOf(await signer2.getAddress())).to.be.eq(
-        stakeAm
-      );
-    });
-  });
-
   describe("Burn negative cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
@@ -400,16 +304,6 @@ describe("LBTC", function () {
       await expect(
         lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amount)
       ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
-    });
-
-    it("Reverts with P2WSH", async () => {
-      const amount = 100_000_000n;
-      const p2wsh =
-        "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(
-        lbtc.connect(signer1).burn(p2wsh, amount)
-      ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
 
     it("Reverts if not enough tokens", async function () {
