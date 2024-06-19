@@ -26,9 +26,9 @@ library EthereumVerifier {
     }
 
     function parseTransactionReceipt(uint256 receiptOffset)
-    internal
-    pure
-    returns (State memory state, PegInType pegInType)
+        internal
+        pure
+        returns (State memory state, PegInType pegInType)
     {
         /* parse peg-in data from logs */
         uint256 iter = CallDataRLPReader.beginIteration(receiptOffset + 0x20);
@@ -50,7 +50,7 @@ library EthereumVerifier {
         uint256 logs = iter;
         iter = CallDataRLPReader.next(iter);
         uint256 logsIter = CallDataRLPReader.beginIteration(logs);
-        for (; logsIter < iter;) {
+        for (; logsIter < iter; ) {
             uint256 log = logsIter;
             logsIter = CallDataRLPReader.next(logsIter);
             /* make sure there is only one peg-in event in logs */
@@ -69,9 +69,9 @@ library EthereumVerifier {
     }
 
     function _decodeReceiptLogs(State memory state, uint256 log)
-    internal
-    pure
-    returns (PegInType pegInType)
+        internal
+        pure
+        returns (PegInType pegInType)
     {
         uint256 logIter = CallDataRLPReader.beginIteration(log);
         address contractAddress;
@@ -106,8 +106,7 @@ library EthereumVerifier {
                 bytes20(uint160(CallDataRLPReader.toUintStrict(topicsIter)))
             );
             topicsIter = CallDataRLPReader.next(topicsIter);
-            require(topicsIter == logIter);
-            // safety check that iteration is finished
+            require(topicsIter == logIter); // safety check that iteration is finished
         }
 
         uint256 ptr = CallDataRLPReader.rawDataPtr(logIter);
@@ -117,7 +116,7 @@ library EthereumVerifier {
             // parse logs based on topic type and check that event data has correct length
             uint256 expectedLen;
             if (mainTopic == TOPIC_PEG_IN_BRIDGED) {
-                expectedLen = 0x120;
+                expectedLen = 0xA0;
                 pegInType = PegInType.Bridged;
             } else {
                 return PegInType.None;
@@ -141,7 +140,7 @@ library EthereumVerifier {
         {
             uint256 structOffset;
             assembly {
-            // skip 5 fields: receiptHash, contractAddress, chainId, fromAddress, toAddress
+                // skip 5 fields: receiptHash, contractAddress, chainId, fromAddress, toAddress
                 structOffset := add(state, 0xa0)
                 calldatacopy(structOffset, ptr, len)
             }
