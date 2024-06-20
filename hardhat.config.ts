@@ -55,7 +55,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5"
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -71,7 +71,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5"
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -87,7 +87,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "77f0ea910db71438400c072581e7e29c579107725f0f97ae07c56aaecac39ea5"
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -170,8 +170,8 @@ const config: HardhatUserConfig = {
         network: 'mantle_testnet',
         chainId: 5003,
         urls: {
-          apiURL: "https://explorer.sepolia.mantle.xyz/api",
-          browserURL: "https://explorer.sepolia.mantle.xyz"
+          apiURL: "https://api-sepolia.mantlescan.xyz/api",
+          browserURL: "https://sepolia.mantlescan.xyz/"
         },
       },
       // mainnets
@@ -202,11 +202,15 @@ const config: HardhatUserConfig = {
         "ZIRCUIT_API_KEY",
         "006A14771D1AF73D736D10F008030F9079"
       ),
+
+      mantle_testnet: vars.get(
+        "MANTLE_API_KEY",
+        "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"
+      ),
       linea_testnet: vars.get(
         "LINEA_API_KEY",
         "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
       ),
-
       // mainnets
       mainnet: vars.get(
         "ETHERSCAN_API_KEY",
