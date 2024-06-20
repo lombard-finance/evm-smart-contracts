@@ -220,7 +220,7 @@ const config: HardhatUserConfig = {
         chainId: 59144,
         urls: {
           apiURL: "https://api.lineascan.build/api",
-          browserURL: "https://sepolia.lineascan.build/"
+          browserURL: "https://lineascan.build/"
         },
       },
       {
