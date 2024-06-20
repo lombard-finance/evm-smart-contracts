@@ -125,6 +125,38 @@ const config: HardhatUserConfig = {
       gas: 8_000_000,
       gasMultiplier: 1,
     },
+    mantle: {
+      loggingEnabled: true,
+      url: vars.get(
+          "MANTLE_TESTNET_RPC",
+          "https://mantle.drpc.org"
+      ),
+      chainId: 5000,
+      accounts: [
+        vars.get(
+            "TESTNET_DEPLOYER_SK",
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ),
+      ],
+      timeout: 90_000,
+      gas: 8_000_000,
+    },
+    linea: {
+      loggingEnabled: true,
+      url: vars.get(
+          "LINEA_RPC",
+          "https://linea.decubate.com"
+      ),
+      chainId: 59144,
+      accounts: [
+        vars.get(
+            "TESTNET_DEPLOYER_SK",
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ),
+      ],
+      timeout: 90_000,
+      gas: 8_000_000,
+    },
     bsc: {
       loggingEnabled: true,
       url: vars.get("MAINNET_RPC", "https://rpc.ankr.com/bsc"),
@@ -176,6 +208,22 @@ const config: HardhatUserConfig = {
       },
       // mainnets
       {
+        network: 'mantle',
+        chainId: 5000,
+        urls: {
+          apiURL: "https://api.mantlescan.xyz/api",
+          browserURL: "https://mantlescan.xyz/"
+        },
+      },
+      {
+        network: 'linea',
+        chainId: 59144,
+        urls: {
+          apiURL: "https://api.lineascan.build/api",
+          browserURL: "https://sepolia.lineascan.build/"
+        },
+      },
+      {
         network: "scroll",
         chainId: 534352,
         urls: {
@@ -220,6 +268,18 @@ const config: HardhatUserConfig = {
       scroll: vars.get(
         "SCROLLSCAN_API_KEY",
         "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
+      ),
+      zircuit: vars.get(
+          "ZIRCUIT_API_KEY",
+          "006A14771D1AF73D736D10F008030F9079"
+      ),
+      linea: vars.get(
+          "LINEA_API_KEY",
+          "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
+      ),
+      mantle: vars.get(
+          "MANTLE_API_KEY",
+          "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"
       ),
     },
   },
