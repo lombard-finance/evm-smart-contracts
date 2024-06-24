@@ -109,6 +109,22 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000,
     },
+    okx_testnet: {
+      loggingEnabled: true,
+      url: vars.get(
+          "OKX_TESTNET_RPC",
+          "https://testrpc.xlayer.tech"
+      ),
+      chainId: 195,
+      accounts: [
+        vars.get(
+            "TESTNET_DEPLOYER_SK",
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ),
+      ],
+      timeout: 90_000,
+      gas: 8_000_000,
+    },
 
     // mainnets
     mainnet: {
@@ -206,6 +222,14 @@ const config: HardhatUserConfig = {
           browserURL: "https://sepolia.mantlescan.xyz/"
         },
       },
+      {
+        network: 'okx_testnet',
+        chainId: 195,
+        urls: {
+          apiURL: "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER_TESTNET", //or https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER for mainnet
+          browserURL: "https://www.oklink.com/xlayer-test" //or https://www.oklink.com/xlayer for mainnet
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -258,6 +282,10 @@ const config: HardhatUserConfig = {
       linea_testnet: vars.get(
         "LINEA_API_KEY",
         "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
+      ),
+      okx_testnet: vars.get(
+        "OKX_API_KEY",
+        "f2245a5a-1f4c-47fa-b006-31d98eefc7a4"
       ),
       // mainnets
       mainnet: vars.get(
