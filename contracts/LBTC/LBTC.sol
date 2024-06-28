@@ -182,6 +182,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().usedProofs[proof];
     }
 
+    function isBridgeProofUsed(bytes32 proof) external view returns (bool) {
+        return _getLBTCStorage().usedBridgeProofs[proof];
+    }
+
     function consortium() external view virtual returns (address) {
         return _getLBTCStorage().consortium;
     }
@@ -232,7 +236,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             Math.Rounding.Ceil
         );
 
-        address fromAddress = msg.sender;
+        address fromAddress = _msgSender();
         _transfer(fromAddress, getTreasury(), fee);
         uint256 amountWithoutFee = totalAmount - fee;
         _burn(fromAddress, amountWithoutFee);
@@ -262,10 +266,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         if (getDestination(proof.chainId) != state.contractAddress) {
-            revert EventFromUnknownContract();
+            revert EventFromUnknownContract(getDestination(proof.chainId), state.contractAddress);
         }
         if (state.contractAddress != state.fromToken) {
-            revert BadFromToken();
+            revert BadFromToken(state.contractAddress, state.fromToken);
+        }
+        if (address(this) != state.toToken) {
+            revert BadToToken(address(this), state.toToken);
         }
 
         state.receiptHash = keccak256(rawReceipt);
@@ -312,6 +319,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
         if ($.destinations[toChain] != address(0)) {
             revert KnownDestination();
+        }
+        if (commission > MAX_COMMISSION) {
+            revert BadCommission();
         }
         $.destinations[toChain] = toToken;
         $.depositCommission[toChain] = commission;
