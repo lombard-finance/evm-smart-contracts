@@ -366,6 +366,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if ($.destinations[toChain] != address(0)) {
             revert KnownDestination();
         }
+        if (commission > MAX_COMMISSION) {
+            revert BadCommission();
+        }
         $.destinations[toChain] = toToken;
         $.depositCommission[toChain] = commission;
         emit DepositCommissionChanged(commission, toChain);
