@@ -315,10 +315,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         if (getDestination(proof.chainId) != state.contractAddress) {
-            revert EventFromUnknownContract();
+            revert EventFromUnknownContract(getDestination(proof.chainId), state.contractAddress);
         }
         if (state.contractAddress != state.fromToken) {
-            revert BadFromToken();
+            revert BadFromToken(state.contractAddress, state.fromToken);
+        }
+        if (address(this) != state.toToken) {
+            revert BadToToken(address(this), state.toToken);
         }
 
         state.receiptHash = keccak256(rawReceipt);

@@ -11,8 +11,9 @@ interface ILBTC {
     error WBTCNotSet();
     error WBTCDecimalsMissmatch(uint8 expected, uint8 got);
     error InvalidContractAddress();
-    error EventFromUnknownContract();
-    error BadFromToken();
+    error EventFromUnknownContract(address expected, address received);
+    error BadFromToken(address expected, address received);
+    error BadToToken(address expected, address received);
     error InvalidType();
     error KnownDestination();
     error UnknownDestination();
