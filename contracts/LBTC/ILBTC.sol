@@ -8,8 +8,9 @@ interface ILBTC {
     error ZeroAddress();
     error WithdrawalsDisabled();
     error InvalidContractAddress();
-    error EventFromUnknownContract();
-    error BadFromToken();
+    error EventFromUnknownContract(address expected, address received);
+    error BadFromToken(address expected, address received);
+    error BadToToken(address expected, address received);
     error InvalidType();
     error KnownDestination();
     error UnknownDestination();
