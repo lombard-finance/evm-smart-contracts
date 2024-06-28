@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
       ],
       gas: 8_000_000,
       gasMultiplier: 1.5,
-      timeout: 90_000,
+      timeout: 180_000,
     },
     bsc_testnet: {
       loggingEnabled: true,
@@ -47,10 +47,7 @@ const config: HardhatUserConfig = {
     },
     mantle_testnet: {
       loggingEnabled: true,
-      url: vars.get(
-        "MANTLE_TESTNET_RPC",
-        "https://rpc.sepolia.mantle.xyz"
-      ),
+      url: vars.get("MANTLE_TESTNET_RPC", "https://rpc.sepolia.mantle.xyz"),
       chainId: 5003,
       accounts: [
         vars.get(
@@ -63,10 +60,7 @@ const config: HardhatUserConfig = {
     },
     zircuit_testnet: {
       loggingEnabled: true,
-      url: vars.get(
-        "ZIRCUIT_TESTNET_RPC",
-        "https://zircuit1.p2pify.com/"
-      ),
+      url: vars.get("ZIRCUIT_TESTNET_RPC", "https://zircuit1.p2pify.com/"),
       chainId: 48899,
       accounts: [
         vars.get(
@@ -79,10 +73,7 @@ const config: HardhatUserConfig = {
     },
     linea_testnet: {
       loggingEnabled: true,
-      url: vars.get(
-        "LINEA_TESTNET_RPC",
-        "https://rpc.sepolia.linea.build"
-      ),
+      url: vars.get("LINEA_TESTNET_RPC", "https://rpc.sepolia.linea.build"),
       chainId: 59141,
       accounts: [
         vars.get(
@@ -111,15 +102,12 @@ const config: HardhatUserConfig = {
     },
     okx_testnet: {
       loggingEnabled: true,
-      url: vars.get(
-          "OKX_TESTNET_RPC",
-          "https://testrpc.xlayer.tech"
-      ),
+      url: vars.get("OKX_TESTNET_RPC", "https://testrpc.xlayer.tech"),
       chainId: 195,
       accounts: [
         vars.get(
-            "TESTNET_DEPLOYER_SK",
-            "0x0000000000000000000000000000000000000000000000000000000000000001"
+          "TESTNET_DEPLOYER_SK",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -143,15 +131,12 @@ const config: HardhatUserConfig = {
     },
     mantle: {
       loggingEnabled: true,
-      url: vars.get(
-          "MANTLE_TESTNET_RPC",
-          "https://mantle.drpc.org"
-      ),
+      url: vars.get("MANTLE_TESTNET_RPC", "https://mantle.drpc.org"),
       chainId: 5000,
       accounts: [
         vars.get(
-            "TESTNET_DEPLOYER_SK",
-            "0x0000000000000000000000000000000000000000000000000000000000000001"
+          "TESTNET_DEPLOYER_SK",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -159,15 +144,12 @@ const config: HardhatUserConfig = {
     },
     linea: {
       loggingEnabled: true,
-      url: vars.get(
-          "LINEA_RPC",
-          "https://linea.decubate.com"
-      ),
+      url: vars.get("LINEA_RPC", "https://linea.decubate.com"),
       chainId: 59144,
       accounts: [
         vars.get(
-            "TESTNET_DEPLOYER_SK",
-            "0x0000000000000000000000000000000000000000000000000000000000000001"
+          "TESTNET_DEPLOYER_SK",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -203,48 +185,49 @@ const config: HardhatUserConfig = {
         chainId: 59141,
         urls: {
           apiURL: "https://api-sepolia.lineascan.build/api",
-          browserURL: "https://sepolia.lineascan.build/address"
-        }
-      },
-      {
-        network: 'zircuit_testnet',
-        chainId: 48899,
-        urls: {
-          apiURL: 'https://explorer.zircuit.com/api/contractVerifyHardhat',
-          browserURL: 'https://explorer.zircuit.com',
+          browserURL: "https://sepolia.lineascan.build/address",
         },
       },
       {
-        network: 'mantle_testnet',
+        network: "zircuit_testnet",
+        chainId: 48899,
+        urls: {
+          apiURL: "https://explorer.zircuit.com/api/contractVerifyHardhat",
+          browserURL: "https://explorer.zircuit.com",
+        },
+      },
+      {
+        network: "mantle_testnet",
         chainId: 5003,
         urls: {
           apiURL: "https://api-sepolia.mantlescan.xyz/api",
-          browserURL: "https://sepolia.mantlescan.xyz/"
+          browserURL: "https://sepolia.mantlescan.xyz/",
         },
       },
       {
-        network: 'okx_testnet',
+        network: "okx_testnet",
         chainId: 195,
         urls: {
-          apiURL: "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER_TESTNET", //or https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER for mainnet
-          browserURL: "https://www.oklink.com/xlayer-test" //or https://www.oklink.com/xlayer for mainnet
-        }
+          apiURL:
+            "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER_TESTNET", //or https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER for mainnet
+          browserURL: "https://www.oklink.com/xlayer-test", //or https://www.oklink.com/xlayer for mainnet
+        },
       },
       // mainnets
       {
-        network: 'mantle',
+        network: "mantle",
         chainId: 5000,
         urls: {
           apiURL: "https://api.mantlescan.xyz/api",
-          browserURL: "https://mantlescan.xyz/"
+          browserURL: "https://mantlescan.xyz/",
         },
       },
       {
-        network: 'linea',
+        network: "linea",
         chainId: 59144,
         urls: {
           apiURL: "https://api.lineascan.build/api",
-          browserURL: "https://lineascan.build/"
+          browserURL: "https://lineascan.build/",
         },
       },
       {
@@ -298,17 +281,11 @@ const config: HardhatUserConfig = {
         "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
       ),
       zircuit: vars.get(
-          "ZIRCUIT_API_KEY",
-          "006A14771D1AF73D736D10F008030F9079"
+        "ZIRCUIT_API_KEY",
+        "006A14771D1AF73D736D10F008030F9079"
       ),
-      linea: vars.get(
-          "LINEA_API_KEY",
-          "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
-      ),
-      mantle: vars.get(
-          "MANTLE_API_KEY",
-          "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"
-      ),
+      linea: vars.get("LINEA_API_KEY", "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"),
+      mantle: vars.get("MANTLE_API_KEY", "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"),
     },
   },
   sourcify: {
