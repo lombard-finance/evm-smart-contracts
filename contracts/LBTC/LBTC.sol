@@ -281,7 +281,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             Math.Rounding.Ceil
         );
 
-        address fromAddress = msg.sender;
+        address fromAddress = _msgSender();
         _transfer(fromAddress, getTreasury(), fee);
         uint256 amountWithoutFee = totalAmount - fee;
         _burn(fromAddress, amountWithoutFee);
