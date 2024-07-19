@@ -23,10 +23,7 @@ const amount = ethers.parseEther('10');
 let deployer, eoa1, eoa2, consortium, treasury, snapshot;
 
 // Protocol Contracts
-let router, lbtc1, lbtc2, tokenFactory;
-
-// Participant Contracts
-let warptoken1, warptoken2;
+let lbtc1, lbtc2;
 
 // Offchain data
 let encodedProof, rawReceipt, proofSignature, proofHash, receiptHash, receipt;
@@ -38,7 +35,6 @@ describe("===LBTCBridge===", function () {
             // Get Addresses
             [deployer, consortium, eoa1, eoa2, treasury] = await hre.ethers.getSigners();
 
-            // await enrichWithPrivateKeys(signers);
             const result = await init(consortium);
             lbtc1 = result.lbtc;
             const result2 = await init(consortium);
@@ -49,14 +45,11 @@ describe("===LBTCBridge===", function () {
 
             snapshot = await takeSnapshot();
             await lbtc1["mint(address,uint256)"](eoa1.address, ethers.parseEther('100'));
-            // Add warp link between two warp tokens on different chains [Using same chain for test]
             await lbtc1.addDestination(CHAIN2, await lbtc2.getAddress(), 0);
             await lbtc2.addDestination(CHAIN1, await lbtc1.getAddress(), 0);
         });
         it("Deposit LBTC1", async () => {
             this.timeout(1500000000);
-            // Bridge can only warp tokens with allowance from 'eoa1'
-            // Deposit WarpToken1
             expect((await lbtc1.balanceOf(eoa1.address)).toString()).to.be.equal(ethers.parseEther('100').toString());
             expect((await lbtc1.totalSupply()).toString()).to.be.equal(ethers.parseEther('100').toString());
             let tx = await lbtc1.connect(eoa1).depositToBridge(CHAIN2, eoa2.address, amount)
@@ -86,8 +79,6 @@ describe("===LBTCBridge===", function () {
         it("Deposit LBTC2", async () => {
 
             this.timeout(1500000000);
-            // Bridge can only warp tokens with allowance from 'eoa1'
-            // Deposit WarpToken1
             expect((await lbtc2.balanceOf(eoa2.address)).toString()).to.be.equal(ethers.parseEther('10').toString());
             expect((await lbtc2.totalSupply()).toString()).to.be.equal(ethers.parseEther('10').toString());
             let tx = await lbtc2.connect(eoa2).depositToBridge(CHAIN1, eoa1.address, amount)
@@ -118,8 +109,6 @@ describe("===LBTCBridge===", function () {
         it("reverts: Non-consortium signing", async () => {
 
             this.timeout(1500000000);
-            // Bridge can only warp tokens with allowance from 'eoa1'
-            // Deposit WarpToken1
             expect((await lbtc1.balanceOf(eoa1.address)).toString()).to.be.equal(ethers.parseEther('100').toString());
             expect((await lbtc1.totalSupply()).toString()).to.be.equal(ethers.parseEther('100').toString());
             let tx = await lbtc1.connect(eoa1).depositToBridge(CHAIN2, eoa2.address, amount)
