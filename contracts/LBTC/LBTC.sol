@@ -263,7 +263,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     // --- Bridge ---
 
-    function depositToBridge(bytes32 toChain, bytes32 toAddress, uint32 amount) external nonReentrant {
+    function depositToBridge(bytes32 toChain, bytes32 toAddress, uint64 amount) external nonReentrant {
         bytes32 toContract = getDestination(toChain);
 
         if (toContract == bytes32(0)) {
@@ -279,7 +279,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param toAddress claimer of 'amount' on destination chain.
      * @param amount amout of tokens to be bridged.
      */
-    function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint32 amount) internal {
+    function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
         uint256 fee = Math.mulDiv(
             amount,
             getDepositCommission(toChain),
