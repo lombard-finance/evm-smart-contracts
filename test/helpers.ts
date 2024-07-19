@@ -1,9 +1,9 @@
-import {config, ethers, network, upgrades} from "hardhat";
+import { config, ethers, network, upgrades } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import {LBTCMock, WBTCMock} from "../typechain-types";
+import { LBTCMock, WBTCMock } from "../typechain-types";
 
-export async function signData(
+export function signOutputPayload(
   privateKey: string,
   data: {
     to: string;
@@ -12,11 +12,11 @@ export async function signData(
     txId?: string;
     outputIndex?: number;
   }
-): Promise<{
+): {
   data: string;
   hash: string;
   signature: string;
-}> {
+} {
   //pack and hash
   const packed = ethers.AbiCoder.defaultAbiCoder().encode(
     ["uint256", "address", "uint64", "bytes32", "uint32"],
@@ -28,6 +28,60 @@ export async function signData(
       data.outputIndex || Math.floor(Math.random() * 4294967295),
     ]
   );
+  const hash = ethers.keccak256(packed);
+
+  // sign hash
+  const { signature, recid } = secp256k1.ecdsaSign(
+    ethers.getBytes(hash),
+    ethers.getBytes(privateKey)
+  );
+  const signedHash = ethers.hexlify(signature) + (recid === 0 ? "1b" : "1c");
+
+  return {
+    data: packed,
+    hash: hash,
+    signature: signedHash,
+  };
+}
+
+export function signBridgeDepositPayload(
+  privateKey: string,
+  fromContract: string,
+  fromChainId: string,
+  toContract: string,
+  toChainId: string,
+  toAddress: string,
+  amount: bigint,
+  txHash: string,
+  eventIndex: number
+): {
+  data: string;
+  hash: string;
+  signature: string;
+} {
+  const packed = ethers.AbiCoder.defaultAbiCoder().encode(
+    [
+      "bytes32",
+      "bytes32",
+      "bytes32",
+      "bytes32",
+      "bytes32",
+      "uint64",
+      "bytes32",
+      "uint32",
+    ],
+    [
+      fromContract,
+      fromChainId,
+      toContract,
+      toChainId,
+      toAddress,
+      amount,
+      txHash,
+      eventIndex,
+    ]
+  );
+
   const hash = ethers.keccak256(packed);
 
   // sign hash
@@ -63,17 +117,17 @@ export async function enrichWithPrivateKeys(
 }
 
 export async function init(consortium: HardhatEthersSigner) {
-    console.log("=== LBTC");
-    const LBTC = await ethers.getContractFactory("LBTCMock");
-    const lbtc = (await upgrades.deployProxy(LBTC, [
-        consortium.address,
-    ])) as unknown as LBTCMock;
-    await lbtc.waitForDeployment();
+  console.log("=== LBTC");
+  const LBTC = await ethers.getContractFactory("LBTCMock");
+  const lbtc = (await upgrades.deployProxy(LBTC, [
+    consortium.address,
+  ])) as unknown as LBTCMock;
+  await lbtc.waitForDeployment();
 
-    console.log("=== LBTC");
-    const WBTC = await ethers.getContractFactory("WBTCMock");
-    const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
-    await wbtc.waitForDeployment();
+  console.log("=== LBTC");
+  const WBTC = await ethers.getContractFactory("WBTCMock");
+  const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
+  await wbtc.waitForDeployment();
 
-    return { lbtc, wbtc };
+  return { lbtc, wbtc };
 }

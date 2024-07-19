@@ -292,7 +292,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint256 amountWithoutFee = amount - fee;
         _burn(fromAddress, amountWithoutFee);
 
-        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, amount);
+        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee));
     }
 
     function withdrawFromBridge(
