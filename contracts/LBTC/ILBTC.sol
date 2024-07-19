@@ -3,26 +3,19 @@ pragma solidity ^0.8.19;
 
 interface ILBTC {
     error ProofAlreadyUsed();
-    error BadChainId(uint256 expected, uint256 received);
     error ZeroAmount();
     error ZeroAddress();
     error ZeroContractHash();
     error ZeroChainId();
-
     error WithdrawalsDisabled();
     error WBTCStakingDisabled();
     error WBTCNotSet();
     error WBTCDecimalsMissmatch(uint8 expected, uint8 got);
-    error InvalidContractAddress();
-    error EventFromUnknownContract(address expected, address received);
-    error BadFromToken(address expected, address received);
-    error BadToToken(address expected, address received);
+    error BadChainId(uint256 expected, uint256 received);
     error BadToContractAddress(address expected, address received);
     error BadDestination(bytes32 expected, bytes32 received);
-    error InvalidType();
     error KnownDestination();
     error UnknownDestination();
-    error BadSignature();
     error BadCommission();
     error ScriptPubkeyUnsupported();
 
