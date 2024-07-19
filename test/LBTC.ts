@@ -6,22 +6,7 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signer
 import { LBTCMock, WBTCMock } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 import { getAddress } from "ethers";
-
-async function init(consortium: HardhatEthersSigner) {
-  console.log("=== LBTC");
-  const LBTC = await ethers.getContractFactory("LBTCMock");
-  const lbtc = (await upgrades.deployProxy(LBTC, [
-    consortium.address,
-  ])) as unknown as LBTCMock;
-  await lbtc.waitForDeployment();
-
-  console.log("=== LBTC");
-  const WBTC = await ethers.getContractFactory("WBTCMock");
-  const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
-  await wbtc.waitForDeployment();
-
-  return { lbtc, wbtc };
-}
+const {init} = require("./helpers.ts");
 
 describe("LBTC", function () {
   let deployer: HardhatEthersSigner,
