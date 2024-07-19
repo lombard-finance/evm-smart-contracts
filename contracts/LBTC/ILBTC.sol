@@ -13,7 +13,7 @@ interface ILBTC {
     error WBTCDecimalsMissmatch(uint8 expected, uint8 got);
     error BadChainId(uint256 expected, uint256 received);
     error BadToContractAddress(address expected, address received);
-    error BadDestination(bytes32 expected, bytes32 received);
+    error BadDestination();
     error KnownDestination();
     error UnknownDestination();
     error BadCommission();
