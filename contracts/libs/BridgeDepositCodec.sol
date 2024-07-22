@@ -7,9 +7,9 @@ struct BridgeDepositPayload {
     bytes32 fromChainId; // validate sender chain id
     
 
-    address toContract; // must be this contract
-    uint256 toChainId; // destination chain id
-    address toAddress; // recipient address
+    address toContract; // must be this contract (converted from bytes32)
+    uint256 toChainId; // destination chain id (converted from bytes32)
+    address toAddress; // recipient address (converted from bytes32)
 
     uint64 amount;
 
