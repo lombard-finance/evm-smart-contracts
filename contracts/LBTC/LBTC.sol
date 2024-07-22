@@ -357,7 +357,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert ZeroChainId();
         }
 
-        LBTCStorage storage $ = _getLBTCStorage();
+
         
         if (getDestination(toChain) != bytes32(0)) {
             revert KnownDestination();
@@ -366,6 +366,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (commission >= MAX_COMMISSION) {
             revert BadCommission();
         }
+
+        LBTCStorage storage $ = _getLBTCStorage();
         $.destinations[toChain] = toContract;
         $.depositCommission[toChain] = commission;
 
