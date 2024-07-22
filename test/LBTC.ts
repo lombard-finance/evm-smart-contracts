@@ -256,7 +256,7 @@ describe("LBTC", function () {
       {
         name: "amount is 0",
         signer: () => consortium,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => signer1.address,
         amount: 0n,
         chainId: config.networks.hardhat.chainId,
