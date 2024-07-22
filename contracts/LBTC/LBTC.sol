@@ -161,20 +161,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function mint(
         bytes calldata data,
-        bytes memory proofSignature
+        bytes calldata proofSignature
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 
-        bytes32 proofHash = keccak256(data);
-
-        if ($.usedProofs[proofHash]) {
-            revert ProofAlreadyUsed();
-        }
-
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
-        // We can save the proof, because output with index in unique pair
-        $.usedProofs[proofHash] = true;
+        bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
         OutputWithPayload memory output = OutputCodec.decode(data);
@@ -297,27 +288,18 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function withdrawFromBridge(
         bytes calldata data,
-        bytes memory proofSignature
+        bytes calldata proofSignature
     ) external nonReentrant {
         _withdraw(data, proofSignature);
     }
 
     function _withdraw(
         bytes calldata data,
-        bytes memory proofSignature
+        bytes calldata proofSignature
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
 
-        bytes32 proofHash = keccak256(data);
-
-        if ($.usedProofs[proofHash]) {
-            revert ProofAlreadyUsed();
-        }
-
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
-        // We can save the proof, because output with index in unique pair
-        $.usedProofs[proofHash] = true;
+        bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
         BridgeDepositPayload memory deposit = BridgeDepositCodec.create(data);
@@ -346,7 +328,26 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         _mint(deposit.toAddress, uint256(deposit.amount));
 
-        emit WithdrawFromBridge(deposit.toAddress, deposit.txHash, deposit.eventIndex, deposit.fromContract, deposit.fromChainId, deposit.amount);
+        emit WithdrawFromBridge(deposit.toAddress, deposit.txHash, deposit.eventIndex, proofHash, deposit.fromContract, deposit.fromChainId, deposit.amount);
+    }
+
+    /**
+     * @dev Checks that `proofSignature` is signature of `keccak256(data)`
+     * @param self LBTC storage.
+     * @param data arbitrary data with some unique fields (tx hash, output index, etc)
+     * @param proofSignature signed `data` hash
+     */
+    function _checkAndUseProof(LBTCStorage storage self, bytes calldata data, bytes calldata proofSignature) internal returns (bytes32 proofHash) {
+        proofHash = keccak256(data);
+
+        if (self.usedProofs[proofHash]) {
+            revert ProofAlreadyUsed();
+        }
+
+        // we can trust data only if proof is signed by Consortium
+        EIP1271SignatureUtils.checkSignature(self.consortium, proofHash, proofSignature);
+        // We can save the proof, because output with index in unique pair
+        self.usedProofs[proofHash] = true;
     }
 
     function addDestination(bytes32 toChain, bytes32 toContract, uint16 commission) external onlyOwner {

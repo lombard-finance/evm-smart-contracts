@@ -564,7 +564,7 @@ describe("LBTC", function () {
         throw Error("deposit tx not confirmed");
       }
 
-      const { data, signature } = signBridgeDepositPayload(
+      const { data, hash, signature } = signBridgeDepositPayload(
         consortium.privateKey,
         ethers.zeroPadValue(await lbtc.getAddress(), 32),
         CHAIN_ID,
@@ -585,6 +585,7 @@ describe("LBTC", function () {
           signer2.address,
           depositTx.hash,
           1,
+          hash,
           ethers.zeroPadValue(await lbtc.getAddress(), 32),
           CHAIN_ID,
           amountWithoutFee
@@ -631,7 +632,11 @@ describe("LBTC", function () {
         throw Error("deposit tx not confirmed");
       }
 
-      const { data: data2, signature: signature2 } = signBridgeDepositPayload(
+      const {
+        data: data2,
+        hash: hash2,
+        signature: signature2,
+      } = signBridgeDepositPayload(
         consortium.privateKey,
         ethers.zeroPadValue(await lbtc2.getAddress(), 32),
         CHAIN_ID,
@@ -649,6 +654,7 @@ describe("LBTC", function () {
           signer2.address,
           depositTx.hash,
           1,
+          hash2,
           ethers.zeroPadValue(await lbtc2.getAddress(), 32),
           CHAIN_ID,
           amountWithoutFee
