@@ -519,6 +519,40 @@ describe("LBTC", function () {
         lbtc.connect(signer1).burn(p2wsh, amount)
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
+
+    it("Unstake with commission", async () => {
+      const amount = 100_000_000n;
+      const commission = 1_000_000n;
+      const p2tr =
+        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
+
+      await expect(lbtc.changeBurnCommission(commission))
+        .to.emit(lbtc, "BurnCommissionChanged")
+        .withArgs(0, commission);
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+
+      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2tr, amount - commission);
+    });
+
+    it("Reverts not enough to pay commission", async () => {
+      const amount = 999_999n;
+      const commission = 1_000_000n;
+      const p2tr =
+        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
+
+      await expect(lbtc.changeBurnCommission(commission))
+        .to.emit(lbtc, "BurnCommissionChanged")
+        .withArgs(0, commission);
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+
+      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+        .to.revertedWithCustomError(lbtc, "AmountLessThanCommission")
+        .withArgs(commission);
+    });
   });
 
   describe("Bridge", function () {
