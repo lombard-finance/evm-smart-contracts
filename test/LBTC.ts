@@ -247,7 +247,7 @@ describe("LBTC", function () {
       {
         name: "chain is wrong",
         signer: () => consortium,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: 1,
