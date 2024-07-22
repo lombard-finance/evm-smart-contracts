@@ -23,6 +23,8 @@ library BridgeDepositCodec {
     error WrongDataLength();
     error ZeroTxHash();
     error ZeroChainId();
+    error ZeroAddress();
+    error ZeroAmount();
 
     function create(
         bytes calldata data
@@ -31,7 +33,7 @@ library BridgeDepositCodec {
             revert WrongDataLength();
         }
 
-        (bytes32 fromContract, bytes32 fromChainId, bytes32 toContract, bytes32 toChainId, bytes32 toAddress, uint64 amount, bytes32 txHash, uint32 eventIndex) = abi.decode(data, (bytes32,bytes32,bytes32,bytes32,bytes32,uint64,bytes32,uint32));
+        (bytes32 fromContract, bytes32 fromChainId, bytes32 toContract, bytes32 toChainId, bytes32 toAddressBytes, uint64 amount, bytes32 txHash, uint32 eventIndex) = abi.decode(data, (bytes32,bytes32,bytes32,bytes32,bytes32,uint64,bytes32,uint32));
 
         if (fromChainId == bytes32(0)) {
             revert ZeroChainId();
@@ -41,7 +43,16 @@ library BridgeDepositCodec {
             revert ZeroTxHash();
         }
 
-        return BridgeDepositPayload(fromContract, fromChainId, address(uint160(uint256(toContract))), uint256(toChainId), address(uint160(uint256(toAddress))), amount, txHash, eventIndex);
+        address toAddress = address(uint160(uint256(toAddressBytes)));
+        if (toAddress == address(0)) {
+            revert ZeroAddress();
+        }
+
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        return BridgeDepositPayload(fromContract, fromChainId, address(uint160(uint256(toContract))), uint256(toChainId), toAddress, amount, txHash, eventIndex);
     } 
 }
 

@@ -176,11 +176,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadChainId(chainId, output.chainId);
         }
 
-        // verify amount
-        if (output.amount == 0) {
-            revert ZeroAmount();
-        }
-
         _mint(output.to, uint256(output.amount));
 
         emit OutputProcessed(output.txId, output.index, proofHash);
@@ -322,14 +317,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         if (block.chainid != deposit.toChainId) {
             revert BadChainId(block.chainid, deposit.toChainId);
-        }
-
-        if (address(0) == deposit.toAddress) {
-            revert ZeroAddress();
-        }
-
-        if (deposit.amount == 0) {
-            revert ZeroAmount();
         }
 
         _mint(deposit.toAddress, uint256(deposit.amount));
