@@ -340,13 +340,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     function _checkAndUseProof(LBTCStorage storage self, bytes calldata data, bytes calldata proofSignature) internal returns (bytes32 proofHash) {
         proofHash = keccak256(data);
 
-        if (self.usedProofs[proofHash]) {
-            revert ProofAlreadyUsed();
-        }
-
         // we can trust data only if proof is signed by Consortium
         EIP1271SignatureUtils.checkSignature(self.consortium, proofHash, proofSignature);
         // We can save the proof, because output with index in unique pair
+        if (self.usedProofs[proofHash]) {
+            revert ProofAlreadyUsed();
+        }
         self.usedProofs[proofHash] = true;
     }
 
