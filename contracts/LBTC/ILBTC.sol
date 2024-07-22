@@ -18,6 +18,7 @@ interface ILBTC {
     error UnknownDestination();
     error BadCommission();
     error ScriptPubkeyUnsupported();
+    error AmountTooSmall();
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);

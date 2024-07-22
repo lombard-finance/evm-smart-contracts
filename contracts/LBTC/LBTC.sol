@@ -271,9 +271,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param amount amout of tokens to be bridged.
      */
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
+        uint16 commission = getDepositCommission(toChain);
+
+        if (amount < commission) {
+            revert AmountTooSmall();
+        }
+        
         uint256 fee = Math.mulDiv(
             amount,
-            getDepositCommission(toChain),
+            commission,
             MAX_COMMISSION,
             Math.Rounding.Ceil
         );
