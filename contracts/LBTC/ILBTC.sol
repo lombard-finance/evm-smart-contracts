@@ -28,7 +28,7 @@ interface ILBTC {
     event WBTCStakingEnabled(bool);
     event WBTCChanged(address indexed prevVal, address indexed newVal);
     event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
-    event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toToken);
+    event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
     event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 toContract, bytes32 chainId, uint64 amount);
     event WithdrawFromBridge(address indexed toAddress, bytes32 indexed txHash, uint32 indexed eventIndex, bytes32 fromContract, bytes32 fromChainId, uint64 amount);
     event DepositCommissionChanged(uint16 newValue, bytes32 indexed toChain);
