@@ -211,7 +211,7 @@ describe("LBTC", function () {
       {
         name: "signer is not a consortium",
         signer: () => signer1,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
@@ -247,7 +247,7 @@ describe("LBTC", function () {
       {
         name: "chain is wrong",
         signer: () => consortium,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: 1,
@@ -256,7 +256,7 @@ describe("LBTC", function () {
       {
         name: "amount is 0",
         signer: () => consortium,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => signer1.address,
         amount: 0n,
         chainId: config.networks.hardhat.chainId,
@@ -265,7 +265,7 @@ describe("LBTC", function () {
       {
         name: "recipient is 0 address",
         signer: () => consortium,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => ethers.ZeroAddress,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
