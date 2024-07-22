@@ -265,7 +265,7 @@ describe("LBTC", function () {
       {
         name: "recipient is 0 address",
         signer: () => consortium,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => ethers.ZeroAddress,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
