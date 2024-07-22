@@ -211,7 +211,7 @@ describe("LBTC", function () {
       {
         name: "signer is not a consortium",
         signer: () => signer1,
-        signOutputPayload: signOutputPayload,
+        signOutputPayload,
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
