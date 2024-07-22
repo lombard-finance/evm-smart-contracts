@@ -55,6 +55,18 @@ describe("LBTC", function () {
       expect(await lbtc.owner()).to.equal(deployer.address);
     });
 
+    it("getDepositRelativeCommission", async function () {
+      expect(
+        await lbtc.getDepositRelativeCommission(ethers.zeroPadValue("0x", 32))
+      ).to.equal(0);
+    });
+
+    it("getDepositAbsoluteCommission", async function () {
+      expect(
+        await lbtc.getDepositAbsoluteCommission(ethers.zeroPadValue("0x", 32))
+      ).to.equal(0);
+    });
+
     it("consortium() set at initialization", async function () {
       expect(await lbtc.consortium()).to.equal(consortium.address);
     });
@@ -510,6 +522,8 @@ describe("LBTC", function () {
   });
 
   describe("Bridge", function () {
+    const absoluteFee = 100n;
+
     beforeEach(async function () {
       await snapshot.restore();
 
@@ -520,12 +534,14 @@ describe("LBTC", function () {
       await lbtc.addDestination(
         CHAIN_ID,
         ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        1000
+        1000,
+        0
       );
       await lbtc2.addDestination(
         CHAIN_ID,
         ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        1
+        1,
+        absoluteFee
       );
     });
 
@@ -533,7 +549,7 @@ describe("LBTC", function () {
       let amount = await lbtc.MAX_COMMISSION();
 
       let fee =
-        (amount * (await lbtc.getDepositCommission(CHAIN_ID))) /
+        (amount * (await lbtc.getDepositRelativeCommission(CHAIN_ID))) /
         (await lbtc.MAX_COMMISSION());
 
       let amountWithoutFee = amount - fee;
@@ -600,9 +616,9 @@ describe("LBTC", function () {
       amount = amountWithoutFee;
 
       fee =
-        (amount * (await lbtc2.getDepositCommission(CHAIN_ID))) /
+        (amount * (await lbtc2.getDepositRelativeCommission(CHAIN_ID))) /
         (await lbtc.MAX_COMMISSION());
-      fee = fee === 0n ? 1n : fee;
+      fee = (fee === 0n ? 1n : fee) + absoluteFee;
 
       amountWithoutFee = amount - fee;
 

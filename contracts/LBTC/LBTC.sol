@@ -39,8 +39,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // NOTE: mapping(uint256 => address) destinations, mapping(uint256 => uint16) depositCommission, uint256 globalNonce are removed
         uint256[3] __removed1;
+
         mapping(bytes32 => bytes32) destinations;
-        mapping(bytes32 => uint16) depositCommission;
+        mapping(bytes32 => uint16) depositRelativeCommission;
+        mapping(bytes32 => uint64) depositAbsoluteCommission;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -266,18 +268,26 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param amount amount of tokens to be bridged.
      */
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
-        uint16 commission = getDepositCommission(toChain);
-
-        if (amount < commission) {
-            revert AmountTooSmall();
-        }
         
+        // relative fee
+        uint16 relativeComs = getDepositRelativeCommission(toChain);
+        if (amount < relativeComs) {
+            revert AmountTooSmallToPayRelativeFee();
+        }
+
         uint256 fee = Math.mulDiv(
             amount,
-            commission,
+            relativeComs,
             MAX_COMMISSION,
             Math.Rounding.Ceil
         );
+
+        // absolute fee
+        fee += getDepositAbsoluteCommission(toChain);
+
+        if (fee >= amount) {
+            revert AmountLessThanCommission(fee);
+        }
 
         address fromAddress = _msgSender();
         _transfer(fromAddress, getTreasury(), fee);
@@ -285,6 +295,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _burn(fromAddress, amountWithoutFee);
 
         emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee));
+    }
+
+    function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
+        return Math.mulDiv(
+            amount,
+            commission,
+            MAX_COMMISSION,
+            Math.Rounding.Ceil
+        );
     }
 
     function withdrawFromBridge(
@@ -342,7 +361,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         self.usedProofs[proofHash] = true;
     }
 
-    function addDestination(bytes32 toChain, bytes32 toContract, uint16 commission) external onlyOwner {
+    function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission) external onlyOwner {
         if (toContract == bytes32(0)) {
             revert ZeroContractHash();
         }
@@ -350,21 +369,21 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert ZeroChainId();
         }
 
-
-        
         if (getDestination(toChain) != bytes32(0)) {
             revert KnownDestination();
         }
         // do not allow 100% commission or higher values
-        if (commission >= MAX_COMMISSION) {
+        if (relCommission >= MAX_COMMISSION) {
             revert BadCommission();
         }
 
         LBTCStorage storage $ = _getLBTCStorage();
         $.destinations[toChain] = toContract;
-        $.depositCommission[toChain] = commission;
+        $.depositRelativeCommission[toChain] = relCommission;
+        $.depositAbsoluteCommission[toChain] = absCommission;
 
-        emit DepositCommissionChanged(commission, toChain);
+        emit DepositAbsoluteCommissionChanged(absCommission, toChain);
+        emit DepositRelativeCommissionChanged(relCommission, toChain);
         emit BridgeDestinationAdded(toChain, toContract);
     }
 
@@ -375,8 +394,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert ZeroContractHash();
         }
         delete $.destinations[toChain];
-        delete $.depositCommission[toChain];
+        delete $.depositRelativeCommission[toChain];
+        delete $.depositAbsoluteCommission[toChain];
 
+        emit DepositAbsoluteCommissionChanged(0, toChain);
+        emit DepositRelativeCommissionChanged(0, toChain);
         emit BridgeDestinationRemoved(toChain, toContract);
     }
 
@@ -392,16 +414,32 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().treasury;
     }
 
-    function getDepositCommission(bytes32 toChain)
+    function getDepositAbsoluteCommission(bytes32 toChain)
       public
       view
-    returns (uint16 commission)
+    returns (uint64)
     {
-        LBTCStorage storage $ = _getLBTCStorage();
-        commission = $.depositCommission[toChain];
+        return _getLBTCStorage().depositAbsoluteCommission[toChain];
     }
 
-    function changeDepositCommission(uint16 newValue, bytes32 chain)
+    function getDepositRelativeCommission(bytes32 toChain)
+      public
+      view
+    returns (uint16)
+    {
+        return _getLBTCStorage().depositRelativeCommission[toChain];
+    }
+
+    function changeDepositAbsoluteCommission(uint64 newValue, bytes32 chain)
+      external
+      onlyOwner
+    {
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.depositAbsoluteCommission[chain] = newValue;
+        emit DepositAbsoluteCommissionChanged(newValue, chain);
+    }
+
+    function changeDepositRelativeCommission(uint16 newValue, bytes32 chain)
       external
       onlyOwner
     {
@@ -410,8 +448,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadCommission();
         }
         LBTCStorage storage $ = _getLBTCStorage();
-        $.depositCommission[chain] = newValue;
-        emit DepositCommissionChanged(newValue, chain);
+        $.depositRelativeCommission[chain] = newValue;
+        emit DepositRelativeCommissionChanged(newValue, chain);
     }
 
     function changeTreasuryAddress(address newValue)

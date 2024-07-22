@@ -18,7 +18,8 @@ interface ILBTC {
     error UnknownDestination();
     error BadCommission();
     error ScriptPubkeyUnsupported();
-    error AmountTooSmall();
+    error AmountTooSmallToPayRelativeFee();
+    error AmountLessThanCommission(uint256 fee);
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
@@ -32,6 +33,7 @@ interface ILBTC {
     event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
     event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 toContract, bytes32 chainId, uint64 amount);
     event WithdrawFromBridge(address indexed toAddress, bytes32 indexed txHash, uint32 indexed eventIndex, bytes32 proofHash, bytes32 fromContract, bytes32 fromChainId, uint64 amount);
-    event DepositCommissionChanged(uint16 newValue, bytes32 indexed toChain);
     event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
+    event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
+    event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed toChain);
 }
