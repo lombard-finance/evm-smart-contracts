@@ -277,7 +277,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * Burns tokens on source chain (to later mint on destination chain).
      * @param toChain one of many destination chain ID.
      * @param toAddress claimer of 'amount' on destination chain.
-     * @param amount amout of tokens to be bridged.
+     * @param amount amount of tokens to be bridged.
      */
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
         uint256 fee = Math.mulDiv(
