@@ -43,6 +43,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         mapping(bytes32 => bytes32) destinations;
         mapping(bytes32 => uint16) depositRelativeCommission;
         mapping(bytes32 => uint64) depositAbsoluteCommission;
+
+        uint64 burnCommission;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -202,7 +204,14 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert WithdrawalsDisabled();
         }
 
+        uint64 fee = $.burnCommission;
+        if (amount <= fee) {
+            revert AmountLessThanCommission(fee);
+        }
+        amount -= fee;
+
         address fromAddress = address(_msgSender());
+        _transfer(fromAddress, getTreasury(), fee);
         _burn(fromAddress, amount);
 
         emit UnstakeRequest(
@@ -463,5 +472,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    function changeBurnCommission(uint64 newValue)
+        external
+        onlyOwner
+    {
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint64 prevValue = $.burnCommission;
+        $.burnCommission = newValue;
+        emit BurnCommissionChanged(prevValue, newValue);
     }
 }
