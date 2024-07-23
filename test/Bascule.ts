@@ -21,13 +21,7 @@ before(async () => {
 describe("Deployment", function () {
   it("Should deploy the contract", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      0n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 0n);
     await bascule.waitForDeployment();
   });
 });
@@ -35,50 +29,33 @@ describe("Deployment", function () {
 describe("Roles", function () {
   it("Should enforce access control", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      1n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 1n);
     await bascule.waitForDeployment();
 
     // Dummy unique identifier
     const uniqueID = new Uint8Array(32);
 
     // Deposit reporter can report deposits
-    await (
-      await bascule.connect(depositReporter).reportDeposits([uniqueID])
-    ).wait();
+    await (await bascule.connect(depositReporter).reportDeposits([uniqueID])).wait();
 
     // Pauser can't report deposits
-    await expect(
-      bascule.connect(pauser).reportDeposits([uniqueID])
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(pauser).reportDeposits([uniqueID])).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // Withdrawal validator can validate withdrawals
-    await (
-      await bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)
-    ).wait();
+    await (await bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)).wait();
 
     // Deposit reporter can't validate withdrawals
     await expect(
-      bascule.connect(depositReporter).validateWithdrawal(uniqueID, 0)
-    ).to.be.revertedWithCustomError(
-      bascule,
-      "AccessControlUnauthorizedAccount"
-    );
+      bascule.connect(depositReporter).validateWithdrawal(uniqueID, 0),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlUnauthorizedAccount");
 
     // Withdrawal validator can't pause
-    await expect(
-      bascule.connect(withdrawalValidator).pause()
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(withdrawalValidator).pause()).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // Pauser can pause
@@ -92,19 +69,13 @@ describe("Roles", function () {
 describe("Pauser", function () {
   it("Should pause/unpause the contract", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      1n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 1n);
     await bascule.waitForDeployment();
 
     // Admin can't pause
     await expect(bascule.connect(admin).pause()).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // Pauser can pause
@@ -118,58 +89,89 @@ describe("Pauser", function () {
 
     // No deposit reporting while paused
     await expect(
-      bascule.connect(depositReporter).reportDeposits([uniqueID])
+      bascule.connect(depositReporter).reportDeposits([uniqueID]),
     ).to.be.revertedWithCustomError(bascule, "EnforcedPause");
 
     // No withdrawal validating while paused
     await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)
+      bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0),
     ).to.be.revertedWithCustomError(bascule, "EnforcedPause");
 
     // No update max number of deposits while paused
-    await expect(
-      bascule.connect(depositReporter).setMaxDeposits(3n)
-    ).to.be.revertedWithCustomError(bascule, "EnforcedPause");
+    await expect(bascule.connect(depositReporter).setMaxDeposits(3n)).to.be.revertedWithCustomError(
+      bascule,
+      "EnforcedPause",
+    );
 
     // Admin can't unpause
-    await expect(
-      bascule.connect(admin).unpause()
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(admin).unpause()).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // Pauser can unpause
-    await expect(bascule.connect(pauser).unpause()).to.emit(
-      bascule,
-      "Unpaused"
-    );
+    await expect(bascule.connect(pauser).unpause()).to.emit(bascule, "Unpaused");
 
     // The paused getter returns false after unpausing
     expect(await bascule.paused()).to.be.false;
 
     // Deposit reporting is now allowed (i.e., doesn't throw)
-    await (
-      await bascule.connect(depositReporter).reportDeposits([uniqueID])
-    ).wait();
+    await (await bascule.connect(depositReporter).reportDeposits([uniqueID])).wait();
 
     // Withdrawal validating is now allowed (i.e., doesn't throw)
+    await (await bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)).wait();
+  });
+});
+
+describe("Changing admin", function () {
+  it("Should allow admin to change with confirmtaion", async () => {
+    const factory = new tc.Bascule__factory(admin);
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 1n);
+    await bascule.waitForDeployment();
+
+    // eslint-disable-next-line new-cap
+    const adminRole = await bascule.DEFAULT_ADMIN_ROLE();
+
+    // fail to change admin without confirmation
+    await expect(
+      bascule.connect(admin).grantRole(adminRole, await pauser.getAddress()),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlEnforcedDefaultAdminRules");
+    // initiate transfer
+    await expect(
+      bascule.connect(admin).beginDefaultAdminTransfer(await pauser.getAddress()),
+    ).to.be.emit(bascule, "DefaultAdminTransferScheduled");
+    // can't accept yet
+    await expect(
+      bascule.connect(pauser).acceptDefaultAdminTransfer(),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlEnforcedDefaultAdminDelay");
+    // speed up the test by 3 days
+    await hhEthers.provider.send("evm_increaseTime", [300000]);
+    // cancel the transfer
+    await expect(bascule.connect(admin).cancelDefaultAdminTransfer()).to.be.emit(
+      bascule,
+      "DefaultAdminTransferCanceled",
+    );
+    // can't accept now
+    await expect(
+      bascule.connect(pauser).acceptDefaultAdminTransfer(),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlInvalidDefaultAdmin");
+    // transfer again
     await (
-      await bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)
+      await bascule.connect(admin).beginDefaultAdminTransfer(await pauser.getAddress())
     ).wait();
+    // speed up the test by >3 days
+    await hhEthers.provider.send("evm_increaseTime", [300000]);
+    // can accept now
+    await (await bascule.connect(pauser).acceptDefaultAdminTransfer()).wait();
+    // check admin
+    expect(await bascule.connect(pauser).owner()).to.equal(await pauser.getAddress());
   });
 });
 
 describe("Deposit reporting and withdrawal validation", function () {
   it("Should validate withdrawals with corresponding deposits", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      1n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 1n);
     await bascule.waitForDeployment();
 
     // A unique ID for a deposit
@@ -177,7 +179,7 @@ describe("Deposit reporting and withdrawal validation", function () {
 
     // Can't validate for a deposit that doesn't exist
     await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)
+      bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0),
     ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
     // Report deposit and check that the contract emitted the correct event
@@ -189,9 +191,7 @@ describe("Deposit reporting and withdrawal validation", function () {
     expect(await bascule.depositHistory(uniqueID)).to.equal(true);
 
     // Validate the withdrawal and check that the contract emitted the correct event
-    await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)
-    )
+    await expect(bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0))
       .to.emit(bascule, "WithdrawalValidated")
       .withArgs(uniqueID, 0);
 
@@ -199,22 +199,14 @@ describe("Deposit reporting and withdrawal validation", function () {
     expect(await bascule.depositHistory(uniqueID)).to.equal(false);
 
     // Can't validate again for the same deposit
-    await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0)
-    )
+    await expect(bascule.connect(withdrawalValidator).validateWithdrawal(uniqueID, 0))
       .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
       .withArgs(uniqueID, 0);
   });
 
   it("Should validate withdrawals correspond to batch deposits", async () => {
     const factory = new tc.Bascule__factory(pauser);
-    const bascule = await factory.deploy(
-      pauser,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      3n
-    );
+    const bascule = await factory.deploy(pauser, pauser, depositReporter, withdrawalValidator, 3n);
     await bascule.waitForDeployment();
 
     // Unique IDs for deposits
@@ -238,27 +230,19 @@ describe("Deposit reporting and withdrawal validation", function () {
     // Validate the withdrawals
     for (let i = 0; i < depositIDs.length; i++) {
       const depositID = depositIDs[i];
-      await expect(
-        bascule.connect(withdrawalValidator).validateWithdrawal(depositID, i)
-      )
+      await expect(bascule.connect(withdrawalValidator).validateWithdrawal(depositID, i))
         .to.emit(bascule, "WithdrawalValidated")
         .withArgs(depositID, i);
       // should fail if we already validated or the id and address don't match
       await expect(
-        bascule.connect(withdrawalValidator).validateWithdrawal(depositID, i)
+        bascule.connect(withdrawalValidator).validateWithdrawal(depositID, i),
       ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
     }
   });
 
   it("Should sanity check deposit IDs", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      3n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 3n);
     await bascule.waitForDeployment();
 
     // Unique IDs for transactions
@@ -269,12 +253,12 @@ describe("Deposit reporting and withdrawal validation", function () {
 
     // No deposits over the max number
     await expect(
-      bascule.connect(depositReporter).reportDeposits([one, two, three, four])
+      bascule.connect(depositReporter).reportDeposits([one, two, three, four]),
     ).to.be.revertedWithCustomError(bascule, "BadDepositReport");
 
     // No re-used unique IDs
     await expect(
-      bascule.connect(depositReporter).reportDeposits([one, two, two])
+      bascule.connect(depositReporter).reportDeposits([one, two, two]),
     ).to.be.revertedWithCustomError(bascule, "AlreadyReported");
   });
 });
@@ -282,13 +266,7 @@ describe("Deposit reporting and withdrawal validation", function () {
 describe("Swapping withdrawalValidator during pause", async () => {
   it("Allows admin to validate and old validator to not", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      4n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 4n);
     await bascule.waitForDeployment();
 
     // Unique IDs for transactions
@@ -297,24 +275,18 @@ describe("Swapping withdrawalValidator during pause", async () => {
     const three = new Uint8Array(32).fill(3);
     const four = new Uint8Array(32).fill(4);
 
-    await expect(
-      bascule.connect(depositReporter).reportDeposits([one, two, three, four])
-    )
+    await expect(bascule.connect(depositReporter).reportDeposits([one, two, three, four]))
       .to.emit(bascule, "DepositsReported")
       .withArgs(4);
 
     // Fail to validate withdrawal as admin
-    await expect(
-      bascule.connect(admin).validateWithdrawal(one, 0)
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(admin).validateWithdrawal(one, 0)).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // Can withdraw as withdrawalValidator
-    await (
-      await bascule.connect(withdrawalValidator).validateWithdrawal(one, 0)
-    ).wait();
+    await (await bascule.connect(withdrawalValidator).validateWithdrawal(one, 0)).wait();
 
     // Pause the contract
     await (await bascule.connect(pauser).pause()).wait();
@@ -324,9 +296,7 @@ describe("Swapping withdrawalValidator during pause", async () => {
 
     // Add admin as a new withdrawalValidator
     await expect(
-      bascule
-        .connect(admin)
-        .grantRole(withdrawalValidatorRole, await admin.getAddress())
+      bascule.connect(admin).grantRole(withdrawalValidatorRole, await admin.getAddress()),
     )
       .to.emit(bascule, "RoleGranted")
       .withArgs(withdrawalValidatorRole, admin, admin);
@@ -338,29 +308,21 @@ describe("Swapping withdrawalValidator during pause", async () => {
     await (await bascule.connect(admin).validateWithdrawal(two, 0)).wait();
 
     // Can withdraw as withdrawalValidator
-    await (
-      await bascule.connect(withdrawalValidator).validateWithdrawal(three, 0)
-    ).wait();
+    await (await bascule.connect(withdrawalValidator).validateWithdrawal(three, 0)).wait();
 
     // Remove withdrawalValidator from role
     await expect(
       bascule
         .connect(admin)
-        .revokeRole(
-          withdrawalValidatorRole,
-          await withdrawalValidator.getAddress()
-        )
+        .revokeRole(withdrawalValidatorRole, await withdrawalValidator.getAddress()),
     )
       .to.emit(bascule, "RoleRevoked")
       .withArgs(withdrawalValidatorRole, withdrawalValidator, admin);
 
     // Cannot withdraw as withdrawalValidator
     await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(four, 0)
-    ).to.be.revertedWithCustomError(
-      bascule,
-      "AccessControlUnauthorizedAccount"
-    );
+      bascule.connect(withdrawalValidator).validateWithdrawal(four, 0),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlUnauthorizedAccount");
 
     // Can withdraw as admin
     await (await bascule.connect(admin).validateWithdrawal(four, 0)).wait();
@@ -370,13 +332,7 @@ describe("Swapping withdrawalValidator during pause", async () => {
 describe("Update max number of deposits", async () => {
   it("Allows admin to update max number of deposits", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      2n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 2n);
     await bascule.waitForDeployment();
 
     // Unique IDs for transactions
@@ -386,18 +342,16 @@ describe("Update max number of deposits", async () => {
 
     // Deposit three transactions is not allowed
     await expect(
-      bascule.connect(depositReporter).reportDeposits([one, two, three])
+      bascule.connect(depositReporter).reportDeposits([one, two, three]),
     ).to.be.revertedWithCustomError(bascule, "BadDepositReport");
 
     // Get max number of deposits
     expect(await bascule.connect(depositReporter).maxDeposits()).to.equal(2);
 
     // Deposit reporter can't update max number of deposits
-    await expect(
-      bascule.connect(depositReporter).setMaxDeposits(3n)
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(depositReporter).setMaxDeposits(3n)).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // Update max number of deposits to 3
@@ -409,9 +363,7 @@ describe("Update max number of deposits", async () => {
     expect(await bascule.connect(depositReporter).maxDeposits()).to.equal(3);
 
     // Deposit three transactions is okay now
-    await expect(
-      bascule.connect(depositReporter).reportDeposits([one, two, three])
-    )
+    await expect(bascule.connect(depositReporter).reportDeposits([one, two, three]))
       .to.emit(bascule, "DepositsReported")
       .withArgs(3);
   });
@@ -420,30 +372,21 @@ describe("Update max number of deposits", async () => {
 describe("Validation threshold", async () => {
   it("Can be raised by guardian once", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      2n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 2n);
     await bascule.waitForDeployment();
 
-    expect(await bascule.connect(depositReporter).validateThreshold()).to.equal(
-      0
-    );
+    expect(await bascule.connect(depositReporter).validateThreshold()).to.equal(0);
 
     // can't set threshold to same value
-    await expect(
-      bascule.connect(pauser).updateValidateThreshold(0)
-    ).to.be.revertedWithCustomError(bascule, "SameValidationThreshold");
+    await expect(bascule.connect(pauser).updateValidateThreshold(0)).to.be.revertedWithCustomError(
+      bascule,
+      "SameValidationThreshold",
+    );
 
     // can't raise threshold as admin
-    await expect(
-      bascule.connect(admin).updateValidateThreshold(33)
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(admin).updateValidateThreshold(33)).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
 
     // grant guardian role
@@ -458,7 +401,7 @@ describe("Validation threshold", async () => {
 
     // can't set threshold as guardian when paused
     await expect(
-      bascule.connect(guardian).updateValidateThreshold(33)
+      bascule.connect(guardian).updateValidateThreshold(33),
     ).to.be.revertedWithCustomError(bascule, "EnforcedPause");
 
     // unpause the contract
@@ -476,30 +419,19 @@ describe("Validation threshold", async () => {
 
     // can't raise as guardian again
     await expect(
-      bascule.connect(guardian).updateValidateThreshold(33)
-    ).to.be.revertedWithCustomError(
-      bascule,
-      "AccessControlUnauthorizedAccount"
-    );
+      bascule.connect(guardian).updateValidateThreshold(33),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlUnauthorizedAccount");
 
     // can't raise as admin
-    await expect(
-      bascule.connect(admin).updateValidateThreshold(33)
-    ).to.be.revertedWithCustomError(
+    await expect(bascule.connect(admin).updateValidateThreshold(33)).to.be.revertedWithCustomError(
       bascule,
-      "AccessControlUnauthorizedAccount"
+      "AccessControlUnauthorizedAccount",
     );
   });
 
   it("Can be lowerd by admin (whenever)", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      2n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 2n);
     await bascule.waitForDeployment();
 
     // eslint-disable-next-line new-cap
@@ -522,11 +454,8 @@ describe("Validation threshold", async () => {
 
     // can't lower threshold as guardian
     await expect(
-      bascule.connect(guardian).updateValidateThreshold(32)
-    ).to.be.revertedWithCustomError(
-      bascule,
-      "AccessControlUnauthorizedAccount"
-    );
+      bascule.connect(guardian).updateValidateThreshold(32),
+    ).to.be.revertedWithCustomError(bascule, "AccessControlUnauthorizedAccount");
 
     // can lower threshold as admin
     await expect(bascule.connect(admin).updateValidateThreshold(32))
@@ -536,13 +465,7 @@ describe("Validation threshold", async () => {
 
   it("Allows withdrawals below threshold and checks those above", async () => {
     const factory = new tc.Bascule__factory(admin);
-    const bascule = await factory.deploy(
-      admin,
-      pauser,
-      depositReporter,
-      withdrawalValidator,
-      3n
-    );
+    const bascule = await factory.deploy(admin, pauser, depositReporter, withdrawalValidator, 3n);
     await bascule.waitForDeployment();
 
     // grant guardian role
@@ -566,30 +489,22 @@ describe("Validation threshold", async () => {
       .withArgs(2);
 
     // can withdraw an existing deposit above threshold
-    await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(one, 40)
-    )
+    await expect(bascule.connect(withdrawalValidator).validateWithdrawal(one, 40))
       .to.emit(bascule, "WithdrawalValidated")
       .withArgs(one, 40);
 
     // can withdraw an existing deposit below threshold
-    await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(two, 20)
-    )
+    await expect(bascule.connect(withdrawalValidator).validateWithdrawal(two, 20))
       .to.emit(bascule, "WithdrawalValidated")
       .withArgs(two, 20);
 
     // cannot withdraw a non-existing deposit >= threshold
-    await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(three, 33)
-    )
+    await expect(bascule.connect(withdrawalValidator).validateWithdrawal(three, 33))
       .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
       .withArgs(three, 33);
 
     // can withdraw a non-existing deposit below threshold
-    await expect(
-      bascule.connect(withdrawalValidator).validateWithdrawal(three, 32)
-    )
+    await expect(bascule.connect(withdrawalValidator).validateWithdrawal(three, 32))
       .to.emit(bascule, "WithdrawalNotValidated")
       .withArgs(three, 32);
   });
@@ -597,23 +512,19 @@ describe("Validation threshold", async () => {
 
 describe("Gas benchmark", async () => {
   it("Can deposit", async () => {
-    const maxNr = process.env.DEPOSIT_NUM
-      ? parseInt(process.env.DEPOSIT_NUM)
-      : 1000;
+    const maxNr = process.env.DEPOSIT_NUM ? parseInt(process.env.DEPOSIT_NUM) : 1000;
     const factory = new tc.Bascule__factory(admin);
     const bascule = await factory.deploy(
       admin,
       pauser,
       depositReporter,
       withdrawalValidator,
-      BigInt(maxNr)
+      BigInt(maxNr),
     );
     await bascule.waitForDeployment();
 
     // Unique IDs for transactions
-    const depositIDs = new Array(maxNr)
-      .fill(0)
-      .map((_) => getRandomValues(new Uint8Array(32)));
+    const depositIDs = new Array(maxNr).fill(0).map(_ => getRandomValues(new Uint8Array(32)));
 
     // Report maxNr deposits and check that the contract emitted the correct
     await expect(bascule.connect(depositReporter).reportDeposits(depositIDs))

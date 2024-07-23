@@ -17,6 +17,8 @@ interface ILBTC {
     error ScriptPubkeyUnsupported();
     error AmountTooSmallToPayRelativeFee();
     error AmountLessThanCommission(uint256 fee);
+    error UnauthorizedAccount(address account);
+    event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);

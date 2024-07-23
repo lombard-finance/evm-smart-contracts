@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
 import "./interfaces/IBascule.sol";
 
 /// Bascule contract for preventing bridge hacks from hitting the chain.
@@ -16,7 +17,7 @@ import "./interfaces/IBascule.sol";
 /// validateWithdrawal function.
 ///
 /// @custom:security-contact security@cubist.dev
-contract Bascule is IBascule, Pausable, AccessControl {
+contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
   // Role that can pause withdrawal and deposit reporting
   bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
   // Role that can report deposit transactions to the history
@@ -108,8 +109,7 @@ contract Bascule is IBascule, Pausable, AccessControl {
     address depositReporter,
     address withdrawalValidator,
     uint256 aMaxDeposits
-  ) {
-    _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+  ) AccessControlDefaultAdminRules(3 days, defaultAdmin) {
     _grantRole(PAUSER_ROLE, pauser);
     _grantRole(DEPOSIT_REPORTER_ROLE, depositReporter);
     _grantRole(WITHDRAWAL_VALIDATOR_ROLE, withdrawalValidator);
