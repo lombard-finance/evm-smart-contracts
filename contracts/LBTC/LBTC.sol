@@ -323,12 +323,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
 
+        // verify proof signature and ensure that the proof has not been used already  
         bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
         BridgeDepositPayload memory deposit = BridgeDepositCodec.create(data);
 
-        // verify fields
+        // validate fields
         bytes32 fromContract = getDestination(deposit.fromChainId);
         if (deposit.fromContract != fromContract) {
             revert BadDestination();
@@ -338,7 +339,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadToContractAddress(address(this), deposit.toContract);
         }
 
-        if (block.chainid != deposit.toChainId) {
+        if (deposit.toChainId != block.chainid) {
             revert BadChainId(block.chainid, deposit.toChainId);
         }
 
