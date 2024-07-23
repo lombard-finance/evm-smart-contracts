@@ -333,7 +333,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // parse deposit
         BridgeDepositPayload memory deposit = BridgeDepositCodec.create(data);
 
-        // verify fields
+        // validate fields
         bytes32 fromContract = getDestination(deposit.fromChainId);
         if (deposit.fromContract != fromContract) {
             revert BadDestination();
