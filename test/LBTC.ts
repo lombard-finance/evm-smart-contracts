@@ -7,10 +7,12 @@ import {
   signBridgeDepositPayload,
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock } from "../typechain-types";
+import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 import { error } from "console";
-const { init } = require("./helpers.ts");
+import { MaxUint256 } from "ethers";
+import { getRandomValues } from "crypto";
+const { init, deployBascule } = require("./helpers.ts");
 const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
 describe("LBTC", function () {
@@ -19,16 +21,25 @@ describe("LBTC", function () {
     signer1: HardhatEthersSigner,
     signer2: HardhatEthersSigner,
     signer3: HardhatEthersSigner,
-    treasury: HardhatEthersSigner;
+    treasury: HardhatEthersSigner,
+    basculeReporter: HardhatEthersSigner;
   let signers;
   let lbtc: LBTCMock;
   let lbtc2: LBTCMock;
   let snapshot: SnapshotRestorer;
   let wbtc: WBTCMock;
+  let bascule: Bascule;
 
   before(async function () {
-    [deployer, consortium, signer1, signer2, signer3, treasury] =
-      await ethers.getSigners();
+    [
+      deployer,
+      consortium,
+      signer1,
+      signer2,
+      signer3,
+      treasury,
+      basculeReporter,
+    ] = await ethers.getSigners();
     signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
     const result = await init(consortium);
@@ -40,6 +51,8 @@ describe("LBTC", function () {
 
     await lbtc.changeTreasuryAddress(treasury);
     await lbtc2.changeTreasuryAddress(treasury);
+
+    bascule = await deployBascule(basculeReporter, lbtc);
 
     snapshot = await takeSnapshot();
   });
@@ -81,6 +94,10 @@ describe("LBTC", function () {
 
     it("WBTC() unset", async function () {
       expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
+    });
+
+    it("Bascule() unset", async function () {
+      expect(await lbtc.Bascule()).to.be.equal(ethers.ZeroAddress);
     });
 
     it("pause() turns on enforced pause", async function () {
@@ -164,6 +181,15 @@ describe("LBTC", function () {
         .to.emit(lbtc, "WBTCStakingEnabled")
         .withArgs(true);
     });
+
+    it("changeBascule", async function () {
+      await expect(lbtc.changeBascule(await bascule.getAddress()))
+        .to.emit(lbtc, "BasculeChanged")
+        .withArgs(ethers.ZeroAddress, await bascule.getAddress());
+      await expect(lbtc.changeBascule(ethers.ZeroAddress))
+        .to.emit(lbtc, "BasculeChanged")
+        .withArgs(await bascule.getAddress(), ethers.ZeroAddress);
+    });
   });
 
   describe("Mint positive cases", function () {
@@ -197,6 +223,72 @@ describe("LBTC", function () {
           to: recipient.address,
           amount,
         });
+        await expect(
+          lbtc
+            .connect(msgSender)
+            ["mint(bytes,bytes)"](signedData.data, signedData.signature)
+        )
+          .to.emit(lbtc, "Transfer")
+          .withArgs(ethers.ZeroAddress, recipient.address, amount);
+
+        const balanceAfter = await lbtc.balanceOf(recipient.address);
+        const totalSupplyAfter = await lbtc.totalSupply();
+
+        expect(balanceAfter - balanceBefore).to.be.eq(amount);
+        expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(amount);
+      });
+    });
+  });
+  describe("Mint positive cases (with Bascule)", function () {
+    before(async function () {
+      await snapshot.restore();
+      await expect(lbtc.changeBascule(await bascule.getAddress()))
+        .to.emit(lbtc, "BasculeChanged")
+        .withArgs(ethers.ZeroAddress, await bascule.getAddress());
+    });
+
+    const args = [
+      {
+        name: "1 BTC",
+        amount: 100_000_000n,
+        recipient: () => signer1,
+        msgSender: () => signer2,
+      },
+      {
+        name: "1 satoshi",
+        amount: 1n,
+        recipient: () => signer1,
+        msgSender: () => signer2,
+      },
+    ];
+    args.forEach(function (arg) {
+      it(`Mint ${arg.name}`, async function () {
+        const amount = arg.amount;
+        const recipient = arg.recipient();
+        const msgSender = arg.msgSender();
+        const balanceBefore = await lbtc.balanceOf(recipient.address);
+        const totalSupplyBefore = await lbtc.totalSupply();
+
+        const signedData = signOutputPayload(consortium.privateKey, {
+          to: recipient.address,
+          amount,
+        });
+
+        // mint without report fails
+        await expect(
+          lbtc
+            .connect(msgSender)
+            ["mint(bytes,bytes)"](signedData.data, signedData.signature)
+        ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
+
+        // report deposit
+        await expect(
+          bascule.connect(basculeReporter).reportDeposits([signedData.hash])
+        )
+          .to.emit(bascule, "DepositsReported")
+          .withArgs(1);
+
+        // mint works
         await expect(
           lbtc
             .connect(msgSender)
@@ -703,6 +795,66 @@ describe("LBTC", function () {
         .withArgs(
           signer2.address,
           depositTx.hash,
+          1,
+          hash2,
+          ethers.zeroPadValue(await lbtc2.getAddress(), 32),
+          CHAIN_ID,
+          amountWithoutFee
+        );
+    });
+
+    it("withdrawFromBridge (with Bascule)", async () => {
+      // Enable Bascule
+      await expect(lbtc.changeBascule(await bascule.getAddress()))
+        .to.emit(lbtc, "BasculeChanged")
+        .withArgs(ethers.ZeroAddress, await bascule.getAddress());
+
+      // Use the 2nd half of the full flow test to test the Bascule integration
+      let amount = await lbtc.MAX_COMMISSION();
+
+      let fee =
+        (amount * (await lbtc.getDepositRelativeCommission(CHAIN_ID))) /
+        (await lbtc.MAX_COMMISSION());
+
+      let amountWithoutFee = amount - fee;
+
+      // Since we don't perform the first half of the full flow (deposit on the
+      // other chain), we just make up a random deposit tx hash
+      const depositTxHash = `0x${Buffer.from(
+        getRandomValues(new Uint8Array(32))
+      ).toString("hex")}`;
+      const {
+        data: data2,
+        hash: hash2,
+        signature: signature2,
+      } = signBridgeDepositPayload(
+        consortium.privateKey,
+        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
+        CHAIN_ID,
+        ethers.zeroPadValue(await lbtc.getAddress(), 32),
+        CHAIN_ID,
+        ethers.zeroPadValue(signer2.address, 32),
+        amountWithoutFee,
+        depositTxHash,
+        1
+      );
+
+      // withdraw without report fails
+      await expect(
+        lbtc.connect(signer2).withdrawFromBridge(data2, signature2)
+      ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
+
+      // report deposit
+      await expect(bascule.connect(basculeReporter).reportDeposits([hash2]))
+        .to.emit(bascule, "DepositsReported")
+        .withArgs(1);
+
+      // withdraw works
+      await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
+        .to.emit(lbtc, "WithdrawFromBridge")
+        .withArgs(
+          signer2.address,
+          depositTxHash,
           1,
           hash2,
           ethers.zeroPadValue(await lbtc2.getAddress(), 32),

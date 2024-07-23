@@ -9,6 +9,7 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { IBascule } from "../bascule/interfaces/IBascule.sol";
 
 import "./ILBTC.sol";
 import "../libs/OutputCodec.sol";
@@ -45,6 +46,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
 
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
+
+        // Bascule drawbridge used to confirm deposits before allowing withdrawals
+        IBascule bascule;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -181,6 +185,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadChainId(chainId, output.chainId);
         }
 
+        // Confirm deposit against Bascule
+        _confirmDeposit($, proofHash, uint256(output.amount));
+
+        // Actually mint
         _mint(output.to, uint256(output.amount));
 
         emit OutputProcessed(output.txId, output.index, proofHash);
@@ -188,7 +196,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     /**
      * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
-     * 
+     *
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of LBTC to burn
      */
@@ -283,7 +291,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param amount amount of tokens to be bridged.
      */
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
-        
+
         // relative fee
         uint16 relativeComs = getDepositRelativeCommission(toChain);
         if (amount < relativeComs) {
@@ -349,6 +357,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadChainId(block.chainid, deposit.toChainId);
         }
 
+        // Confirm deposit against Bascule
+        _confirmDeposit($, proofHash, uint256(deposit.amount));
+
+        // Actually mint
         _mint(deposit.toAddress, uint256(deposit.amount));
 
         emit WithdrawFromBridge(deposit.toAddress, deposit.txHash, deposit.eventIndex, proofHash, deposit.fromContract, deposit.fromChainId, deposit.amount);
@@ -488,5 +500,46 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
+    }
+
+    /** Get Bascule contract. */
+    function Bascule() external view returns (IBascule) {
+        return _getLBTCStorage().bascule;
+    }
+
+    /**
+     * Change the address of the Bascule drawbridge contract.
+     * Setting the address to 0 disables the Bascule check.
+     * @param newVal The new address.
+     *
+     * Emits a {BasculeChanged} event.
+     */
+    function changeBascule(address newVal) external onlyOwner {
+        _changeBascule(newVal);
+    }
+
+    /**
+     * Change the address of the Bascule drawbridge contract.
+     * @param newVal The new address.
+     *
+     * Emits a {BasculeChanged} event.
+     */
+    function _changeBascule(address newVal) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        emit BasculeChanged(address($.bascule), newVal);
+        $.bascule = IBascule(newVal);
+    }
+
+    /**
+     * @dev Checks that the deposit was validated by the Bascule drawbridge.
+     * @param self LBTC storage.
+     * @param depositID The unique ID of the deposit.
+     * @param amount The withdrawal amount.
+     */
+    function _confirmDeposit(LBTCStorage storage self, bytes32 depositID, uint256 amount) internal {
+        IBascule bascule = self.bascule;
+        if (address(bascule) != address(0)) {
+            bascule.validateWithdrawal(depositID, amount);
+        }
     }
 }

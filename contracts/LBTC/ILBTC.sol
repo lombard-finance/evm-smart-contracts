@@ -37,4 +37,5 @@ interface ILBTC {
     event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
     event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed toChain);
     event BurnCommissionChanged(uint64 prevValue, uint64 newValue);
+    event BasculeChanged(address indexed prevVal, address indexed newVal);
 }
