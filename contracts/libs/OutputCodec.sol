@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-error WrongDataLength();
-error WrongChainIdEncoding();
-error WrongAddressEncoding();
-error WrongTxIdEncoding();
+
 
 struct OutputWithPayload {
     uint256 chainId;
@@ -16,6 +13,12 @@ struct OutputWithPayload {
 
 
 library OutputCodec {
+    error WrongDataLength();
+    error WrongChainIdEncoding();
+    error WrongAddressEncoding();
+    error WrongTxIdEncoding();
+    error ZeroAmount();
+
     uint256 internal constant DATA_LENGTH = 32 * 5;
 
     function decode(bytes calldata data) internal pure returns (OutputWithPayload memory) {
@@ -32,6 +35,9 @@ library OutputCodec {
         }
         if (txId == bytes32(0)) {
             revert WrongTxIdEncoding();
+        }
+        if (amount == 0) {
+            revert ZeroAmount();
         }
         return OutputWithPayload(chainId, to, amount, txId, index);
     }
