@@ -266,6 +266,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (toContract == bytes32(0)) {
             revert UnknownDestination();
         }
+
+        if (toAddress == bytes32(0)) {
+            revert ZeroAddress();
+        }
+
         _deposit(toChain, toContract, toAddress, amount);
     }
 
