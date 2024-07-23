@@ -9,7 +9,7 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IBascule } from "@cubist-labs/bascule/interfaces/IBascule.sol";
+import { IBascule } from "../bascule/interfaces/IBascule.sol";
 
 import "./ILBTC.sol";
 import "../libs/OutputCodec.sol";
