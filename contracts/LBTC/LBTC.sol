@@ -12,9 +12,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./ILBTC.sol";
 import "../libs/OutputCodec.sol";
+import "../libs/BridgeDepositCodec.sol";
 import "../libs/EIP1271SignatureUtils.sol";
-import "../libs/EthereumVerifier.sol";
-import "../libs/ProofParser.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -35,11 +34,17 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         bool isWBTCEnabled;
 
         IERC20 wbtc;
+
         address treasury;
-        mapping(uint256 => address) destinations;
-        mapping(uint256 => uint16) depositCommission;
-        mapping(bytes32 => bool) usedBridgeProofs;
-        uint256 globalNonce;
+
+        // NOTE: mapping(uint256 => address) destinations, mapping(uint256 => uint16) depositCommission, uint256 globalNonce are removed
+        uint256[3] __removed1;
+
+        mapping(bytes32 => bytes32) destinations;
+        mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
+        mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
+
+        uint64 burnCommission; // absolute commission to charge on burn (unstake)
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -160,20 +165,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function mint(
         bytes calldata data,
-        bytes memory proofSignature
+        bytes calldata proofSignature
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 
-        bytes32 proofHash = keccak256(data);
-
-        if ($.usedProofs[proofHash]) {
-            revert ProofAlreadyUsed();
-        }
-
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
-        // We can save the proof, because output with index in unique pair
-        $.usedProofs[proofHash] = true;
+        // verify proof signature and ensure that the proof has not been used already
+        bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
         OutputWithPayload memory output = OutputCodec.decode(data);
@@ -182,11 +179,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint256 chainId = block.chainid;
         if (chainId != output.chainId) {
             revert BadChainId(chainId, output.chainId);
-        }
-
-        // verify amount
-        if (output.amount == 0) {
-            revert ZeroAmount();
         }
 
         _mint(output.to, uint256(output.amount));
@@ -213,7 +205,14 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert WithdrawalsDisabled();
         }
 
+        uint64 fee = $.burnCommission;
+        if (amount <= fee) {
+            revert AmountLessThanCommission(fee);
+        }
+        amount -= fee;
+
         address fromAddress = address(_msgSender());
+        _transfer(fromAddress, getTreasury(), fee);
         _burn(fromAddress, amount);
 
         emit UnstakeRequest(
@@ -225,10 +224,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function isUsed(bytes32 proof) external view returns (bool) {
         return _getLBTCStorage().usedProofs[proof];
-    }
-
-    function isBridgeProofUsed(bytes32 proof) external view returns (bool) {
-        return _getLBTCStorage().usedBridgeProofs[proof];
     }
 
     function consortium() external view virtual returns (address) {
@@ -265,164 +260,211 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     // --- Bridge ---
-    function depositToBridge(uint256 toChain, address toAddress, uint256 amount) external override nonReentrant whenNotPaused {
-        if (getDestination(toChain) != address(0)) {
-            _depositEVM(toChain, toAddress, amount);
-        } else revert UnknownDestination();
+
+    function depositToBridge(bytes32 toChain, bytes32 toAddress, uint64 amount) external nonReentrant {
+        bytes32 toContract = getDestination(toChain);
+
+        if (toContract == bytes32(0)) {
+            revert UnknownDestination();
+        }
+
+        if (toAddress == bytes32(0)) {
+            revert ZeroAddress();
+        }
+
+        _deposit(toChain, toContract, toAddress, amount);
     }
+
     /**
-     * @dev Tokens on source and destination chains are linked with independent supplies.
+     * @dev LBTC on source and destination chains are linked with independent supplies.
      * Burns tokens on source chain (to later mint on destination chain).
      * @param toChain one of many destination chain ID.
-     * @param toAddress claimer of 'totalAmount' on destination chain.
-     * @param totalAmount amout of tokens to be bridged.
+     * @param toAddress claimer of 'amount' on destination chain.
+     * @param amount amount of tokens to be bridged.
      */
-    function _depositEVM(uint256 toChain, address toAddress, uint256 totalAmount) internal {
-        uint256 fee = Math.mulDiv(
-            totalAmount,
-            getDepositCommission(toChain),
-            MAX_COMMISSION,
-            Math.Rounding.Ceil
-        );
+    function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
+        
+        // relative fee
+        uint16 relativeComs = getDepositRelativeCommission(toChain);
+        if (amount < relativeComs) {
+            revert AmountTooSmallToPayRelativeFee();
+        }
+
+        uint256 fee = _calcRelativeFee(amount, relativeComs);
+
+        // absolute fee
+        fee += getDepositAbsoluteCommission(toChain);
+
+        if (fee >= amount) {
+            revert AmountLessThanCommission(fee);
+        }
 
         address fromAddress = _msgSender();
         _transfer(fromAddress, getTreasury(), fee);
-        uint256 amountWithoutFee = totalAmount - fee;
+        uint256 amountWithoutFee = amount - fee;
         _burn(fromAddress, amountWithoutFee);
 
-        emit DepositToBridge(
-            toChain, fromAddress, toAddress, address(this),
-            getDestination(toChain), amountWithoutFee, _incrementNonce());
+        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee));
     }
 
-    function withdrawFromBridge(bytes calldata, /* encodedProof */ bytes calldata rawReceipt, bytes memory proofSignature) external override nonReentrant whenNotPaused {
-        uint256 proofOffset;
-        uint256 receiptOffset;
-        assembly {
-            proofOffset := add(0x4, calldataload(4))
-            receiptOffset := add(0x4, calldataload(36))
-        }
-        /* we must parse and verify that tx and receipt matches */
-        (EthereumVerifier.State memory state, EthereumVerifier.PegInType pegInType) = EthereumVerifier.parseTransactionReceipt(receiptOffset);
+    function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
+        return Math.mulDiv(
+            amount,
+            commission,
+            MAX_COMMISSION,
+            Math.Rounding.Ceil
+        );
+    }
 
-        if (state.chainId != block.chainid) {
-            revert BadChainId(block.chainid, state.chainId);
-        }
+    function withdrawFromBridge(
+        bytes calldata data,
+        bytes calldata proofSignature
+    ) external nonReentrant {
+        _withdraw(data, proofSignature);
+    }
 
-        ProofParser.Proof memory proof = ProofParser.parseProof(proofOffset);
-        if (state.contractAddress == address(0)) {
-            revert InvalidContractAddress();
-        }
-
-        if (getDestination(proof.chainId) != state.contractAddress) {
-            revert EventFromUnknownContract(getDestination(proof.chainId), state.contractAddress);
-        }
-        if (state.contractAddress != state.fromToken) {
-            revert BadFromToken(state.contractAddress, state.fromToken);
-        }
-        if (address(this) != state.toToken) {
-            revert BadToToken(address(this), state.toToken);
-        }
-
-        state.receiptHash = keccak256(rawReceipt);
-        proof.status = 0x01;
-        proof.receiptHash = state.receiptHash;
-
-        bytes32 proofHash;
-        assembly {
-            proofHash := keccak256(proof, 0x100)
-        }
-
+    function _withdraw(
+        bytes calldata data,
+        bytes calldata proofSignature
+    ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
 
+        // verify proof signature and ensure that the proof has not been used already  
+        bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
-        // we can trust receipt only if proof is signed by consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, proofSignature);
+        // parse deposit
+        BridgeDepositPayload memory deposit = BridgeDepositCodec.create(data);
 
-        if ($.usedBridgeProofs[proofHash]) {
-            revert ProofAlreadyUsed();
+        // validate fields
+        bytes32 fromContract = getDestination(deposit.fromChainId);
+        if (deposit.fromContract != fromContract) {
+            revert BadDestination();
         }
-        $.usedBridgeProofs[proofHash] = true;
 
-        _withdraw(state, pegInType);
-    }
-
-    function _withdraw(EthereumVerifier.State memory state, EthereumVerifier.PegInType pegInType) internal {
-        if (pegInType == EthereumVerifier.PegInType.Bridged) {
-            _mint(state.toAddress, state.totalAmount);
-            emit WithdrawFromBridge(state.receiptHash, state.fromAddress, state.toAddress, state.fromToken, state.toToken, state.totalAmount);
-        } else revert InvalidType();
-    }
-
-
-    function _incrementNonce() internal returns (uint256) {
-        LBTCStorage storage $ = _getLBTCStorage();
-        $.globalNonce += 1;
-        return $.globalNonce;
-    }
-
-    function addDestination(uint256 toChain, address toToken, uint16 commission) external onlyOwner {
-        if (toToken == address(0)) {
-            revert ZeroAddress();
+        if (deposit.toContract != address(this)) {
+            revert BadToContractAddress(address(this), deposit.toContract);
         }
-        LBTCStorage storage $ = _getLBTCStorage();
-        if ($.destinations[toChain] != address(0)) {
-            revert KnownDestination();
+
+        if (deposit.toChainId != block.chainid) {
+            revert BadChainId(block.chainid, deposit.toChainId);
         }
-        if (commission > MAX_COMMISSION) {
-            revert BadCommission();
-        }
-        $.destinations[toChain] = toToken;
-        $.depositCommission[toChain] = commission;
-        emit DepositCommissionChanged(commission, toChain);
-        emit BridgeDestinationAdded(toChain, toToken);
+
+        _mint(deposit.toAddress, uint256(deposit.amount));
+
+        emit WithdrawFromBridge(deposit.toAddress, deposit.txHash, deposit.eventIndex, proofHash, deposit.fromContract, deposit.fromChainId, deposit.amount);
     }
-
-    function removeDestination(uint256 toChain) external onlyOwner {
-        LBTCStorage storage $ = _getLBTCStorage();
-        address toToken = $.destinations[toChain];
-        if (toToken == address(0)) {
-            revert ZeroAddress();
-        }
-        delete $.destinations[toChain];
-        delete $.depositCommission[toChain];
-
-        emit BridgeDestinationRemoved(toChain, toToken);
-    }
-
 
     /**
-     * @dev Get destination token for bridging for chainId
-     *
-     * @param chain Id of the destination chain
+     * @dev Checks that `proofSignature` is signature of `keccak256(data)`
+     * @param self LBTC storage.
+     * @param data arbitrary data with some unique fields (tx hash, output index, etc)
+     * @param proofSignature signed `data` hash
      */
-    function getDestination(uint256 chain) public view returns (address) {
-        return _getLBTCStorage().destinations[chain];
+    function _checkAndUseProof(LBTCStorage storage self, bytes calldata data, bytes calldata proofSignature) internal returns (bytes32 proofHash) {
+        proofHash = keccak256(data);
+
+        // we can trust data only if proof is signed by Consortium
+        EIP1271SignatureUtils.checkSignature(self.consortium, proofHash, proofSignature);
+        // We can save the proof, because output with index in unique pair
+        if (self.usedProofs[proofHash]) {
+            revert ProofAlreadyUsed();
+        }
+        self.usedProofs[proofHash] = true;
+    }
+
+    function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission) external onlyOwner {
+        if (toContract == bytes32(0)) {
+            revert ZeroContractHash();
+        }
+        if (toChain == bytes32(0)) {
+            revert ZeroChainId();
+        }
+
+        if (getDestination(toChain) != bytes32(0)) {
+            revert KnownDestination();
+        }
+        // do not allow 100% commission or higher values
+        if (relCommission >= MAX_COMMISSION) {
+            revert BadCommission();
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.destinations[toChain] = toContract;
+        $.depositRelativeCommission[toChain] = relCommission;
+        $.depositAbsoluteCommission[toChain] = absCommission;
+
+        emit DepositAbsoluteCommissionChanged(absCommission, toChain);
+        emit DepositRelativeCommissionChanged(relCommission, toChain);
+        emit BridgeDestinationAdded(toChain, toContract);
+    }
+
+    function removeDestination(bytes32 toChain) external onlyOwner {
+        LBTCStorage storage $ = _getLBTCStorage();
+        bytes32 toContract = $.destinations[toChain];
+        if (toContract == bytes32(0)) {
+            revert ZeroContractHash();
+        }
+        delete $.destinations[toChain];
+        delete $.depositRelativeCommission[toChain];
+        delete $.depositAbsoluteCommission[toChain];
+
+        emit DepositAbsoluteCommissionChanged(0, toChain);
+        emit DepositRelativeCommissionChanged(0, toChain);
+        emit BridgeDestinationRemoved(toChain, toContract);
+    }
+
+    /**
+     * @dev Get destination contract for chain id
+     * @param chainId Chain id of the destination chain
+     */
+    function getDestination(bytes32 chainId) public view returns (bytes32) {
+        return _getLBTCStorage().destinations[chainId];
     }
 
     function getTreasury() public view returns (address) {
         return _getLBTCStorage().treasury;
     }
 
-    function getDepositCommission(uint256 toChain)
-    public
-    view
-    returns (uint16 commission)
+    function getDepositAbsoluteCommission(bytes32 toChain)
+      public
+      view
+    returns (uint64)
     {
-        LBTCStorage storage $ = _getLBTCStorage();
-        commission = $.depositCommission[toChain];
+        return _getLBTCStorage().depositAbsoluteCommission[toChain];
     }
 
-    function changeDepositCommission(uint16 newValue, uint256 chain)
-    external
-    onlyOwner
+    function getDepositRelativeCommission(bytes32 toChain)
+      public
+      view
+    returns (uint16)
     {
-        if (newValue > MAX_COMMISSION) {
+        return _getLBTCStorage().depositRelativeCommission[toChain];
+    }
+
+    function getBurnCommission() public view returns (uint64) {
+        return _getLBTCStorage().burnCommission;
+    }
+
+    function changeDepositAbsoluteCommission(uint64 newValue, bytes32 chain)
+      external
+      onlyOwner
+    {
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.depositAbsoluteCommission[chain] = newValue;
+        emit DepositAbsoluteCommissionChanged(newValue, chain);
+    }
+
+    function changeDepositRelativeCommission(uint16 newValue, bytes32 chain)
+      external
+      onlyOwner
+    {
+        // do not allow 100% commission
+        if (newValue >= MAX_COMMISSION) {
             revert BadCommission();
         }
         LBTCStorage storage $ = _getLBTCStorage();
-        $.depositCommission[chain] = newValue;
-        emit DepositCommissionChanged(newValue, chain);
+        $.depositRelativeCommission[chain] = newValue;
+        emit DepositRelativeCommissionChanged(newValue, chain);
     }
 
     function changeTreasuryAddress(address newValue)
@@ -436,5 +478,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    function changeBurnCommission(uint64 newValue)
+        external
+        onlyOwner
+    {
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint64 prevValue = $.burnCommission;
+        $.burnCommission = newValue;
+        emit BurnCommissionChanged(prevValue, newValue);
     }
 }
