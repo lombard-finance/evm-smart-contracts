@@ -1,7 +1,8 @@
 import { config, ethers, network, upgrades } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock } from "../typechain-types";
+import { LBTCMock, WBTCMock, Bascule, Address } from "../typechain-types";
+import { AddressLike } from "ethers";
 
 export function signOutputPayload(
   privateKey: string,
@@ -130,4 +131,13 @@ export async function init(consortium: HardhatEthersSigner) {
   await wbtc.waitForDeployment();
 
   return { lbtc, wbtc };
+}
+
+export async function deployBascule(reporter: HardhatEthersSigner, lbtc: AddressLike): Promise<Bascule> {
+  console.log("=== Bascule");
+  const Bascule = await ethers.getContractFactory("Bascule");
+  const [admin, pauser, maxDeposits] = [ reporter.address, reporter.address, 100 ];
+  const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
+  await bascule.waitForDeployment();
+  return bascule;
 }

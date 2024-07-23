@@ -5,6 +5,7 @@
   "author": "Lombrad Finance",
   "license": "MIT",
   "devDependencies": {
+    "@cubist-labs/bascule": "github:lombard-finance/bascule",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-ignition": "^0.15.0",
