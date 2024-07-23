@@ -9,7 +9,6 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
 import { IBascule } from "@cubist-labs/bascule/interfaces/IBascule.sol";
 
 import "./ILBTC.sol";
@@ -43,10 +42,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint256[3] __removed1;
 
         mapping(bytes32 => bytes32) destinations;
-        mapping(bytes32 => uint16) depositRelativeCommission;
-        mapping(bytes32 => uint64) depositAbsoluteCommission;
+        mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
+        mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
 
-        uint64 burnCommission;
+        uint64 burnCommission; // absolute commission to charge on burn (unstake)
 
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
@@ -174,6 +173,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 
+        // verify proof signature and ensure that the proof has not been used already
         bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
@@ -275,6 +275,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (toContract == bytes32(0)) {
             revert UnknownDestination();
         }
+
+        if (toAddress == bytes32(0)) {
+            revert ZeroAddress();
+        }
+
         _deposit(toChain, toContract, toAddress, amount);
     }
 
@@ -293,12 +298,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert AmountTooSmallToPayRelativeFee();
         }
 
-        uint256 fee = Math.mulDiv(
-            amount,
-            relativeComs,
-            MAX_COMMISSION,
-            Math.Rounding.Ceil
-        );
+        uint256 fee = _calcRelativeFee(amount, relativeComs);
 
         // absolute fee
         fee += getDepositAbsoluteCommission(toChain);
@@ -337,12 +337,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
 
+        // verify proof signature and ensure that the proof has not been used already  
         bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
         BridgeDepositPayload memory deposit = BridgeDepositCodec.create(data);
 
-        // verify fields
+        // validate fields
         bytes32 fromContract = getDestination(deposit.fromChainId);
         if (deposit.fromContract != fromContract) {
             revert BadDestination();
@@ -352,7 +353,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadToContractAddress(address(this), deposit.toContract);
         }
 
-        if (block.chainid != deposit.toChainId) {
+        if (deposit.toChainId != block.chainid) {
             revert BadChainId(block.chainid, deposit.toChainId);
         }
 
