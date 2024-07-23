@@ -49,6 +49,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
+
+        address pauser;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -82,14 +84,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         __ReentrancyGuard_init();
 
         __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_);
-    }
-
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
     }
 
     function toggleWithdrawals() external onlyOwner {
@@ -492,5 +486,45 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }
+    }
+
+    /** PAUSE */
+
+    modifier onlyPauser() {
+        _checkPauser();
+        _;
+    }
+
+    function pauser() public view returns (address) {
+        return _getLBTCStorage().pauser;
+    }
+
+    function pause() external onlyPauser {
+        _pause();
+    }
+
+    function unpause() external onlyPauser {
+        _unpause();
+    }
+
+
+    function _checkPauser() internal view {
+        if (pauser() != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+    }
+
+    function transferPauserRole(address newPauser) external onlyOwner {
+        if (newPauser == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferPauserRole(newPauser);
+    }
+
+    function _transferPauserRole(address newPauser) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldPauser = $.pauser;
+        $.pauser = newPauser;
+        emit PauserRoleTransferred(oldPauser, newPauser);
     }
 }
