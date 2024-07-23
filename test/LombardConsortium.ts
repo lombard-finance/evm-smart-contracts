@@ -1,7 +1,7 @@
 import { config, ethers, upgrades } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { enrichWithPrivateKeys, signData } from "./helpers";
+import { enrichWithPrivateKeys, signOutputPayload } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
@@ -62,7 +62,7 @@ describe("LombardConsortium", function () {
 
       //Validate with new key
       const amount = 100_000_000n;
-      const signedData = await signData(signer1.privateKey, {
+      const signedData = signOutputPayload(signer1.privateKey, {
         to: signer2.address,
         amount,
       });
@@ -99,7 +99,7 @@ describe("LombardConsortium", function () {
       it(`Mint ${arg.name}`, async function () {
         const amount = arg.amount;
         const recipient = arg.recipient();
-        const signedData = await signData(threshold.privateKey, {
+        const signedData = signOutputPayload(threshold.privateKey, {
           to: recipient.address,
           amount,
         });
@@ -118,7 +118,7 @@ describe("LombardConsortium", function () {
       {
         name: "signer is not a consortium",
         signer: () => signer1,
-        signData: signData,
+        signOutputPayload: signOutputPayload,
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
@@ -127,16 +127,16 @@ describe("LombardConsortium", function () {
       {
         name: "hash does not match signature",
         signer: () => signer1,
-        signData: async function (
+        signOutputPayload: function (
           privateKey: string,
           data: { to: string; amount: bigint; chainId?: number }
-        ): Promise<{
+        ): {
           data: string;
           hash: string;
           signature: string;
-        }> {
-          const result1 = await signData(privateKey, data);
-          const result2 = await signData(privateKey, {
+        } {
+          const result1 = signOutputPayload(privateKey, data);
+          const result2 = signOutputPayload(privateKey, {
             to: signer2.address,
             amount: 100_000_000n,
           });
@@ -157,7 +157,7 @@ describe("LombardConsortium", function () {
         const amount = arg.amount;
         const recipient = arg.recipient();
         const signer = arg.signer();
-        const signedData = await arg.signData(signer.privateKey, {
+        const signedData = arg.signOutputPayload(signer.privateKey, {
           to: recipient,
           amount: amount,
           chainId: arg.chainId,
