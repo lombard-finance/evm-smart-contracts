@@ -284,12 +284,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert AmountTooSmallToPayRelativeFee();
         }
 
-        uint256 fee = Math.mulDiv(
-            amount,
-            relativeComs,
-            MAX_COMMISSION,
-            Math.Rounding.Ceil
-        );
+        uint256 fee = _calcRelativeFee(amount, relativeComs);
 
         // absolute fee
         fee += getDepositAbsoluteCommission(toChain);
