@@ -8,9 +8,6 @@ interface ILBTC {
     error ZeroContractHash();
     error ZeroChainId();
     error WithdrawalsDisabled();
-    error WBTCStakingDisabled();
-    error WBTCNotSet();
-    error WBTCDecimalsMissmatch(uint8 expected, uint8 got);
     error BadChainId(uint256 expected, uint256 received);
     error BadToContractAddress(address expected, address received);
     error BadDestination();
@@ -26,9 +23,6 @@ interface ILBTC {
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
     event OutputProcessed(bytes32 indexed transactionId, uint32 indexed index, bytes32 proofHash);
-    event WBTCStaked(address indexed staker, address indexed to, uint256 amount);
-    event WBTCStakingEnabled(bool);
-    event WBTCChanged(address indexed prevVal, address indexed newVal);
     event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
     event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
     event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 toContract, bytes32 chainId, uint64 amount);
