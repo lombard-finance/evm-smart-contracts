@@ -343,7 +343,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert BadToContractAddress(address(this), deposit.toContract);
         }
 
-        if (block.chainid != deposit.toChainId) {
+        if (deposit.toChainId != block.chainid) {
             revert BadChainId(block.chainid, deposit.toChainId);
         }
 
