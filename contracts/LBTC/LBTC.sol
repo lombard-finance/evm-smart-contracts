@@ -169,6 +169,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 
+        // verify proof signature and ensure that the proof has not been used already
         bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
 
         // parse deposit
