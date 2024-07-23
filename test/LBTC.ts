@@ -31,8 +31,15 @@ describe("LBTC", function () {
   let bascule: Bascule;
 
   before(async function () {
-    [deployer, consortium, signer1, signer2, signer3, treasury, basculeReporter] =
-      await ethers.getSigners();
+    [
+      deployer,
+      consortium,
+      signer1,
+      signer2,
+      signer3,
+      treasury,
+      basculeReporter,
+    ] = await ethers.getSigners();
     signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
     const result = await init(consortium);
@@ -92,7 +99,6 @@ describe("LBTC", function () {
     it("Bascule() unset", async function () {
       expect(await lbtc.Bascule()).to.be.equal(ethers.ZeroAddress);
     });
-
 
     it("pause() turns on enforced pause", async function () {
       expect(await lbtc.paused()).to.be.false;
@@ -184,7 +190,6 @@ describe("LBTC", function () {
         .to.emit(lbtc, "BasculeChanged")
         .withArgs(await bascule.getAddress(), ethers.ZeroAddress);
     });
-
   });
 
   describe("Mint positive cases", function () {
@@ -271,14 +276,17 @@ describe("LBTC", function () {
 
         // mint without report fails
         await expect(
-          lbtc.connect(msgSender)
+          lbtc
+            .connect(msgSender)
             ["mint(bytes,bytes)"](signedData.data, signedData.signature)
         ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
         // report deposit
         await expect(
           bascule.connect(basculeReporter).reportDeposits([signedData.hash])
-        ).to.emit(bascule, "DepositsReported").withArgs(1);
+        )
+          .to.emit(bascule, "DepositsReported")
+          .withArgs(1);
 
         // mint works
         await expect(
@@ -796,7 +804,6 @@ describe("LBTC", function () {
     });
 
     it("withdrawFromBridge (with Bascule)", async () => {
-
       // Enable Bascule
       await expect(lbtc.changeBascule(await bascule.getAddress()))
         .to.emit(lbtc, "BasculeChanged")
@@ -813,7 +820,9 @@ describe("LBTC", function () {
 
       // Since we don't perform the first half of the full flow (deposit on the
       // other chain), we just make up a random deposit tx hash
-      const depositTxHash = `0x${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex')}`;
+      const depositTxHash = `0x${Buffer.from(
+        getRandomValues(new Uint8Array(32))
+      ).toString("hex")}`;
       const {
         data: data2,
         hash: hash2,
@@ -831,13 +840,14 @@ describe("LBTC", function () {
       );
 
       // withdraw without report fails
-      await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
-        .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
+      await expect(
+        lbtc.connect(signer2).withdrawFromBridge(data2, signature2)
+      ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
       // report deposit
-      await expect(
-        bascule.connect(basculeReporter).reportDeposits([hash2])
-      ).to.emit(bascule, "DepositsReported").withArgs(1);
+      await expect(bascule.connect(basculeReporter).reportDeposits([hash2]))
+        .to.emit(bascule, "DepositsReported")
+        .withArgs(1);
 
       // withdraw works
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
