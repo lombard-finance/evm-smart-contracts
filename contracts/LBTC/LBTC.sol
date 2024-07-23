@@ -41,10 +41,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint256[3] __removed1;
 
         mapping(bytes32 => bytes32) destinations;
-        mapping(bytes32 => uint16) depositRelativeCommission;
-        mapping(bytes32 => uint64) depositAbsoluteCommission;
+        mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
+        mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
 
-        uint64 burnCommission;
+        uint64 burnCommission; // absolute commission to charge on burn (unstake)
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
