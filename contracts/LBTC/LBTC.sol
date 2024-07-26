@@ -503,7 +503,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _pause();
     }
 
-    function unpause() external onlyPauser {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
