@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
-import "../interfaces/IBascule.sol";
+import "./interfaces/IBascule.sol";
 
 /// Bascule contract for preventing bridge hacks from hitting the chain.
 /// This is the on-chain component of an off-chain/on-chain system.

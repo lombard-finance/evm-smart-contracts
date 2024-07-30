@@ -282,11 +282,14 @@ describe("LBTC", function () {
         ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
         // report deposit
+        const reportId = ethers.zeroPadValue("0x01", 32);
         await expect(
-          bascule.connect(basculeReporter).reportDeposits([signedData.hash])
+          bascule
+            .connect(basculeReporter)
+            .reportDeposits(reportId, [signedData.hash])
         )
           .to.emit(bascule, "DepositsReported")
-          .withArgs(1);
+          .withArgs(reportId, 1);
 
         // mint works
         await expect(
@@ -319,7 +322,7 @@ describe("LBTC", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
+        customError: "SignatureVerificationFailed",
       },
       {
         name: "data does not match hash",
@@ -346,7 +349,7 @@ describe("LBTC", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
+        customError: "SignatureVerificationFailed",
       },
       {
         name: "chain is wrong",
@@ -845,9 +848,12 @@ describe("LBTC", function () {
       ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
       // report deposit
-      await expect(bascule.connect(basculeReporter).reportDeposits([hash2]))
+      const reportId = ethers.zeroPadValue("0x01", 32);
+      await expect(
+        bascule.connect(basculeReporter).reportDeposits(reportId, [hash2])
+      )
         .to.emit(bascule, "DepositsReported")
-        .withArgs(1);
+        .withArgs(reportId, 1);
 
       // withdraw works
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
@@ -883,7 +889,7 @@ describe("LBTC", function () {
 
       await expect(
         lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "BadSignature");
+      ).to.revertedWithCustomError(lbtc2, "SignatureVerificationFailed");
     });
 
     it("reverts: chain id from zero", async () => {
