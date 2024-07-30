@@ -30,7 +30,6 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
 
     /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
-    /// @return The storage reference to the ConsortiumStorage struct
     function _getConsortiumStorage()
         private
         pure
@@ -84,7 +83,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
 
     /// @notice Calculates the threshold number of signatures needed for consensus
-    /// @param playerCount - The total number of players
+    /// @param _playerCount - The total number of players
     /// @return The threshold number of signatures required
     function _calculateThreshold(uint256 _playerCount) private pure returns (uint256) {
         require(_playerCount > 0, "Invalid player count");
