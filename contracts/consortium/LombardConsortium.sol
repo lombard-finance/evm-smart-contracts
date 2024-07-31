@@ -218,10 +218,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
                 // Hashes are automatically approved by the sender of the message or when they have been pre-approved
                 require(msg.sender == currentOwner || $.approvedHashes[currentOwner][dataHash] != 0, "Hash not approved");
             }
-             else if (v > 30) {
-                // Support eth_sign
-                currentOwner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
-            } else {
+            else {
                 // Default ecrecover
                 currentOwner = ecrecover(dataHash, v, r, s);
             }
