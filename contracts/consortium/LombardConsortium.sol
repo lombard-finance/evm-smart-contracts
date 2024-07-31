@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 import "./interfaces/ISignatureValidator.sol";
 
@@ -30,7 +31,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         address[] playerList;
 
         /// @notice The current threshold for signature validation
-        /// @dev Calculated as (2/3 * playerList.length) + 1, with floor rounding
+        /// @dev Calculated as floor(2/3 * playerList.length) + 1
         uint256 threshold;
 
         /// @notice Mapping of addresses to their approved hashes
@@ -78,7 +79,15 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @notice Internal function to update threshold value
     function _updateThreshold() internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        $.threshold = ($.playerList.length * 2 / 3) + 1;
+        uint256 playerCount = $.playerList.length;
+        uint256 threshold = Math.ceilDiv(playerCount * 2, 3);
+
+        // for multiple of 3 need to increment
+        if (playerCount % 3 == 0) {
+            threshold += 1;
+        }
+
+        $.threshold = threshold;
     }
 
     /// @notice Initializes the consortium contract with players and the owner key
