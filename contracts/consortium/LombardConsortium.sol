@@ -6,7 +6,8 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 import "./interfaces/ISignatureValidator.sol";
 
-error SignatureValidationError();
+error LombardConsortium__SignatureValidationError();
+error LombardConsortium__DuplicatedPlayer(address player);
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -63,7 +64,9 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function __Consortium_init(address[] memory _initialPlayers) internal onlyInitializing {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         for (uint i; i < _initialPlayers.length;) {
-            require(!$.players[_initialPlayers[i]], "Duplicate player");
+            if ($.players[_initialPlayers[i]]) {
+                revert LombardConsortium__DuplicatedPlayer(_initialPlayers[i]);
+            }
             $.players[_initialPlayers[i]] = true;
             $.playerList.push(_initialPlayers[i]);
             emit PlayerAdded(_initialPlayers[i]);
@@ -134,7 +137,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         try this.validateSignature(hash, signatures) returns (bool valid) {
             return valid ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
         } catch {
-            revert SignatureValidationError();
+            revert LombardConsortium__SignatureValidationError();
         }
     }
 
