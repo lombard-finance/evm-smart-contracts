@@ -6,15 +6,12 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 import "./interfaces/ISignatureValidator.sol";
 
+error SignatureValidationError();
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
 contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
-    error BadSignature();
-    error InvalidPlayer();
-    error DuplicateSignature();
-    error InvalidThreshold();
-
     event PlayerAdded(address player);
     event PlayerRemoved(address player);
     event ApprovedHash(address indexed approver, bytes32 indexed hash);
@@ -133,11 +130,11 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @param hash The hash of the data to be signed
     /// @param signatures The signatures to validate
     /// @return magicValue The magic value (0x1626ba7e) if the signature is valid, 0 otherwise
-    function isValidSignature(bytes32 hash, bytes memory signatures) external view override returns (bytes4 magicValue) {
+    function isValidSignature(bytes32 hash, bytes memory signatures) external view override returns (bytes4) {
         try this.validateSignature(hash, signatures) returns (bool valid) {
-            return valid ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : bytes4(0);
+            return valid ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
         } catch {
-            return bytes4(0);
+            revert SignatureValidationError();
         }
     }
 

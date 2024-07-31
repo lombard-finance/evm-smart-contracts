@@ -17,6 +17,7 @@ library EIP1271SignatureUtils {
 
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
     bytes4 internal constant EIP1271_MAGICVALUE = 0x1626ba7e;
+    bytes4 internal constant EIP1271_WRONGVALUE = 0xffffffff;
 
     /**
      * @notice Checks @param signature is a valid signature of @param digestHash from @param signer.
