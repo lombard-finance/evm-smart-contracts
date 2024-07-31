@@ -29,7 +29,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         address[] playerList;
 
         /// @notice The current threshold for signature validation
-        /// @dev Calculated as (2/3 * playerList.length) + 1, with ceil rounding
+        /// @dev Calculated as (2/3 * playerList.length) + 1, with floor rounding
         uint256 threshold;
 
         /// @notice Mapping of addresses to their approved hashes
