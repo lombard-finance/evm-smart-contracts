@@ -19,7 +19,6 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     event PlayerRemoved(address player);
     event ApprovedHash(address indexed approver, bytes32 indexed hash);
 
-
     /// @title ConsortiumStorage
     /// @dev Struct to hold the consortium's state
     /// @custom:storage-location erc7201:lombardfinance.storage.Consortium

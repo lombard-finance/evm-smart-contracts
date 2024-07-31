@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+// Safe interface
+// https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/interfaces/ISignatureValidator.sol
 interface ISignatureValidator {
     /**
      * @dev Should return whether the signature provided is valid for the provided data
