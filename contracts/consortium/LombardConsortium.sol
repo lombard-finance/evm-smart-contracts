@@ -91,6 +91,34 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         __Consortium_init(_players);
     }
 
+    /// @notice Adds player from consortium
+    /// @param _newPlayer - Player address to add
+    function addPlayer(address _newPlayer) external onlyOwner {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        require(!$.players[_newPlayer], "Player already exists");
+        $.players[_newPlayer] = true;
+        $.playerList.push(_newPlayer);
+        emit PlayerAdded(_newPlayer);
+        _updateThreshold();
+    }
+
+    /// @notice Removes player from consortium
+    /// @param _playerToRemove - Player address to remove
+    function removePlayer(address _playerToRemove) external onlyOwner {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        require($.players[_playerToRemove], "Player not found");
+        $.players[_playerToRemove] = false;
+        for (uint i = 0; i < $.playerList.length; i++) {
+            if ($.playerList[i] == _playerToRemove) {
+                $.playerList[i] = $.playerList[$.playerList.length - 1];
+                $.playerList.pop();
+                break;
+            }
+        }
+        emit PlayerRemoved(_playerToRemove);
+        _updateThreshold();
+    }
+
     /// @notice Approves a hash for the calling player
     /// @dev Only players can approve hashes
     /// @param hashToApprove The hash to be approved
