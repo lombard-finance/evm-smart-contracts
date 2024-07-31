@@ -61,13 +61,13 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @notice Internal initializer for the consortium with players
     /// @param _initialPlayers - The initial list of players
     function __Consortium_init(address[] memory _initialPlayers) internal onlyInitializing {
-        //_setPlayers(_players);
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        for (uint i = 0; i < _initialPlayers.length; i++) {
+        for (uint i; i < _initialPlayers.length;) {
             require(!$.players[_initialPlayers[i]], "Duplicate player");
-             $.players[_initialPlayers[i]] = true;
+            $.players[_initialPlayers[i]] = true;
             $.playerList.push(_initialPlayers[i]);
             emit PlayerAdded(_initialPlayers[i]);
+            unchecked { ++i; }
         }
         _updateThreshold();
     }
