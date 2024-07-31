@@ -9,6 +9,7 @@ import "./interfaces/ISignatureValidator.sol";
 
 error LombardConsortium__SignatureValidationError();
 error LombardConsortium__DuplicatedPlayer(address player);
+error LombardConsortium__NonExistentPlayer(address player);
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -103,7 +104,9 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @param _newPlayer - Player address to add
     function addPlayer(address _newPlayer) external onlyOwner {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        require(!$.players[_newPlayer], "Player already exists");
+        if ($.players[_newPlayer]) {
+            revert LombardConsortium__DuplicatedPlayer(_newPlayer);
+        }
         $.players[_newPlayer] = true;
         $.playerList.push(_newPlayer);
         emit PlayerAdded(_newPlayer);
@@ -114,7 +117,9 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @param _playerToRemove - Player address to remove
     function removePlayer(address _playerToRemove) external onlyOwner {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        require($.players[_playerToRemove], "Player not found");
+        if (!$.players[_playerToRemove]) {
+            revert LombardConsortium__NonExistentPlayer(_playerToRemove);
+        }
         $.players[_playerToRemove] = false;
         for (uint i = 0; i < $.playerList.length; i++) {
             if ($.playerList[i] == _playerToRemove) {
