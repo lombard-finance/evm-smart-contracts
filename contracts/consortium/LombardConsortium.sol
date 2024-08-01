@@ -30,6 +30,9 @@ error LombardConsortium__InvalidSignatureLength();
 /// @dev Error thrown when signatures amount is below the required threshold
 error LombardConsortium__InsufficientSignatures();
 
+/// @dev Error thrown when signatures amount is more than players amount
+error LombardConsortium__TooManySignatures();
+
 /// @dev Error thrown when signatures from the same players are present in the multisig
 error LombardConsortium__DuplicatedSignature(address player);
 
@@ -173,7 +176,6 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
             revert LombardConsortium__PlayerAlreadyExists(_newPlayer);
         }
 
-
         bytes32 proofHash = keccak256(_data);
 
         // we can trust data only if proof is signed by Consortium
@@ -239,6 +241,10 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
         if (signatureCount < $.threshold) {
             revert LombardConsortium__InsufficientSignatures();
+        }
+
+        if (signatureCount > $.playerList.length) {
+            revert LombardConsortium__TooManySignatures();
         }
 
         address[] memory signers = new address[](signatureCount);
