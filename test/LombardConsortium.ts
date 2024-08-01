@@ -6,17 +6,23 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signer
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 
+const EIP1271_MAGICVALUE = 0x1626ba7e;
+const EIP1271_WRONGVALUE = 0xffffffff;
+
 async function init(
-  threshold: HardhatEthersSigner,
-  owner: HardhatEthersSigner
+  initialPlayers: HardhatEthersSigner[],
+  owner: HardhatEthersSigner,
+  consortium: HardhatEthersSigner
 ) {
   console.log("=== LombardConsortium");
   const LombardConsortium = await ethers.getContractFactory(
     "LombardConsortium"
   );
+  const initialPlayerAddresses = initialPlayers.map(player => player.address);
   const lombard = (await upgrades.deployProxy(LombardConsortium, [
-    threshold.address,
+    initialPlayerAddresses,
     owner.address,
+    consortium.address
   ])) as LombardConsortium;
   await lombard.waitForDeployment();
   return { lombard };
@@ -24,7 +30,7 @@ async function init(
 
 describe("LombardConsortium", function () {
   let deployer: HardhatEthersSigner,
-    threshold: HardhatEthersSigner,
+    consortium: HardhatEthersSigner,
     signer1: HardhatEthersSigner,
     signer2: HardhatEthersSigner,
     signer3: HardhatEthersSigner;
@@ -33,11 +39,10 @@ describe("LombardConsortium", function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [deployer, threshold, signer1, signer2, signer3] =
-      await ethers.getSigners();
-    signers = [deployer, threshold, signer1, signer2, signer3];
+    [deployer, consortium, signer1, signer2, signer3] = await ethers.getSigners();
+    signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
-    const result = await init(threshold, deployer);
+    const result = await init([signer1, signer2, signer3], deployer, consortium);
     lombard = result.lombard;
     snapshot = await takeSnapshot();
   });
@@ -46,126 +51,87 @@ describe("LombardConsortium", function () {
     beforeEach(async function () {
       await snapshot.restore();
     });
-    it("Should set right threshold key", async function () {
+
+    it("Should set the correct owner", async function () {
       expect(await lombard.owner()).to.equal(deployer.address);
     });
-    it("Should set right threshold owner", async function () {
-      expect(await lombard.thresholdAddr()).to.equal(threshold.address);
-    });
-    it("changeThresholdAdrr()", async function () {
-      const prevValue = await lombard.thresholdAddr();
-      const newValue = signer1.address;
-      await expect(lombard.changeThresholdAddr(newValue))
-        .to.emit(lombard, "ThresholdAddrChanged")
-        .withArgs(prevValue, newValue);
-      expect(await lombard.thresholdAddr()).to.be.eq(newValue);
 
-      //Validate with new key
-      const amount = 100_000_000n;
-      const signedData = signOutputPayload(signer1.privateKey, {
-        to: signer2.address,
-        amount,
-      });
-      expect(
-        BigInt(
-          await lombard.isValidSignature(signedData.hash, signedData.signature)
-        )
-      ).to.be.gt(1n);
+    it("Should set the correct consortium address", async function () {
+      // Assuming there is a function consortium() to get the consortium address
+      expect(await lombard.getPlayers()).to.include.members([signer1.address, signer2.address, signer3.address]);
     });
 
-    it("changeThresholdAddr() reverts when called by not an owner", async function () {
-      await expect(
-        lombard.connect(signer1).changeThresholdAddr(signer1.address)
-      ).to.revertedWithCustomError(lombard, "OwnableUnauthorizedAccount");
+    it("Should correctly add a player", async function () {
+      const newPlayer = ethers.Wallet.createRandom();
+      const data = ethers.utils.defaultAbiCoder.encode(["address"], [newPlayer.address]);
+      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+
+      await expect(lombard.addPlayer(newPlayer.address, data, proofSignature))
+        .to.emit(lombard, "PlayerAdded")
+        .withArgs(newPlayer.address);
+
+      expect(await lombard.getPlayers()).to.include(newPlayer.address);
+    });
+
+    it("Should correctly remove a player", async function () {
+      const data = ethers.utils.defaultAbiCoder.encode(["address"], [signer3.address]);
+      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+
+      await expect(lombard.removePlayer(signer3.address, data, proofSignature))
+        .to.emit(lombard, "PlayerRemoved")
+        .withArgs(signer3.address);
+
+      expect(await lombard.getPlayers()).to.not.include(signer3.address);
+    });
+
+    it("Should revert when adding an existing player", async function () {
+      const data = ethers.utils.defaultAbiCoder.encode(["address"], [signer1.address]);
+      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+
+      await expect(lombard.addPlayer(signer1.address, data, proofSignature))
+        .to.be.revertedWithCustomError(lombard, "LombardConsortium__PlayerAlreadyExists");
+    });
+
+    it("Should revert when removing a non-existent player", async function () {
+      const newPlayer = ethers.Wallet.createRandom();
+      const data = ethers.utils.defaultAbiCoder.encode(["address"], [newPlayer.address]);
+      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+
+      await expect(lombard.removePlayer(newPlayer.address, data, proofSignature))
+        .to.be.revertedWithCustomError(lombard, "LombardConsortium__PlayerNotFound");
     });
   });
 
-  describe("Signature", function () {
-    const valid = [
-      {
-        name: "1 BTC",
-        amount: 100_000_000n,
-        recipient: () => signer1,
-        msgSender: () => signer2,
-      },
-      {
-        name: "1 satoshi",
-        amount: 1n,
-        recipient: () => signer1,
-        msgSender: () => signer2,
-      },
-    ];
-    valid.forEach(function (arg) {
-      it(`Mint ${arg.name}`, async function () {
-        const amount = arg.amount;
-        const recipient = arg.recipient();
-        const signedData = signOutputPayload(threshold.privateKey, {
-          to: recipient.address,
-          amount,
-        });
-        expect(
-          BigInt(
-            await lombard.isValidSignature(
-              signedData.hash,
-              signedData.signature
-            )
-          )
-        ).to.be.gt(1n);
-      });
+  describe("Signature verification", function () {
+    beforeEach(async function () {
+      await snapshot.restore();
     });
 
-    const invalid = [
-      {
-        name: "signer is not a consortium",
-        signer: () => signer1,
-        signOutputPayload: signOutputPayload,
-        recipient: () => signer1.address,
-        amount: 100_000_000n,
-        chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
-      },
-      {
-        name: "hash does not match signature",
-        signer: () => signer1,
-        signOutputPayload: function (
-          privateKey: string,
-          data: { to: string; amount: bigint; chainId?: number }
-        ): {
-          data: string;
-          hash: string;
-          signature: string;
-        } {
-          const result1 = signOutputPayload(privateKey, data);
-          const result2 = signOutputPayload(privateKey, {
-            to: signer2.address,
-            amount: 100_000_000n,
-          });
-          return {
-            data: result1.data,
-            hash: result1.hash,
-            signature: result2.signature,
-          };
-        },
-        recipient: () => signer1.address,
-        amount: 100_000_000n,
-        chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
-      },
-    ];
-    invalid.forEach(function (arg) {
-      it(`Reverts when ${arg.name}`, async function () {
-        const amount = arg.amount;
-        const recipient = arg.recipient();
-        const signer = arg.signer();
-        const signedData = arg.signOutputPayload(signer.privateKey, {
-          to: recipient,
-          amount: amount,
-          chainId: arg.chainId,
-        });
-        await expect(
-          lombard.isValidSignature(signedData.hash, signedData.signature)
-        ).to.revertedWithCustomError(lombard, arg.customError);
+    it("Should validate correct signatures", async function () {
+      const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test"));
+      const signature1 = await signer1.signMessage(ethers.utils.arrayify(hash));
+      const signature2 = await signer2.signMessage(ethers.utils.arrayify(hash));
+      const signature3 = await signer3.signMessage(ethers.utils.arrayify(hash));
+
+      const signatures = signature1 + signature2.slice(2) + signature3.slice(2);
+
+      expect(
+        await lombard.isValidSignature(hash, signatures)
+      ).to.be.equal(EIP1271_MAGICVALUE);
+    });
+
+    it("Should revert on invalid signatures", async function () {
+      const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test"));
+      const signature1 = await signer1.signMessage(ethers.utils.arrayify(hash));
+      const invalidSignature = ethers.utils.joinSignature({
+        r: '0x' + '0'.repeat(64),
+        s: '0x' + '0'.repeat(64),
+        v: 27
       });
+
+      const signatures = signature1 + invalidSignature.slice(2);
+
+      await expect(lombard.isValidSignature(hash, signatures)).to.be.revertedWithCustomError(lombard, "LombardConsortium__InsufficientSignatures");
     });
   });
 });

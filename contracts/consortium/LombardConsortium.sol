@@ -277,6 +277,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         return EIP1271SignatureUtils.EIP1271_WRONGVALUE;
     }
 
+    /// TODO: Use openzeppelin bitmaps for it
     /// @notice internal function to check presence of element in array
     function _contains(address[] memory array, address element) internal pure returns (bool) {
         for (uint i = 0; i < array.length; i++) {
