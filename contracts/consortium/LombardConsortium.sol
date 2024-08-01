@@ -35,6 +35,9 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         /// @dev Calculated as floor(2/3 * playerList.length) + 1
         uint256 threshold;
 
+        /// @notice Consortium address
+        address consortium;
+
         /// @notice Mapping of addresses to their approved hashes
         /// @dev A non-zero value indicates the hash is approved
         mapping(address => mapping(bytes32 => uint256)) approvedHashes;
@@ -63,8 +66,10 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
     /// @notice Internal initializer for the consortium with players
     /// @param _initialPlayers - The initial list of players
-    function __Consortium_init(address[] memory _initialPlayers) internal onlyInitializing {
+    /// @param _consortium - Consortium address
+    function __Consortium_init(address[] memory _initialPlayers, address _consortium) internal onlyInitializing {
         ConsortiumStorage storage $ = _getConsortiumStorage();
+        $.consortium = _consortium;
         for (uint i; i < _initialPlayers.length;) {
             if ($.players[_initialPlayers[i]]) {
                 revert LombardConsortium__DuplicatedPlayer(_initialPlayers[i]);
@@ -94,16 +99,25 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @notice Initializes the consortium contract with players and the owner key
     /// @param _players - The initial list of players
     /// @param _ownerKey - The address of the initial owner
-    function initialize(address[] memory _players, address _ownerKey) external initializer {
+    /// @param _consortium - Consortium address
+    function initialize(address[] memory _players, address _ownerKey, address _consortium) external initializer {
         __Ownable_init(_ownerKey);
         __Ownable2Step_init();
-        __Consortium_init(_players);
+        __Consortium_init(_players, _consortium);
     }
 
-    /// @notice Adds player from consortium
+    /// @notice Adds player if approved by consortium
     /// @param _newPlayer - Player address to add
-    function addPlayer(address _newPlayer) external onlyOwner {
+    /// @param _data - Data to verify
+    /// @param _proofSignature - Consortium signature
+    function addPlayer(address _newPlayer, bytes calldata _data, bytes calldata _proofSignature) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
+
+        bytes32 proofHash = keccak256(_data);
+
+        // we can trust data only if proof is signed by Consortium
+        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
+
         if ($.players[_newPlayer]) {
             revert LombardConsortium__DuplicatedPlayer(_newPlayer);
         }
@@ -113,10 +127,18 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         _updateThreshold();
     }
 
-    /// @notice Removes player from consortium
+    /// @notice Removes player if approved by consortium
     /// @param _playerToRemove - Player address to remove
-    function removePlayer(address _playerToRemove) external onlyOwner {
+    /// @param _data - Data to verify
+    /// @param _proofSignature - Consortium signature
+    function removePlayer(address _playerToRemove, bytes calldata _data, bytes calldata _proofSignature) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
+
+        bytes32 proofHash = keccak256(_data);
+
+        // we can trust data only if proof is signed by Consortium
+        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
+
         if (!$.players[_playerToRemove]) {
             revert LombardConsortium__NonExistentPlayer(_playerToRemove);
         }
