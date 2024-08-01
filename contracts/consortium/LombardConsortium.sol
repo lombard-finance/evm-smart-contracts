@@ -133,7 +133,10 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function _updateThreshold() internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         uint256 playerCount = $.playerList.length;
-        // for multiple of 3 need to increment
+        // threshold = floor(2/3 * playerCount) + 1
+        // equivalent to:
+        // ceil(2/3 * playerCount) if playerCount is not multiple of 3,
+        // ceil(2/3 * playerCount) + 1 otherwise
         $.threshold = Math.ceilDiv(playerCount * 2, 3) + (playerCount % 3 == 0 ? 1 : 0);
     }
 
@@ -203,11 +206,11 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         _updateThreshold();
     }
 
-    // /// @notice Validates the provided signature against the given hash
-    // /// @param _hash The hash of the data to be signed
-    // /// @param _signatures The signatures to validate
-    // /// @return The magic value (0x1626ba7e) if the signature is valid, wrong value
-    // ///         (0xffffffff) otherwise
+    /// @notice Validates the provided signature against the given hash
+    /// @param _hash The hash of the data to be signed
+    /// @param _signatures The signatures to validate
+    /// @return The magic value (0x1626ba7e) if the signature is valid, wrong value
+    ///         (0xffffffff) otherwise
     function isValidSignature(bytes32 _hash, bytes calldata _signatures) external view override returns (bytes4) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
