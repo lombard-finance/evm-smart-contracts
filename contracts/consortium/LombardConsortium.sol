@@ -6,8 +6,6 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 
-error LombardConsortium__SignatureValidationError();
-
 /// @dev Error thrown when trying to initialize with too few players
 error LombardConsortium__InsufficientInitialPlayers(uint256 provided, uint256 minimum);
 
@@ -36,13 +34,15 @@ error LombardConsortium__TooManySignatures();
 /// @dev Error thrown when signatures from the same players are present in the multisig
 error LombardConsortium__DuplicatedSignature(address player);
 
+/// @dev Error thrown when signature is invalid
+error LombardConsortium__SignatureValidationError();
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
 contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     event PlayerAdded(address player);
     event PlayerRemoved(address player);
-    event ApprovedHash(address indexed approver, bytes32 indexed hash);
 
     /// @title ConsortiumStorage
     /// @dev Struct to hold the consortium's state
@@ -216,41 +216,26 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         if (signatureCount < $.threshold) revert LombardConsortium__InsufficientSignatures();
         if (signatureCount > $.playerList.length) revert LombardConsortium__TooManySignatures();
 
-        address[] memory signers = new address[](signatureCount);
+        address[] memory seenSigners = new address[](signatureCount);
         uint256 validSignatures;
 
         for (uint256 i; i < signatureCount;) {
-            (uint8 v, bytes32 r, bytes32 s) = _splitSignature(_signatures, i);
-            address signer = ECDSA.recover(_hash, v, r, s);
+            (address signer, ECDSA.RecoverError error,) = ECDSA.tryRecover(_hash, _signatures[i * 65:(i + 1) * 65]);
+            if (error != ECDSA.RecoverError.NoError) revert LombardConsortium__SignatureValidationError();
 
             if (!$.players[signer]) revert LombardConsortium__PlayerNotFound(signer);
-            if (_contains(signers, signer)) revert LombardConsortium__DuplicatedSignature(signer);
 
-            signers[validSignatures++] = signer;
+            // Check if this signer has already signed
+            for (uint256 j; j < validSignatures; j++) {
+                if (seenSigners[j] == signer) revert LombardConsortium__DuplicatedSignature(signer);
+            }
+            seenSigners[validSignatures] = signer;
+
+            validSignatures++;
             unchecked { ++i; }
         }
 
         return validSignatures >= $.threshold ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
-    }
-
-    function _splitSignature(bytes calldata _signatures, uint256 _index) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
-        uint256 start = _index * 65;
-        assembly {
-            r := calldataload(add(_signatures.offset, start))
-            s := calldataload(add(_signatures.offset, add(start, 32)))
-            v := byte(0, calldataload(add(_signatures.offset, add(start, 64))))
-        }
-    }
-
-    /// TODO: Use openzeppelin bitmaps for it
-    /// @notice internal function to check presence of element in array
-    function _contains(address[] memory array, address element) internal pure returns (bool) {
-        for (uint i = 0; i < array.length; i++) {
-            if (array[i] == element) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /// @notice Returns the current list of players
