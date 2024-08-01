@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "../libs/EIP1271SignatureUtils.sol";
-import "./interfaces/ISignatureValidator.sol";
 
 error LombardConsortium__SignatureValidationError();
 
