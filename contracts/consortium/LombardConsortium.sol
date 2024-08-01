@@ -50,10 +50,6 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
         /// @notice Consortium address
         address consortium;
-
-        /// @notice Mapping of addresses to their approved hashes
-        /// @dev A non-zero value indicates the hash is approved
-        mapping(address => mapping(bytes32 => uint256)) approvedHashes;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
@@ -215,16 +211,6 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         _updateThreshold();
     }
 
-    /// @notice Approves a hash for the calling player
-    /// @dev Only players can approve hashes
-    /// @param hashToApprove The hash to be approved
-     function approveHash(bytes32 hashToApprove) external {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-        require($.players[msg.sender], "Only players can approve hashes");
-        $.approvedHashes[msg.sender][hashToApprove] = 1;
-        emit ApprovedHash(msg.sender, hashToApprove);
-    }
-
     /// @notice Validates the provided signature against the given hash
     /// @dev Implements IERC1271
     /// @param hash The hash of the data to be signed
@@ -295,11 +281,6 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
                     contractSignature := add(add(signatures, s), 0x20)
                 }
                 require(ISignatureValidator(currentOwner).isValidSignature(data, contractSignature) == EIP1271SignatureUtils.EIP1271_MAGICVALUE, "Invalid contract signature");
-            } else if (v == 1) {
-                // Approved hash
-                currentOwner = address(uint160(uint256(r)));
-                // Hashes are automatically approved by the sender of the message or when they have been pre-approved
-                require(msg.sender == currentOwner || $.approvedHashes[currentOwner][dataHash] != 0, "Hash not approved");
             }
             else {
                 // Default ecrecover
