@@ -108,27 +108,22 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         $.consortium = _consortium;
 
-        if (_initialPlayers.length < MIN_PLAYERS) {
-            revert LombardConsortium__InsufficientInitialPlayers({
-                provided: _initialPlayers.length,
-                minimum: MIN_PLAYERS
-            });
+        uint256 playerCount = _initialPlayers.length;
+        if (playerCount < MIN_PLAYERS) {
+            revert LombardConsortium__InsufficientInitialPlayers(playerCount, MIN_PLAYERS);
+        }
+        if (playerCount > MAX_PLAYERS) {
+            revert LombardConsortium__TooManyPlayers(playerCount, MAX_PLAYERS);
         }
 
-        if (_initialPlayers.length > MAX_PLAYERS) {
-            revert LombardConsortium__TooManyPlayers({
-                provided: _initialPlayers.length,
-                maximum: MAX_PLAYERS
-            });
-        }
-
-        for (uint i; i < _initialPlayers.length;) {
-            if ($.players[_initialPlayers[i]]) {
-                revert LombardConsortium__PlayerAlreadyExists(_initialPlayers[i]);
+        for (uint256 i; i < playerCount;) {
+            address player = _initialPlayers[i];
+            if ($.players[player]) {
+                revert LombardConsortium__PlayerAlreadyExists(player);
             }
-            $.players[_initialPlayers[i]] = true;
-            $.playerList.push(_initialPlayers[i]);
-            emit PlayerAdded(_initialPlayers[i]);
+            $.players[player] = true;
+            $.playerList.push(player);
+            emit PlayerAdded(player);
             unchecked { ++i; }
         }
         _updateThreshold();
@@ -138,14 +133,8 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function _updateThreshold() internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         uint256 playerCount = $.playerList.length;
-        uint256 threshold = Math.ceilDiv(playerCount * 2, 3);
-
         // for multiple of 3 need to increment
-        if (playerCount % 3 == 0) {
-            threshold += 1;
-        }
-
-        $.threshold = threshold;
+        $.threshold = Math.ceilDiv(playerCount * 2, 3) + (playerCount % 3 == 0 ? 1 : 0);
     }
 
     /// @notice Initializes the consortium contract with players and the owner key
@@ -166,12 +155,8 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         if ($.playerList.length >= MAX_PLAYERS) {
-            revert LombardConsortium__TooManyPlayers({
-                provided: $.playerList.length + 1,
-                maximum: MAX_PLAYERS
-            });
+            revert LombardConsortium__TooManyPlayers($.playerList.length + 1, MAX_PLAYERS);
         }
-
         if ($.players[_newPlayer]) {
             revert LombardConsortium__PlayerAlreadyExists(_newPlayer);
         }
@@ -197,12 +182,8 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         if (!$.players[_playerToRemove]) {
             revert LombardConsortium__PlayerNotFound(_playerToRemove);
         }
-
         if ($.playerList.length <= MIN_PLAYERS) {
-            revert LombardConsortium__CannotRemovePlayer({
-                currentCount: $.playerList.length,
-                minimum: MIN_PLAYERS
-            });
+            revert LombardConsortium__CannotRemovePlayer($.playerList.length, MIN_PLAYERS);
         }
 
         bytes32 proofHash = keccak256(_data);
@@ -211,7 +192,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
 
         $.players[_playerToRemove] = false;
-        for (uint i = 0; i < $.playerList.length; i++) {
+        for (uint256 i; i < $.playerList.length; i++) {
             if ($.playerList[i] == _playerToRemove) {
                 $.playerList[i] = $.playerList[$.playerList.length - 1];
                 $.playerList.pop();
@@ -222,59 +203,43 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         _updateThreshold();
     }
 
-    /// @notice Validates the provided signature against the given hash
-    /// @param _hash The hash of the data to be signed
-    /// @param _signatures The signatures to validate
-    /// @return The magic value (0x1626ba7e) if the signature is valid, wrong value 
-    ///         (0xffffffff) otherwise
-    function isValidSignature(
-        bytes32 _hash,
-        bytes memory _signatures
-    ) external view override returns (bytes4) {
+    // /// @notice Validates the provided signature against the given hash
+    // /// @param _hash The hash of the data to be signed
+    // /// @param _signatures The signatures to validate
+    // /// @return The magic value (0x1626ba7e) if the signature is valid, wrong value
+    // ///         (0xffffffff) otherwise
+    function isValidSignature(bytes32 _hash, bytes calldata _signatures) external view override returns (bytes4) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        if (_signatures.length % 65 != 0) {
-            revert LombardConsortium__InvalidSignatureLength();
-        }
-
         uint256 signatureCount = _signatures.length / 65;
-
-        if (signatureCount < $.threshold) {
-            revert LombardConsortium__InsufficientSignatures();
-        }
-
-        if (signatureCount > $.playerList.length) {
-            revert LombardConsortium__TooManySignatures();
-        }
+        if (_signatures.length % 65 != 0) revert LombardConsortium__InvalidSignatureLength();
+        if (signatureCount < $.threshold) revert LombardConsortium__InsufficientSignatures();
+        if (signatureCount > $.playerList.length) revert LombardConsortium__TooManySignatures();
 
         address[] memory signers = new address[](signatureCount);
-        uint256 validSignatures = 0;
+        uint256 validSignatures;
 
-        for (uint256 i = 0; i < signatureCount; i++) {
-            bytes memory signature = new bytes(65);
-            for (uint256 j = 0; j < 65; j++) {
-                signature[j] = _signatures[i * 65 + j];
-            }
+        for (uint256 i; i < signatureCount;) {
+            (uint8 v, bytes32 r, bytes32 s) = _splitSignature(_signatures, i);
+            address signer = ECDSA.recover(_hash, v, r, s);
 
-            address signer = ECDSA.recover(_hash, signature);
+            if (!$.players[signer]) revert LombardConsortium__PlayerNotFound(signer);
+            if (_contains(signers, signer)) revert LombardConsortium__DuplicatedSignature(signer);
 
-            if (!$.players[signer]) {
-                revert LombardConsortium__PlayerNotFound(signer);
-            }
-
-            if (_contains(signers, signer)) {
-                revert LombardConsortium__DuplicatedSignature(signer);
-            }
-
-            signers[validSignatures] = signer;
-            validSignatures++;
+            signers[validSignatures++] = signer;
+            unchecked { ++i; }
         }
 
-        if (validSignatures >= $.threshold) {
-            return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
-        }
+        return validSignatures >= $.threshold ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
+    }
 
-        return EIP1271SignatureUtils.EIP1271_WRONGVALUE;
+    function _splitSignature(bytes calldata _signatures, uint256 _index) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+        uint256 start = _index * 65;
+        assembly {
+            r := calldataload(add(_signatures.offset, start))
+            s := calldataload(add(_signatures.offset, add(start, 32)))
+            v := byte(0, calldataload(add(_signatures.offset, add(start, 64))))
+        }
     }
 
     /// TODO: Use openzeppelin bitmaps for it
