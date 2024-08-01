@@ -24,6 +24,16 @@ error LombardConsortium__PlayerNotFound(address player);
 /// @dev Error thrown when trying to remove a player that would result in too few players
 error LombardConsortium__CannotRemovePlayer(uint256 currentCount, uint256 minimum);
 
+/// @dev Error thrown when trying to check signatures byte length is a multiple of 65
+///      (ECDSA signature length)
+error LombardConsortium__InvalidSignatureLength();
+
+/// @dev Error thrown when signatures amount is below the required threshold
+error LombardConsortium__InsufficientSignatures();
+
+/// @dev Error thrown when signatures from the same players are present in the multisig
+error LombardConsortium__DuplicatedSignature(address player);
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
@@ -212,107 +222,64 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     }
 
     /// @notice Validates the provided signature against the given hash
-    /// @dev Implements IERC1271
-    /// @param hash The hash of the data to be signed
-    /// @param signatures The signatures to validate
-    /// @return magicValue The magic value (0x1626ba7e) if the signature is valid, 0 otherwise
-    function isValidSignature(bytes32 hash, bytes memory signatures) external view override returns (bytes4) {
-        try this.validateSignature(hash, signatures) returns (bool valid) {
-            return valid ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
-        } catch {
-            revert LombardConsortium__SignatureValidationError();
-        }
-    }
-
-    /**
-     * @notice External wrapper for _isValidSignature to use with try/catch.
-     * @param hash The hash of the data to be signed
-     * @param signatures The signatures to validate
-     * @return valid True if the signature is valid, false otherwise
-     */
-    function validateSignature(bytes32 hash, bytes memory signatures) external view returns (bool) {
-        return _isValidSignature(hash, abi.encode(hash), signatures);
-    }
-
-    /**
-     * @notice Checks whether the signature provided is valid for the provided data and hash. Reverts otherwise.
-     * @dev Supports contract signatures, approved hashes, eth_sign, and standard ECDSA signatures.
-     * Since the EIP-1271 does an external call, be mindful of reentrancy attacks.
-     * @param dataHash Hash of the data (could be either a message hash or transaction hash)
-     * @param data That should be signed (this is passed to an external validator contract)
-     * @param signatures Signature data that should be verified.
-     *                   Can be packed ECDSA signature ({bytes32 r}{bytes32 s}{uint8 v}), contract signature (EIP-1271) or approved hash.
-     */
-    function _isValidSignature(bytes32 dataHash, bytes memory data, bytes memory signatures) internal view returns (bool) {
+    /// @param _hash The hash of the data to be signed
+    /// @param _signatures The signatures to validate
+    /// @return The magic value (0x1626ba7e) if the signature is valid, wrong value 
+    ///         (0xffffffff) otherwise
+    function isValidSignature(
+        bytes32 _hash,
+        bytes memory _signatures
+    ) external view override returns (bytes4) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        uint256 _threshold = $.threshold;
-        require(_threshold > 0, "Threshold not set");
-        require(signatures.length >= _threshold * 65, "Insufficient signature length");
 
-        address lastOwner = address(0);
-        address currentOwner;
-        uint256 i;
-
-        for (i = 0; i < _threshold; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = signatureSplit(signatures, i);
-            if (v == 0) {
-                // Contract signature
-                currentOwner = address(uint160(uint256(r)));
-
-                // Check that signature data pointer (s) is not pointing inside the static part of the signatures bytes
-                // This check is not completely accurate, since it is possible that more signatures than the threshold are send.
-                // Here we only check that the pointer is not pointing inside the part that is being processed
-                require(uint256(s) >= _threshold * 65, "Invalid contract signature pointer");
-
-                // Check that signature data pointer (s) is in bounds (points to the length of data -> 32 bytes)
-                require(uint256(s) + 32 <= signatures.length, "Invalid contract signature pointer");
-
-                // Check if the contract signature is in bounds: start of data is s + 32 and end is start + signature length
-                uint256 contractSignatureLen;
-                assembly {
-                    contractSignatureLen := mload(add(add(signatures, s), 0x20))
-                }
-                require(uint256(s) + 32 + contractSignatureLen <= signatures.length, "Invalid contract signature length");
-
-                // Check if the contract signature is valid
-                bytes memory contractSignature;
-                assembly {
-                    // The signature data for contract signatures is appended to the concatenated signatures and the offset is stored in s
-                    contractSignature := add(add(signatures, s), 0x20)
-                }
-                require(ISignatureValidator(currentOwner).isValidSignature(data, contractSignature) == EIP1271SignatureUtils.EIP1271_MAGICVALUE, "Invalid contract signature");
-            }
-            else {
-                // Default ecrecover
-                currentOwner = ecrecover(dataHash, v, r, s);
-            }
-            require(currentOwner > lastOwner && $.players[currentOwner], "Invalid signer or signature order");
-            lastOwner = currentOwner;
+        if (_signatures.length % 65 != 0) {
+            revert LombardConsortium__InvalidSignatureLength();
         }
 
-        return true;
+        uint256 signatureCount = _signatures.length / 65;
+
+        if (signatureCount < $.threshold) {
+            revert LombardConsortium__InsufficientSignatures();
+        }
+
+        address[] memory signers = new address[](signatureCount);
+        uint256 validSignatures = 0;
+
+        for (uint256 i = 0; i < signatureCount; i++) {
+            bytes memory signature = new bytes(65);
+            for (uint256 j = 0; j < 65; j++) {
+                signature[j] = _signatures[i * 65 + j];
+            }
+
+            address signer = ECDSA.recover(_hash, signature);
+
+            if (!$.players[signer]) {
+                revert LombardConsortium__PlayerNotFound(signer);
+            }
+
+            if (_contains(signers, signer)) {
+                revert LombardConsortium__DuplicatedSignature(signer);
+            }
+
+            signers[validSignatures] = signer;
+            validSignatures++;
+        }
+
+        if (validSignatures >= $.threshold) {
+            return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
+        }
+
+        return EIP1271SignatureUtils.EIP1271_WRONGVALUE;
     }
 
-    /**
-     * @notice Splits signature bytes into `uint8 v, bytes32 r, bytes32 s`
-     * https://github.com/safe-global/safe-smart-account/blob/eccba0d2429c4531c1da9bdce09cce8e1fce950e/contracts/common/SignatureDecoder.sol#L21
-     * @dev Make sure to perform a bounds check for @param pos, to avoid out of bounds access on @param signatures
-     *      The signature format is a compact form of {bytes32 r}{bytes32 s}{uint8 v}
-     *      Compact means uint8 is not padded to 32 bytes.
-     * * @param signatures Concatenated {r, s, v} signatures.
-     * @param pos Which signature to read.
-     *            A prior bounds check of this parameter should be performed, to avoid out of bounds access.
-     * @return v Recovery ID.
-     * @return r Output value r of the signature.
-     * @return s Output value s of the signature.
-     */
-    function signatureSplit(bytes memory signatures, uint256 pos) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
-        assembly {
-            let signaturePos := mul(0x41, pos)
-            r := mload(add(signatures, add(signaturePos, 0x20)))
-            s := mload(add(signatures, add(signaturePos, 0x40)))
-            v := byte(0, mload(add(signatures, add(signaturePos, 0x60))))
+    /// @notice internal function to check presence of element in array
+    function _contains(address[] memory array, address element) internal pure returns (bool) {
+        for (uint i = 0; i < array.length; i++) {
+            if (array[i] == element) {
+                return true;
+            }
         }
+        return false;
     }
 
     /// @notice Returns the current list of players
