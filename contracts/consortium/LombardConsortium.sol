@@ -8,8 +8,21 @@ import "../libs/EIP1271SignatureUtils.sol";
 import "./interfaces/ISignatureValidator.sol";
 
 error LombardConsortium__SignatureValidationError();
-error LombardConsortium__DuplicatedPlayer(address player);
-error LombardConsortium__NonExistentPlayer(address player);
+
+/// @dev Error thrown when trying to initialize with too few players
+error LombardConsortium__InsufficientInitialPlayers(uint256 provided, uint256 minimum);
+
+/// @dev Error thrown when trying to initialize or add players exceeding the maximum limit
+error LombardConsortium__TooManyPlayers(uint256 provided, uint256 maximum);
+
+/// @dev Error thrown when trying to add a player that already exists
+error LombardConsortium__PlayerAlreadyExists(address player);
+
+/// @dev Error thrown when trying to remove a non-existent player
+error LombardConsortium__PlayerNotFound(address player);
+
+/// @dev Error thrown when trying to remove a player that would result in too few players
+error LombardConsortium__CannotRemovePlayer(uint256 currentCount, uint256 minimum);
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -47,6 +60,22 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     bytes32 private constant CONSORTIUM_STORAGE_LOCATION =
         0xbac09a3ab0e06910f94a49c10c16eb53146536ec1a9e948951735cde3a58b500;
 
+    /// @dev Maximum number of players allowed in the consortium.
+    /// @notice This value is calculated based on gas limits and BFT consensus requirements:
+    /// - Assumes ~7000 gas per ECDSA signature verification
+    /// - Uses a conservative 30 million gas block limit
+    /// - Allows for maximum possible signatures: 30,000,000 / 7,000 ≈ 4,285
+    /// - Reverse calculated for BFT consensus (2/3 + 1):
+    ///   4,285 = (6,423 * 2/3 + 1) rounded down
+    /// - 6,423 players allow for 4,283 required signatures in the worst case
+    /// @dev This limit ensures the contract can theoretically handle signature verification
+    ///      for all players within a single block's gas limit.
+    uint256 private constant MAX_PLAYERS = 6423;
+
+    /// @dev Minimum number of players required for BFT consensus.
+    /// @notice This ensures the system can tolerate at least one Byzantine fault.
+    uint256 private constant MIN_PLAYERS = 4;
+
     /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
     function _getConsortiumStorage()
         private
@@ -70,9 +99,24 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function __Consortium_init(address[] memory _initialPlayers, address _consortium) internal onlyInitializing {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         $.consortium = _consortium;
+
+        if (_initialPlayers.length < MIN_PLAYERS) {
+            revert LombardConsortium__InsufficientInitialPlayers({
+                provided: _initialPlayers.length,
+                minimum: MIN_PLAYERS
+            });
+        }
+
+        if (_initialPlayers.length > MAX_PLAYERS) {
+            revert LombardConsortium__TooManyPlayers({
+                provided: _initialPlayers.length,
+                maximum: MAX_PLAYERS
+            });
+        }
+
         for (uint i; i < _initialPlayers.length;) {
             if ($.players[_initialPlayers[i]]) {
-                revert LombardConsortium__DuplicatedPlayer(_initialPlayers[i]);
+                revert LombardConsortium__PlayerAlreadyExists(_initialPlayers[i]);
             }
             $.players[_initialPlayers[i]] = true;
             $.playerList.push(_initialPlayers[i]);
@@ -113,14 +157,23 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function addPlayer(address _newPlayer, bytes calldata _data, bytes calldata _proofSignature) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
+        if ($.playerList.length >= MAX_PLAYERS) {
+            revert LombardConsortium__TooManyPlayers({
+                provided: $.playerList.length + 1,
+                maximum: MAX_PLAYERS
+            });
+        }
+
+        if ($.players[_newPlayer]) {
+            revert LombardConsortium__PlayerAlreadyExists(_newPlayer);
+        }
+
+
         bytes32 proofHash = keccak256(_data);
 
         // we can trust data only if proof is signed by Consortium
         EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
 
-        if ($.players[_newPlayer]) {
-            revert LombardConsortium__DuplicatedPlayer(_newPlayer);
-        }
         $.players[_newPlayer] = true;
         $.playerList.push(_newPlayer);
         emit PlayerAdded(_newPlayer);
@@ -134,14 +187,22 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function removePlayer(address _playerToRemove, bytes calldata _data, bytes calldata _proofSignature) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
+        if (!$.players[_playerToRemove]) {
+            revert LombardConsortium__PlayerNotFound(_playerToRemove);
+        }
+
+        if ($.playerList.length <= MIN_PLAYERS) {
+            revert LombardConsortium__CannotRemovePlayer({
+                currentCount: $.playerList.length,
+                minimum: MIN_PLAYERS
+            });
+        }
+
         bytes32 proofHash = keccak256(_data);
 
         // we can trust data only if proof is signed by Consortium
         EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
 
-        if (!$.players[_playerToRemove]) {
-            revert LombardConsortium__NonExistentPlayer(_playerToRemove);
-        }
         $.players[_playerToRemove] = false;
         for (uint i = 0; i < $.playerList.length; i++) {
             if ($.playerList[i] == _playerToRemove) {
