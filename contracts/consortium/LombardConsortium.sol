@@ -83,15 +83,15 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
     /// @dev Maximum number of players allowed in the consortium.
     /// @notice This value is calculated based on gas limits and BFT consensus requirements:
-    /// - Assumes ~7000 gas per ECDSA signature verification
+    /// - Assumes 4281 gas per ECDSA signature verification
     /// - Uses a conservative 30 million gas block limit
-    /// - Allows for maximum possible signatures: 30,000,000 / 7,000 ≈ 4,285
+    /// - Allows for maximum possible signatures: 30,000,000 / 4,281 ≈ 7007
     /// - Reverse calculated for BFT consensus (2/3 + 1):
-    ///   4,285 = (6,423 * 2/3 + 1) rounded down
-    /// - 6,423 players allow for 4,283 required signatures in the worst case
+    ///   7,007 = (10,509 * 2/3 + 1) rounded down
+    /// - 10,509 players allow for 4,283 required signatures in the worst case
     /// @dev This limit ensures the contract can theoretically handle signature verification
     ///      for all players within a single block's gas limit.
-    uint256 private constant MAX_PLAYERS = 6423;
+    uint256 private constant MAX_PLAYERS = 10_509;
 
     /// @dev Minimum number of players required for BFT consensus.
     /// @notice This ensures the system can tolerate at least one Byzantine fault.
