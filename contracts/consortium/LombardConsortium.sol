@@ -146,11 +146,14 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function _updateThreshold() internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         uint256 playerCount = $.playerList.length;
+
         // threshold = floor(2/3 * playerCount) + 1
-        // equivalent to:
-        // ceil(2/3 * playerCount) if playerCount is not multiple of 3,
-        // ceil(2/3 * playerCount) + 1 otherwise
-        $.threshold = Math.ceilDiv(playerCount * 2, 3) + (playerCount % 3 == 0 ? 1 : 0);
+        $.threshold = Math.mulDiv(
+            playerCount,
+            2,
+            3,
+            Math.Rounding.Floor
+        ) + 1;
     }
 
     /// @dev Checks that `proofSignature` is signature of `keccak256(data)`
