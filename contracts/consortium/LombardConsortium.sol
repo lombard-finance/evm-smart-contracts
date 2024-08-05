@@ -35,7 +35,7 @@ error LombardConsortium__TooManySignatures();
 error LombardConsortium__DuplicatedSignature(address player);
 
 /// @dev Error thrown when signature is invalid
-error LombardConsortium__SignatureValidationError();
+error LombardConsortium__SignatureValidationError(uint256 signatureIndex, uint8 errorCode);
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -223,20 +223,35 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         address[] memory seenSigners = new address[](signatureCount);
         uint256 validSignatures;
 
+        address signer;
+        ECDSA.RecoverError error;
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
         for (uint256 i; i < signatureCount;) {
-            (address signer, ECDSA.RecoverError error,) = ECDSA.tryRecover(_hash, _signatures[i * 65:(i + 1) * 65]);
-            if (error != ECDSA.RecoverError.NoError) revert LombardConsortium__SignatureValidationError();
+            assembly {
+                r := calldataload(add(_signatures.offset, mul(i, 65)))
+                s := calldataload(add(_signatures.offset, add(mul(i, 65), 32)))
+                v := byte(0, calldataload(add(_signatures.offset, add(mul(i, 65), 64))))
+            }
+
+            (signer, error, ) = ECDSA.tryRecover(_hash, v, r, s);
 
             if (!$.players[signer]) revert LombardConsortium__PlayerNotFound(signer);
+            if (error != ECDSA.RecoverError.NoError) revert LombardConsortium__SignatureValidationError(i, uint8(error));
 
-            // Check if this signer has already signed
-            for (uint256 j; j < validSignatures; j++) {
+            // Check for duplicate signatures
+            for (uint256 j; j < validSignatures;) {
                 if (seenSigners[j] == signer) revert LombardConsortium__DuplicatedSignature(signer);
+                unchecked { ++j; }
             }
-            seenSigners[validSignatures] = signer;
 
-            validSignatures++;
-            unchecked { ++i; }
+            seenSigners[validSignatures] = signer;
+            unchecked {
+                ++validSignatures;
+                ++i;
+            }
         }
 
         return validSignatures >= $.threshold ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
