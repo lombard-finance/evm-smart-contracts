@@ -303,7 +303,7 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
             }
         }
 
-        return validSignatures >= $.threshold ? EIP1271SignatureUtils.EIP1271_MAGICVALUE : EIP1271SignatureUtils.EIP1271_WRONGVALUE;
+        return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
     }
 
     /// @notice Returns the current list of players
