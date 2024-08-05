@@ -82,20 +82,25 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         0xbac09a3ab0e06910f94a49c10c16eb53146536ec1a9e948951735cde3a58b500;
 
     /// @dev Maximum number of players allowed in the consortium.
-    /// @notice This value is calculated based on gas limits and BFT consensus requirements:
-    /// - Assumes 4281 gas per ECDSA signature verification
-    /// - Uses a conservative 30 million gas block limit
-    /// - Allows for maximum possible signatures: 30,000,000 / 4,281 ≈ 7007
-    /// - Reverse calculated for BFT consensus (2/3 + 1):
-    ///   7,007 = (10,509 * 2/3 + 1) rounded down
-    /// - 10,509 players allow for 4,283 required signatures in the worst case
-    /// @dev This limit ensures the contract can theoretically handle signature verification
-    ///      for all players within a single block's gas limit.
-    uint256 private constant MAX_PLAYERS = 10_509;
+    /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
+    /// - CometBFT has a hard limit of 10,000 validators (https://docs.cometbft.com/v0.38/spec/core/state)
+    /// - Gas-based calculation:
+    ///   - Assumes 4281 gas per ECDSA signature verification
+    ///   - Uses a conservative 30 million gas block limit
+    ///   - Maximum possible signatures: 30,000,000 / 4,281 ≈ 7007
+    ///   - Reverse calculated for BFT consensus (2/3 + 1):
+    ///     7,007 = (10,509 * 2/3 + 1) rounded down
+    /// - The lower value of 10,000 (CometBFT limit) and 10,509 (gas calculation) is chosen
+    /// @dev This limit ensures compatibility with CometBFT while also considering gas limitations
+    ///      for signature verification within a single block.
+    uint256 private constant MAX_PLAYERS = 10_000;
 
-    /// @dev Minimum number of players required for BFT consensus.
-    /// @notice This ensures the system can tolerate at least one Byzantine fault.
-    uint256 private constant MIN_PLAYERS = 4;
+    /// @dev Minimum number of players allowed in the system.
+    /// @notice While set to 1 to allow for non-distributed scenarios, this configuration
+    /// does not provide Byzantine fault tolerance. For a truly distributed and
+    /// fault-tolerant system, a minimum of 4 players would be recommended to tolerate
+    /// at least one Byzantine fault.
+    uint256 private constant MIN_PLAYERS = 1;
 
     /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
     function _getConsortiumStorage()
