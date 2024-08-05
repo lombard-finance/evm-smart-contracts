@@ -214,8 +214,9 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     function isValidSignature(bytes32 _hash, bytes calldata _signatures) external view override returns (bytes4) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        uint256 signatureCount = _signatures.length / 65;
         if (_signatures.length % 65 != 0) revert LombardConsortium__InvalidSignatureLength();
+        uint256 signatureCount = _signatures.length / 65;
+
         if (signatureCount < $.threshold) revert LombardConsortium__InsufficientSignatures();
         if (signatureCount > $.playerList.length) revert LombardConsortium__TooManySignatures();
 
