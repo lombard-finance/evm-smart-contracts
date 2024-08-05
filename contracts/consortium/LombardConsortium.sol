@@ -37,6 +37,15 @@ error LombardConsortium__DuplicatedSignature(address player);
 /// @dev Error thrown when signature is invalid
 error LombardConsortium__SignatureValidationError(uint256 signatureIndex, uint8 errorCode);
 
+/// @dev Error thrown when data length is invalid
+error LombardConsortium__InvalidDataLength();
+
+/// @dev Error thrown when public key length is invalid
+error LombardConsortium__InvalidPublicKeyLength();
+
+/// @dev Error thrown when signature proof is already used
+error LombardConsortium__ProofAlreadyUsed();
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
@@ -51,6 +60,10 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         /// @notice Mapping of addresses to their player status
         /// @dev True if the address is a player, false otherwise
         mapping(address => bool) players;
+
+        /// @notice Mapping of proofs to their use status
+        /// @dev True if the proof is used, false otherwise
+        mapping(bytes32 => bool) usedProofs;
 
         /// @notice List of all player addresses
         /// @dev Used for iteration and maintaining order
@@ -140,6 +153,22 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         $.threshold = Math.ceilDiv(playerCount * 2, 3) + (playerCount % 3 == 0 ? 1 : 0);
     }
 
+    /// @dev Checks that `proofSignature` is signature of `keccak256(data)`
+    /// @param _data arbitrary data with some unique fields (tx hash, output index, etc)
+    /// @param _proofSignature signed `data` hash
+    function _checkProof( bytes calldata _data, bytes calldata _proofSignature) internal {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        bytes32 proofHash = keccak256(_data);
+
+        // we can trust data only if proof is signed by Consortium
+        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
+        // We can save the proof, because output with index in unique pair
+        if ($.usedProofs[proofHash]) {
+            revert LombardConsortium__ProofAlreadyUsed();
+        }
+        $.usedProofs[proofHash] = true;
+    }
+
     /// @notice Initializes the consortium contract with players and the owner key
     /// @param _players - The initial list of players
     /// @param _ownerKey - The address of the initial owner
@@ -151,58 +180,70 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     }
 
     /// @notice Adds player if approved by consortium
-    /// @param _newPlayer - Player address to add
-    /// @param _data - Data to verify
+    /// @param _data - Data to verify (incl. player public key)
     /// @param _proofSignature - Consortium signature
-    function addPlayer(address _newPlayer, bytes calldata _data, bytes calldata _proofSignature) external {
+    function addPlayer(bytes calldata _data, bytes calldata _proofSignature) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         if ($.playerList.length >= MAX_PLAYERS) {
             revert LombardConsortium__TooManyPlayers($.playerList.length + 1, MAX_PLAYERS);
         }
-        if ($.players[_newPlayer]) {
-            revert LombardConsortium__PlayerAlreadyExists(_newPlayer);
+
+        // Check for minimum length: 32 (length prefix) + 65 (public key) = 97 bytes
+        if (_data.length < 97) revert LombardConsortium__InvalidDataLength();
+
+        _checkProof(_data, _proofSignature);
+
+        (bytes memory publicKey, ) = abi.decode(_data, (bytes, bytes));
+
+        if (publicKey.length != 65) revert LombardConsortium__InvalidPublicKeyLength();
+
+        address newPlayer = address(uint160(uint256(keccak256(publicKey))));
+
+        if ($.players[newPlayer]) {
+            revert LombardConsortium__PlayerAlreadyExists(newPlayer);
         }
 
-        bytes32 proofHash = keccak256(_data);
-
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
-
-        $.players[_newPlayer] = true;
-        $.playerList.push(_newPlayer);
-        emit PlayerAdded(_newPlayer);
+        $.players[newPlayer] = true;
+        $.playerList.push(newPlayer);
+        emit PlayerAdded(newPlayer);
         _updateThreshold();
     }
 
     /// @notice Removes player if approved by consortium
-    /// @param _playerToRemove - Player address to remove
-    /// @param _data - Data to verify
+    /// @param _data - Data to verify (incl. player public key)
     /// @param _proofSignature - Consortium signature
-    function removePlayer(address _playerToRemove, bytes calldata _data, bytes calldata _proofSignature) external {
+    function removePlayer(bytes calldata _data, bytes calldata _proofSignature) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        if (!$.players[_playerToRemove]) {
-            revert LombardConsortium__PlayerNotFound(_playerToRemove);
-        }
         if ($.playerList.length <= MIN_PLAYERS) {
             revert LombardConsortium__CannotRemovePlayer($.playerList.length, MIN_PLAYERS);
         }
 
-        bytes32 proofHash = keccak256(_data);
+        // Check for minimum length: 32 (length prefix) + 65 (public key) = 97 bytes
+        if (_data.length < 97) revert LombardConsortium__InvalidDataLength();
 
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
+        _checkProof(_data, _proofSignature);
 
-        $.players[_playerToRemove] = false;
+        (bytes memory publicKey, ) = abi.decode(_data, (bytes, bytes));
+
+        if (publicKey.length != 65) revert LombardConsortium__InvalidPublicKeyLength();
+
+        address playerToRemove = address(uint160(uint256(keccak256(publicKey))));
+
+        if (!$.players[playerToRemove]) {
+            revert LombardConsortium__PlayerNotFound(playerToRemove);
+        }
+
+        $.players[playerToRemove] = false;
         for (uint256 i; i < $.playerList.length; i++) {
-            if ($.playerList[i] == _playerToRemove) {
+            if ($.playerList[i] == playerToRemove) {
                 $.playerList[i] = $.playerList[$.playerList.length - 1];
                 $.playerList.pop();
                 break;
             }
         }
-        emit PlayerRemoved(_playerToRemove);
+        emit PlayerRemoved(playerToRemove);
         _updateThreshold();
     }
 
