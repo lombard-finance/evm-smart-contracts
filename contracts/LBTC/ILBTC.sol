@@ -17,7 +17,6 @@ interface ILBTC {
     error AmountTooSmallToPayRelativeFee();
     error AmountLessThanCommission(uint256 fee);
     error AmountBelowDustLimit(uint256 dustLimit);
-    error InvalidBurnCommission();
     error InvalidDustFeeRate();
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);

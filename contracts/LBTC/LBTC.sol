@@ -495,7 +495,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function _changeBurnCommission(uint64 newValue) internal {
-        if (newValue < 0) revert InvalidBurnCommission();
         LBTCStorage storage $ = _getLBTCStorage();
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
@@ -506,7 +505,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
     function changeDustFeeRate(uint256 newRate) external onlyOwner {
-        if (newRate <= 0) revert InvalidDustFeeRate();
+        if (newRate == 0) revert InvalidDustFeeRate();
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 oldRate = $.dustFeeRate;
         $.dustFeeRate = newRate;
