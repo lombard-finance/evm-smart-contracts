@@ -54,6 +54,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
     uint16 public constant MAX_COMMISSION = 10000; // 100.00%
+    uint256 private constant DUST_FEE_RATE = 3000; // 3 satoshis per byte
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
         assembly {
@@ -82,6 +83,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         __ReentrancyGuard_init();
 
         __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_);
+
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.burnCommission = 1000; // Set to 1000 satoshis
+        emit BurnCommissionChanged(0, $.burnCommission);
     }
 
     function pause() external onlyOwner {
@@ -194,6 +199,31 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit OutputProcessed(output.txId, output.index, proofHash);
     }
 
+    /// @notice Compute the dust limit for a given Bitcoin script public key
+    /// @dev The dust limit is the minimum payment to an address that is considered
+    ///      spendable under consensus rules. This function is based on Bitcoin Core's
+    ///      implementation.
+    /// @param scriptPubkey The Bitcoin script public key as a byte array
+    /// @return dustLimit The calculated dust limit in satoshis
+    /// @custom:reference https://docs.rs/bitcoin/latest/src/bitcoin/blockdata/script/borrowed.rs.html#436
+    function getDustLimitForOutput(bytes calldata scriptPubkey) public pure returns (uint256 dustLimit) {
+        uint256 spendCost = 32 + 4 + 1 + 4 + 8; // base spend cost
+
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+
+        if (outType == OutputType.P2TR || outType == OutputType.P2WPKH) {
+            // witness v0 and v1 has a cheaper payment formula
+            spendCost += 26; // This is equivalent to floor(107 / 4) = 26
+        } else {
+            spendCost += 107;
+        }
+
+        spendCost += scriptPubkey.length;
+
+        // Calculate dust limit
+        dustLimit = (spendCost * DUST_FEE_RATE) / 1000;
+    }
+
     /**
      * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
@@ -217,16 +247,22 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (amount <= fee) {
             revert AmountLessThanCommission(fee);
         }
-        amount -= fee;
+
+        uint256 amountAfterFee = amount - fee;
+        uint256 dustLimit = getDustLimitForOutput(scriptPubkey);
+
+        if (amountAfterFee < dustLimit) {
+            revert AmountBelowDustLimit(dustLimit);
+        }
 
         address fromAddress = address(_msgSender());
         _transfer(fromAddress, getTreasury(), fee);
-        _burn(fromAddress, amount);
+        _burn(fromAddress, amountAfterFee);
 
         emit UnstakeRequest(
             fromAddress,
             scriptPubkey,
-            amount
+            amountAfterFee
         );
     }
 

@@ -20,6 +20,7 @@ interface ILBTC {
     error ScriptPubkeyUnsupported();
     error AmountTooSmallToPayRelativeFee();
     error AmountLessThanCommission(uint256 fee);
+    error AmountBelowDustLimit(uint256 dustLimit);
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
