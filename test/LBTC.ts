@@ -538,30 +538,45 @@ describe("LBTC", function () {
       ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
     });
 
-    it("Reverts if not enough tokens", async function () {
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), 1n);
+    it("Reverts if amount is less than burn commission", async function () {
+      const burnCommission = await lbtc.getBurnCommission();
+      const amountLessThanCommission = BigInt(burnCommission) - 1n;
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
+
       await expect(
-        lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", 1n)
-      ).to.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
+        lbtc.connect(signer1).burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
+      ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
+        .withArgs(burnCommission);
     });
 
     it("Unstake half with P2WPKH", async () => {
       const amount = 100_000_000n;
+      const halfAmount = amount / 2n;
       const p2wpkh = "0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03";
+
+      const burnCommission = await lbtc.getBurnCommission();
+
+      const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
+
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(lbtc.connect(signer1).burn(p2wpkh, amount / 2n))
+      await expect(lbtc.connect(signer1).burn(p2wpkh, halfAmount))
         .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2wpkh, amount / 2n);
+        .withArgs(await signer1.getAddress(), p2wpkh, expectedAmountAfterFee);
     });
 
     it("Unstake full with P2TR", async () => {
       const amount = 100_000_000n;
       const p2tr =
         "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
+
+      const burnCommission = await lbtc.getBurnCommission();
+
+      const expectedAmountAfterFee = amount - BigInt(burnCommission);
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(lbtc.connect(signer1).burn(p2tr, amount))
         .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2tr, amount);
+        .withArgs(await signer1.getAddress(), p2tr, expectedAmountAfterFee);
     });
 
     it("Revert with P2SH", async () => {
@@ -620,7 +635,7 @@ describe("LBTC", function () {
 
       await expect(lbtc.changeBurnCommission(commission))
         .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(0, commission);
+        .withArgs(1000, commission);
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
@@ -637,7 +652,7 @@ describe("LBTC", function () {
 
       await expect(lbtc.changeBurnCommission(commission))
         .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(0, commission);
+        .withArgs(1000, commission);
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
