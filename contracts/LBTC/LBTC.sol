@@ -398,7 +398,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().depositRelativeCommission[toChain];
     }
 
-    function getBurnCommission() public view returns (uint64) {
+    function getBurnCommission() external view returns (uint64) {
         return _getLBTCStorage().burnCommission;
     }
 
