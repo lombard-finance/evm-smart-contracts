@@ -1,4 +1,4 @@
-import { config, ethers, upgrades } from "hardhat";
+import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
@@ -9,8 +9,6 @@ import {
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import { error } from "console";
-import { MaxUint256 } from "ethers";
 import { getRandomValues } from "crypto";
 const { init, deployBascule } = require("./helpers.ts");
 const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
@@ -42,11 +40,12 @@ describe("LBTC", function () {
     ] = await ethers.getSigners();
     signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
-    const result = await init(consortium);
+    const burnCommission = 1000;
+    const result = await init(consortium, burnCommission);
     lbtc = result.lbtc;
     wbtc = result.wbtc;
 
-    const result2 = await init(consortium);
+    const result2 = await init(consortium, burnCommission);
     lbtc2 = result2.lbtc;
 
     await lbtc.changeTreasuryAddress(treasury);

@@ -68,12 +68,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _disableInitializers();
     }
 
-    function __LBTC_init(string memory name_, string memory symbol_, address consortium_) internal onlyInitializing {
+    function __LBTC_init(string memory name_, string memory symbol_, address consortium_, uint64 burnCommission_) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
+        _changeBurnCommission(burnCommission_);
     }
 
-    function initialize(address consortium_) external initializer {
+    function initialize(address consortium_, uint64 burnCommission_) external initializer {
         __ERC20_init("LBTC", "LBTC");
         __ERC20Pausable_init();
 
@@ -82,11 +83,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         __ReentrancyGuard_init();
 
-        __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_);
+        __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_, burnCommission_);
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.burnCommission = 1000; // Set to 1000 satoshis
-        emit BurnCommissionChanged(0, $.burnCommission);
         $.dustFeeRate = 3000; // Default value - 3 satoshis per byte
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
@@ -125,8 +124,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert ZeroAddress();
         }
         LBTCStorage storage $ = _getLBTCStorage();
-        emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
+        emit ConsortiumChanged($.consortium, newVal);
     }
 
     function mint(
@@ -491,10 +490,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit TreasuryAddressChanged(prevValue, newValue);
     }
 
-    function changeBurnCommission(uint64 newValue)
-        external
-        onlyOwner
-    {
+    function changeBurnCommission(uint64 newValue) external onlyOwner {
+        _changeBurnCommission(newValue);
+    }
+
+    function _changeBurnCommission(uint64 newValue) internal {
         if (newValue < 0) revert InvalidBurnCommission();
         LBTCStorage storage $ = _getLBTCStorage();
         uint64 prevValue = $.burnCommission;
@@ -543,8 +543,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      */
     function _changeBascule(address newVal) internal {
         LBTCStorage storage $ = _getLBTCStorage();
-        emit BasculeChanged(address($.bascule), newVal);
         $.bascule = IBascule(newVal);
+        emit BasculeChanged(address($.bascule), newVal);
     }
 
     /**
