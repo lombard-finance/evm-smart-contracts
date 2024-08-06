@@ -21,6 +21,8 @@ interface ILBTC {
     error AmountTooSmallToPayRelativeFee();
     error AmountLessThanCommission(uint256 fee);
     error AmountBelowDustLimit(uint256 dustLimit);
+    error InvalidBurnCommission();
+    error InvalidDustFeeRate();
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
@@ -37,6 +39,7 @@ interface ILBTC {
     event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
     event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
     event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed toChain);
-    event BurnCommissionChanged(uint64 prevValue, uint64 newValue);
+    event BurnCommissionChanged(uint64 indexed prevValue, uint64 indexed newValue);
+    event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
 }

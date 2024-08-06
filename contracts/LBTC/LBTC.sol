@@ -46,6 +46,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
 
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
+        uint256 dustFeeRate;
 
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
@@ -54,7 +55,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
     uint16 public constant MAX_COMMISSION = 10000; // 100.00%
-    uint256 private constant DUST_FEE_RATE = 3000; // 3 satoshis per byte
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
         assembly {
@@ -87,6 +87,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
         $.burnCommission = 1000; // Set to 1000 satoshis
         emit BurnCommissionChanged(0, $.burnCommission);
+        $.dustFeeRate = 3000; // Default value - 3 satoshis per byte
+        emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
     function pause() external onlyOwner {
@@ -199,31 +201,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit OutputProcessed(output.txId, output.index, proofHash);
     }
 
-    /// @notice Compute the dust limit for a given Bitcoin script public key
-    /// @dev The dust limit is the minimum payment to an address that is considered
-    ///      spendable under consensus rules. This function is based on Bitcoin Core's
-    ///      implementation.
-    /// @param scriptPubkey The Bitcoin script public key as a byte array
-    /// @return dustLimit The calculated dust limit in satoshis
-    /// @custom:reference https://docs.rs/bitcoin/latest/src/bitcoin/blockdata/script/borrowed.rs.html#436
-    function getDustLimitForOutput(bytes calldata scriptPubkey) public pure returns (uint256 dustLimit) {
-        uint256 spendCost = 32 + 4 + 1 + 4 + 8; // base spend cost
-
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-
-        if (outType == OutputType.P2TR || outType == OutputType.P2WPKH) {
-            // witness v0 and v1 has a cheaper payment formula
-            spendCost += 26; // This is equivalent to floor(107 / 4) = 26
-        } else {
-            spendCost += 107;
-        }
-
-        spendCost += scriptPubkey.length;
-
-        // Calculate dust limit
-        dustLimit = (spendCost * DUST_FEE_RATE) / 1000;
-    }
-
     /**
      * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
@@ -249,7 +226,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = getDustLimitForOutput(scriptPubkey);
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(outType,scriptPubkey, $.dustFeeRate);
 
         if (amountAfterFee < dustLimit) {
             revert AmountBelowDustLimit(dustLimit);
@@ -264,6 +241,37 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             scriptPubkey,
             amountAfterFee
         );
+    }
+
+    /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
+    /// @dev This function can be used by front-ends to verify burn amounts before submitting a transaction
+    /// @param scriptPubkey The Bitcoin script public key as a byte array
+    /// @param amount The amount of LBTC to be burned
+    /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
+    /// @return isAboveDust Whether the amountAfterFee is above the dust limit
+    function calcUnstakeRequestAmount(bytes calldata scriptPubkey, uint256 amount)
+        public
+        view
+        returns (uint256 amountAfterFee, bool isAboveDust)
+    {
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+        if (outType == OutputType.UNSUPPORTED) {
+            revert ScriptPubkeyUnsupported();
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+
+        uint64 fee = $.burnCommission;
+        if (amount <= fee) {
+            return (0, false);
+        }
+
+        amountAfterFee = amount - fee;
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(outType, scriptPubkey, $.dustFeeRate);
+
+        isAboveDust = amountAfterFee >= dustLimit;
+
+        return (amountAfterFee, isAboveDust);
     }
 
     function isUsed(bytes32 proof) external view returns (bool) {
@@ -532,10 +540,28 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         external
         onlyOwner
     {
+        if (newValue <= 0) revert InvalidBurnCommission();
         LBTCStorage storage $ = _getLBTCStorage();
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
+    }
+
+    /// @notice Change the dust fee rate used for dust limit calculations
+    /// @dev Only the contract owner can call this function. The new rate must be positive.
+    /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
+    function changeDustFeeRate(uint256 newRate) external onlyOwner {
+        if (newRate <= 0) revert InvalidDustFeeRate();
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 oldRate = $.dustFeeRate;
+        $.dustFeeRate = newRate;
+        emit DustFeeRateChanged(oldRate, newRate);
+    }
+
+    /// @notice Get the current dust fee rate
+    /// @return The current dust fee rate (in satoshis per 1000 bytes)
+    function getDustFeeRate() public view returns (uint256) {
+        return _getLBTCStorage().dustFeeRate;
     }
 
     /** Get Bascule contract. */
