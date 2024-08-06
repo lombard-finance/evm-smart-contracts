@@ -540,7 +540,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         external
         onlyOwner
     {
-        if (newValue <= 0) revert InvalidBurnCommission();
+        if (newValue < 0) revert InvalidBurnCommission();
         LBTCStorage storage $ = _getLBTCStorage();
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
