@@ -22,7 +22,7 @@ interface ILBTC {
 
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
-    event NameAndSymbolChanged(string name, string symbol);
+    event NameAndSymbolChanged(string indexed name, string indexed symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
     event OutputProcessed(bytes32 indexed transactionId, uint32 indexed index, bytes32 proofHash);
     event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
