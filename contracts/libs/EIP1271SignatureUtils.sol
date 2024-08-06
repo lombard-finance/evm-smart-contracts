@@ -26,7 +26,7 @@ library EIP1271SignatureUtils {
      */
     function checkSignature(address signer, bytes32 digestHash, bytes memory signature) internal view {
 
-        if (isContract(signer)) {
+        if (signer.code.length != 0) {
             if (IERC1271(signer).isValidSignature(digestHash, signature) != EIP1271_MAGICVALUE) {
                 revert SignatureVerificationFailed();
             }
@@ -35,9 +35,5 @@ library EIP1271SignatureUtils {
                 revert BadSignature();
             }
         }
-    }
-
-    function isContract(address addr) internal view returns (bool) {
-        return addr.code.length != 0;
     }
 }
