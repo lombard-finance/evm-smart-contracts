@@ -14,8 +14,9 @@ on-chain code.
 ## Off-chain code
 
 The off-chain code invokes the `reportDeposit`(contracts/Bascule.sol) function
-with a list `bytes32[] depositIDs`.  In order for the bascule to be secure, two
-things must be true of this invocation:
+with a report-id `bytes32 reportID` (useful for tracking which reports
+succeeded, but not security critical) , with a list `bytes32[] depositIDs`.  In
+order for the bascule to be secure, two things must be true of this invocation:
 
 1. The off-chain code must only invoke *one* instance of the bascule contract.
 If the bascule is deployed on multiple chains and there's a bug in the bridge,
@@ -45,8 +46,7 @@ conditions must be met:
 the allow an upgrade must be kept extremely safe.
 
 2. The bridge contract should do all internal vetting BEFORE calling
-`validateWithdrawal`. This function clears transactions from the deposit
-history.
+`validateWithdrawal`. Deposits that are withdrawn cannot be withdrawn again.
 
 3. The withdrawal amount to `validateWithdrawal` MUST be correct if the
 validation threshold is not `0` (i.e., if the bascule is configured to only

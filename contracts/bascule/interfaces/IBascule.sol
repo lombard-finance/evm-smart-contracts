@@ -13,6 +13,13 @@ interface IBascule {
   event WithdrawalValidated(bytes32 depositID, uint256 withdrawalAmount);
 
   /**
+   * Error on attempt to withdraw an already withdrawn deposit.
+   * @param depositID Unique identifier for deposit that failed validation.
+   * @param withdrawalAmount Amount of the withdrawal.
+   */
+  error AlreadyWithdrawn(bytes32 depositID, uint256 withdrawalAmount);
+
+  /**
    * Error when a withdrawal fails validation.
    * This means the corresponding deposit is not in the map.
    * @param depositID Unique identifier for deposit that failed validation.
@@ -25,9 +32,8 @@ interface IBascule {
    * threshold.
    *
    * This function checks if our accounting has recorded a deposit that
-   * corresponds to this withdrawal request. It clears the deposit history
-   * at the relevant depositID, so should be called as the final step
-   * before executing the withdrawal.
+   * corresponds to this withdrawal request. A deposit can only be withdrawn
+   * once.
    *
    * @param depositID Unique identifier of the deposit on another chain.
    * @param withdrawalAmount Amount of the withdrawal.

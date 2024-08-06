@@ -51,7 +51,14 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
   // uniquely identify the deposit transaction on the source chain and the
   // recipient, amount, and chain-id on this chain.
   // See README for more.
-  mapping(bytes32 depositID => bool reported) public depositHistory;
+  mapping(bytes32 depositID => DepositState status) public depositHistory;
+
+  // Describes the state of a deposit in the depositHistory.
+  enum DepositState {
+    UNREPORTED, // unreported must be '0'
+    REPORTED,
+    WITHDRAWN
+  }
 
   /**
    * Event emitted when the validation threshold is updated.
@@ -68,9 +75,10 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
 
   /**
    * Event emitted when a batch of deposits is reported.
+   * @param reportId The report identifier. This is a convenience to make off-chain state mangement easier.
    * @param numDeposits The number of deposits reported.
    */
-  event DepositsReported(uint256 numDeposits);
+  event DepositsReported(bytes32 indexed reportId, uint256 numDeposits);
 
   /**
    * Event emitted when a withdrawal is allowed on this chain without validation.
@@ -97,22 +105,22 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
 
   /**
    * Create a new Bascule.
-   * @param defaultAdmin Address of the admin.
-   * @param pauser Address of the account that may pause.
-   * @param depositReporter Address of the account that may report deposits on the source chain.
-   * @param withdrawalValidator Address of the account that may validate withdrawals.
+   * @param aDefaultAdmin Address of the admin.
+   * @param aPauser Address of the account that may pause.
+   * @param aDepositReporter Address of the account that may report deposits on the source chain.
+   * @param aWithdrawalValidator Address of the account that may validate withdrawals.
    * @param aMaxDeposits Maximum number of deposits that can be reported at once.
    */
   constructor(
-    address defaultAdmin,
-    address pauser,
-    address depositReporter,
-    address withdrawalValidator,
+    address aDefaultAdmin,
+    address aPauser,
+    address aDepositReporter,
+    address aWithdrawalValidator,
     uint256 aMaxDeposits
-  ) AccessControlDefaultAdminRules(3 days, defaultAdmin) {
-    _grantRole(PAUSER_ROLE, pauser);
-    _grantRole(DEPOSIT_REPORTER_ROLE, depositReporter);
-    _grantRole(WITHDRAWAL_VALIDATOR_ROLE, withdrawalValidator);
+  ) AccessControlDefaultAdminRules(3 days, aDefaultAdmin) {
+    _grantRole(PAUSER_ROLE, aPauser);
+    _grantRole(DEPOSIT_REPORTER_ROLE, aDepositReporter);
+    _grantRole(WITHDRAWAL_VALIDATOR_ROLE, aWithdrawalValidator);
     _mMaxDeposits = aMaxDeposits;
     // By default, the bascule validates all withdrawals and does not grant
     // anyone the guardian role. This means that increasing the threshold (or
@@ -209,11 +217,13 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
    * Report that a series of deposit has happened.
    * May only be invoked by the deposit reporter.
    *
+   * @param reportId Unique identifier correponding to the report.
    * @param depositIDs Unique identifiers of the deposits on another chain.
    *
    * Emits {DepositsReported}.
    */
   function reportDeposits(
+    bytes32 reportId,
     bytes32[] calldata depositIDs
   ) public whenNotPaused onlyRole(DEPOSIT_REPORTER_ROLE) {
     // Make sure that the input arrays conform to length requirements
@@ -225,12 +235,13 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
     // Vet each set of depositID and withdrawalAddr and add to history
     for (uint256 i = 0; i < numDeposits; i++) {
       bytes32 depositID = depositIDs[i];
-      if (depositHistory[depositID]) {
+      if (depositHistory[depositID] == DepositState.UNREPORTED) {
+        depositHistory[depositID] = DepositState.REPORTED;
+      } else {
         revert AlreadyReported(depositID);
       }
-      depositHistory[depositID] = true;
     }
-    emit DepositsReported(numDeposits);
+    emit DepositsReported(reportId, numDeposits);
   }
 
   /**
@@ -238,9 +249,8 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
    * threshold.
    *
    * This function checks if our accounting has recorded a deposit that
-   * corresponds to this withdrawal request. It clears the deposit history
-   * at the relevant depositID, so should be called as the final step
-   * before executing the withdrawal.
+   * corresponds to this withdrawal request. A deposit can only be withdrawn
+   * once.
    *
    * @param depositID Unique identifier of the deposit on another chain.
    * @param withdrawalAmount Amount of the withdrawal.
@@ -251,12 +261,18 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
     bytes32 depositID,
     uint256 withdrawalAmount
   ) public whenNotPaused onlyRole(WITHDRAWAL_VALIDATOR_ROLE) {
-    if (depositHistory[depositID]) {
-      // Clear the deposit history to prevent replay
-      delete depositHistory[depositID];
+    DepositState status = depositHistory[depositID];
+    // Deposit found and not withdrawn
+    if (status == DepositState.REPORTED) {
+      depositHistory[depositID] = DepositState.WITHDRAWN;
       emit WithdrawalValidated(depositID, withdrawalAmount);
       return;
     }
+    // Already withdrawn
+    if (status == DepositState.WITHDRAWN) {
+      revert AlreadyWithdrawn(depositID, withdrawalAmount);
+    }
+    // Not reported
     if (withdrawalAmount >= validateThreshold()) {
       // We disallow a withdrawal if it's not in the depositHistory and
       // the value is above the threshold.
