@@ -99,33 +99,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _unpause();
     }
 
-    function changeWBTC(address wbtc_) external onlyOwner {
-        if (wbtc_ == address(0)) {
-            revert ZeroAddress();
-        }
-
-        uint8 expectedDecimals = decimals();
-        uint8 tokenDecimals = IERC20Metadata(wbtc_).decimals();
-
-        if (expectedDecimals != tokenDecimals) {
-            revert WBTCDecimalsMissmatch(expectedDecimals, tokenDecimals);
-        }
-
-        LBTCStorage storage $ = _getLBTCStorage();
-        emit WBTCChanged(address($.wbtc), wbtc_);
-        $.wbtc = IERC20(wbtc_);
-    }
-
-    function enableWBTCStaking() external onlyOwner {
-        LBTCStorage storage $ = _getLBTCStorage();
-        bool isEnabled = $.isWBTCEnabled;
-        if (!isEnabled && address($.wbtc) == address(0)) {
-            revert WBTCNotSet();
-        }
-        $.isWBTCEnabled = !isEnabled;
-        emit WBTCStakingEnabled($.isWBTCEnabled);
-    }
-
     function toggleWithdrawals() external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
@@ -154,24 +127,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
-    }
-
-    function stakeWBTC(uint256 amount) external nonReentrant {
-        _stakeWBTC(amount, _msgSender());
-    }
-
-    function stakeWBTCFor(uint256 amount, address to) external nonReentrant {
-        _stakeWBTC(amount, to);
-    }
-
-    function _stakeWBTC(uint256 amount, address to) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
-        if (!$.isWBTCEnabled) {
-            revert WBTCStakingDisabled();
-        }
-        SafeERC20.safeTransferFrom($.wbtc, _msgSender(), address(this), amount);
-        _mint(to, amount);
-        emit WBTCStaked(_msgSender(), to, amount);
     }
 
     function mint(
