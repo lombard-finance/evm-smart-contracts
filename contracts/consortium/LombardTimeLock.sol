@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/governance/TimelockController.sol";
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finance protocol. Executor is EOA controlled by decentralized consortium consensus mechanism.
  */
-contract LombardFinanceTimeLock is TimelockController {
+contract LombardTimeLock is TimelockController {
     constructor(
         uint256 minDelay,
         address[] memory proposers,

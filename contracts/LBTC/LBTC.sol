@@ -46,9 +46,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
 
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
+        uint256 dustFeeRate;
 
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
+
+        address pauser;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -67,12 +70,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _disableInitializers();
     }
 
-    function __LBTC_init(string memory name_, string memory symbol_, address consortium_) internal onlyInitializing {
+    function __LBTC_init(string memory name_, string memory symbol_, address consortium_, uint64 burnCommission_) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
+        _changeBurnCommission(burnCommission_);
     }
 
-    function initialize(address consortium_) external initializer {
+    function initialize(address consortium_, uint64 burnCommission_) external initializer {
         __ERC20_init("LBTC", "LBTC");
         __ERC20Pausable_init();
 
@@ -81,42 +85,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         __ReentrancyGuard_init();
 
-        __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_);
-    }
-
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
-    function changeWBTC(address wbtc_) external onlyOwner {
-        if (wbtc_ == address(0)) {
-            revert ZeroAddress();
-        }
-
-        uint8 expectedDecimals = decimals();
-        uint8 tokenDecimals = IERC20Metadata(wbtc_).decimals();
-
-        if (expectedDecimals != tokenDecimals) {
-            revert WBTCDecimalsMissmatch(expectedDecimals, tokenDecimals);
-        }
+        __LBTC_init("Lombard Staked Bitcoin", "LBTC", consortium_, burnCommission_);
 
         LBTCStorage storage $ = _getLBTCStorage();
-        emit WBTCChanged(address($.wbtc), wbtc_);
-        $.wbtc = IERC20(wbtc_);
-    }
-
-    function enableWBTCStaking() external onlyOwner {
-        LBTCStorage storage $ = _getLBTCStorage();
-        bool isEnabled = $.isWBTCEnabled;
-        if (!isEnabled && address($.wbtc) == address(0)) {
-            revert WBTCNotSet();
-        }
-        $.isWBTCEnabled = !isEnabled;
-        emit WBTCStakingEnabled($.isWBTCEnabled);
+        $.dustFeeRate = 3000; // Default value - 3 satoshis per byte
+        emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
     function toggleWithdrawals() external onlyOwner {
@@ -147,24 +120,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
-    }
-
-    function stakeWBTC(uint256 amount) external nonReentrant {
-        _stakeWBTC(amount, _msgSender());
-    }
-
-    function stakeWBTCFor(uint256 amount, address to) external nonReentrant {
-        _stakeWBTC(amount, to);
-    }
-
-    function _stakeWBTC(uint256 amount, address to) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
-        if (!$.isWBTCEnabled) {
-            revert WBTCStakingDisabled();
-        }
-        SafeERC20.safeTransferFrom($.wbtc, _msgSender(), address(this), amount);
-        _mint(to, amount);
-        emit WBTCStaked(_msgSender(), to, amount);
     }
 
     function mint(
@@ -217,17 +172,54 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (amount <= fee) {
             revert AmountLessThanCommission(fee);
         }
-        amount -= fee;
+
+        uint256 amountAfterFee = amount - fee;
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(outType,scriptPubkey, $.dustFeeRate);
+
+        if (amountAfterFee < dustLimit) {
+            revert AmountBelowDustLimit(dustLimit);
+        }
 
         address fromAddress = address(_msgSender());
         _transfer(fromAddress, getTreasury(), fee);
-        _burn(fromAddress, amount);
+        _burn(fromAddress, amountAfterFee);
 
         emit UnstakeRequest(
             fromAddress,
             scriptPubkey,
-            amount
+            amountAfterFee
         );
+    }
+
+    /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
+    /// @dev This function can be used by front-ends to verify burn amounts before submitting a transaction
+    /// @param scriptPubkey The Bitcoin script public key as a byte array
+    /// @param amount The amount of LBTC to be burned
+    /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
+    /// @return isAboveDust Whether the amountAfterFee is above the dust limit
+    function calcUnstakeRequestAmount(bytes calldata scriptPubkey, uint256 amount)
+        public
+        view
+        returns (uint256 amountAfterFee, bool isAboveDust)
+    {
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+        if (outType == OutputType.UNSUPPORTED) {
+            revert ScriptPubkeyUnsupported();
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+
+        uint64 fee = $.burnCommission;
+        if (amount <= fee) {
+            return (0, false);
+        }
+
+        amountAfterFee = amount - fee;
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(outType, scriptPubkey, $.dustFeeRate);
+
+        isAboveDust = amountAfterFee >= dustLimit;
+
+        return (amountAfterFee, isAboveDust);
     }
 
     function isUsed(bytes32 proof) external view returns (bool) {
@@ -236,10 +228,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function consortium() external view virtual returns (address) {
         return _getLBTCStorage().consortium;
-    }
-
-    function WBTC() external view returns (IERC20) {
-        return _getLBTCStorage().wbtc;
     }
 
     /**
@@ -492,14 +480,32 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit TreasuryAddressChanged(prevValue, newValue);
     }
 
-    function changeBurnCommission(uint64 newValue)
-        external
-        onlyOwner
-    {
+    function changeBurnCommission(uint64 newValue) external onlyOwner {
+        _changeBurnCommission(newValue);
+    }
+
+    function _changeBurnCommission(uint64 newValue) internal {
         LBTCStorage storage $ = _getLBTCStorage();
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
+    }
+
+    /// @notice Change the dust fee rate used for dust limit calculations
+    /// @dev Only the contract owner can call this function. The new rate must be positive.
+    /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
+    function changeDustFeeRate(uint256 newRate) external onlyOwner {
+        if (newRate == 0) revert InvalidDustFeeRate();
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 oldRate = $.dustFeeRate;
+        $.dustFeeRate = newRate;
+        emit DustFeeRateChanged(oldRate, newRate);
+    }
+
+    /// @notice Get the current dust fee rate
+    /// @return The current dust fee rate (in satoshis per 1000 bytes)
+    function getDustFeeRate() public view returns (uint256) {
+        return _getLBTCStorage().dustFeeRate;
     }
 
     /** Get Bascule contract. */
@@ -526,8 +532,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      */
     function _changeBascule(address newVal) internal {
         LBTCStorage storage $ = _getLBTCStorage();
-        emit BasculeChanged(address($.bascule), newVal);
         $.bascule = IBascule(newVal);
+        emit BasculeChanged(address($.bascule), newVal);
     }
 
     /**
@@ -541,5 +547,45 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }
+    }
+
+    /** PAUSE */
+
+    modifier onlyPauser() {
+        _checkPauser();
+        _;
+    }
+
+    function pauser() public view returns (address) {
+        return _getLBTCStorage().pauser;
+    }
+
+    function pause() external onlyPauser {
+        _pause();
+    }
+
+    function unpause() external onlyPauser {
+        _unpause();
+    }
+
+
+    function _checkPauser() internal view {
+        if (pauser() != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+    }
+
+    function transferPauserRole(address newPauser) external onlyOwner {
+        if (newPauser == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferPauserRole(newPauser);
+    }
+
+    function _transferPauserRole(address newPauser) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldPauser = $.pauser;
+        $.pauser = newPauser;
+        emit PauserRoleTransferred(oldPauser, newPauser);
     }
 }

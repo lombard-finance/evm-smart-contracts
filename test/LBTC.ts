@@ -1,4 +1,4 @@
-import { config, ethers, upgrades } from "hardhat";
+import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
@@ -9,8 +9,6 @@ import {
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import { error } from "console";
-import { MaxUint256 } from "ethers";
 import { getRandomValues } from "crypto";
 const { init, deployBascule } = require("./helpers.ts");
 const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
@@ -22,7 +20,8 @@ describe("LBTC", function () {
     signer2: HardhatEthersSigner,
     signer3: HardhatEthersSigner,
     treasury: HardhatEthersSigner,
-    basculeReporter: HardhatEthersSigner;
+    basculeReporter: HardhatEthersSigner,
+    pauser: HardhatEthersSigner;
   let signers;
   let lbtc: LBTCMock;
   let lbtc2: LBTCMock;
@@ -39,14 +38,16 @@ describe("LBTC", function () {
       signer3,
       treasury,
       basculeReporter,
+      pauser,
     ] = await ethers.getSigners();
     signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
-    const result = await init(consortium);
+    const burnCommission = 1000;
+    const result = await init(consortium, burnCommission);
     lbtc = result.lbtc;
     wbtc = result.wbtc;
 
-    const result2 = await init(consortium);
+    const result2 = await init(consortium, burnCommission);
     lbtc2 = result2.lbtc;
 
     await lbtc.changeTreasuryAddress(treasury);
@@ -88,49 +89,49 @@ describe("LBTC", function () {
       expect(await lbtc.decimals()).to.equal(8n);
     });
 
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
     it("Bascule() unset", async function () {
       expect(await lbtc.Bascule()).to.be.equal(ethers.ZeroAddress);
     });
 
     it("pause() turns on enforced pause", async function () {
       expect(await lbtc.paused()).to.be.false;
-      await expect(lbtc.pause())
+      await expect(lbtc.transferPauserRole(pauser.address))
+        .to.emit(lbtc, "PauserRoleTransferred")
+        .withArgs(ethers.ZeroAddress, pauser.address);
+      await expect(lbtc.connect(pauser).pause())
         .to.emit(lbtc, "Paused")
-        .withArgs(deployer.address);
+        .withArgs(pauser.address);
       expect(await lbtc.paused()).to.be.true;
     });
 
-    it("pause() reverts when called by not an owner", async function () {
-      await expect(lbtc.connect(signer1).pause()).to.revertedWithCustomError(
-        lbtc,
-        "OwnableUnauthorizedAccount"
-      );
+    it("pause() reverts when called by not an pauser", async function () {
+      await expect(lbtc.connect(signer1).pause())
+        .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
     });
 
     it("unpause() turns off enforced pause", async function () {
-      await lbtc.pause();
+      await expect(lbtc.transferPauserRole(pauser.address))
+        .to.emit(lbtc, "PauserRoleTransferred")
+        .withArgs(ethers.ZeroAddress, pauser.address);
+
+      await lbtc.connect(pauser).pause();
       expect(await lbtc.paused()).to.be.true;
-      await expect(lbtc.unpause())
+      await expect(lbtc.connect(pauser).unpause())
         .to.emit(lbtc, "Unpaused")
-        .withArgs(deployer.address);
+        .withArgs(pauser.address);
       expect(await lbtc.paused()).to.be.false;
     });
 
-    it("unpause() reverts when called by not an owner", async function () {
-      await lbtc.pause();
+    it("unpause() reverts when called by not an pauser", async function () {
+      await expect(lbtc.transferPauserRole(pauser.address))
+        .to.emit(lbtc, "PauserRoleTransferred")
+        .withArgs(ethers.ZeroAddress, pauser.address);
+      await lbtc.connect(pauser).pause();
       expect(await lbtc.paused()).to.be.true;
-      await expect(lbtc.connect(signer1).unpause()).to.revertedWithCustomError(
-        lbtc,
-        "OwnableUnauthorizedAccount"
-      );
+      await expect(lbtc.connect(signer1).unpause())
+        .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
     });
 
     it("changeNameAndSymbol", async function () {
@@ -157,29 +158,6 @@ describe("LBTC", function () {
       await expect(
         lbtc.connect(signer1).toggleWithdrawals()
       ).to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
-    });
-
-    it("WBTC() set", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.WBTC()).to.be.equal(await wbtc.getAddress());
-    });
-
-    it("Enable WBTC staking if WBTC not set", async function () {
-      await expect(lbtc.enableWBTCStaking()).to.be.revertedWithCustomError(
-        lbtc,
-        "WBTCNotSet"
-      );
-    });
-
-    it("Enable WBTC staking if WBTC set", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
     });
 
     it("changeBascule", async function () {
@@ -282,11 +260,14 @@ describe("LBTC", function () {
         ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
         // report deposit
+        const reportId = ethers.zeroPadValue("0x01", 32);
         await expect(
-          bascule.connect(basculeReporter).reportDeposits([signedData.hash])
+          bascule
+            .connect(basculeReporter)
+            .reportDeposits(reportId, [signedData.hash])
         )
           .to.emit(bascule, "DepositsReported")
-          .withArgs(1);
+          .withArgs(reportId, 1);
 
         // mint works
         await expect(
@@ -319,7 +300,7 @@ describe("LBTC", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
+        customError: "SignatureVerificationFailed",
       },
       {
         name: "data does not match hash",
@@ -346,7 +327,7 @@ describe("LBTC", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
+        customError: "SignatureVerificationFailed",
       },
       {
         name: "chain is wrong",
@@ -415,6 +396,7 @@ describe("LBTC", function () {
     });
 
     it("Reverts when paused", async function () {
+      await lbtc.transferPauserRole(deployer.address);
       await lbtc.pause();
       const amount = 100_000_000n;
       const signedData = signOutputPayload(consortium.privateKey, {
@@ -427,99 +409,72 @@ describe("LBTC", function () {
     });
   });
 
-  describe("Stake WBTC", function () {
-    const stakeAm = 10n ** 8n; // 1 WBTC
-
+  describe("Burn positive cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
+      await lbtc.toggleWithdrawals();
     });
 
-    it("WBTC stake disabled", async function () {
-      await expect(lbtc.stakeWBTC(stakeAm)).to.revertedWithCustomError(
-        lbtc,
-        "WBTCStakingDisabled"
-      );
+    it("Unstake half with P2WPKH", async () => {
+      const amount = 100_000_000n;
+      const halfAmount = amount / 2n;
+      const p2wpkh = "0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03";
+
+      const burnCommission = await lbtc.getBurnCommission();
+
+      const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+      await expect(lbtc.connect(signer1).burn(p2wpkh, halfAmount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2wpkh, expectedAmountAfterFee);
     });
 
-    it("Stake WBTC", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
+    it("Unstake full with P2TR", async () => {
+      const amount = 100_000_000n;
+      const p2tr =
+        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
 
-      await wbtc.mint(await signer3.getAddress(), stakeAm);
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
+      const burnCommission = await lbtc.getBurnCommission();
 
-      await expect(lbtc.connect(signer3).stakeWBTC(stakeAm))
-        .to.emit(lbtc, "WBTCStaked")
-        .withArgs(
-          await signer3.getAddress(),
-          await signer3.getAddress(),
-          stakeAm
-        );
-
-      expect(await lbtc.balanceOf(await signer3.getAddress())).to.be.eq(
-        stakeAm
-      );
+      const expectedAmountAfterFee = amount - BigInt(burnCommission);
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2tr, expectedAmountAfterFee);
     });
 
-    it("Stake WBT if not enough funds", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
+    it("Unstake with commission", async () => {
+      const amount = 100_000_000n;
+      const commission = 1_000_000n;
+      const p2tr =
+        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
 
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
+      await expect(lbtc.changeBurnCommission(commission))
+        .to.emit(lbtc, "BurnCommissionChanged")
+        .withArgs(1000, commission);
 
-      await expect(
-        lbtc.connect(signer3).stakeWBTC(stakeAm)
-      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+
+      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2tr, amount - commission);
     });
 
-    it("Stake WBTC if amount not allowed", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
+    it("Unstake full with P2WSH", async () => {
+      const amount = 100_000_000n;
+      const p2wsh = "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
-      await expect(
-        lbtc.connect(signer3).stakeWBTC(stakeAm)
-      ).to.be.revertedWithCustomError(lbtc, "ERC20InsufficientAllowance");
-    });
+      // Get the burn commission
+      const burnCommission = await lbtc.getBurnCommission();
 
-    it("Stake WBTC for another address", async function () {
-      await expect(lbtc.changeWBTC(await wbtc.getAddress()))
-        .to.emit(lbtc, "WBTCChanged")
-        .withArgs(ethers.ZeroAddress, await wbtc.getAddress());
-      expect(await lbtc.enableWBTCStaking())
-        .to.emit(lbtc, "WBTCStakingEnabled")
-        .withArgs(true);
+      // Calculate expected amount after fee
+      const expectedAmountAfterFee = amount - BigInt(burnCommission);
 
-      await wbtc.mint(await signer3.getAddress(), stakeAm);
-      await wbtc.connect(signer3).approve(await lbtc.getAddress(), stakeAm);
-
-      await expect(
-        lbtc.connect(signer3).stakeWBTCFor(stakeAm, await signer2.getAddress())
-      )
-        .to.emit(lbtc, "WBTCStaked")
-        .withArgs(
-          await signer3.getAddress(),
-          await signer2.getAddress(),
-          stakeAm
-        );
-
-      expect(await wbtc.balanceOf(await signer3.getAddress())).to.be.eq(0);
-      expect(await lbtc.balanceOf(await signer3.getAddress())).to.be.eq(0);
-
-      expect(await lbtc.balanceOf(await signer2.getAddress())).to.be.eq(
-        stakeAm
-      );
+      await expect(lbtc.connect(signer1).burn(p2wsh, amount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2wsh, expectedAmountAfterFee);
     });
   });
 
@@ -538,30 +493,39 @@ describe("LBTC", function () {
       ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
     });
 
-    it("Reverts if not enough tokens", async function () {
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), 1n);
+    it("Reverts if amount is less than burn commission", async function () {
+      const burnCommission = await lbtc.getBurnCommission();
+      const amountLessThanCommission = BigInt(burnCommission) - 1n;
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
+
       await expect(
-        lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", 1n)
-      ).to.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
+        lbtc.connect(signer1).burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
+      ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
+        .withArgs(burnCommission);
     });
 
-    it("Unstake half with P2WPKH", async () => {
-      const amount = 100_000_000n;
-      const p2wpkh = "0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03";
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(lbtc.connect(signer1).burn(p2wpkh, amount / 2n))
-        .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2wpkh, amount / 2n);
-    });
+    it("Reverts when amount is below dust limit for P2WSH", async () => {
+      const p2wsh = "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
+      const burnCommission = await lbtc.getBurnCommission();
 
-    it("Unstake full with P2TR", async () => {
-      const amount = 100_000_000n;
-      const p2tr =
-        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(lbtc.connect(signer1).burn(p2tr, amount))
-        .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2tr, amount);
+      // Start with a very small amount
+      let amount = burnCommission + 1n;
+      let isAboveDust = false;
+
+      // Incrementally increase the amount until we find the dust limit
+      while (!isAboveDust) {
+        amount += 1n;
+        [, isAboveDust] = await lbtc.calcUnstakeRequestAmount(p2wsh, amount);
+      }
+
+      // Now 'amount' is just above the dust limit. Let's use an amount 1 less than this.
+      const amountJustBelowDustLimit = amount - 1n;
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountJustBelowDustLimit);
+
+      await expect(lbtc.connect(signer1).burn(p2wsh, amountJustBelowDustLimit))
+        .to.be.revertedWithCustomError(lbtc, "AmountBelowDustLimit");
     });
 
     it("Revert with P2SH", async () => {
@@ -602,33 +566,6 @@ describe("LBTC", function () {
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
 
-    it("Reverts with P2WSH", async () => {
-      const amount = 100_000_000n;
-      const p2wsh =
-        "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(
-        lbtc.connect(signer1).burn(p2wsh, amount)
-      ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
-    });
-
-    it("Unstake with commission", async () => {
-      const amount = 100_000_000n;
-      const commission = 1_000_000n;
-      const p2tr =
-        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
-
-      await expect(lbtc.changeBurnCommission(commission))
-        .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(0, commission);
-
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-
-      await expect(lbtc.connect(signer1).burn(p2tr, amount))
-        .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2tr, amount - commission);
-    });
-
     it("Reverts not enough to pay commission", async () => {
       const amount = 999_999n;
       const commission = 1_000_000n;
@@ -637,7 +574,7 @@ describe("LBTC", function () {
 
       await expect(lbtc.changeBurnCommission(commission))
         .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(0, commission);
+        .withArgs(1000, commission);
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
@@ -845,9 +782,12 @@ describe("LBTC", function () {
       ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
       // report deposit
-      await expect(bascule.connect(basculeReporter).reportDeposits([hash2]))
+      const reportId = ethers.zeroPadValue("0x01", 32);
+      await expect(
+        bascule.connect(basculeReporter).reportDeposits(reportId, [hash2])
+      )
         .to.emit(bascule, "DepositsReported")
-        .withArgs(1);
+        .withArgs(reportId, 1);
 
       // withdraw works
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
@@ -883,7 +823,7 @@ describe("LBTC", function () {
 
       await expect(
         lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "BadSignature");
+      ).to.revertedWithCustomError(lbtc2, "SignatureVerificationFailed");
     });
 
     it("reverts: chain id from zero", async () => {
