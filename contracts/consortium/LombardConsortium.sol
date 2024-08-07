@@ -13,7 +13,7 @@ import "../libs/EIP1271SignatureUtils.sol";
  */
 contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
-    error BadSignature();
+    error ZeroAddress();
 
     event ThresholdAddrChanged(address prevValue, address newValue);
 
@@ -58,19 +58,25 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     }
 
     function _changeThresholdAddr(address newVal) internal {
+        // prevent threshold addr from being 0x0
+        if (newVal == address(0x0)) {
+            revert ZeroAddress();
+        }
+
         ConsortiumStorage storage $ = _getConsortiumStorage();
         emit ThresholdAddrChanged($.thresholdAddr, newVal);
         $.thresholdAddr = newVal;
     }
 
     function isValidSignature(
-        bytes32 hash,
-        bytes memory signature
+        bytes32 _hash,
+        bytes memory _signature
     ) external view override returns (bytes4 magicValue) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        if (ECDSA.recover(hash, signature) != $.thresholdAddr) {
-                revert BadSignature();
+        // recover signer
+        if (ECDSA.recover(_hash, _signature) != $.thresholdAddr) {
+                return EIP1271SignatureUtils.EIP1271_WRONGVALUE;
         }
 
         return EIP1271SignatureUtils.EIP1271_MAGICVALUE;

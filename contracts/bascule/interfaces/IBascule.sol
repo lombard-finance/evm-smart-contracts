@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 /// Interface of the Bascule contract as used by on-chain contracts.
 /// @custom:security-contact security@cubist.dev
