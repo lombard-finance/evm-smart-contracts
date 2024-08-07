@@ -3,12 +3,20 @@ import { ethers as hhEthers } from "hardhat";
 import { getRandomValues } from "crypto";
 import * as tc from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { hexlify } from "ethers";
 
 let admin: HardhatEthersSigner;
 let pauser: HardhatEthersSigner;
 let depositReporter: HardhatEthersSigner;
 let withdrawalValidator: HardhatEthersSigner;
 let guardian: HardhatEthersSigner;
+
+// Deposit state enum
+enum DepositState {
+  UNREPORTED = 0,
+  REPORTED = 1,
+  WITHDRAWN = 2,
+}
 
 before(async () => {
   admin = (await hhEthers.getSigners())[0];
@@ -49,12 +57,20 @@ describe("Roles", function () {
 
     // Deposit reporter can report deposits
     await (
-      await bascule.connect(depositReporter).reportDeposits([uniqueID])
+      await bascule
+        .connect(depositReporter)
+        .reportDeposits(freshReportId(), [uniqueID])
     ).wait();
 
     // Pauser can't report deposits
     await expect(
-      bascule.connect(pauser).reportDeposits([uniqueID])
+      bascule.connect(pauser).reportDeposits(freshReportId(), [uniqueID])
+    ).to.be.revertedWithCustomError(
+      bascule,
+      "AccessControlUnauthorizedAccount"
+    );
+    await expect(
+      bascule.connect(pauser).reportDeposits(freshReportId(), [uniqueID])
     ).to.be.revertedWithCustomError(
       bascule,
       "AccessControlUnauthorizedAccount"
@@ -246,12 +262,17 @@ describe("Deposit reporting and withdrawal validation", function () {
     ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
     // Report deposit and check that the contract emitted the correct event
-    await expect(bascule.connect(depositReporter).reportDeposits([uniqueID]))
+    const reportId = freshReportId();
+    await expect(
+      bascule.connect(depositReporter).reportDeposits(reportId, [uniqueID])
+    )
       .to.emit(bascule, "DepositsReported")
-      .withArgs(1);
+      .withArgs(reportId, 1);
 
     // Check that the deposit is in the deposit history
-    expect(await bascule.depositHistory(uniqueID)).to.equal(true);
+    expect(await bascule.depositHistory(uniqueID)).to.equal(
+      DepositState.REPORTED
+    );
 
     // Validate the withdrawal and check that the contract emitted the correct event
     await expect(
@@ -260,8 +281,10 @@ describe("Deposit reporting and withdrawal validation", function () {
       .to.emit(bascule, "WithdrawalValidated")
       .withArgs(uniqueID, 0);
 
-    // Check that the deposit has been removed from the deposit history
-    expect(await bascule.depositHistory(uniqueID)).to.equal(false);
+    // Check that the deposit has been changed to withdrawn
+    expect(await bascule.depositHistory(uniqueID)).to.equal(
+      DepositState.WITHDRAWN
+    );
 
     // Can't validate again for the same deposit
     await expect(
@@ -289,16 +312,25 @@ describe("Deposit reporting and withdrawal validation", function () {
 
     const depositIDs = [one, two, three];
 
+    expect(await bascule.depositHistory(one)).to.equal(DepositState.UNREPORTED);
+    expect(await bascule.depositHistory(two)).to.equal(DepositState.UNREPORTED);
+    expect(await bascule.depositHistory(three)).to.equal(
+      DepositState.UNREPORTED
+    );
+
     // Report three deposits and check that the contract emitted the correct
     // event
-    await expect(bascule.connect(depositReporter).reportDeposits(depositIDs))
+    const reportId = freshReportId();
+    await expect(
+      bascule.connect(depositReporter).reportDeposits(reportId, depositIDs)
+    )
       .to.emit(bascule, "DepositsReported")
-      .withArgs(3);
+      .withArgs(reportId, 3);
 
     // Check that the deposits are in the deposit history
-    expect(await bascule.depositHistory(one)).to.equal(true);
-    expect(await bascule.depositHistory(two)).to.equal(true);
-    expect(await bascule.depositHistory(three)).to.equal(true);
+    expect(await bascule.depositHistory(one)).to.equal(DepositState.REPORTED);
+    expect(await bascule.depositHistory(two)).to.equal(DepositState.REPORTED);
+    expect(await bascule.depositHistory(three)).to.equal(DepositState.REPORTED);
 
     // Validate the withdrawals
     for (let i = 0; i < depositIDs.length; i++) {
@@ -366,7 +398,7 @@ describe("Swapping withdrawalValidator during pause", async () => {
       bascule.connect(depositReporter).reportDeposits([one, two, three, four])
     )
       .to.emit(bascule, "DepositsReported")
-      .withArgs(4);
+      .withArgs(reportId, 4);
 
     // Fail to validate withdrawal as admin
     await expect(
@@ -478,7 +510,7 @@ describe("Update max number of deposits", async () => {
       bascule.connect(depositReporter).reportDeposits([one, two, three])
     )
       .to.emit(bascule, "DepositsReported")
-      .withArgs(3);
+      .withArgs(reportId, 3);
   });
 });
 
@@ -626,9 +658,12 @@ describe("Validation threshold", async () => {
     const one = new Uint8Array(32).fill(1);
     const two = new Uint8Array(32).fill(2);
     const three = new Uint8Array(32).fill(3);
-    await expect(bascule.connect(depositReporter).reportDeposits([one, two]))
+    const reportId = freshReportId();
+    await expect(
+      bascule.connect(depositReporter).reportDeposits(reportId, [one, two])
+    )
       .to.emit(bascule, "DepositsReported")
-      .withArgs(2);
+      .withArgs(reportId, 2);
 
     // can withdraw an existing deposit above threshold
     await expect(
@@ -660,6 +695,58 @@ describe("Validation threshold", async () => {
   });
 });
 
+describe("Crashing before/after reporting", async () => {
+  it("Can find deposit report event with reportId", async () => {
+    const factory = new tc.Bascule__factory(admin);
+    const bascule = await factory.deploy(
+      admin,
+      pauser,
+      depositReporter,
+      withdrawalValidator,
+      4n
+    );
+    await bascule.waitForDeployment();
+
+    // Unique IDs for transactions
+    const one = new Uint8Array(32).fill(1);
+    const two = new Uint8Array(32).fill(2);
+    const three = new Uint8Array(32).fill(3);
+    const four = new Uint8Array(32).fill(4);
+    const five = new Uint8Array(32).fill(5);
+
+    const reportId = freshReportId();
+
+    // no event with reportId
+    // eslint-disable-next-line new-cap
+    const filter = bascule.filters.DepositsReported(reportId);
+    expect((await bascule.queryFilter(filter)).length).to.equal(0);
+
+    // report 2 deposits
+    await (
+      await bascule
+        .connect(depositReporter)
+        .reportDeposits(reportId, [one, two])
+    ).wait();
+    let events = await bascule.queryFilter(filter);
+    expect(events.length).to.equal(1);
+    expect(events[0].args[0]).to.equal(hexlify(reportId));
+    expect(events[0].args[1]).to.equal(2n);
+
+    // report 3 deposits with the same reportId (avoid doing this, but it's okay in testing)
+    await (
+      await bascule
+        .connect(depositReporter)
+        .reportDeposits(reportId, [three, four, five])
+    ).wait();
+    events = await bascule.queryFilter(filter);
+    expect(events.length).to.equal(2);
+    expect(events[0].args[0]).to.equal(hexlify(reportId));
+    expect(events[0].args[1]).to.equal(2n);
+    expect(events[1].args[0]).to.equal(hexlify(reportId));
+    expect(events[1].args[1]).to.equal(3n);
+  });
+});
+
 describe("Gas benchmark", async () => {
   it("Can deposit", async () => {
     const maxNr = process.env.DEPOSIT_NUM
@@ -681,8 +768,19 @@ describe("Gas benchmark", async () => {
       .map((_) => getRandomValues(new Uint8Array(32)));
 
     // Report maxNr deposits and check that the contract emitted the correct
-    await expect(bascule.connect(depositReporter).reportDeposits(depositIDs))
+    const reportId = freshReportId();
+    await expect(
+      bascule.connect(depositReporter).reportDeposits(reportId, depositIDs)
+    )
       .to.emit(bascule, "DepositsReported")
-      .withArgs(maxNr);
+      .withArgs(reportId, maxNr);
   });
 });
+
+/**
+ * Generate a fresh report ID.
+ * @return {Uint8Array} A fresh report ID
+ */
+function freshReportId(): Uint8Array {
+  return hhEthers.randomBytes(32);
+}

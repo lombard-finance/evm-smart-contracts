@@ -117,15 +117,16 @@ export async function enrichWithPrivateKeys(
   }
 }
 
-export async function init(consortium: HardhatEthersSigner) {
+export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
   console.log("=== LBTC");
   const LBTC = await ethers.getContractFactory("LBTCMock");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
+    burnCommission
   ])) as unknown as LBTCMock;
   await lbtc.waitForDeployment();
 
-  console.log("=== LBTC");
+  console.log("=== WBTC");
   const WBTC = await ethers.getContractFactory("WBTCMock");
   const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
   await wbtc.waitForDeployment();
