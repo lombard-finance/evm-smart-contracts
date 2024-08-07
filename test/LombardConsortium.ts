@@ -6,6 +6,9 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signer
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 
+const EIP1271_MAGICVALUE = 0x1626ba7e;
+const EIP1271_WRONGVALUE = 0xffffffff;
+
 async function init(
   threshold: HardhatEthersSigner,
   owner: HardhatEthersSigner
@@ -70,7 +73,7 @@ describe("LombardConsortium", function () {
         BigInt(
           await lombard.isValidSignature(signedData.hash, signedData.signature)
         )
-      ).to.be.gt(1n);
+      ).to.be.eq(EIP1271_MAGICVALUE);
     });
 
     it("changeThresholdAddr() reverts when called by not an owner", async function () {
@@ -110,7 +113,7 @@ describe("LombardConsortium", function () {
               signedData.signature
             )
           )
-        ).to.be.gt(1n);
+        ).to.be.eq(EIP1271_MAGICVALUE);
       });
     });
 
@@ -122,7 +125,6 @@ describe("LombardConsortium", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
       },
       {
         name: "hash does not match signature",
@@ -149,11 +151,10 @@ describe("LombardConsortium", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
       },
     ];
     invalid.forEach(function (arg) {
-      it(`Reverts when ${arg.name}`, async function () {
+      it(`Returns wrong value when ${arg.name}`, async function () {
         const amount = arg.amount;
         const recipient = arg.recipient();
         const signer = arg.signer();
@@ -162,9 +163,9 @@ describe("LombardConsortium", function () {
           amount: amount,
           chainId: arg.chainId,
         });
-        await expect(
-          lombard.isValidSignature(signedData.hash, signedData.signature)
-        ).to.revertedWithCustomError(lombard, arg.customError);
+        expect(
+          await lombard.isValidSignature(signedData.hash, signedData.signature)
+        ).to.be.equal(BigInt(EIP1271_WRONGVALUE));
       });
     });
   });
