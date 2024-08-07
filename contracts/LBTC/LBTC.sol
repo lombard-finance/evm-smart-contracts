@@ -50,6 +50,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
+
+        address pauser;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -90,14 +92,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
     function toggleWithdrawals() external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
@@ -124,8 +118,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert ZeroAddress();
         }
         LBTCStorage storage $ = _getLBTCStorage();
-        $.consortium = newVal;
         emit ConsortiumChanged($.consortium, newVal);
+        $.consortium = newVal;
     }
 
     function mint(
@@ -234,10 +228,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function consortium() external view virtual returns (address) {
         return _getLBTCStorage().consortium;
-    }
-
-    function WBTC() external view returns (IERC20) {
-        return _getLBTCStorage().wbtc;
     }
 
     /**
@@ -557,5 +547,45 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }
+    }
+
+    /** PAUSE */
+
+    modifier onlyPauser() {
+        _checkPauser();
+        _;
+    }
+
+    function pauser() public view returns (address) {
+        return _getLBTCStorage().pauser;
+    }
+
+    function pause() external onlyPauser {
+        _pause();
+    }
+
+    function unpause() external onlyPauser {
+        _unpause();
+    }
+
+
+    function _checkPauser() internal view {
+        if (pauser() != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+    }
+
+    function transferPauserRole(address newPauser) external onlyOwner {
+        if (newPauser == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferPauserRole(newPauser);
+    }
+
+    function _transferPauserRole(address newPauser) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldPauser = $.pauser;
+        $.pauser = newPauser;
+        emit PauserRoleTransferred(oldPauser, newPauser);
     }
 }

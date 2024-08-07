@@ -20,7 +20,8 @@ describe("LBTC", function () {
     signer2: HardhatEthersSigner,
     signer3: HardhatEthersSigner,
     treasury: HardhatEthersSigner,
-    basculeReporter: HardhatEthersSigner;
+    basculeReporter: HardhatEthersSigner,
+    pauser: HardhatEthersSigner;
   let signers;
   let lbtc: LBTCMock;
   let lbtc2: LBTCMock;
@@ -37,6 +38,7 @@ describe("LBTC", function () {
       signer3,
       treasury,
       basculeReporter,
+      pauser,
     ] = await ethers.getSigners();
     signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
@@ -87,49 +89,49 @@ describe("LBTC", function () {
       expect(await lbtc.decimals()).to.equal(8n);
     });
 
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
     it("Bascule() unset", async function () {
       expect(await lbtc.Bascule()).to.be.equal(ethers.ZeroAddress);
     });
 
     it("pause() turns on enforced pause", async function () {
       expect(await lbtc.paused()).to.be.false;
-      await expect(lbtc.pause())
+      await expect(lbtc.transferPauserRole(pauser.address))
+        .to.emit(lbtc, "PauserRoleTransferred")
+        .withArgs(ethers.ZeroAddress, pauser.address);
+      await expect(lbtc.connect(pauser).pause())
         .to.emit(lbtc, "Paused")
-        .withArgs(deployer.address);
+        .withArgs(pauser.address);
       expect(await lbtc.paused()).to.be.true;
     });
 
-    it("pause() reverts when called by not an owner", async function () {
-      await expect(lbtc.connect(signer1).pause()).to.revertedWithCustomError(
-        lbtc,
-        "OwnableUnauthorizedAccount"
-      );
+    it("pause() reverts when called by not an pauser", async function () {
+      await expect(lbtc.connect(signer1).pause())
+        .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
     });
 
     it("unpause() turns off enforced pause", async function () {
-      await lbtc.pause();
+      await expect(lbtc.transferPauserRole(pauser.address))
+        .to.emit(lbtc, "PauserRoleTransferred")
+        .withArgs(ethers.ZeroAddress, pauser.address);
+
+      await lbtc.connect(pauser).pause();
       expect(await lbtc.paused()).to.be.true;
-      await expect(lbtc.unpause())
+      await expect(lbtc.connect(pauser).unpause())
         .to.emit(lbtc, "Unpaused")
-        .withArgs(deployer.address);
+        .withArgs(pauser.address);
       expect(await lbtc.paused()).to.be.false;
     });
 
-    it("unpause() reverts when called by not an owner", async function () {
-      await lbtc.pause();
+    it("unpause() reverts when called by not an pauser", async function () {
+      await expect(lbtc.transferPauserRole(pauser.address))
+        .to.emit(lbtc, "PauserRoleTransferred")
+        .withArgs(ethers.ZeroAddress, pauser.address);
+      await lbtc.connect(pauser).pause();
       expect(await lbtc.paused()).to.be.true;
-      await expect(lbtc.connect(signer1).unpause()).to.revertedWithCustomError(
-        lbtc,
-        "OwnableUnauthorizedAccount"
-      );
+      await expect(lbtc.connect(signer1).unpause())
+        .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
     });
 
     it("changeNameAndSymbol", async function () {
@@ -394,6 +396,7 @@ describe("LBTC", function () {
     });
 
     it("Reverts when paused", async function () {
+      await lbtc.transferPauserRole(deployer.address);
       await lbtc.pause();
       const amount = 100_000_000n;
       const signedData = signOutputPayload(consortium.privateKey, {
