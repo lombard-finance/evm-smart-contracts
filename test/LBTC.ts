@@ -91,10 +91,6 @@ describe("LBTC", function () {
       expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
     });
 
-    it("WBTC() unset", async function () {
-      expect(await lbtc.WBTC()).to.be.equal(ethers.ZeroAddress);
-    });
-
     it("Bascule() unset", async function () {
       expect(await lbtc.Bascule()).to.be.equal(ethers.ZeroAddress);
     });
@@ -403,31 +399,10 @@ describe("LBTC", function () {
     });
   });
 
-  describe("Burn negative cases", function () {
+  describe("Burn positive cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
       await lbtc.toggleWithdrawals();
-    });
-
-    it("Reverts when withdrawals off", async function () {
-      await lbtc.toggleWithdrawals();
-      const amount = 100_000_000n;
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(
-        lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amount)
-      ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
-    });
-
-    it("Reverts if amount is less than burn commission", async function () {
-      const burnCommission = await lbtc.getBurnCommission();
-      const amountLessThanCommission = BigInt(burnCommission) - 1n;
-
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
-
-      await expect(
-        lbtc.connect(signer1).burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
-      ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
-        .withArgs(burnCommission);
     });
 
     it("Unstake half with P2WPKH", async () => {
@@ -457,6 +432,90 @@ describe("LBTC", function () {
       await expect(lbtc.connect(signer1).burn(p2tr, amount))
         .to.emit(lbtc, "UnstakeRequest")
         .withArgs(await signer1.getAddress(), p2tr, expectedAmountAfterFee);
+    });
+
+    it("Unstake with commission", async () => {
+      const amount = 100_000_000n;
+      const commission = 1_000_000n;
+      const p2tr =
+        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
+
+      await expect(lbtc.changeBurnCommission(commission))
+        .to.emit(lbtc, "BurnCommissionChanged")
+        .withArgs(1000, commission);
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+
+      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2tr, amount - commission);
+    });
+
+    it("Unstake full with P2WSH", async () => {
+      const amount = 100_000_000n;
+      const p2wsh = "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+
+      // Get the burn commission
+      const burnCommission = await lbtc.getBurnCommission();
+
+      // Calculate expected amount after fee
+      const expectedAmountAfterFee = amount - BigInt(burnCommission);
+
+      await expect(lbtc.connect(signer1).burn(p2wsh, amount))
+        .to.emit(lbtc, "UnstakeRequest")
+        .withArgs(await signer1.getAddress(), p2wsh, expectedAmountAfterFee);
+    });
+  });
+
+  describe("Burn negative cases", function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+      await lbtc.toggleWithdrawals();
+    });
+
+    it("Reverts when withdrawals off", async function () {
+      await lbtc.toggleWithdrawals();
+      const amount = 100_000_000n;
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
+      await expect(
+        lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amount)
+      ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
+    });
+
+    it("Reverts if amount is less than burn commission", async function () {
+      const burnCommission = await lbtc.getBurnCommission();
+      const amountLessThanCommission = BigInt(burnCommission) - 1n;
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
+
+      await expect(
+        lbtc.connect(signer1).burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
+      ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
+        .withArgs(burnCommission);
+    });
+
+    it("Reverts when amount is below dust limit for P2WSH", async () => {
+      const p2wsh = "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
+      const burnCommission = await lbtc.getBurnCommission();
+
+      // Start with a very small amount
+      let amount = burnCommission + 1n;
+      let isAboveDust = false;
+
+      // Incrementally increase the amount until we find the dust limit
+      while (!isAboveDust) {
+        amount += 1n;
+        [, isAboveDust] = await lbtc.calcUnstakeRequestAmount(p2wsh, amount);
+      }
+
+      // Now 'amount' is just above the dust limit. Let's use an amount 1 less than this.
+      const amountJustBelowDustLimit = amount - 1n;
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountJustBelowDustLimit);
+
+      await expect(lbtc.connect(signer1).burn(p2wsh, amountJustBelowDustLimit))
+        .to.be.revertedWithCustomError(lbtc, "AmountBelowDustLimit");
     });
 
     it("Revert with P2SH", async () => {
@@ -495,33 +554,6 @@ describe("LBTC", function () {
       await expect(
         lbtc.connect(signer1).burn(p2ms, amount)
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
-    });
-
-    it("Reverts with P2WSH", async () => {
-      const amount = 100_000_000n;
-      const p2wsh =
-        "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(
-        lbtc.connect(signer1).burn(p2wsh, amount)
-      ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
-    });
-
-    it("Unstake with commission", async () => {
-      const amount = 100_000_000n;
-      const commission = 1_000_000n;
-      const p2tr =
-        "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
-
-      await expect(lbtc.changeBurnCommission(commission))
-        .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(1000, commission);
-
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-
-      await expect(lbtc.connect(signer1).burn(p2tr, amount))
-        .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2tr, amount - commission);
     });
 
     it("Reverts not enough to pay commission", async () => {
