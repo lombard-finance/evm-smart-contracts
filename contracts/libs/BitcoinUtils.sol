@@ -5,7 +5,8 @@ pragma solidity ^0.8.19;
 enum OutputType {
     UNSUPPORTED,
     P2TR,
-    P2WPKH
+    P2WPKH,
+    P2WSH
 }
 
 bytes1 constant OP_0 = 0x00;
@@ -29,6 +30,10 @@ library BitcoinUtils {
             return OutputType.P2TR;
         }
 
+        if (scriptPubkey.length == 34 && scriptPubkey[0] == OP_0 && scriptPubkey[1] == OP_DATA_32) {
+            return OutputType.P2WSH;
+        }
+
         return OutputType.UNSUPPORTED;
     }
 
@@ -43,7 +48,7 @@ library BitcoinUtils {
     function getDustLimitForOutput(OutputType outType, bytes calldata scriptPubkey, uint256 dustFeeRate) internal pure returns (uint256 dustLimit) {
         uint256 spendCost = BASE_SPEND_COST;
 
-        if (outType == OutputType.P2TR || outType == OutputType.P2WPKH) {
+        if (outType == OutputType.P2TR || outType == OutputType.P2WPKH || outType == OutputType.P2WSH) {
             // witness v0 and v1 has a cheaper payment formula
             spendCost += WITNESS_INPUT_SIZE;
         } else {
