@@ -1,4 +1,4 @@
-import { config, ethers, upgrades } from "hardhat";
+import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
@@ -9,8 +9,6 @@ import {
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import { error } from "console";
-import { MaxUint256 } from "ethers";
 import { getRandomValues } from "crypto";
 const { init, deployBascule } = require("./helpers.ts");
 const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
@@ -44,11 +42,12 @@ describe("LBTC", function () {
     ] = await ethers.getSigners();
     signers = [deployer, consortium, signer1, signer2, signer3];
     await enrichWithPrivateKeys(signers);
-    const result = await init(consortium);
+    const burnCommission = 1000;
+    const result = await init(consortium, burnCommission);
     lbtc = result.lbtc;
     wbtc = result.wbtc;
 
-    const result2 = await init(consortium);
+    const result2 = await init(consortium, burnCommission);
     lbtc2 = result2.lbtc;
 
     await lbtc.changeTreasuryAddress(treasury);
@@ -261,11 +260,14 @@ describe("LBTC", function () {
         ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
         // report deposit
+        const reportId = ethers.zeroPadValue("0x01", 32);
         await expect(
-          bascule.connect(basculeReporter).reportDeposits([signedData.hash])
+          bascule
+            .connect(basculeReporter)
+            .reportDeposits(reportId, [signedData.hash])
         )
           .to.emit(bascule, "DepositsReported")
-          .withArgs(1);
+          .withArgs(reportId, 1);
 
         // mint works
         await expect(
@@ -298,7 +300,7 @@ describe("LBTC", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
+        customError: "SignatureVerificationFailed",
       },
       {
         name: "data does not match hash",
@@ -325,7 +327,7 @@ describe("LBTC", function () {
         recipient: () => signer1.address,
         amount: 100_000_000n,
         chainId: config.networks.hardhat.chainId,
-        customError: "BadSignature",
+        customError: "SignatureVerificationFailed",
       },
       {
         name: "chain is wrong",
@@ -422,30 +424,45 @@ describe("LBTC", function () {
       ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
     });
 
-    it("Reverts if not enough tokens", async function () {
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), 1n);
+    it("Reverts if amount is less than burn commission", async function () {
+      const burnCommission = await lbtc.getBurnCommission();
+      const amountLessThanCommission = BigInt(burnCommission) - 1n;
+
+      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
+
       await expect(
-        lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", 1n)
-      ).to.revertedWithCustomError(lbtc, "ERC20InsufficientBalance");
+        lbtc.connect(signer1).burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
+      ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
+        .withArgs(burnCommission);
     });
 
     it("Unstake half with P2WPKH", async () => {
       const amount = 100_000_000n;
+      const halfAmount = amount / 2n;
       const p2wpkh = "0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03";
+
+      const burnCommission = await lbtc.getBurnCommission();
+
+      const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
+
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(lbtc.connect(signer1).burn(p2wpkh, amount / 2n))
+      await expect(lbtc.connect(signer1).burn(p2wpkh, halfAmount))
         .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2wpkh, amount / 2n);
+        .withArgs(await signer1.getAddress(), p2wpkh, expectedAmountAfterFee);
     });
 
     it("Unstake full with P2TR", async () => {
       const amount = 100_000_000n;
       const p2tr =
         "0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947";
+
+      const burnCommission = await lbtc.getBurnCommission();
+
+      const expectedAmountAfterFee = amount - BigInt(burnCommission);
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(lbtc.connect(signer1).burn(p2tr, amount))
         .to.emit(lbtc, "UnstakeRequest")
-        .withArgs(await signer1.getAddress(), p2tr, amount);
+        .withArgs(await signer1.getAddress(), p2tr, expectedAmountAfterFee);
     });
 
     it("Revert with P2SH", async () => {
@@ -504,7 +521,7 @@ describe("LBTC", function () {
 
       await expect(lbtc.changeBurnCommission(commission))
         .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(0, commission);
+        .withArgs(1000, commission);
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
@@ -521,7 +538,7 @@ describe("LBTC", function () {
 
       await expect(lbtc.changeBurnCommission(commission))
         .to.emit(lbtc, "BurnCommissionChanged")
-        .withArgs(0, commission);
+        .withArgs(1000, commission);
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
@@ -729,9 +746,12 @@ describe("LBTC", function () {
       ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
 
       // report deposit
-      await expect(bascule.connect(basculeReporter).reportDeposits([hash2]))
+      const reportId = ethers.zeroPadValue("0x01", 32);
+      await expect(
+        bascule.connect(basculeReporter).reportDeposits(reportId, [hash2])
+      )
         .to.emit(bascule, "DepositsReported")
-        .withArgs(1);
+        .withArgs(reportId, 1);
 
       // withdraw works
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
@@ -767,7 +787,7 @@ describe("LBTC", function () {
 
       await expect(
         lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "BadSignature");
+      ).to.revertedWithCustomError(lbtc2, "SignatureVerificationFailed");
     });
 
     it("reverts: chain id from zero", async () => {
