@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -105,7 +105,7 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
 
   /**
    * Create a new Bascule.
-   * @param aDefaultAdmin Address of the admin.
+   * @param aDefaultAdmin Address of the admin. This address should be controlled by a multisig.
    * @param aPauser Address of the account that may pause.
    * @param aDepositReporter Address of the account that may report deposits on the source chain.
    * @param aWithdrawalValidator Address of the account that may validate withdrawals.
@@ -127,6 +127,8 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
     // turning off validation) requires two steps: (1) grant role and (2) change
     // threshold.  To preserve this invariant, we renounce the validation
     // guardian role when the threshold is raised.
+    //
+    // Initialize explicitly for readability/maintainability
     _validateThreshold = 0; // validate all
   }
 
@@ -233,7 +235,8 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
     }
 
     // Vet each set of depositID and withdrawalAddr and add to history
-    for (uint256 i = 0; i < numDeposits; i++) {
+    // Explicitly init i for readability
+    for (uint256 i = 0; i < numDeposits; ++i) {
       bytes32 depositID = depositIDs[i];
       if (depositHistory[depositID] == DepositState.UNREPORTED) {
         depositHistory[depositID] = DepositState.REPORTED;

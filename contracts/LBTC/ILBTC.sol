@@ -3,7 +3,6 @@ pragma solidity ^0.8.19;
 
 interface ILBTC {
     error ProofAlreadyUsed();
-    error ZeroAmount();
     error ZeroAddress();
     error ZeroContractHash();
     error ZeroChainId();
@@ -17,6 +16,8 @@ interface ILBTC {
     error ScriptPubkeyUnsupported();
     error AmountTooSmallToPayRelativeFee();
     error AmountLessThanCommission(uint256 fee);
+    error AmountBelowDustLimit(uint256 dustLimit);
+    error InvalidDustFeeRate();
     error UnauthorizedAccount(address account);
     event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
 
@@ -32,6 +33,7 @@ interface ILBTC {
     event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
     event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
     event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed toChain);
-    event BurnCommissionChanged(uint64 prevValue, uint64 newValue);
+    event BurnCommissionChanged(uint64 indexed prevValue, uint64 indexed newValue);
+    event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
 }
