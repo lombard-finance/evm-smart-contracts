@@ -425,7 +425,7 @@ describe("LBTC", function () {
       const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(lbtc.connect(signer1).burn(p2wpkh, halfAmount))
+      await expect(lbtc.connect(signer1).redeem(p2wpkh, halfAmount))
         .to.emit(lbtc, "UnstakeRequest")
         .withArgs(await signer1.getAddress(), p2wpkh, expectedAmountAfterFee);
     });
@@ -439,7 +439,7 @@ describe("LBTC", function () {
 
       const expectedAmountAfterFee = amount - BigInt(burnCommission);
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
-      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+      await expect(lbtc.connect(signer1).redeem(p2tr, amount))
         .to.emit(lbtc, "UnstakeRequest")
         .withArgs(await signer1.getAddress(), p2tr, expectedAmountAfterFee);
     });
@@ -456,7 +456,7 @@ describe("LBTC", function () {
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
-      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+      await expect(lbtc.connect(signer1).redeem(p2tr, amount))
         .to.emit(lbtc, "UnstakeRequest")
         .withArgs(await signer1.getAddress(), p2tr, amount - commission);
     });
@@ -472,7 +472,7 @@ describe("LBTC", function () {
       // Calculate expected amount after fee
       const expectedAmountAfterFee = amount - BigInt(burnCommission);
 
-      await expect(lbtc.connect(signer1).burn(p2wsh, amount))
+      await expect(lbtc.connect(signer1).redeem(p2wsh, amount))
         .to.emit(lbtc, "UnstakeRequest")
         .withArgs(await signer1.getAddress(), p2wsh, expectedAmountAfterFee);
     });
@@ -489,7 +489,7 @@ describe("LBTC", function () {
       const amount = 100_000_000n;
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(
-        lbtc.burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amount)
+        lbtc.redeem("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amount)
       ).to.revertedWithCustomError(lbtc, "WithdrawalsDisabled");
     });
 
@@ -500,7 +500,7 @@ describe("LBTC", function () {
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
 
       await expect(
-        lbtc.connect(signer1).burn("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
+        lbtc.connect(signer1).redeem("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
       ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
         .withArgs(burnCommission);
     });
@@ -524,7 +524,7 @@ describe("LBTC", function () {
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountJustBelowDustLimit);
 
-      await expect(lbtc.connect(signer1).burn(p2wsh, amountJustBelowDustLimit))
+      await expect(lbtc.connect(signer1).redeem(p2wsh, amountJustBelowDustLimit))
         .to.be.revertedWithCustomError(lbtc, "AmountBelowDustLimit");
     });
 
@@ -533,7 +533,7 @@ describe("LBTC", function () {
       const p2sh = "0xa914aec38a317950a98baa9f725c0cb7e50ae473ba2f87";
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(
-        lbtc.connect(signer1).burn(p2sh, amount)
+        lbtc.connect(signer1).redeem(p2sh, amount)
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
 
@@ -542,7 +542,7 @@ describe("LBTC", function () {
       const p2pkh = "0x76a914aec38a317950a98baa9f725c0cb7e50ae473ba2f88ac";
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(
-        lbtc.connect(signer1).burn(p2pkh, amount)
+        lbtc.connect(signer1).redeem(p2pkh, amount)
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
 
@@ -552,7 +552,7 @@ describe("LBTC", function () {
         "0x4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac";
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(
-        lbtc.connect(signer1).burn(p2pk, amount)
+        lbtc.connect(signer1).redeem(p2pk, amount)
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
 
@@ -562,7 +562,7 @@ describe("LBTC", function () {
         "0x524104d81fd577272bbe73308c93009eec5dc9fc319fc1ee2e7066e17220a5d47a18314578be2faea34b9f1f8ca078f8621acd4bc22897b03daa422b9bf56646b342a24104ec3afff0b2b66e8152e9018fe3be3fc92b30bf886b3487a525997d00fd9da2d012dce5d5275854adc3106572a5d1e12d4211b228429f5a7b2f7ba92eb0475bb14104b49b496684b02855bc32f5daefa2e2e406db4418f3b86bca5195600951c7d918cdbe5e6d3736ec2abf2dd7610995c3086976b2c0c7b4e459d10b34a316d5a5e753ae";
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
       await expect(
-        lbtc.connect(signer1).burn(p2ms, amount)
+        lbtc.connect(signer1).redeem(p2ms, amount)
       ).to.be.revertedWithCustomError(lbtc, "ScriptPubkeyUnsupported");
     });
 
@@ -578,7 +578,7 @@ describe("LBTC", function () {
 
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
-      await expect(lbtc.connect(signer1).burn(p2tr, amount))
+      await expect(lbtc.connect(signer1).redeem(p2tr, amount))
         .to.revertedWithCustomError(lbtc, "AmountLessThanCommission")
         .withArgs(commission);
     });

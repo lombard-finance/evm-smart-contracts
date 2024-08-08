@@ -541,8 +541,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      */
     function _changeBascule(address newVal) internal {
         LBTCStorage storage $ = _getLBTCStorage();
-        $.bascule = IBascule(newVal);
         emit BasculeChanged(address($.bascule), newVal);
+        $.bascule = IBascule(newVal);
     }
 
     /**
