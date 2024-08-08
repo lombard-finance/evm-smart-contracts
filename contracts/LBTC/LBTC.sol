@@ -155,7 +155,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of LBTC to burn
      */
-    function burn(bytes calldata scriptPubkey, uint256 amount) external {
+    function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
 
         if (outType == OutputType.UNSUPPORTED) {
@@ -189,6 +189,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             scriptPubkey,
             amountAfterFee
         );
+    }
+
+    /**
+     * @dev Burns LBTC
+     *
+     * @param amount Amount of LBTC to burn
+     */
+    function burn(uint256 amount) external {
+        _burn(_msgSender(), amount);
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -532,8 +541,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      */
     function _changeBascule(address newVal) internal {
         LBTCStorage storage $ = _getLBTCStorage();
-        $.bascule = IBascule(newVal);
         emit BasculeChanged(address($.bascule), newVal);
+        $.bascule = IBascule(newVal);
     }
 
     /**
