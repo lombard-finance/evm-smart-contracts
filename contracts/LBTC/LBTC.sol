@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.24;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -155,7 +155,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of LBTC to burn
      */
-    function burn(bytes calldata scriptPubkey, uint256 amount) external {
+    function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
 
         if (outType == OutputType.UNSUPPORTED) {
@@ -189,6 +189,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             scriptPubkey,
             amountAfterFee
         );
+    }
+
+    /**
+     * @dev Burns LBTC
+     *
+     * @param amount Amount of LBTC to burn
+     */
+    function burn(uint256 amount) external {
+        _burn(_msgSender(), amount);
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
