@@ -463,7 +463,8 @@ describe("LBTC", function () {
 
     it("Unstake full with P2WSH", async () => {
       const amount = 100_000_000n;
-      const p2wsh = "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
+      const p2wsh =
+        "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
       await lbtc["mint(address,uint256)"](await signer1.getAddress(), amount);
 
       // Get the burn commission
@@ -497,16 +498,26 @@ describe("LBTC", function () {
       const burnCommission = await lbtc.getBurnCommission();
       const amountLessThanCommission = BigInt(burnCommission) - 1n;
 
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountLessThanCommission);
+      await lbtc["mint(address,uint256)"](
+        await signer1.getAddress(),
+        amountLessThanCommission
+      );
 
       await expect(
-        lbtc.connect(signer1).redeem("0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03", amountLessThanCommission)
-      ).to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
+        lbtc
+          .connect(signer1)
+          .redeem(
+            "0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03",
+            amountLessThanCommission
+          )
+      )
+        .to.be.revertedWithCustomError(lbtc, "AmountLessThanCommission")
         .withArgs(burnCommission);
     });
 
     it("Reverts when amount is below dust limit for P2WSH", async () => {
-      const p2wsh = "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
+      const p2wsh =
+        "0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3";
       const burnCommission = await lbtc.getBurnCommission();
 
       // Start with a very small amount
@@ -522,10 +533,14 @@ describe("LBTC", function () {
       // Now 'amount' is just above the dust limit. Let's use an amount 1 less than this.
       const amountJustBelowDustLimit = amount - 1n;
 
-      await lbtc["mint(address,uint256)"](await signer1.getAddress(), amountJustBelowDustLimit);
+      await lbtc["mint(address,uint256)"](
+        await signer1.getAddress(),
+        amountJustBelowDustLimit
+      );
 
-      await expect(lbtc.connect(signer1).redeem(p2wsh, amountJustBelowDustLimit))
-        .to.be.revertedWithCustomError(lbtc, "AmountBelowDustLimit");
+      await expect(
+        lbtc.connect(signer1).redeem(p2wsh, amountJustBelowDustLimit)
+      ).to.be.revertedWithCustomError(lbtc, "AmountBelowDustLimit");
     });
 
     it("Revert with P2SH", async () => {
