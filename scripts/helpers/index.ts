@@ -8,6 +8,7 @@ export type TAddresses = {
   LBTC?: string;
   ThresholdKey?: string;
   Owner?: string;
+  Consortium?: string;
 };
 
 export function getAddresses(network: string): TAddresses {
