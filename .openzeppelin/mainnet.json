@@ -684,7 +684,7 @@
             "label": "bool",
             "numberOfBytes": "1"
           },
-          "t_struct(ConsortiumStorage)790_storage": {
+          "t_struct(ConsortiumStorage)1296_storage": {
             "label": "struct LombardConsortium.ConsortiumStorage",
             "members": [
               {
