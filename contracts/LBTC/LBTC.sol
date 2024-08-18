@@ -38,8 +38,14 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         address treasury;
 
-        // NOTE: mapping(uint256 => address) destinations, mapping(uint256 => uint16) depositCommission, uint256 globalNonce are removed
-        uint256[3] __removed1;
+        /// @custom:oz-renamed-from destinations
+        mapping(uint256 => address) __removed_destinations;
+        /// @custom:oz-renamed-from depositCommission
+        mapping(uint256 => uint16) __removed_depositCommission;
+        /// @custom:oz-renamed-from usedBridgeProofs
+        mapping(bytes32 => bool) __removed_usedBridgeProofs;
+        /// @custom:oz-renamed-from globalNonce
+        uint256 __removed_globalNonce;
 
         mapping(bytes32 => bytes32) destinations;
         mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
