@@ -17,6 +17,7 @@ async function main() {
     await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
     {
       redeployImplementation: "always",
+      unsafeAllowRenames: true
     }
   );
   await res.waitForDeployment();
