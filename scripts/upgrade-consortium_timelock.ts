@@ -33,7 +33,7 @@ async function main() {
   }
 
   const upgradeTx = await proxyAdmin.upgradeAndCall.populateTransaction(
-    addresses.LBTC,
+    addresses.Consortium,
     newImpl,
     '0x'
   );
