@@ -726,7 +726,7 @@
             "label": "bool",
             "numberOfBytes": "1"
           },
-          "t_struct(ConsortiumStorage)807_storage": {
+          "t_struct(ConsortiumStorage)1872_storage": {
             "label": "struct LombardConsortium.ConsortiumStorage",
             "members": [
               {
@@ -2287,7 +2287,12 @@
             }
           ]
         }
-      }
+      },
+      "allAddresses": [
+        "0x997A47cbde0DAe214b97e52dCeE7557330d0DFE9",
+        "0x47a380723a47857E529677f095CAEab3761d9e99",
+        "0xc791A9Bd1806B3dF29382731b0c27eDEA786A0BB"
+      ]
     },
     "c2532c7108e551d088c7017a2d1dc2f2e52f04d5aba7d4c2146bff573fc24652": {
       "address": "0x12b58d61ECa3cCfB0b59FebeDD9152298450504c",

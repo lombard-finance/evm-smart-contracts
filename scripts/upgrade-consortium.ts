@@ -3,20 +3,18 @@ import { getAddresses, verify } from "./helpers";
 import hardhat from "hardhat";
 import { vars } from "hardhat/config";
 
-const testEnv = vars.get("LOMBARD_TEST_ENV", "disabled") === "enabled";
-
 async function main() {
   const addresses = getAddresses(hardhat.network.name);
 
-  if (!addresses.LBTC) {
-    throw Error(`LBTC not deployed to ${hardhat.network.name}`);
+  if (!addresses.Consortium) {
+    throw Error(`Consortium not deployed to ${hardhat.network.name}`);
   }
 
   const res = await upgrades.upgradeProxy(
-    addresses.LBTC,
-    await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
+    addresses.Consortium,
+    await ethers.getContractFactory("LombardConsortium"),
     {
-      redeployImplementation: "always"
+      redeployImplementation: "always",
     }
   );
   await res.waitForDeployment();
