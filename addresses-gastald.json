@@ -1,0 +1,9 @@
+{
+  "holesky": {
+    "ThresholdKey": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "LBTC": "0x38A13AB20D15ffbE5A7312d2336EF1552580a4E2",
+    "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "Consortium": "0x2946D2bf5b811D62ACDC0C62d25b5D91a3D1E97C",
+    "TimeLock": ""
+  }
+}

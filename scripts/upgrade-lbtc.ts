@@ -16,7 +16,7 @@ async function main() {
     addresses.LBTC,
     await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
     {
-      redeployImplementation: "always",
+      redeployImplementation: "always"
     }
   );
   await res.waitForDeployment();
