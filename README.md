@@ -7,13 +7,14 @@ LBTC is liquid Bitcoin; it's yield-bearing, cross-chain, and 1:1 backed by BTC. 
 ```mermaid
 graph TD
     users1(Users) -- mint(data,proofSignature)  --> lbtc1{{LBTC}}
-    lbtc1 -- isValidSignature(hash,signature) --> consortium1{{LombardConsortium}}
+    lbtc1 -- isValidSignature(hash,signature) --> consortium1{{consortium}}
+    lbtc1 -- validateWithdrawal(depositID,withdrawalAmount) --> bascule{{bascule}}
     
     users2(Users) -- redeem(scriptPubkey,amount) --> lbtc2{{LBTC}}
 
     users3(Users) -- depositToBridge(toChain,toAddress,amount) -->lbtc3A{{LBTC, chain A}}
     users3 -- withdrawFromBridge(data,proofSignature) --> lbtc3B{{LBTC, chain B}}
-    lbtc3B -- isValidSignature(hash,signature) --> consortium3{{LombardConsortium}}
+    lbtc3B -- isValidSignature(hash,signature) --> consortium3{{consortium}}
 ```
 
 ### Addresses
