@@ -14,7 +14,6 @@ async function init(
   owner: HardhatEthersSigner,
   consortium: HardhatEthersSigner
 ) {
-  console.log("=== LombardConsortium");
   const LombardConsortium = await ethers.getContractFactory(
     "LombardConsortium"
   );

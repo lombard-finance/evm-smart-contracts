@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.24;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -38,8 +38,14 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         address treasury;
 
-        // NOTE: mapping(uint256 => address) destinations, mapping(uint256 => uint16) depositCommission, uint256 globalNonce are removed
-        uint256[3] __removed1;
+        /// @custom:oz-renamed-from destinations
+        mapping(uint256 => address) __removed_destinations;
+        /// @custom:oz-renamed-from depositCommission
+        mapping(uint256 => uint16) __removed_depositCommission;
+        /// @custom:oz-renamed-from usedBridgeProofs
+        mapping(bytes32 => bool) __removed_usedBridgeProofs;
+        /// @custom:oz-renamed-from globalNonce
+        uint256 __removed_globalNonce;
 
         mapping(bytes32 => bytes32) destinations;
         mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
@@ -155,7 +161,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of LBTC to burn
      */
-    function burn(bytes calldata scriptPubkey, uint256 amount) external {
+    function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
 
         if (outType == OutputType.UNSUPPORTED) {
@@ -189,6 +195,15 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             scriptPubkey,
             amountAfterFee
         );
+    }
+
+    /**
+     * @dev Burns LBTC
+     *
+     * @param amount Amount of LBTC to burn
+     */
+    function burn(uint256 amount) external {
+        _burn(_msgSender(), amount);
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -532,8 +547,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      */
     function _changeBascule(address newVal) internal {
         LBTCStorage storage $ = _getLBTCStorage();
-        $.bascule = IBascule(newVal);
         emit BasculeChanged(address($.bascule), newVal);
+        $.bascule = IBascule(newVal);
     }
 
     /**
