@@ -5,12 +5,15 @@ import {
   enrichWithPrivateKeys,
   signOutputPayload,
   signBridgeDepositPayload,
+  init, 
+  deployBascule, 
+  generatePermitSignature
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 import { getRandomValues } from "crypto";
-const { init, deployBascule } = require("./helpers.ts");
+
 const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
 describe("LBTC", function () {
@@ -22,7 +25,6 @@ describe("LBTC", function () {
     treasury: HardhatEthersSigner,
     basculeReporter: HardhatEthersSigner,
     pauser: HardhatEthersSigner;
-  let signers;
   let lbtc: LBTCMock;
   let lbtc2: LBTCMock;
   let snapshot: SnapshotRestorer;
@@ -39,9 +41,7 @@ describe("LBTC", function () {
       treasury,
       basculeReporter,
       pauser,
-    ] = await ethers.getSigners();
-    signers = [deployer, consortium, signer1, signer2, signer3];
-    await enrichWithPrivateKeys(signers);
+    ] = enrichWithPrivateKeys(await ethers.getSigners());
     const burnCommission = 1000;
     const result = await init(consortium, burnCommission);
     lbtc = result.lbtc;
@@ -596,6 +596,31 @@ describe("LBTC", function () {
       await expect(lbtc.connect(signer1).redeem(p2tr, amount))
         .to.revertedWithCustomError(lbtc, "AmountLessThanCommission")
         .withArgs(commission);
+    });
+  });
+
+  describe("Permit", function () {
+    it("should transfer funds with permit", async function () {
+      // Initialize the permit module
+      await lbtc.reinitialize();
+
+      // Mint some tokens
+      await lbtc["mint(address,uint256)"](signer1.address, 100_000_000n);
+      
+      // generate permit signature
+      const block = await ethers.provider.getBlock("latest");
+      const deadline = block!.timestamp + 100;  
+      const chainId = (await ethers.provider.getNetwork()).chainId; 
+      const { v, r, s } = await generatePermitSignature(lbtc, signer1, signer2.address, 10_000n, deadline, chainId, 0);
+      
+      await lbtc.permit(signer1.address, signer2.address, 10_000n, deadline, v, r, s);
+      
+      // check allowance
+      expect(await lbtc.allowance(signer1.address, signer2.address)).to.equal(10_000n);
+
+      // check transferFrom
+      await lbtc.connect(signer2).transferFrom(signer1.address, signer3.address, 10_000n);
+      expect(await lbtc.balanceOf(signer3.address)).to.equal(10_000n);
     });
   });
 
