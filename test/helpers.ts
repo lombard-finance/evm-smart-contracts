@@ -118,7 +118,6 @@ export async function enrichWithPrivateKeys(
 }
 
 export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  console.log("=== LBTC");
   const LBTC = await ethers.getContractFactory("LBTCMock");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
@@ -126,7 +125,6 @@ export async function init(consortium: HardhatEthersSigner, burnCommission: numb
   ])) as unknown as LBTCMock;
   await lbtc.waitForDeployment();
 
-  console.log("=== WBTC");
   const WBTC = await ethers.getContractFactory("WBTCMock");
   const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
   await wbtc.waitForDeployment();
@@ -135,7 +133,6 @@ export async function init(consortium: HardhatEthersSigner, burnCommission: numb
 }
 
 export async function deployBascule(reporter: HardhatEthersSigner, lbtc: AddressLike): Promise<Bascule> {
-  console.log("=== Bascule");
   const Bascule = await ethers.getContractFactory("Bascule");
   const [admin, pauser, maxDeposits] = [ reporter.address, reporter.address, 100 ];
   const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
