@@ -1,8 +1,8 @@
 import { config, ethers, network, upgrades } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock, Bascule, Address } from "../typechain-types";
-import { AddressLike } from "ethers";
+import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
+import { AddressLike, Contract, Signer, Signature } from "ethers";
 
 export function signOutputPayload(
   privateKey: string,
@@ -99,7 +99,7 @@ export function signBridgeDepositPayload(
   };
 }
 
-export async function enrichWithPrivateKeys(
+export function enrichWithPrivateKeys(
   signers: HardhatEthersSigner[],
   phrase?: string
 ) {
@@ -115,6 +115,7 @@ export async function enrichWithPrivateKeys(
       signers[i].privateKey = wallet.privateKey;
     }
   }
+  return signers;
 }
 
 export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
@@ -138,4 +139,45 @@ export async function deployBascule(reporter: HardhatEthersSigner, lbtc: Address
   const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
   await bascule.waitForDeployment();
   return bascule;
+}
+
+export async function generatePermitSignature(
+  token: Contract, 
+  owner: Signer, 
+  spender: string,
+  value: number, 
+  deadline: number, 
+  chainId: number , 
+  nonce: number
+): Promise<{ v: number; r: string; s: string }> {
+  const ownerAddress = await owner.getAddress();
+
+  const permitMessage = {
+    owner: ownerAddress,
+    spender: spender,
+    value: value,
+    nonce: nonce,
+    deadline: deadline,
+  };
+
+  const types = {
+    Permit: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+  };
+
+  const signature = await owner.signTypedData({
+    name: "Lombard Staked Bitcoin",
+    version: "1",
+    chainId: chainId,
+    verifyingContract: await token.getAddress(),
+  }, types, permitMessage);
+
+  // Split the signature into v, r, s components
+  const signatureObj = Signature.from(signature); 
+  return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
 }
