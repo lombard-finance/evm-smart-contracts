@@ -1,8 +1,95 @@
 import { config, ethers, network, upgrades } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock, Bascule, Address } from "../typechain-types";
-import { AddressLike } from "ethers";
+import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
+import { AddressLike, BaseContract, BigNumberish } from "ethers";
+
+const actionIface = ethers.Interface.from([
+  "function mint(address,uint256) external",
+  "function addPlayer(address) external",
+  "function removePlayer(address) external",
+  "function withdrawFromBridge(address,uint256) external",
+]);
+
+export function buildFullMessage(
+  action: string,
+  nonce: BigNumberish,
+  expiry: BigNumberish,
+  chainId: BigNumberish,  
+  contract: string,
+  args: any[],
+) {
+  return ethers.keccak256(
+    ethers.solidityPacked(
+      ["bytes32", "uint256", "uint256", "uint256", "address"],
+      [
+        ethers.keccak256(actionIface.encodeFunctionData(action, args)),
+        nonce,
+        expiry,
+        chainId,
+        contract
+      ]
+    )
+  )
+}
+
+export function toEthSignedMessageHash(
+  action: string,
+  nonce: BigNumberish,
+  expiry: BigNumberish,
+  chainId: BigNumberish,  
+  contract: string,
+  args: any[],
+) {
+  return ethers.hashMessage(ethers.getBytes(
+    buildFullMessage(action, nonce, expiry, chainId, contract, args)
+  ));
+}
+
+export async function encodeMessage(
+  signer: HardhatEthersSigner,
+  action: string,
+  nonce: BigNumberish,
+  expiry: BigNumberish,
+  chainId: BigNumberish,  
+  contract: string,
+  args: any[],
+) {
+  return await signer.signMessage(
+    ethers.getBytes(buildFullMessage(action, nonce, expiry, chainId, contract, args))
+  );
+}
+
+export function mergeSignatures(nonce: BigNumberish, expiry: BigNumberish, signers: string[], signatures: string[]) {
+  return ethers.AbiCoder.defaultAbiCoder().encode(
+    ["uint256", "uint256", "address[]", "bytes[]"], 
+    [nonce, expiry, signers, signatures]
+  );
+}
+
+export async function createSignature(
+  signers: HardhatEthersSigner[],
+  action: string,
+  nonce: BigNumberish,
+  expiry: BigNumberish,
+  chainId: BigNumberish,  
+  contract: string,
+  args: any[],
+) {
+  return mergeSignatures(
+    nonce, expiry, 
+    signers.map(signer => signer.address), 
+    await Promise.all(signers.map(signer => encodeMessage(signer, action, nonce, expiry, chainId, contract, args)))
+  );
+}
+
+export async function deployContract<T extends BaseContract>(contractName: string, args: any[], isProxy: boolean = true) : Promise<T> {
+  const factory = await ethers.getContractFactory(contractName);
+  const contract = await (isProxy ? upgrades.deployProxy(factory, args) : factory.deploy(...args));
+  await contract.waitForDeployment();
+
+  return factory.attach(contract.target) as T;
+}
 
 export function signOutputPayload(
   privateKey: string,
@@ -29,60 +116,6 @@ export function signOutputPayload(
       data.outputIndex || Math.floor(Math.random() * 4294967295),
     ]
   );
-  const hash = ethers.keccak256(packed);
-
-  // sign hash
-  const { signature, recid } = secp256k1.ecdsaSign(
-    ethers.getBytes(hash),
-    ethers.getBytes(privateKey)
-  );
-  const signedHash = ethers.hexlify(signature) + (recid === 0 ? "1b" : "1c");
-
-  return {
-    data: packed,
-    hash: hash,
-    signature: signedHash,
-  };
-}
-
-export function signBridgeDepositPayload(
-  privateKey: string,
-  fromContract: string,
-  fromChainId: string,
-  toContract: string,
-  toChainId: string,
-  toAddress: string,
-  amount: bigint,
-  txHash: string,
-  eventIndex: number
-): {
-  data: string;
-  hash: string;
-  signature: string;
-} {
-  const packed = ethers.AbiCoder.defaultAbiCoder().encode(
-    [
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "uint64",
-      "bytes32",
-      "uint32",
-    ],
-    [
-      fromContract,
-      fromChainId,
-      toContract,
-      toChainId,
-      toAddress,
-      amount,
-      txHash,
-      eventIndex,
-    ]
-  );
-
   const hash = ethers.keccak256(packed);
 
   // sign hash
