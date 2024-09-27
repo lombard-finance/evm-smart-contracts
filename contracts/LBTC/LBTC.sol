@@ -10,12 +10,11 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IBascule } from "../bascule/interfaces/IBascule.sol";
-
-import "./ILBTC.sol";
-import "../libs/OutputCodec.sol";
-import "../libs/BridgeDepositCodec.sol";
-import "../libs/EIP1271SignatureUtils.sol";
-
+import {ILBTC} from "./ILBTC.sol";
+import {OutputCodec} from "../libs/OutputCodec.sol";
+import {BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
+import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
+import {LombardConsortium} from "../consortium/LombardConsortium.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -25,7 +24,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        mapping(bytes32 => bool) usedProofs;
+        /// @custom:oz-renamed-from usedProofs
+        mapping(bytes32 => bool) __removed_usedProofs;
 
         string name;
         string symbol;
@@ -129,30 +129,35 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function mint(
-        bytes calldata data,
-        bytes calldata proofSignature
-    ) external nonReentrant {
+        address receiver,
+        uint256 amount,
+        bytes calldata proof
+    ) external nonReentrant whenNotPaused {
+        if (receiver == address(0)) {
+            revert ZeroAddress();
+        }
+        if (amount == 0) {
+            revert InvalidAmount();
+        }
         LBTCStorage storage $ = _getLBTCStorage();
 
         // verify proof signature and ensure that the proof has not been used already
-        bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
+        bytes32 message = keccak256(abi.encodeWithSignature(
+            "mint(address,uint256)", 
+            receiver, 
+            amount
+        ));
+        LombardConsortium($.consortium).checkProof(message, proof);
 
-        // parse deposit
-        OutputWithPayload memory output = OutputCodec.decode(data);
-
-        // verify chainId
-        uint256 chainId = block.chainid;
-        if (chainId != output.chainId) {
-            revert BadChainId(chainId, output.chainId);
-        }
+        bytes32 proofHash = keccak256(proof);
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, uint256(output.amount));
+        _confirmDeposit($, proofHash, amount);
 
         // Actually mint
-        _mint(output.to, uint256(output.amount));
+        _mint(receiver, amount);
 
-        emit OutputProcessed(output.txId, output.index, proofHash);
+        emit MintProofConsumed(proofHash);
     }
 
     /**
@@ -235,10 +240,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         isAboveDust = amountAfterFee >= dustLimit;
 
         return (amountAfterFee, isAboveDust);
-    }
-
-    function isUsed(bytes32 proof) external view returns (bool) {
-        return _getLBTCStorage().usedProofs[proof];
     }
 
     function consortium() external view virtual returns (address) {
@@ -328,63 +329,43 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function withdrawFromBridge(
-        bytes calldata data,
-        bytes calldata proofSignature
+        address receiver,
+        uint256 amount,
+        bytes calldata proof
     ) external nonReentrant {
-        _withdraw(data, proofSignature);
+        if (receiver == address(0)) {
+            revert ZeroAddress();
+        }
+        if (amount == 0) {
+            revert InvalidAmount();
+        }
+        _withdraw(receiver, amount, proof);
     }
 
     function _withdraw(
-        bytes calldata data,
-        bytes calldata proofSignature
+        address receiver,
+        uint256 amount,
+        bytes calldata proof
     ) internal {
+        bytes32 message = keccak256(abi.encodeWithSignature(
+            "withdrawFromBridge(address,uint256)", 
+            receiver,
+            amount
+        ));
+
         LBTCStorage storage $ = _getLBTCStorage();
 
         // verify proof signature and ensure that the proof has not been used already  
-        bytes32 proofHash = _checkAndUseProof($, data, proofSignature);
-
-        // parse deposit
-        BridgeDepositPayload memory deposit = BridgeDepositCodec.create(data);
-
-        // validate fields
-        bytes32 fromContract = getDestination(deposit.fromChainId);
-        if (deposit.fromContract != fromContract) {
-            revert BadDestination();
-        }
-
-        if (deposit.toContract != address(this)) {
-            revert BadToContractAddress(address(this), deposit.toContract);
-        }
-
-        if (deposit.toChainId != block.chainid) {
-            revert BadChainId(block.chainid, deposit.toChainId);
-        }
+        LombardConsortium($.consortium).checkProof(message, proof);
+        bytes32 proofHash = keccak256(proof);
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, uint256(deposit.amount));
+        _confirmDeposit($, proofHash, amount);
 
         // Actually mint
-        _mint(deposit.toAddress, uint256(deposit.amount));
+        _mint(receiver, amount);
 
-        emit WithdrawFromBridge(deposit.toAddress, deposit.txHash, deposit.eventIndex, proofHash, deposit.fromContract, deposit.fromChainId, deposit.amount);
-    }
-
-    /**
-     * @dev Checks that `proofSignature` is signature of `keccak256(data)`
-     * @param self LBTC storage.
-     * @param data arbitrary data with some unique fields (tx hash, output index, etc)
-     * @param proofSignature signed `data` hash
-     */
-    function _checkAndUseProof(LBTCStorage storage self, bytes calldata data, bytes calldata proofSignature) internal returns (bytes32 proofHash) {
-        proofHash = keccak256(data);
-
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature(self.consortium, proofHash, proofSignature);
-        // We can save the proof, because output with index in unique pair
-        if (self.usedProofs[proofHash]) {
-            revert ProofAlreadyUsed();
-        }
-        self.usedProofs[proofHash] = true;
+        emit WithdrawFromBridge(receiver, amount, proofHash);
     }
 
     function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission) external onlyOwner {

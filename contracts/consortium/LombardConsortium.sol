@@ -1,55 +1,51 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "../libs/EIP1271SignatureUtils.sol";
 
 /// @dev Error thrown when trying to initialize with too few players
-error LombardConsortium__InsufficientInitialPlayers(uint256 provided, uint256 minimum);
+error InsufficientInitialPlayers(uint256 provided, uint256 minimum);
 
 /// @dev Error thrown when trying to initialize or add players exceeding the maximum limit
-error LombardConsortium__TooManyPlayers(uint256 provided, uint256 maximum);
+error TooManyPlayers();
 
 /// @dev Error thrown when trying to add a player that already exists
-error LombardConsortium__PlayerAlreadyExists(address player);
+error PlayerAlreadyExists(address player);
 
 /// @dev Error thrown when trying to remove a non-existent player
-error LombardConsortium__PlayerNotFound(address player);
+error PlayerNotFound(address player);
 
 /// @dev Error thrown when trying to remove a player that would result in too few players
-error LombardConsortium__CannotRemovePlayer(uint256 currentCount, uint256 minimum);
-
-/// @dev Error thrown when trying to check signatures byte length is a multiple of 65
-///      (ECDSA signature length)
-error LombardConsortium__InvalidSignatureLength();
-
-/// @dev Error thrown when signatures amount is below the required threshold
-error LombardConsortium__InsufficientSignatures();
-
-/// @dev Error thrown when signatures amount is more than players amount
-error LombardConsortium__TooManySignatures();
+error CannotRemovePlayer();
 
 /// @dev Error thrown when signatures from the same players are present in the multisig
-error LombardConsortium__DuplicatedSignature(address player);
-
-/// @dev Error thrown when signature is invalid
-error LombardConsortium__SignatureValidationError(uint256 signatureIndex, uint8 errorCode);
-
-/// @dev Error thrown when data length is invalid
-error LombardConsortium__InvalidDataLength();
-
-/// @dev Error thrown when public key length is invalid
-error LombardConsortium__InvalidPublicKeyLength();
+error DuplicatedSignature(address player);
 
 /// @dev Error thrown when signature proof is already used
-error LombardConsortium__ProofAlreadyUsed();
+error ProofAlreadyUsed();
+
+/// @dev Error thrown when signature proof is expired
+error ProofExpired();
+
+/// @dev Error thrown when signatures length is not equal to signers length
+error LengthMismatch();
+
+/// @dev Error thrown when nonce is already used
+error NonceAlreadyUsed();
+
+/// @dev Error thrown when there are not enough signatures
+error NotEnoughSignatures();
+
+/// @dev Error thrown when signature verification fails
+error SignatureVerificationFailed();
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
-contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
+contract LombardConsortium is Ownable2StepUpgradeable {
     event PlayerAdded(address player);
     event PlayerRemoved(address player);
 
@@ -57,13 +53,14 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
     /// @dev Struct to hold the consortium's state
     /// @custom:storage-location erc7201:lombardfinance.storage.Consortium
     struct ConsortiumStorage {
-        /// @notice Mapping of addresses to their player status
-        /// @dev True if the address is a player, false otherwise
-        mapping(address => bool) players;
+        /// @notice Consortium address
+        /// @custom:oz-renamed-from consortium
+        address __removed_consortium; 
 
-        /// @notice Mapping of proofs to their use status
-        /// @dev True if the proof is used, false otherwise
-        mapping(bytes32 => bool) usedProofs;
+        /// @notice Mapping of addresses to their postion in the player list
+        /// @dev Position in the player list
+        /// @dev value is 1-indexed so 0 means not a player
+        mapping(address => uint256) players;
 
         /// @notice List of all player addresses
         /// @dev Used for iteration and maintaining order
@@ -73,8 +70,13 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         /// @dev Calculated as floor(2/3 * playerList.length) + 1
         uint256 threshold;
 
-        /// @notice Consortium address
-        address consortium;
+        /// @notice Mapping of proofs to their use status
+        /// @dev True if the proof is used, false otherwise
+        mapping(bytes32 => bool) usedProofs;
+
+        /// @notice Mapping of nonces to their use status
+        /// @dev True if the nonce is used, false otherwise
+        mapping(uint256 => bool) usedNonces;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
@@ -121,28 +123,26 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
 
     /// @notice Internal initializer for the consortium with players
     /// @param _initialPlayers - The initial list of players
-    /// @param _consortium - Consortium address
-    function __Consortium_init(address[] memory _initialPlayers, address _consortium) internal onlyInitializing {
+    function __Consortium_init(address[] memory _initialPlayers) internal onlyInitializing {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        $.consortium = _consortium;
 
         uint256 playerCount = _initialPlayers.length;
         if (playerCount < MIN_PLAYERS) {
-            revert LombardConsortium__InsufficientInitialPlayers(playerCount, MIN_PLAYERS);
+            revert InsufficientInitialPlayers(playerCount, MIN_PLAYERS);
         }
         if (playerCount > MAX_PLAYERS) {
-            revert LombardConsortium__TooManyPlayers(playerCount, MAX_PLAYERS);
+            revert TooManyPlayers();
         }
 
         for (uint256 i; i < playerCount;) {
             address player = _initialPlayers[i];
-            if ($.players[player]) {
-                revert LombardConsortium__PlayerAlreadyExists(player);
+            if ($.players[player] != 0) {
+                revert PlayerAlreadyExists(player);
             }
-            $.players[player] = true;
+            unchecked { ++i; }
+            $.players[player] = i;
             $.playerList.push(player);
             emit PlayerAdded(player);
-            unchecked { ++i; }
         }
         _updateThreshold();
     }
@@ -161,147 +161,121 @@ contract LombardConsortium is Ownable2StepUpgradeable, IERC1271 {
         ) + 1;
     }
 
-    /// @dev Checks that `proofSignature` is signature of `keccak256(data)`
-    /// @param _data arbitrary data with some unique fields (tx hash, output index, etc)
-    /// @param _proofSignature signed `data` hash
-    function _checkProof( bytes calldata _data, bytes calldata _proofSignature) internal {
+    /// @dev Checks that `_proof` is correct
+    /// @param _rawMessage data to be signed
+    /// @param _proof nonce, expiry and signatures to validate
+    /// @dev The signatures must be in the same order as the players list to avoid extra onchain verification ocst
+    function _checkProof(bytes32 _rawMessage, bytes memory _proof) internal {
+        // decode proof
+        (uint256 nonce, uint256 expiry, address[] memory signers, bytes[] memory signatures) = abi.decode(_proof, (uint256, uint256, address[], bytes[]));
+        if(block.timestamp > expiry) revert ProofExpired();
+        if(signatures.length != signers.length) revert LengthMismatch();
+        
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        bytes32 proofHash = keccak256(_data);
+        if(signers.length < $.threshold) revert NotEnoughSignatures();
 
-        // we can trust data only if proof is signed by Consortium
-        EIP1271SignatureUtils.checkSignature($.consortium, proofHash, _proofSignature);
-        // We can save the proof, because output with index in unique pair
-        if ($.usedProofs[proofHash]) {
-            revert LombardConsortium__ProofAlreadyUsed();
+        bytes32 proofHash = keccak256(_proof);
+        if($.usedProofs[proofHash]) revert ProofAlreadyUsed();
+        if($.usedNonces[nonce]) revert NonceAlreadyUsed();  
+
+        bytes32 fullMessage = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(abi.encodePacked(
+                _rawMessage,
+                nonce,
+                expiry,
+                uint256(block.chainid),
+                address(msg.sender)
+            ))
+        );
+
+        uint256 lastPlayer;
+        for(uint256 i; i < signers.length;) {
+            uint256 currentPlayer = $.players[signers[i]];
+            if(currentPlayer == 0) revert PlayerNotFound(signers[i]);
+            if(currentPlayer <= lastPlayer) revert DuplicatedSignature(signers[i]);
+            lastPlayer = currentPlayer;
+
+            if(!EIP1271SignatureUtils.checkSignature(signers[i], fullMessage, signatures[i])) 
+            revert SignatureVerificationFailed();
+            
+            unchecked { ++i; }
         }
+
         $.usedProofs[proofHash] = true;
+        $.usedNonces[nonce] = true;
     }
 
     /// @notice Initializes the consortium contract with players and the owner key
     /// @param _players - The initial list of players
     /// @param _ownerKey - The address of the initial owner
-    /// @param _consortium - Consortium address
-    function initialize(address[] memory _players, address _ownerKey, address _consortium) external initializer {
+    function initialize(address[] memory _players, address _ownerKey) external initializer {
         __Ownable_init(_ownerKey);
         __Ownable2Step_init();
-        __Consortium_init(_players, _consortium);
+        __Consortium_init(_players);
     }
 
     /// @notice Adds player if approved by consortium
-    /// @param _data - Data to verify (incl. player public key)
-    /// @param _proofSignature - Consortium signature
-    function addPlayer(bytes calldata _data, bytes calldata _proofSignature) external {
+    /// @param _player - Address of the new player to add
+    /// @param _proof - Consortium proof
+    function addPlayer(address _player, bytes calldata _proof) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        if ($.playerList.length >= MAX_PLAYERS) {
-            revert LombardConsortium__TooManyPlayers($.playerList.length + 1, MAX_PLAYERS);
+        if ($.playerList.length == MAX_PLAYERS) revert TooManyPlayers();
+
+        if ($.players[_player] != 0) {
+            revert PlayerAlreadyExists(_player);
         }
 
-        // Check for minimum length: 32 (length prefix) + 65 (public key) = 97 bytes
-        if (_data.length < 97) revert LombardConsortium__InvalidDataLength();
+        bytes32 rawMessage = keccak256(abi.encodeWithSignature(
+            "addPlayer(address)",
+            _player
+        ));
 
-        _checkProof(_data, _proofSignature);
+        _checkProof(rawMessage, _proof);
 
-        (bytes memory publicKey, ) = abi.decode(_data, (bytes, bytes));
-
-        if (publicKey.length != 65) revert LombardConsortium__InvalidPublicKeyLength();
-
-        address newPlayer = address(uint160(uint256(keccak256(publicKey))));
-
-        if ($.players[newPlayer]) {
-            revert LombardConsortium__PlayerAlreadyExists(newPlayer);
-        }
-
-        $.players[newPlayer] = true;
-        $.playerList.push(newPlayer);
-        emit PlayerAdded(newPlayer);
+        $.playerList.push(_player);
+        $.players[_player] = $.playerList.length;
+        emit PlayerAdded(_player);
         _updateThreshold();
     }
 
     /// @notice Removes player if approved by consortium
-    /// @param _data - Data to verify (incl. player public key)
-    /// @param _proofSignature - Consortium signature
-    function removePlayer(bytes calldata _data, bytes calldata _proofSignature) external {
+    /// @param _player - Address of the player to remove
+    /// @param _proof - Consortium proof
+    function removePlayer(address _player, bytes calldata _proof) external {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        if ($.playerList.length <= MIN_PLAYERS) {
-            revert LombardConsortium__CannotRemovePlayer($.playerList.length, MIN_PLAYERS);
+        if ($.playerList.length == MIN_PLAYERS) revert CannotRemovePlayer();
+
+        uint256 playerIndex = $.players[_player];
+        if (playerIndex == 0) {
+            revert PlayerNotFound(_player);
         }
 
-        // Check for minimum length: 32 (length prefix) + 65 (public key) = 97 bytes
-        if (_data.length < 97) revert LombardConsortium__InvalidDataLength();
+        bytes32 rawMessage = keccak256(abi.encodeWithSignature(
+            "removePlayer(address)",
+            _player
+        ));
 
-        _checkProof(_data, _proofSignature);
+        _checkProof(rawMessage, _proof);
 
-        (bytes memory publicKey, ) = abi.decode(_data, (bytes, bytes));
-
-        if (publicKey.length != 65) revert LombardConsortium__InvalidPublicKeyLength();
-
-        address playerToRemove = address(uint160(uint256(keccak256(publicKey))));
-
-        if (!$.players[playerToRemove]) {
-            revert LombardConsortium__PlayerNotFound(playerToRemove);
+        if(playerIndex != $.playerList.length) {
+            address lastPlayer = $.playerList[$.playerList.length - 1];
+            $.playerList[playerIndex - 1] = lastPlayer;
+            $.players[lastPlayer] = playerIndex;
         }
-
-        $.players[playerToRemove] = false;
-        for (uint256 i; i < $.playerList.length; i++) {
-            if ($.playerList[i] == playerToRemove) {
-                $.playerList[i] = $.playerList[$.playerList.length - 1];
-                $.playerList.pop();
-                break;
-            }
-        }
-        emit PlayerRemoved(playerToRemove);
+        $.playerList.pop();
+        delete $.players[_player];
+        emit PlayerRemoved(_player);
         _updateThreshold();
     }
 
     /// @notice Validates the provided signature against the given hash
-    /// @param _hash The hash of the data to be signed
-    /// @param _signatures The signatures to validate
-    /// @return The magic value (0x1626ba7e) if the signature is valid, wrong value
-    ///         (0xffffffff) otherwise
-    function isValidSignature(bytes32 _hash, bytes calldata _signatures) external view override returns (bytes4) {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-
-        if (_signatures.length % 65 != 0) revert LombardConsortium__InvalidSignatureLength();
-        uint256 signatureCount = _signatures.length / 65;
-
-        if (signatureCount < $.threshold) revert LombardConsortium__InsufficientSignatures();
-        if (signatureCount > $.playerList.length) revert LombardConsortium__TooManySignatures();
-
-        address[] memory seenSigners = new address[](signatureCount);
-        uint256 validSignatures;
-
-        address signer;
-        ECDSA.RecoverError error;
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        for (uint256 i; i < signatureCount;) {
-            assembly {
-                r := calldataload(add(_signatures.offset, mul(i, 65)))
-                s := calldataload(add(_signatures.offset, add(mul(i, 65), 32)))
-                v := byte(0, calldataload(add(_signatures.offset, add(mul(i, 65), 64))))
-            }
-
-            (signer, error, ) = ECDSA.tryRecover(_hash, v, r, s);
-
-            if (!$.players[signer]) revert LombardConsortium__PlayerNotFound(signer);
-            if (error != ECDSA.RecoverError.NoError) revert LombardConsortium__SignatureValidationError(i, uint8(error));
-
-            // Check for duplicate signatures
-            for (uint256 j; j < validSignatures;) {
-                if (seenSigners[j] == signer) revert LombardConsortium__DuplicatedSignature(signer);
-                unchecked { ++j; }
-            }
-
-            seenSigners[validSignatures] = signer;
-            unchecked {
-                ++validSignatures;
-                ++i;
-            }
-        }
+    /// @param _rawMessage the hash of the data to be signed
+    /// @param _proof nonce, expiry and signatures to validate
+    /// @return The magic value (0x1626ba7e) if the signature is valid
+    function checkProof(bytes32 _rawMessage, bytes calldata _proof) external returns (bytes4) {
+        _checkProof(_rawMessage, _proof);
 
         return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
     }
