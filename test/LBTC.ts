@@ -639,37 +639,50 @@ describe("LBTC", function () {
       expect(await lbtc.nonces(signer1.address)).to.equal(1);
     });
 
-    it("should fail if permit params don't match the signature", async function () {
-      // generate permit signature
-      const { v, r, s } = await generatePermitSignature(lbtc, signer1, signer2.address, 10_000n, timestamp + 100, chainId, 0);
+    describe("fail if permit params don't match the signature", function () {
+      let v: number;
+      let r: string;
+      let s: string;
 
-      const params: [Signer, string, bigint, number][] = [
-        [signer1, signer3.address, 10_000n, timestamp + 100],   // wrong spender
-        [signer3, signer2.address, 10_000n, timestamp + 100],   // wrong signer
-        [signer1, signer2.address, 10_000n, timestamp + 1],     // wrong deadline
-        [signer1, signer2.address, 1n, timestamp + 100],        // wrong value
-        [signer1, signer2.address, 10_000n, timestamp + 100],   // wrong chainId
+      before(async function () {
+        // generate permit signature
+        const signature = await generatePermitSignature(lbtc, signer1, signer2.address, 10_000n, timestamp + 100, chainId, 0);
+        v = signature.v;
+        r = signature.r;
+        s = signature.s;
+      });
+
+      const params: [() => Signer, () => string, bigint, () => number, string][] = [
+        [() => signer1, () => signer3.address, 10_000n, () => timestamp + 100, "is sensitive to wrong spender"],
+        [() => signer3, () => signer2.address, 10_000n, () => timestamp + 100, "is sensitive to wrong signer"],
+        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 1, "is sensitive to wrong deadline"],
+        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, "is sensitive to wrong value"],
       ];
-      params.forEach(async ([signer, spender, value, deadline]) => {
-        await expect(lbtc.permit(signer, spender, value, deadline, v, r, s))
+ 
+      params.forEach(async function([signer, spender, value, deadline, label]) {
+        it(label, async function () {
+          await expect(lbtc.permit(signer(), spender(), value, deadline(), v, r, s))
           .to.be.revertedWithCustomError(lbtc, "ERC2612InvalidSigner");
+        });
       });
     });
 
-    it("should fail if signature don't match permit params", async function () {
+    describe("fail if signature don't match permit params", function () {
       // generate permit signature
-      const signaturesData: [Signer, string, bigint, number, bigint, number][] = [
-        [signer3, signer2.address, 10_000n, timestamp + 100, chainId, 0],   // wrong signer
-        [signer1, signer3.address, 10_000n, timestamp + 100, chainId, 0],   // wrong spender
-        [signer1, signer2.address, 1n, timestamp + 100, chainId, 0],        // wrong value
-        [signer1, signer2.address, 10_000n, timestamp + 1, chainId, 0],     // wrong deadline
-        [signer1, signer2.address, 10_000n, timestamp + 100, 1234n, 0],     // wrong chainId
-        [signer1, signer2.address, 1n, timestamp + 100, chainId, 1]         // wrong nonce
+      const signaturesData: [() => Signer, () => string, bigint, () => number, () => bigint, number, string][] = [
+        [() => signer3, () => signer2.address, 10_000n, () => timestamp + 100, () => chainId, 0, "is sensitive to wrong signer"],
+        [() => signer1, () => signer3.address, 10_000n, () => timestamp + 100, () => chainId, 0, "is sensitive to wrong spender"],
+        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, () => chainId, 0, "is sensitive to wrong value"],
+        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 1, () => chainId, 0, "is sensitive to wrong deadline"],
+        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 100, () => 1234n, 0, "is sensitive to wrong chainId"],
+        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, () => chainId, 1, "is sensitive to wrong nonce"],
       ];
-      signaturesData.forEach(async ([signer, spender, value, deadline, chainId, nonce]) => {
-        const { v, r, s } = await generatePermitSignature(lbtc, signer, spender, value, deadline, chainId, nonce);
+      signaturesData.forEach(async ([signer, spender, value, deadline, chainId, nonce, label]) => {
+        it(label, async () => {
+        const { v, r, s } = await generatePermitSignature(lbtc, signer(), spender(), value, deadline(), chainId(), nonce);
         await expect(lbtc.permit(signer1, signer2.address, 10_000n, timestamp + 100, v, r, s))
           .to.be.revertedWithCustomError(lbtc, "ERC2612InvalidSigner");
+        });
       });
     });
   });
