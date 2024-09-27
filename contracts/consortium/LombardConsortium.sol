@@ -165,7 +165,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _rawMessage data to be signed
     /// @param _proof nonce, expiry and signatures to validate
     /// @dev The signatures must be in the same order as the players list to avoid extra onchain verification ocst
-    function _checkProof(bytes32 _rawMessage, bytes memory _proof) internal {
+    function _checkProof(bytes32 _rawMessage, address _targetContract, bytes memory _proof) internal {
         // decode proof
         (uint256 nonce, uint256 expiry, address[] memory signers, bytes[] memory signatures) = abi.decode(_proof, (uint256, uint256, address[], bytes[]));
         if(block.timestamp > expiry) revert ProofExpired();
@@ -184,7 +184,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
                 nonce,
                 expiry,
                 uint256(block.chainid),
-                address(msg.sender)
+                _targetContract
             ))
         );
 
@@ -231,7 +231,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             _player
         ));
 
-        _checkProof(rawMessage, _proof);
+        // External call so 
+        _checkProof(rawMessage, address(this), _proof);
 
         $.playerList.push(_player);
         $.players[_player] = $.playerList.length;
@@ -257,7 +258,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             _player
         ));
 
-        _checkProof(rawMessage, _proof);
+        _checkProof(rawMessage, address(this), _proof);
 
         if(playerIndex != $.playerList.length) {
             address lastPlayer = $.playerList[$.playerList.length - 1];
@@ -275,7 +276,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _proof nonce, expiry and signatures to validate
     /// @return The magic value (0x1626ba7e) if the signature is valid
     function checkProof(bytes32 _rawMessage, bytes calldata _proof) external returns (bytes4) {
-        _checkProof(_rawMessage, _proof);
+        _checkProof(_rawMessage, msg.sender, _proof);
 
         return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
     }

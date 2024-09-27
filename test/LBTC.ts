@@ -369,6 +369,12 @@ describe("LBTC", function () {
           timestamp: () => snapshotTimestamp - 1,
           customError: "ProofExpired",
         },
+        {
+          ...defaultArgs,
+          name: "unknown signer",
+          signers: () => [signer1, deployer],
+          customError: "PlayerNotFound",
+        },
       ];
       args.forEach(function (args) {
         it(`Reverts when ${args.name}`, async function () {
@@ -756,244 +762,61 @@ describe("LBTC", function () {
 
     it("withdrawFromBridge (with Bascule)", async () => {
       // Enable Bascule
-      await expect(lbtc.changeBascule(await bascule.getAddress()))
-        .to.emit(lbtc, "BasculeChanged")
-        .withArgs(ethers.ZeroAddress, await bascule.getAddress());
+      await lbtc.changeBascule(await bascule.getAddress());
 
       // Use the 2nd half of the full flow test to test the Bascule integration
-      let amount = await lbtc.MAX_COMMISSION();
+      let amount = 10000n;;
+      let receiver = signer3.address;
 
-      let fee =
-        (amount * (await lbtc.getDepositRelativeCommission(CHAIN_ID))) /
-        (await lbtc.MAX_COMMISSION());
-
-      let amountWithoutFee = amount - fee;
-
-      // Since we don't perform the first half of the full flow (deposit on the
-      // other chain), we just make up a random deposit tx hash
-      const depositTxHash = `0x${Buffer.from(
-        getRandomValues(new Uint8Array(32))
-      ).toString("hex")}`;
-      const {
-        data: data2,
-        hash: hash2,
-        signature: signature2,
-      } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
+      let signature = await createSignature(
+        [signer1],
+        "withdrawFromBridge",
+        1,
+        snapshotTimestamp + 100,
         CHAIN_ID,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        amountWithoutFee,
-        depositTxHash,
-        1
+        await lbtc.getAddress(),
+        [receiver, amount]
       );
 
       // withdraw without report fails
-      await expect(
-        lbtc.connect(signer2).withdrawFromBridge(data2, signature2)
-      ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
+      await expect(lbtc.connect(signer2).withdrawFromBridge(receiver, amount, signature))
+        .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
+        .withArgs(keccak256(signature), amount);
 
       // report deposit
       const reportId = ethers.zeroPadValue("0x01", 32);
-      await expect(
-        bascule.connect(basculeReporter).reportDeposits(reportId, [hash2])
-      )
-        .to.emit(bascule, "DepositsReported")
-        .withArgs(reportId, 1);
+      await bascule.connect(reporter).reportDeposits(reportId, [keccak256(signature)]);
 
       // withdraw works
-      await expect(lbtc.connect(signer2).withdrawFromBridge(data2, signature2))
+      await expect(
+        lbtc.connect(signer2).withdrawFromBridge(receiver, amount, signature)
+      )
         .to.emit(lbtc, "WithdrawFromBridge")
         .withArgs(
-          signer2.address,
-          depositTxHash,
-          1,
-          hash2,
-          ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-          CHAIN_ID,
-          amountWithoutFee
+          receiver,
+          amount,
+          keccak256(signature)
         );
     });
 
     it("reverts: Non-consortium signing", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
+      let receiver = signer3.address;
+      let amount = 1n;
 
-      const { data, signature } = signBridgeDepositPayload(
-        signer1.privateKey,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
+      let signature = await createSignature(
+        [signer2],
+        "withdrawFromBridge",
+        1,
+        snapshotTimestamp + 100,
         CHAIN_ID,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        20_000n,
-        block.hash,
-        1
+        await lbtc.getAddress(),
+        [receiver, amount]
       );
 
       await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "SignatureVerificationFailed");
-    });
-
-    it("reverts: chain id from zero", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
-
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        ethers.zeroPadValue("0x", 32),
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        20_000n,
-        block.hash,
-        1
-      );
-
-      await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "ZeroChainId");
-    });
-
-    it("reverts: zero tx hash", async () => {
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        20_000n,
-        ethers.zeroPadValue("0x", 32),
-        1
-      );
-
-      await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "ZeroTxHash");
-    });
-
-    it("reverts: bad destination contract", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
-
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        20_000n,
-        block.hash,
-        1
-      );
-
-      await expect(lbtc2.connect(signer2).withdrawFromBridge(data, signature))
-        .to.revertedWithCustomError(lbtc2, "BadToContractAddress")
-        .withArgs(await lbtc2.getAddress(), signer2.address);
-    });
-
-    it("reverts: bad destination contract", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
-
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(signer2.address, 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(signer2.address, 32),
-        20_000n,
-        block.hash,
-        1
-      );
-
-      await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "BadDestination");
-    });
-
-    it("reverts: bad destination chain id", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
-
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        ethers.zeroPadValue("0xCAFE", 32),
-        ethers.zeroPadValue(signer2.address, 32),
-        20_000n,
-        block.hash,
-        1
-      );
-
-      await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "BadDestination");
-    });
-
-    it("reverts: zero to address", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
-
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(ethers.ZeroAddress, 32),
-        20_000n,
-        block.hash,
-        1
-      );
-
-      await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "ZeroAddress");
-    });
-
-    it("reverts: zero amount", async () => {
-      const block = await ethers.provider.getBlock("latest");
-      if (!block || !block.hash) {
-        throw Error("no block found");
-      }
-
-      const { data, signature } = signBridgeDepositPayload(
-        consortium.privateKey,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        CHAIN_ID,
-        ethers.zeroPadValue("0xCAFE", 32),
-        0n,
-        block.hash,
-        1
-      );
-
-      await expect(
-        lbtc2.connect(signer2).withdrawFromBridge(data, signature)
-      ).to.revertedWithCustomError(lbtc2, "ZeroAmount");
+        lbtc.connect(signer2).withdrawFromBridge(receiver, amount, signature)
+      ).to.revertedWithCustomError(consortium, "PlayerNotFound")
+        .withArgs(signer2.address);
     });
   });
 });

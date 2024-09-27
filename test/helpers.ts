@@ -11,6 +11,13 @@ const actionIface = ethers.Interface.from([
   "function withdrawFromBridge(address,uint256) external",
 ]);
 
+export function encodeMessage(
+  action: string,
+  args: any[],
+) {
+  return ethers.keccak256(actionIface.encodeFunctionData(action, args));
+}
+
 export function buildFullMessage(
   action: string,
   nonce: BigNumberish,
@@ -23,7 +30,7 @@ export function buildFullMessage(
     ethers.solidityPacked(
       ["bytes32", "uint256", "uint256", "uint256", "address"],
       [
-        ethers.keccak256(actionIface.encodeFunctionData(action, args)),
+        encodeMessage(action, args),
         nonce,
         expiry,
         chainId,
@@ -46,7 +53,7 @@ export function toEthSignedMessageHash(
   ));
 }
 
-export async function encodeMessage(
+export async function signMessage(
   signer: HardhatEthersSigner,
   action: string,
   nonce: BigNumberish,
@@ -79,7 +86,7 @@ export async function createSignature(
   return mergeSignatures(
     nonce, expiry, 
     signers.map(signer => signer.address), 
-    await Promise.all(signers.map(signer => encodeMessage(signer, action, nonce, expiry, chainId, contract, args)))
+    await Promise.all(signers.map(signer => signMessage(signer, action, nonce, expiry, chainId, contract, args)))
   );
 }
 

@@ -1,136 +1,153 @@
-import { config, ethers, upgrades } from "hardhat";
+import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { enrichWithPrivateKeys, signOutputPayload } from "./helpers";
+import { deployContract, createSignature, buildFullMessage, encodeMessage } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 
 const EIP1271_MAGICVALUE = 0x1626ba7e;
-const EIP1271_WRONGVALUE = 0xffffffff;
-
-async function init(
-  initialPlayers: HardhatEthersSigner[],
-  owner: HardhatEthersSigner,
-  consortium: HardhatEthersSigner
-) {
-  const LombardConsortium = await ethers.getContractFactory(
-    "LombardConsortium"
-  );
-  const initialPlayerAddresses = initialPlayers.map(player => player.address);
-  const lombard = (await upgrades.deployProxy(LombardConsortium, [
-    initialPlayerAddresses,
-    owner.address,
-    consortium.address
-  ])) as LombardConsortium;
-  await lombard.waitForDeployment();
-  return { lombard };
-}
 
 describe("LombardConsortium", function () {
   let deployer: HardhatEthersSigner,
-    consortium: HardhatEthersSigner,
     signer1: HardhatEthersSigner,
     signer2: HardhatEthersSigner,
     signer3: HardhatEthersSigner;
-  let signers;
   let lombard: LombardConsortium;
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [deployer, consortium, signer1, signer2, signer3] = await ethers.getSigners();
-    signers = [deployer, consortium, signer1, signer2, signer3];
-    await enrichWithPrivateKeys(signers);
-    const result = await init([signer1, signer2, signer3], deployer, consortium);
-    lombard = result.lombard;
+    [deployer, signer1, signer2, signer3] = await ethers.getSigners();
+    lombard = await deployContract<LombardConsortium>("LombardConsortium", [
+      [signer1.address, signer2.address, signer3.address],
+      deployer.address,
+    ]);
     snapshot = await takeSnapshot();
   });
 
-  describe("Setters and getters", function () {
-    beforeEach(async function () {
-      await snapshot.restore();
-    });
+  afterEach(async function () {
+    await snapshot.restore();
+  });
 
-    it("Should set the correct owner", async function () {
+  describe("Setters and getters", function () {
+    it("should set the correct owner", async function () {
       expect(await lombard.owner()).to.equal(deployer.address);
     });
 
-    it("Should set the correct consortium address", async function () {
+    it("should set the correct consortium address", async function () {
       // Assuming there is a function consortium() to get the consortium address
       expect(await lombard.getPlayers()).to.include.members([signer1.address, signer2.address, signer3.address]);
     });
+  });
 
-    it("Should correctly add a player", async function () {
+  describe("Players management", function () {
+    it("should correctly add a player", async function () {
       const newPlayer = ethers.Wallet.createRandom();
-      const data = ethers.utils.defaultAbiCoder.encode(["address"], [newPlayer.address]);
-      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+      
+      const signature = await createSignature(
+        [signer1, signer2, signer3],
+        "addPlayer",
+        0,
+        10000000000n,
+        config.networks.hardhat.chainId,
+        await lombard.getAddress(),
+        [newPlayer.address],
+      );
 
-      await expect(lombard.addPlayer(newPlayer.address, data, proofSignature))
+      await expect(lombard.addPlayer(newPlayer.address, signature))
         .to.emit(lombard, "PlayerAdded")
         .withArgs(newPlayer.address);
 
       expect(await lombard.getPlayers()).to.include(newPlayer.address);
     });
 
-    it("Should correctly remove a player", async function () {
-      const data = ethers.utils.defaultAbiCoder.encode(["address"], [signer3.address]);
-      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+    it("should correctly remove a player", async function () {
+      const signature = await createSignature(
+        [signer1, signer2, signer3],
+        "removePlayer",
+        0,
+        10000000000n,
+        config.networks.hardhat.chainId,
+        await lombard.getAddress(),
+        [signer3.address],
+      );
 
-      await expect(lombard.removePlayer(signer3.address, data, proofSignature))
+      await expect(lombard.removePlayer(signer3.address, signature))
         .to.emit(lombard, "PlayerRemoved")
         .withArgs(signer3.address);
 
       expect(await lombard.getPlayers()).to.not.include(signer3.address);
     });
 
-    it("Should revert when adding an existing player", async function () {
-      const data = ethers.utils.defaultAbiCoder.encode(["address"], [signer1.address]);
-      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+    it("should revert when adding an existing player", async function () {
+      const signature = await createSignature(
+        [signer1, signer2, signer3],
+        "addPlayer",
+        0,
+        10000000000n,
+        config.networks.hardhat.chainId,
+        await lombard.getAddress(),
+        [signer1.address],
+      );
 
-      await expect(lombard.addPlayer(signer1.address, data, proofSignature))
-        .to.be.revertedWithCustomError(lombard, "LombardConsortium__PlayerAlreadyExists");
+      await expect(lombard.addPlayer(signer1.address, signature))
+        .to.be.revertedWithCustomError(lombard, "PlayerAlreadyExists");
     });
 
-    it("Should revert when removing a non-existent player", async function () {
-      const newPlayer = ethers.Wallet.createRandom();
-      const data = ethers.utils.defaultAbiCoder.encode(["address"], [newPlayer.address]);
-      const proofSignature = await consortium.signMessage(ethers.utils.arrayify(ethers.utils.keccak256(data)));
+    it("should revert when removing a non-existent player", async function () {
+      const signature = await createSignature(
+        [signer1, signer2, signer3],
+        "removePlayer",
+        0,
+        10000000000n,
+        config.networks.hardhat.chainId,
+        await lombard.getAddress(),
+        [deployer.address],
+      );
 
-      await expect(lombard.removePlayer(newPlayer.address, data, proofSignature))
-        .to.be.revertedWithCustomError(lombard, "LombardConsortium__PlayerNotFound");
+      await expect(lombard.removePlayer(deployer.address, signature))
+        .to.be.revertedWithCustomError(lombard, "PlayerNotFound");
     });
   });
 
   describe("Signature verification", function () {
-    beforeEach(async function () {
-      await snapshot.restore();
+    it("should validate correct signatures", async function () {
+      const signature = await createSignature(
+        [signer1, signer2, signer3],
+        "removePlayer",
+        0,
+        10000000000n,
+        config.networks.hardhat.chainId,
+        await deployer.getAddress(),
+        [deployer.address],
+      );
+
+      const message = encodeMessage(
+        "removePlayer",
+        [deployer.address],
+      );
+
+      await lombard.checkProof(message, signature);
     });
 
-    it("Should validate correct signatures", async function () {
-      const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test"));
-      const signature1 = await signer1.signMessage(ethers.utils.arrayify(hash));
-      const signature2 = await signer2.signMessage(ethers.utils.arrayify(hash));
-      const signature3 = await signer3.signMessage(ethers.utils.arrayify(hash));
+    it("should revert on invalid signatures", async function () {
+      const signature = await createSignature(
+        [signer1, signer2, signer3],
+        "removePlayer",
+        0,
+        10000000000n,
+        config.networks.hardhat.chainId,
+        await signer1.getAddress(), // wrong target
+        [deployer.address],
+      );
 
-      const signatures = signature1 + signature2.slice(2) + signature3.slice(2);
+      const message = encodeMessage(
+        "removePlayer",
+        [deployer.address],
+      );
 
-      expect(
-        await lombard.isValidSignature(hash, signatures)
-      ).to.be.equal(EIP1271_MAGICVALUE);
-    });
-
-    it("Should revert on invalid signatures", async function () {
-      const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("test"));
-      const signature1 = await signer1.signMessage(ethers.utils.arrayify(hash));
-      const invalidSignature = ethers.utils.joinSignature({
-        r: '0x' + '0'.repeat(64),
-        s: '0x' + '0'.repeat(64),
-        v: 27
-      });
-
-      const signatures = signature1 + invalidSignature.slice(2);
-
-      await expect(lombard.isValidSignature(hash, signatures)).to.be.revertedWithCustomError(lombard, "LombardConsortium__InsufficientSignatures");
+      await expect(lombard.checkProof(message, signature))
+      .to.be.revertedWithCustomError(lombard, "SignatureVerificationFailed");
     });
   });
 });
