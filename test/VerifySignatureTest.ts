@@ -30,10 +30,7 @@ describe("VerifySignatureTest", function () {
     const tx = await verifySignatureTest.verifySignatureWithGas.staticCall(signer.address, messageHash, signature);
     const [isValid, gasUsed] = tx;
 
-    console.log("Is signature valid?", isValid);
-    console.log("Signer address:", signer.address);
     const recoveredAddress = await verifySignatureTest.recoverSigner(messageHash, signature);
-    console.log("Recovered address:", recoveredAddress);
 
     expect(isValid).to.be.true;
     expect(recoveredAddress).to.equal(signer.address);
@@ -45,10 +42,10 @@ describe("VerifySignatureTest", function () {
     // Calculate the maximum number of players for BFT consensus
     const calculatedMaxPlayers = Math.floor((maxSignatures - 1) * 3 / 2);
 
-    console.log(`Current Block Gas Limit: ${currentBlockGasLimit}`);
-    console.log(`Measured ECDSA Verification Gas: ${ecdsaVerificationGas}`);
-    console.log(`Calculated Max Players: ${calculatedMaxPlayers}`);
-    console.log(`Contract Max Players: ${MAX_PLAYERS}`);
+    // console.log(`Current Block Gas Limit: ${currentBlockGasLimit}`);
+    // console.log(`Measured ECDSA Verification Gas: ${ecdsaVerificationGas}`);
+    // console.log(`Calculated Max Players: ${calculatedMaxPlayers}`);
+    // console.log(`Contract Max Players: ${MAX_PLAYERS}`);
 
     // Verify that the MAX_PLAYERS is equal to the calculated value
     expect(MAX_PLAYERS).to.equal(BigInt(calculatedMaxPlayers));
@@ -57,7 +54,7 @@ describe("VerifySignatureTest", function () {
     const requiredSignatures = Math.floor(Number(MAX_PLAYERS) * 2 / 3) + 1;
     expect(requiredSignatures).to.be.lessThanOrEqual(maxSignatures);
 
-    console.log(`Required Signatures: ${requiredSignatures}`);
-    console.log(`Max Signatures per Block: ${maxSignatures}`);
+    // console.log(`Required Signatures: ${requiredSignatures}`);
+    // console.log(`Max Signatures per Block: ${maxSignatures}`);
   });
 });
