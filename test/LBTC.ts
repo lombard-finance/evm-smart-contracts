@@ -290,6 +290,8 @@ describe("LBTC", function () {
         chainId: config.networks.hardhat.chainId,
         timestamp: () => snapshotTimestamp + 100,
         revertAt: () => newConsortium,
+        targetContract: () => lbtc.getAddress(),
+        validationContract: () => newConsortium.getAddress(),
         customError: "SignatureVerificationFailed",
       }
       let defaultSignature: string;
@@ -307,8 +309,8 @@ describe("LBTC", function () {
           defaultArgs.nonce, 
           defaultArgs.timestamp(), 
           defaultArgs.chainId, 
-          await lbtc.getAddress(), 
-          await newConsortium.getAddress(),
+          await defaultArgs.targetContract(), 
+          await defaultArgs.validationContract(),
           [defaultArgs.signatureRecipient(), defaultArgs.signatureAmount]
         );
       })
@@ -378,6 +380,16 @@ describe("LBTC", function () {
           signers: () => [signer1, deployer],
           customError: "PlayerNotFound",
         },
+        {
+          ...defaultArgs,
+          name: "invalid target contract",
+          targetContract: () => ethers.ZeroAddress,
+        },
+        {
+          ...defaultArgs,
+          name: "invalid validation contract",
+          validationContract: () => ethers.ZeroAddress,
+        },
       ];
       args.forEach(function (args) {
         it(`Reverts when ${args.name}`, async function () {
@@ -387,8 +399,8 @@ describe("LBTC", function () {
             args.nonce, 
             args.timestamp(), 
             args.chainId, 
-            await lbtc.getAddress(), 
-            await newConsortium.getAddress(),
+            await args.targetContract(), 
+            await args.validationContract(),
             [args.signatureRecipient(), args.signatureAmount]
           );
   
