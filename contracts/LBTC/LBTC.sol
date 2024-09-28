@@ -132,7 +132,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         address receiver,
         uint256 amount,
         bytes calldata proof
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant {
         if (receiver == address(0)) {
             revert ZeroAddress();
         }

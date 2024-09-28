@@ -416,7 +416,7 @@ describe("LBTC", function () {
         
         // try to use the same proof again
         await expect(
-          lbtc.mint(signer1.address, 1, "0x")
+          lbtc.mint(defaultArgs.mintRecipient(), defaultArgs.mintAmount, defaultSignature)
         ).to.revertedWithCustomError(lbtc, "EnforcedPause");
       });
   
