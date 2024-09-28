@@ -201,6 +201,7 @@ describe("LBTC", function () {
             (await ethers.provider.getBlock("latest"))!.timestamp + 100, 
             config.networks.hardhat.chainId, 
             await lbtc.getAddress(), 
+            await consortium.getAddress(),
             [recipient, amount]
           );
   
@@ -237,6 +238,7 @@ describe("LBTC", function () {
               (await ethers.provider.getBlock("latest"))!.timestamp + 100, 
               config.networks.hardhat.chainId, 
               await lbtc.getAddress(), 
+              await consortium.getAddress(),
               [recipient, amount]
             );
     
@@ -306,6 +308,7 @@ describe("LBTC", function () {
           defaultArgs.timestamp(), 
           defaultArgs.chainId, 
           await lbtc.getAddress(), 
+          await newConsortium.getAddress(),
           [defaultArgs.signatureRecipient(), defaultArgs.signatureAmount]
         );
       })
@@ -385,6 +388,7 @@ describe("LBTC", function () {
             args.timestamp(), 
             args.chainId, 
             await lbtc.getAddress(), 
+            await newConsortium.getAddress(),
             [args.signatureRecipient(), args.signatureAmount]
           );
   
@@ -451,7 +455,8 @@ describe("LBTC", function () {
             defaultArgs.nonce, 
             defaultArgs.timestamp() + 1, // different expiry => different proof
             defaultArgs.chainId, 
-            await lbtc.getAddress(), 
+            await lbtc.getAddress(),  
+            await newConsortium.getAddress(),
             [defaultArgs.signatureRecipient(), defaultArgs.signatureAmount]
           );
           // try to use the same proof again
@@ -701,6 +706,7 @@ describe("LBTC", function () {
         snapshotTimestamp + 100,
         CHAIN_ID,
         await lbtc2.getAddress(),
+        await consortium.getAddress(),
         [receiver, amountWithoutFee]
       );
 
@@ -748,6 +754,7 @@ describe("LBTC", function () {
         snapshotTimestamp + 100,
         CHAIN_ID,
         await lbtc.getAddress(),
+        await consortium.getAddress(),
         [receiver, amountWithoutFee]
       );
 
@@ -775,6 +782,7 @@ describe("LBTC", function () {
         snapshotTimestamp + 100,
         CHAIN_ID,
         await lbtc.getAddress(),
+        await consortium.getAddress(),
         [receiver, amount]
       );
 
@@ -810,6 +818,7 @@ describe("LBTC", function () {
         snapshotTimestamp + 100,
         CHAIN_ID,
         await lbtc.getAddress(),
+        await consortium.getAddress(),
         [receiver, amount]
       );
 

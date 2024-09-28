@@ -51,6 +51,7 @@ describe("LombardConsortium", function () {
         10000000000n,
         config.networks.hardhat.chainId,
         await lombard.getAddress(),
+        await lombard.getAddress(),
         [newPlayer.address],
       );
 
@@ -68,6 +69,7 @@ describe("LombardConsortium", function () {
         0,
         10000000000n,
         config.networks.hardhat.chainId,
+        await lombard.getAddress(),
         await lombard.getAddress(),
         [signer3.address],
       );
@@ -87,6 +89,7 @@ describe("LombardConsortium", function () {
         10000000000n,
         config.networks.hardhat.chainId,
         await lombard.getAddress(),
+        await lombard.getAddress(),
         [signer1.address],
       );
 
@@ -101,6 +104,7 @@ describe("LombardConsortium", function () {
         0,
         10000000000n,
         config.networks.hardhat.chainId,
+        await lombard.getAddress(),
         await lombard.getAddress(),
         [deployer.address],
       );
@@ -119,6 +123,7 @@ describe("LombardConsortium", function () {
         10000000000n,
         config.networks.hardhat.chainId,
         await deployer.getAddress(),
+        await lombard.getAddress(),
         [deployer.address],
       );
 
@@ -138,6 +143,7 @@ describe("LombardConsortium", function () {
         10000000000n,
         config.networks.hardhat.chainId,
         await signer1.getAddress(), // wrong target
+        await lombard.getAddress(),
         [deployer.address],
       );
 

@@ -23,18 +23,20 @@ export function buildFullMessage(
   nonce: BigNumberish,
   expiry: BigNumberish,
   chainId: BigNumberish,  
-  contract: string,
+  targetContract: string,
+  validationContract: string,
   args: any[],
 ) {
   return ethers.keccak256(
     ethers.solidityPacked(
-      ["bytes32", "uint256", "uint256", "uint256", "address"],
+      ["bytes32", "uint256", "uint256", "uint256", "address", "address"],
       [
         encodeMessage(action, args),
         nonce,
         expiry,
         chainId,
-        contract
+        targetContract,
+        validationContract
       ]
     )
   )
@@ -45,11 +47,12 @@ export function toEthSignedMessageHash(
   nonce: BigNumberish,
   expiry: BigNumberish,
   chainId: BigNumberish,  
-  contract: string,
+  targetContract: string,
+  validationContract: string,
   args: any[],
 ) {
   return ethers.hashMessage(ethers.getBytes(
-    buildFullMessage(action, nonce, expiry, chainId, contract, args)
+    buildFullMessage(action, nonce, expiry, chainId, targetContract, validationContract, args)
   ));
 }
 
@@ -59,11 +62,12 @@ export async function signMessage(
   nonce: BigNumberish,
   expiry: BigNumberish,
   chainId: BigNumberish,  
-  contract: string,
+  targetContract: string,
+  validationContract: string,
   args: any[],
 ) {
   return await signer.signMessage(
-    ethers.getBytes(buildFullMessage(action, nonce, expiry, chainId, contract, args))
+    ethers.getBytes(buildFullMessage(action, nonce, expiry, chainId, targetContract, validationContract, args))
   );
 }
 
@@ -80,13 +84,14 @@ export async function createSignature(
   nonce: BigNumberish,
   expiry: BigNumberish,
   chainId: BigNumberish,  
-  contract: string,
+  targetContract: string,
+  validationContract: string,
   args: any[],
 ) {
   return mergeSignatures(
     nonce, expiry, 
     signers.map(signer => signer.address), 
-    await Promise.all(signers.map(signer => signMessage(signer, action, nonce, expiry, chainId, contract, args)))
+    await Promise.all(signers.map(signer => signMessage(signer, action, nonce, expiry, chainId, targetContract, validationContract, args)))
   );
 }
 

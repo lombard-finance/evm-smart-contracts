@@ -184,7 +184,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
                 nonce,
                 expiry,
                 uint256(block.chainid),
-                _targetContract
+                _targetContract,
+                address(this)
             ))
         );
 
