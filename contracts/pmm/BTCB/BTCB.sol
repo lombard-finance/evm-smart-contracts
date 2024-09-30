@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 interface IMinteable {
@@ -11,6 +12,8 @@ interface IMinteable {
 }
 
 contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+    using SafeERC20 for IERC20;
+
     struct PMMStorage {
         uint256 stakeLimit;
         uint256 totalStake;
@@ -60,7 +63,7 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
         if (_getPMMStorage().totalStake + amount > _getPMMStorage().stakeLimit) revert StakeLimitExceeded();
 
         _getPMMStorage().totalStake += amount;
-        btcb.transferFrom(_msgSender(), address(this), amount);
+        btcb.safeTransferFrom(_msgSender(), address(this), amount);
         lbtc.mint(_msgSender(), amount);
     }
 
