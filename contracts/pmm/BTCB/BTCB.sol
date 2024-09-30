@@ -11,7 +11,7 @@ interface IMinteable {
     function mint(address to, uint256 amount) external;
 }
 
-contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
     struct PMMStorage {
@@ -41,11 +41,6 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
         _disableInitializers();
     }
 
-    modifier onlyAdminOrTimelock() {
-        _onlyAdminOrTimelock(_msgSender());
-        _;
-    }
-
     function __BTCBPMM_init(address _lbtc, address _btcb, address admin, uint256 _stakeLimit, address withdrawAddress) internal onlyInitializing {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
@@ -60,7 +55,6 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
     function initialize(address _lbtc, address _btcb, address admin,uint256 _stakeLimit, address withdrawAddress) external initializer {
         __Pausable_init();
         __AccessControl_init();
-        __UUPSUpgradeable_init();
         __BTCBPMM_init(_lbtc, _btcb, admin, _stakeLimit, withdrawAddress);
     }
 
@@ -110,16 +104,9 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
         return _getPMMStorage().withdrawAddress;
     }
 
-    function _onlyAdminOrTimelock(address account) internal view {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, account) && !hasRole(TIMELOCK_ROLE, account)) 
-            revert UnauthorizedAccount(account);
-    }
-
     function _getPMMStorage() private pure returns (PMMStorage storage $) {
         assembly {
             $.slot := PMM_STORAGE_LOCATION
         }
     }
-
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(TIMELOCK_ROLE) {}  
 }

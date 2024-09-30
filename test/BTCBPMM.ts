@@ -63,12 +63,6 @@ describe("BTCBPMM", function () {
         .withArgs(deployer.address, await pmm.TIMELOCK_ROLE());
     });
 
-    it("should revert if upgrade is triggered by non-timelock", async function () {
-        await expect(pmm.upgradeToAndCall(ethers.hexlify(ethers.randomBytes(20)), "0x"))
-            .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
-            .withArgs(deployer.address, await pmm.TIMELOCK_ROLE());
-    });
-
     it("should revert if pause is triggered by non-pauser", async function () {
         await expect(pmm.pause())
             .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
@@ -131,13 +125,6 @@ describe("BTCBPMM", function () {
                 .withArgs(100);
             expect(await pmm.stakeLimit()).to.equal(100);
             expect(await pmm.remainingStake()).to.equal(100);
-        });
-
-        it("should set new implementation", async function () {
-            const newImpl = await deploy<BTCBPMM>("BTCBPMM", "BTCBPMM", [], false);
-            await expect(pmm.connect(timeLock).upgradeToAndCall(await newImpl.getAddress(), "0x"))
-                .to.emit(pmm, "Upgraded")
-                .withArgs(await newImpl.getAddress());
         });
     });
   });
