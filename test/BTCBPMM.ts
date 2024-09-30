@@ -4,7 +4,7 @@ import { BTCBPMM, WBTCMock, LBTC } from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { takeSnapshot, SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers";
 
-describe("BTCB", function () {
+describe("BTCBPMM", function () {
   let pmm: BTCBPMM;
   let btcb: WBTCMock;
   let lbtc: LBTC;
@@ -210,6 +210,14 @@ describe("BTCB", function () {
                 .to.emit(btcb, "Transfer")
                 .withArgs(await pmm.getAddress(), await withdrawalAddress.getAddress(), 1);
             expect(await btcb.balanceOf(await withdrawalAddress.getAddress())).to.equal(1);
+        });
+
+        it("should have zero remaining stake if total stake is greater than limit", async function () {
+            await btcb.connect(signer1).approve(await pmm.getAddress(), 30);
+            await pmm.connect(signer1).swapBTCBToLBTC(30);
+
+            await pmm.connect(timeLock).setStakeLimit(20);
+            expect(await pmm.remainingStake()).to.equal(0);
         });
 
         describe("When Paused", function () {

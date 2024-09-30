@@ -65,8 +65,6 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
     }
 
     function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
-        _getPMMStorage().totalStake -= amount;
-
         btcb.transfer(_getPMMStorage().withdrawAddress, amount);
     }
 
@@ -94,6 +92,7 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
 
     function remainingStake() external view returns (uint256) {
         PMMStorage storage $ = _getPMMStorage();
+        if ($.totalStake > $.stakeLimit) return 0;
         return $.stakeLimit - $.totalStake;
     }
 
