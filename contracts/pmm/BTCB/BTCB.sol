@@ -15,13 +15,14 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
     using SafeERC20 for IERC20;
 
     struct PMMStorage {
+        IERC20 btcb;
+        IMinteable lbtc;   
+
         uint256 stakeLimit;
         uint256 totalStake;
         address withdrawAddress;
     }
-
-    IERC20 public immutable btcb;
-    IMinteable public immutable lbtc;
+    
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
 
@@ -34,11 +35,10 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
     event StakeLimitSet(uint256 newStakeLimit);
     event WithdrawalAddressSet(address newWithdrawAddress);
 
-    constructor(address _lbtc, address _btcb) {
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
         _disableInitializers();
-
-        lbtc = IMinteable(_lbtc);
-        btcb = IERC20(_btcb);
     }
 
     modifier onlyAdminOrTimelock() {
@@ -46,29 +46,36 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
         _;
     }
 
-    function __BTCBPMM_init(uint256 _stakeLimit, address withdrawAddress) internal onlyInitializing {
-        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _getPMMStorage().stakeLimit = _stakeLimit;
-        _getPMMStorage().withdrawAddress = withdrawAddress;
+    function __BTCBPMM_init(address _lbtc, address _btcb, address admin, uint256 _stakeLimit, address withdrawAddress) internal onlyInitializing {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+
+        PMMStorage storage $ = _getPMMStorage();
+        $.stakeLimit = _stakeLimit;
+        $.withdrawAddress = withdrawAddress;
+        
+        $.lbtc = IMinteable(_lbtc);
+        $.btcb = IERC20(_btcb);
     }
 
-    function initialize(uint256 _stakeLimit, address withdrawAddress) external initializer {
+    function initialize(address _lbtc, address _btcb, address admin,uint256 _stakeLimit, address withdrawAddress) external initializer {
         __Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
-        __BTCBPMM_init(_stakeLimit, withdrawAddress);
+        __BTCBPMM_init(_lbtc, _btcb, admin, _stakeLimit, withdrawAddress);
     }
 
     function swapBTCBToLBTC(uint256 amount) external whenNotPaused {
-        if (_getPMMStorage().totalStake + amount > _getPMMStorage().stakeLimit) revert StakeLimitExceeded();
+        PMMStorage storage $ = _getPMMStorage();
+        if ($.totalStake + amount > $.stakeLimit) revert StakeLimitExceeded();
 
-        _getPMMStorage().totalStake += amount;
-        btcb.safeTransferFrom(_msgSender(), address(this), amount);
-        lbtc.mint(_msgSender(), amount);
+        $.totalStake += amount;
+        $.btcb.safeTransferFrom(_msgSender(), address(this), amount);
+        $.lbtc.mint(_msgSender(), amount);
     }
 
     function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
-        btcb.transfer(_getPMMStorage().withdrawAddress, amount);
+        PMMStorage storage $ = _getPMMStorage();
+        $.btcb.transfer($.withdrawAddress, amount); 
     }
 
     function setWithdrawalAddress(address newWithdrawAddress) external onlyRole(TIMELOCK_ROLE) {

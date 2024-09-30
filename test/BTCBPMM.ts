@@ -33,17 +33,13 @@ describe("BTCBPMM", function () {
         ethers.hexlify(ethers.randomBytes(20)), // not relevant for BTCB tests
         1000                                    // not relevant for BTCB tests 
     ]);
-
-    console.log("deployer", await deployer.getAddress());
-
-    const impl = await deploy<BTCBPMM>("BTCBPMM", "BTCBPMM", [
+    pmm = await deploy<BTCBPMM>("BTCBPMM", "BTCBPMM", [
         await lbtc.getAddress(),
-        await btcb.getAddress()
-    ], false);
-    pmm = await deploy<BTCBPMM>("BTCBProxy", "BTCBPMM", [
-        await impl.getAddress(),
-        impl.interface.encodeFunctionData("initialize", [30, await withdrawalAddress.getAddress()])
-    ], false);
+        await btcb.getAddress(),
+        await deployer.getAddress(),
+        30,
+        await withdrawalAddress.getAddress()
+    ]);
 
     snapshot = await takeSnapshot();
   });
@@ -138,10 +134,7 @@ describe("BTCBPMM", function () {
         });
 
         it("should set new implementation", async function () {
-            const newImpl = await deploy<BTCBPMM>("BTCBPMM", "BTCBPMM", [
-                ethers.hexlify(ethers.randomBytes(20)),
-                ethers.hexlify(ethers.randomBytes(20))
-            ], false);
+            const newImpl = await deploy<BTCBPMM>("BTCBPMM", "BTCBPMM", [], false);
             await expect(pmm.connect(timeLock).upgradeToAndCall(await newImpl.getAddress(), "0x"))
                 .to.emit(pmm, "Upgraded")
                 .withArgs(await newImpl.getAddress());
