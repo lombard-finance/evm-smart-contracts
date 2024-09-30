@@ -55,6 +55,10 @@ describe("LBTC", function () {
 
     bascule = await deployBascule(basculeReporter, lbtc);
 
+    // mock minter for lbtc
+    await lbtc.addMinter(deployer.address);
+    await lbtc2.addMinter(deployer.address);
+
     snapshot = await takeSnapshot();
   });
 
@@ -217,6 +221,7 @@ describe("LBTC", function () {
       });
     });
   });
+
   describe("Mint positive cases (with Bascule)", function () {
     before(async function () {
       await snapshot.restore();
