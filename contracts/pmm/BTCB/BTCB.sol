@@ -49,14 +49,14 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
         _getPMMStorage().withdrawAddress = withdrawAddress;
     }
 
-    function initialize(uint256 _stakeLimit, address withdrawAddress) public initializer {
+    function initialize(uint256 _stakeLimit, address withdrawAddress) external initializer {
         __Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
         __BTCBPMM_init(_stakeLimit, withdrawAddress);
     }
 
-    function swapBTCBToLBTC(uint256 amount) public whenNotPaused {
+    function swapBTCBToLBTC(uint256 amount) external whenNotPaused {
         if (_getPMMStorage().totalStake + amount > _getPMMStorage().stakeLimit) revert StakeLimitExceeded();
 
         _getPMMStorage().totalStake += amount;
@@ -64,40 +64,40 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeab
         lbtc.mint(_msgSender(), amount);
     }
 
-    function withdrawBTCB(uint256 amount) public whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         _getPMMStorage().totalStake -= amount;
 
         btcb.transfer(_getPMMStorage().withdrawAddress, amount);
     }
 
-    function setWithdrawalAddress(address newWithdrawAddress) public onlyRole(TIMELOCK_ROLE) {
+    function setWithdrawalAddress(address newWithdrawAddress) external onlyRole(TIMELOCK_ROLE) {
         _getPMMStorage().withdrawAddress = newWithdrawAddress;
         emit WithdrawalAddressSet(newWithdrawAddress);
     }
 
-    function setStakeLimit(uint256 newStakeLimit) public onlyRole(TIMELOCK_ROLE) {
+    function setStakeLimit(uint256 newStakeLimit) external onlyRole(TIMELOCK_ROLE) {
         _getPMMStorage().stakeLimit = newStakeLimit;
         emit StakeLimitSet(newStakeLimit);
     }
 
-    function pause() public onlyRole(PAUSER_ROLE) {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
-    function stakeLimit() public view returns (uint256) {
+    function stakeLimit() external view returns (uint256) {
         return _getPMMStorage().stakeLimit;
     }
 
-    function remainingStake() public view returns (uint256) {
+    function remainingStake() external view returns (uint256) {
         PMMStorage storage $ = _getPMMStorage();
         return $.stakeLimit - $.totalStake;
     }
 
-    function withdrawalAddress() public view returns (address) {
+    function withdrawalAddress() external view returns (address) {
         return _getPMMStorage().withdrawAddress;
     }
 
