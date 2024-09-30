@@ -40,7 +40,7 @@ describe("BTCB", function () {
         await lbtc.getAddress(),
         await btcb.getAddress()
     ], false);
-    pmm = await deploy<BTCBPMM>("ERC1967Proxy", "BTCBPMM", [
+    pmm = await deploy<BTCBPMM>("BTCBProxy", "BTCBPMM", [
         await impl.getAddress(),
         impl.interface.encodeFunctionData("initialize", [30, await withdrawalAddress.getAddress()])
     ], false);
