@@ -15,6 +15,8 @@ import {OutputCodec} from "../libs/OutputCodec.sol";
 import {BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {LombardConsortium} from "../consortium/LombardConsortium.sol";
+import {OutputWithPayload, OutputCodec} from "../libs/OutputCodec.sol";
+import {BridgeDepositPayload, BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -129,35 +131,26 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function mint(
-        address receiver,
-        uint256 amount,
+        bytes calldata payload,
         bytes calldata proof
     ) external nonReentrant {
-        if (receiver == address(0)) {
-            revert ZeroAddress();
-        }
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
         LBTCStorage storage $ = _getLBTCStorage();
 
-        // verify proof signature and ensure that the proof has not been used already
-        bytes32 message = keccak256(abi.encodeWithSignature(
-            "mint(address,uint256)", 
-            receiver, 
-            amount
-        ));
+        bytes32 message = keccak256(payload);
         LombardConsortium($.consortium).checkProof(message, proof);
 
         bytes32 proofHash = keccak256(proof);
 
+        // parse deposit
+        OutputWithPayload memory output = OutputCodec.decode(payload);
+
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, amount);
+        _confirmDeposit($, proofHash, output.amount);
 
         // Actually mint
-        _mint(receiver, amount);
+        _mint(output.to, output.amount);
 
-        emit MintProofConsumed(proofHash);
+        emit MintProofConsumed(output.to, output.amount, proofHash);
     }
 
     /**
@@ -329,43 +322,32 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function withdrawFromBridge(
-        address receiver,
-        uint256 amount,
+        bytes calldata payload,
         bytes calldata proof
     ) external nonReentrant {
-        if (receiver == address(0)) {
-            revert ZeroAddress();
-        }
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-        _withdraw(receiver, amount, proof);
+        _withdraw(payload, proof);
     }
 
     function _withdraw(
-        address receiver,
-        uint256 amount,
+        bytes calldata payload,
         bytes calldata proof
     ) internal {
-        bytes32 message = keccak256(abi.encodeWithSignature(
-            "withdrawFromBridge(address,uint256)", 
-            receiver,
-            amount
-        ));
-
         LBTCStorage storage $ = _getLBTCStorage();
 
-        // verify proof signature and ensure that the proof has not been used already  
+        bytes32 message = keccak256(payload);
         LombardConsortium($.consortium).checkProof(message, proof);
+        
         bytes32 proofHash = keccak256(proof);
 
+        BridgeDepositPayload memory deposit = BridgeDepositCodec.create(payload);
+
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, amount);
+        _confirmDeposit($, proofHash, deposit.amount);
 
         // Actually mint
-        _mint(receiver, amount);
+        _mint(deposit.toAddress, deposit.amount);
 
-        emit WithdrawFromBridge(receiver, amount, proofHash);
+        emit WithdrawFromBridge(deposit.toAddress, deposit.amount, proofHash);
     }
 
     function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission) external onlyOwner {

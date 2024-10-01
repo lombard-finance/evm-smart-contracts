@@ -9,20 +9,29 @@ import "../libs/EIP1271SignatureUtils.sol";
 /// @dev Error thrown when trying to initialize with too few players
 error InsufficientInitialPlayers(uint256 provided, uint256 minimum);
 
-/// @dev Error thrown when trying to initialize or add players exceeding the maximum limit
-error TooManyPlayers();
+/// @dev Error thrown when trying to initialize with invalid validator set size
+error InvalidValidatorSetSize();
 
-/// @dev Error thrown when trying to add a player that already exists
-error PlayerAlreadyExists(address player);
+/// @dev Error thrown when trying to initialize with a validator set that already exists
+error ValidatorSetAlreadyExists();
 
-/// @dev Error thrown when trying to remove a non-existent player
-error PlayerNotFound(address player);
+/// @dev Error thrown when trying to initialize with a validator that is zero address
+error ZeroValidator();
 
-/// @dev Error thrown when trying to remove a player that would result in too few players
-error CannotRemovePlayer();
+/// @dev Error thrown when trying to initialize with a validator set that is not increasing
+error NotIncreasingValidatorSet();
 
-/// @dev Error thrown when signatures from the same players are present in the multisig
-error DuplicatedSignature(address player);
+/// @dev Error thrown when invalid validator set is used in a proof
+error InvalidValidatorSet();
+
+/// @dev Error thrown when validator set is empty
+error EmptyValidatorSet();
+
+/// @dev Error thrown when threshold is zero
+error InvalidThreshold();
+
+/// @dev Error thrown when epoch is invalid for validator set
+error InvalidEpochForValidatorSet(uint256 epoch);
 
 /// @dev Error thrown when signature proof is already used
 error ProofAlreadyUsed();
@@ -46,37 +55,27 @@ error SignatureVerificationFailed();
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
 contract LombardConsortium is Ownable2StepUpgradeable {
-    event PlayerAdded(address player);
-    event PlayerRemoved(address player);
-
+    event ValidatorSetUpdated(uint256 epoch, address[] validators);
+    
+    struct ValidatorSet {
+        bytes32 hash;
+        uint256 threshold;
+    }
     /// @title ConsortiumStorage
     /// @dev Struct to hold the consortium's state
     /// @custom:storage-location erc7201:lombardfinance.storage.Consortium
     struct ConsortiumStorage {
-        /// @notice Consortium address
-        /// @custom:oz-renamed-from consortium
-        address __removed_consortium; 
+        /// @notice Current epoch
+        uint256 epoch;
 
-        /// @notice Mapping of addresses to their postion in the player list
-        /// @dev Position in the player list
-        /// @dev value is 1-indexed so 0 means not a player
-        mapping(address => uint256) players;
-
-        /// @notice List of all player addresses
-        /// @dev Used for iteration and maintaining order
-        address[] playerList;
-
-        /// @notice The current threshold for signature validation
-        /// @dev Calculated as floor(2/3 * playerList.length) + 1
-        uint256 threshold;
+        /// @notice Mapping of epoch to validator set information
+        mapping(uint256 => ValidatorSet) validatorSet;
+        /// @notice Mapping of validator set hash to epoch
+        mapping(bytes32 => uint256) validatorSetEpoch;
 
         /// @notice Mapping of proofs to their use status
         /// @dev True if the proof is used, false otherwise
         mapping(bytes32 => bool) usedProofs;
-
-        /// @notice Mapping of nonces to their use status
-        /// @dev True if the nonce is used, false otherwise
-        mapping(uint256 => bool) usedNonces;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
@@ -95,14 +94,66 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// - The lower value of 10,000 (CometBFT limit) and 10,509 (gas calculation) is chosen
     /// @dev This limit ensures compatibility with CometBFT while also considering gas limitations
     ///      for signature verification within a single block.
-    uint256 private constant MAX_PLAYERS = 10_000;
+    /// @dev TODO: Review this amount after final implementation, too many might make signatures unverifiable
+    uint256 private constant MAX_VALIDATOR_SET_SIZE = 10_000;
 
     /// @dev Minimum number of players allowed in the system.
     /// @notice While set to 1 to allow for non-distributed scenarios, this configuration
     /// does not provide Byzantine fault tolerance. For a truly distributed and
     /// fault-tolerant system, a minimum of 4 players would be recommended to tolerate
     /// at least one Byzantine fault.
-    uint256 private constant MIN_PLAYERS = 1;
+    /// @dev TODO: Review if needed
+    uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
+
+    /// @dev Number of epochs after which a validator set is considered expired
+    /// @dev TODO: Check if needed and which amount to set
+    uint256 private constant EPOCH_EXPIRY = 16;
+
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the consortium contract with players and the owner key
+    /// @param _initialValidatorSet - The initial list of validators
+    /// @param _owner - The address of the initial owner 
+    function initialize(address[] memory _initialValidatorSet, uint256 _threshold, address _owner) external initializer {
+        __Ownable_init(_owner);
+        __Ownable2Step_init();
+        __Consortium_init(_initialValidatorSet, _threshold);
+    }
+
+    /// @notice Validates the provided signature against the given hash
+    /// @param _message the hash of the data to be signed
+    /// @param _proof nonce, expiry and signatures to validate
+    function checkProof(bytes32 _message, bytes calldata _proof) external {
+        _checkProof(_message, _proof);
+    }
+
+    /// @notice Returns the current threshold for valid signatures
+    /// @param _epoch the epoch to get the threshold for
+    /// @return The threshold number of signatures required
+    function getThreshold(uint256 _epoch) external view returns (uint256) {
+        return _getConsortiumStorage().validatorSet[_epoch].threshold;
+    }
+
+    /// @notice Returns the current epoch
+    /// @return The current epoch
+    function curEpoch() external view returns (uint256) {
+        return _getConsortiumStorage().epoch;
+    }
+
+    function transferValidatorsOwnership(address[] memory _newValidators, uint256 _threshold, bytes memory proof) external onlyOwner {
+        _checkProof(keccak256(abi.encode(_newValidators, _threshold)), proof);
+        _setValidatorSet(_newValidators, _threshold);
+    }
+
+    /// @notice Internal initializer for the consortium with players
+    /// @param _initialValidators - The initial list of validators
+    function __Consortium_init(address[] memory _initialValidators, uint256 _threshold) internal onlyInitializing {
+        _setValidatorSet(_initialValidators, _threshold);
+    }
 
     /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
     function _getConsortiumStorage()
@@ -115,182 +166,65 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         }
     }
 
-    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    function _setValidatorSet(address[] memory _validators, uint256 _threshold) internal {
+        if(_validators.length < MIN_VALIDATOR_SET_SIZE|| _validators.length > MAX_VALIDATOR_SET_SIZE) 
+            revert InvalidValidatorSetSize();       
 
-    /// @notice Internal initializer for the consortium with players
-    /// @param _initialPlayers - The initial list of players
-    function __Consortium_init(address[] memory _initialPlayers) internal onlyInitializing {
+        if(_threshold == 0) revert InvalidThreshold();
+
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        uint256 playerCount = _initialPlayers.length;
-        if (playerCount < MIN_PLAYERS) {
-            revert InsufficientInitialPlayers(playerCount, MIN_PLAYERS);
-        }
-        if (playerCount > MAX_PLAYERS) {
-            revert TooManyPlayers();
-        }
+        bytes32 validatorSetHash = keccak256(abi.encode(_validators, _threshold));
+        if($.validatorSetEpoch[validatorSetHash] != 0) revert ValidatorSetAlreadyExists();
 
-        for (uint256 i; i < playerCount;) {
-            address player = _initialPlayers[i];
-            if ($.players[player] != 0) {
-                revert PlayerAlreadyExists(player);
-            }
+        address curValidator = _validators[0];
+        if(curValidator == address(0)) revert ZeroValidator();
+        for(uint256 i = 1; i < _validators.length;) {
+            if(curValidator <= _validators[i]) revert NotIncreasingValidatorSet();
+            curValidator = _validators[i];
             unchecked { ++i; }
-            $.players[player] = i;
-            $.playerList.push(player);
-            emit PlayerAdded(player);
         }
-        _updateThreshold();
-    }
 
-    /// @notice Internal function to update threshold value
-    function _updateThreshold() internal {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-        uint256 playerCount = $.playerList.length;
-
-        // threshold = floor(2/3 * playerCount) + 1
-        $.threshold = Math.mulDiv(
-            playerCount,
-            2,
-            3,
-            Math.Rounding.Floor
-        ) + 1;
+        uint256 epoch = ++$.epoch;
+        $.validatorSet[epoch] = ValidatorSet(validatorSetHash, _threshold);
+        $.validatorSetEpoch[validatorSetHash] = epoch;
+        emit ValidatorSetUpdated(epoch, _validators);
     }
 
     /// @dev Checks that `_proof` is correct
-    /// @param _rawMessage data to be signed
-    /// @param _proof nonce, expiry and signatures to validate
-    /// @dev The signatures must be in the same order as the players list to avoid extra onchain verification ocst
-    function _checkProof(bytes32 _rawMessage, address _targetContract, bytes memory _proof) internal {
+    /// @param _message data to be signed
+    /// @param _proof encoding of (validators, weights, signatures)
+    /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
+    function _checkProof(bytes32 _message, bytes memory _proof) internal {
         // decode proof
-        (uint256 nonce, uint256 expiry, address[] memory signers, bytes[] memory signatures) = abi.decode(_proof, (uint256, uint256, address[], bytes[]));
-        if(block.timestamp > expiry) revert ProofExpired();
-        if(signatures.length != signers.length) revert LengthMismatch();
+        (address[] memory validators, uint256[] memory weights, uint256 threshold, bytes[] memory signatures) = abi.decode(_proof, (address[], uint256[], uint256, bytes[]));
+        
+        uint256 validatorsLength = validators.length;
+        if(validatorsLength == 0) 
+            revert EmptyValidatorSet();
+        if(signatures.length != validatorsLength || weights.length != validatorsLength) 
+            revert LengthMismatch();
         
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        if(signers.length < $.threshold) revert NotEnoughSignatures();
+        bytes32 validatorSetHash = keccak256(abi.encode(validators, threshold));
+        uint256 epoch = $.validatorSetEpoch[validatorSetHash];
+        if(epoch == 0 || (epoch + EPOCH_EXPIRY < $.epoch)) 
+            revert InvalidEpochForValidatorSet(epoch);
 
         bytes32 proofHash = keccak256(_proof);
         if($.usedProofs[proofHash]) revert ProofAlreadyUsed();
-        if($.usedNonces[nonce]) revert NonceAlreadyUsed();  
 
-        bytes32 fullMessage = MessageHashUtils.toEthSignedMessageHash(
-            keccak256(abi.encodePacked(
-                _rawMessage,
-                nonce,
-                expiry,
-                uint256(block.chainid),
-                _targetContract,
-                address(this)
-            ))
-        );
-
-        uint256 lastPlayer;
-        for(uint256 i; i < signers.length;) {
-            uint256 currentPlayer = $.players[signers[i]];
-            if(currentPlayer == 0) revert PlayerNotFound(signers[i]);
-            if(currentPlayer <= lastPlayer) revert DuplicatedSignature(signers[i]);
-            lastPlayer = currentPlayer;
-
-            if(!EIP1271SignatureUtils.checkSignature(signers[i], fullMessage, signatures[i])) 
-            revert SignatureVerificationFailed();
-            
+        uint256 count = 0;
+        for(uint256 i; i < validators.length;) {
+            if(weights[i] != 0) {
+                if(!EIP1271SignatureUtils.checkSignature(validators[i], _message, signatures[i])) 
+                    revert SignatureVerificationFailed();
+                unchecked { ++count; } 
+            }
             unchecked { ++i; }
         }
+        if(count < threshold) revert NotEnoughSignatures();
 
         $.usedProofs[proofHash] = true;
-        $.usedNonces[nonce] = true;
-    }
-
-    /// @notice Initializes the consortium contract with players and the owner key
-    /// @param _players - The initial list of players
-    /// @param _ownerKey - The address of the initial owner
-    function initialize(address[] memory _players, address _ownerKey) external initializer {
-        __Ownable_init(_ownerKey);
-        __Ownable2Step_init();
-        __Consortium_init(_players);
-    }
-
-    /// @notice Adds player if approved by consortium
-    /// @param _player - Address of the new player to add
-    /// @param _proof - Consortium proof
-    function addPlayer(address _player, bytes calldata _proof) external {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-
-        if ($.playerList.length == MAX_PLAYERS) revert TooManyPlayers();
-
-        if ($.players[_player] != 0) {
-            revert PlayerAlreadyExists(_player);
-        }
-
-        bytes32 rawMessage = keccak256(abi.encodeWithSignature(
-            "addPlayer(address)",
-            _player
-        ));
-
-        // External call so 
-        _checkProof(rawMessage, address(this), _proof);
-
-        $.playerList.push(_player);
-        $.players[_player] = $.playerList.length;
-        emit PlayerAdded(_player);
-        _updateThreshold();
-    }
-
-    /// @notice Removes player if approved by consortium
-    /// @param _player - Address of the player to remove
-    /// @param _proof - Consortium proof
-    function removePlayer(address _player, bytes calldata _proof) external {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-
-        if ($.playerList.length == MIN_PLAYERS) revert CannotRemovePlayer();
-
-        uint256 playerIndex = $.players[_player];
-        if (playerIndex == 0) {
-            revert PlayerNotFound(_player);
-        }
-
-        bytes32 rawMessage = keccak256(abi.encodeWithSignature(
-            "removePlayer(address)",
-            _player
-        ));
-
-        _checkProof(rawMessage, address(this), _proof);
-
-        if(playerIndex != $.playerList.length) {
-            address lastPlayer = $.playerList[$.playerList.length - 1];
-            $.playerList[playerIndex - 1] = lastPlayer;
-            $.players[lastPlayer] = playerIndex;
-        }
-        $.playerList.pop();
-        delete $.players[_player];
-        emit PlayerRemoved(_player);
-        _updateThreshold();
-    }
-
-    /// @notice Validates the provided signature against the given hash
-    /// @param _rawMessage the hash of the data to be signed
-    /// @param _proof nonce, expiry and signatures to validate
-    /// @return The magic value (0x1626ba7e) if the signature is valid
-    function checkProof(bytes32 _rawMessage, bytes calldata _proof) external returns (bytes4) {
-        _checkProof(_rawMessage, msg.sender, _proof);
-
-        return EIP1271SignatureUtils.EIP1271_MAGICVALUE;
-    }
-
-    /// @notice Returns the current list of players
-    /// @return The array of player addresses
-    function getPlayers() external view returns (address[] memory) {
-        return _getConsortiumStorage().playerList;
-    }
-
-    /// @notice Returns the current threshold for valid signatures
-    /// @return The threshold number of signatures required
-    function getThreshold() external view returns (uint256) {
-        return _getConsortiumStorage().threshold;
     }
 }

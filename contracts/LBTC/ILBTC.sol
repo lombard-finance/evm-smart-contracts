@@ -37,5 +37,5 @@ interface ILBTC {
     event BurnCommissionChanged(uint64 indexed prevValue, uint64 indexed newValue);
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
-    event MintProofConsumed(bytes32 indexed proofHash);
+    event MintProofConsumed(address indexed to, uint256 indexed amount, bytes32 indexed proofHash);
 }

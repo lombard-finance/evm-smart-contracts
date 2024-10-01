@@ -20,7 +20,6 @@ library EIP1271SignatureUtils {
      * Otherwise, passes on the signature to the signer to verify the signature and checks that it returns the `EIP1271_MAGICVALUE`.
      */
     function checkSignature(address signer, bytes32 digest, bytes memory signature) internal view returns (bool) {
-
         if (signer.code.length != 0) {
             if (IERC1271(signer).isValidSignature(digest, signature) != EIP1271_MAGICVALUE) {
                 return false;
