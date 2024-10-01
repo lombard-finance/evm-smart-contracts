@@ -1,7 +1,7 @@
 import { config, ethers, network, upgrades } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
+import { LBTC, WBTCMock, Bascule } from "../typechain-types";
 import { AddressLike, Contract, Signer, Signature } from "ethers";
 
 export function signOutputPayload(
@@ -119,11 +119,11 @@ export function enrichWithPrivateKeys(
 }
 
 export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  const LBTC = await ethers.getContractFactory("LBTCMock");
+  const LBTC = await ethers.getContractFactory("LBTC");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
     burnCommission
-  ])) as unknown as LBTCMock;
+  ])) as unknown as LBTC;
   await lbtc.waitForDeployment();
 
   const WBTC = await ethers.getContractFactory("WBTCMock");

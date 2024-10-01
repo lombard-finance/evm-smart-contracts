@@ -59,6 +59,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         IBascule bascule;
 
         address pauser;
+
+        mapping(address => bool) minters;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -131,6 +133,16 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
+    }
+
+    /// @notice Mint LBTC to the specified address
+    /// @param amount The amount of LBTC to mint    
+    /// @dev Only callable by whitelisted minters
+    function mint(address to, uint256 amount) external {
+        if(!_getLBTCStorage().minters[_msgSender()]) 
+            revert UnauthorizedAccount(_msgSender());
+
+        _mint(to, amount);
     }
 
     function mint(
@@ -607,6 +619,26 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
+    }
+
+    function addMinter(address newMinter) external onlyOwner {
+        _updateMinter(newMinter, true);
+    }
+
+    function removeMinter(address oldMinter) external onlyOwner {
+        _updateMinter(oldMinter, false);
+    }
+
+    function isMinter(address minter) external view returns (bool) {
+        return _getLBTCStorage().minters[minter];
+    }
+
+    function _updateMinter(address minter, bool _isMinter) internal {
+        if (minter == address(0)) {
+            revert ZeroAddress();
+        }
+        _getLBTCStorage().minters[minter] = _isMinter;
+        emit MinterUpdated(minter, _isMinter);
     }
 
     /**

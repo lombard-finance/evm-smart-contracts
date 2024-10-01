@@ -56,6 +56,10 @@ describe("LBTC", function () {
 
     bascule = await deployBascule(basculeReporter, lbtc);
 
+    // mock minter for lbtc
+    await lbtc.addMinter(deployer.address);
+    await lbtc2.addMinter(deployer.address);
+
     snapshot = await takeSnapshot();
   });
 
@@ -169,6 +173,26 @@ describe("LBTC", function () {
         .to.emit(lbtc, "BasculeChanged")
         .withArgs(await bascule.getAddress(), ethers.ZeroAddress);
     });
+
+    it("addMinter should be callable by owner", async function () {
+      await expect(lbtc.addMinter(signer1.address))
+        .to.emit(lbtc, "MinterUpdated")
+        .withArgs(signer1.address, true);
+      expect(await lbtc.isMinter(signer1.address)).to.be.true;
+      await lbtc.connect(signer1)[["mint(address,uint256)"]](signer2.address, 100_000_000n);
+      expect(await lbtc.balanceOf(signer2.address)).to.be.eq(100_000_000n);
+    });
+
+    it("removeMinter should be callable by owner", async function () {
+      await lbtc.addMinter(signer1.address);
+      await expect(lbtc.removeMinter(signer1.address))
+        .to.emit(lbtc, "MinterUpdated")
+        .withArgs(signer1.address, false);
+      expect(await lbtc.isMinter(signer1.address)).to.be.false;
+      await expect(lbtc.connect(signer1)[["mint(address,uint256)"]](signer2.address, 100_000_000n))
+        .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
+    });
   });
 
   describe("Mint positive cases", function () {
@@ -218,6 +242,7 @@ describe("LBTC", function () {
       });
     });
   });
+
   describe("Mint positive cases (with Bascule)", function () {
     before(async function () {
       await snapshot.restore();
@@ -291,6 +316,12 @@ describe("LBTC", function () {
   describe("Mint negative cases", function () {
     beforeEach(async function () {
       await snapshot.restore();
+    });
+
+    it("should revert called is not whitelisted", async function () {
+      await expect(lbtc.connect(signer1)[["mint(address,uint256)"]](signer2.address, 100_000_000n))
+        .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
     });
 
     const args = [
