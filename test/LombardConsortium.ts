@@ -63,6 +63,51 @@ describe("LombardConsortium", function () {
     expect(await lombard.getThreshold(2)).to.equal(1);
   });
 
+  it("should fail if new consortium is not increasing", async function () {
+    const data = await signPayload(
+      [signer3, signer1, signer2],
+      [true, true, false],
+      2,
+      [
+        [signer2.address, signer1.address],
+        1,
+      ],
+      ACTIONS.SET_VALIDATORS
+    );
+    await expect(lombard.transferValidatorsOwnership([signer2.address, signer1.address], 1, data.proof))
+    .to.be.revertedWithCustomError(lombard, "NotIncreasingValidatorSet");
+  });
+
+  it("should fail if treshold is zero", async function () {
+    const data = await signPayload(
+      [signer3, signer1, signer2],
+      [true, true, false],
+      2,
+      [
+        [signer2.address, signer1.address],
+        0,
+      ],
+      ACTIONS.SET_VALIDATORS
+    );
+    await expect(lombard.transferValidatorsOwnership([signer2.address, signer1.address], 0, data.proof))
+    .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
+  });
+
+  it("should fail if treshold is over the size of the consortium", async function () {
+    const data = await signPayload(
+      [signer3, signer1, signer2],
+      [true, true, false],
+      2,
+      [
+        [signer2.address, signer1.address],
+        3,
+      ],
+      ACTIONS.SET_VALIDATORS
+    );
+    await expect(lombard.transferValidatorsOwnership([signer2.address, signer1.address], 3, data.proof))
+    .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
+  });
+
   describe("Signature verification", function () {
     it("should validate correct signatures", async function () {
       const data = await signPayload(

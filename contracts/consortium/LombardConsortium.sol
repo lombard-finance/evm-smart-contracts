@@ -170,7 +170,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         if(_validators.length < MIN_VALIDATOR_SET_SIZE|| _validators.length > MAX_VALIDATOR_SET_SIZE) 
             revert InvalidValidatorSetSize();       
 
-        if(_threshold == 0) revert InvalidThreshold();
+        if(_threshold == 0 || _threshold > _validators.length) revert InvalidThreshold();
 
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
