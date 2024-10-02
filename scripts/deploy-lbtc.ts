@@ -1,6 +1,14 @@
 import { task } from "hardhat/config";
 import { verify } from "./helpers";
 
+/*
+ * After deployment:
+ * 1. Set treasury address
+ * 2. Set minters (e.g. BTCBPMM)
+ * 3. Set pauser
+ */
+
+
 task("deploy-lbtc", "Deploys the LBTC contract")
   .addParam("consortium", "The address of LombardConsortium")
   .addParam("burnCommission", "Burn commission (wei)")

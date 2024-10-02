@@ -1,6 +1,12 @@
 import { task, vars } from "hardhat/config"; 
 import { verify, getAddresses } from "./helpers";
 
+/*
+ * After deployment:
+ * 1. Grant pauser role
+ * 2. Grant timelock role
+ */
+
 task("deploy-btcbpmm", "Deploys the BTCBPMM contract")
   .addParam("lbtc", "The address of the LBTC contract")
   .addParam("btcb", "The address of the BTCB contract")
