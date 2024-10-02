@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface IBEP20 {
@@ -24,11 +24,6 @@ interface IBEP20 {
   * @dev Returns the token name.
   */
   function name() external view returns (string memory);
-
-  /**
-   * @dev Returns the bep token owner.
-   */
-  function getOwner() external view returns (address);
 
   /**
    * @dev Returns the amount of tokens owned by `account`.
@@ -95,7 +90,7 @@ interface IBEP20 {
   event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-contract BTCBMock is IBEP20, Ownable {
+contract BTCBMock is IBEP20, Context {
   using Math for uint256;
 
   mapping (address => uint256) private _balances;
@@ -107,21 +102,10 @@ contract BTCBMock is IBEP20, Ownable {
   string public _symbol;
   string public _name;
 
-  constructor() Ownable(msg.sender) {
+  constructor() {
     _name = "BTCB Token";
     _symbol = "BTCB";
     _decimals = 18;
-    _totalSupply = 9001000000000000000000;
-    _balances[msg.sender] = _totalSupply;
-
-    emit Transfer(address(0), msg.sender, _totalSupply);
-  }
-
-  /**
-   * @dev Returns the bep token owner.
-   */
-  function getOwner() external view returns (address) {
-    return owner();
   }
 
   /**
@@ -253,11 +237,8 @@ contract BTCBMock is IBEP20, Ownable {
    * @dev Creates `amount` tokens and assigns them to `msg.sender`, increasing
    * the total supply.
    *
-   * Requirements
-   *
-   * - `msg.sender` must be the token owner
    */
-  function mint(uint256 amount) public onlyOwner returns (bool) {
+  function mint(uint256 amount) public returns (bool) {
     _mint(_msgSender(), amount);
     return true;
   }
