@@ -3,6 +3,8 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "@nomicfoundation/hardhat-ethers";
 
+import "./scripts";
+
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [

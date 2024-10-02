@@ -1,4 +1,3 @@
-import {ethers, run} from "hardhat";
 import {BigNumberish, ContractTransaction} from "ethers";
 import {BytesLike} from "ethers/lib.commonjs/utils/data";
 
@@ -12,6 +11,7 @@ export type TAddresses = {
   Owner?: string;
   Consortium?: string;
   Timelock?: string;
+  BTCB?: string;
 };
 
 export function getAddresses(network: string): TAddresses {
@@ -26,7 +26,7 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function verify(address: string) {
+export async function verify(run: any, address: string) {
   console.log(`Going to verify...`);
 
   await sleep(12_000);
@@ -40,7 +40,7 @@ export async function verify(address: string) {
   }
 }
 
-export async function schedule({timelockAddr, transaction, predecessor, salt, delay}: {
+export async function schedule(ethers: any,{timelockAddr, transaction, predecessor, salt, delay}: {
   timelockAddr: string
   transaction: ContractTransaction;
   predecessor?: BytesLike;
