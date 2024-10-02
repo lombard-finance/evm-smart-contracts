@@ -1,8 +1,8 @@
 import { config, ethers, network, upgrades } from "hardhat";
 import secp256k1 from "secp256k1";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock, Bascule, Address } from "../typechain-types";
-import { AddressLike } from "ethers";
+import { LBTC, WBTCMock, Bascule } from "../typechain-types";
+import { AddressLike, Contract, Signer, Signature } from "ethers";
 
 export function signOutputPayload(
   privateKey: string,
@@ -99,7 +99,7 @@ export function signBridgeDepositPayload(
   };
 }
 
-export async function enrichWithPrivateKeys(
+export function enrichWithPrivateKeys(
   signers: HardhatEthersSigner[],
   phrase?: string
 ) {
@@ -115,18 +115,17 @@ export async function enrichWithPrivateKeys(
       signers[i].privateKey = wallet.privateKey;
     }
   }
+  return signers;
 }
 
 export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  console.log("=== LBTC");
-  const LBTC = await ethers.getContractFactory("LBTCMock");
+  const LBTC = await ethers.getContractFactory("LBTC");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
     burnCommission
-  ])) as unknown as LBTCMock;
+  ])) as unknown as LBTC;
   await lbtc.waitForDeployment();
 
-  console.log("=== WBTC");
   const WBTC = await ethers.getContractFactory("WBTCMock");
   const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
   await wbtc.waitForDeployment();
@@ -135,10 +134,50 @@ export async function init(consortium: HardhatEthersSigner, burnCommission: numb
 }
 
 export async function deployBascule(reporter: HardhatEthersSigner, lbtc: AddressLike): Promise<Bascule> {
-  console.log("=== Bascule");
   const Bascule = await ethers.getContractFactory("Bascule");
   const [admin, pauser, maxDeposits] = [ reporter.address, reporter.address, 100 ];
   const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
   await bascule.waitForDeployment();
   return bascule;
+}
+
+export async function generatePermitSignature(
+  token: Contract, 
+  owner: Signer, 
+  spender: string,
+  value: number, 
+  deadline: number, 
+  chainId: number , 
+  nonce: number
+): Promise<{ v: number; r: string; s: string }> {
+  const ownerAddress = await owner.getAddress();
+
+  const permitMessage = {
+    owner: ownerAddress,
+    spender: spender,
+    value: value,
+    nonce: nonce,
+    deadline: deadline,
+  };
+
+  const types = {
+    Permit: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+  };
+
+  const signature = await owner.signTypedData({
+    name: "Lombard Staked Bitcoin",
+    version: "1",
+    chainId: chainId,
+    verifyingContract: await token.getAddress(),
+  }, types, permitMessage);
+
+  // Split the signature into v, r, s components
+  const signatureObj = Signature.from(signature); 
+  return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
 }

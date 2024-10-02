@@ -45,7 +45,7 @@ yarn hardhat test
 ```
 #### Deploy
 ```bash
-yarn hardhat run deploy-consortium.ts
-yarn hardhat run deploy-timelock.ts
-yarn hardhat run deploy-lbtc.ts
+yarn hardhat deploy-consortium [params]
+yarn hardhat deploy-timelock [params]
+yarn hardhat deploy-lbtc [params]
 ```

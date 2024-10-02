@@ -1,38 +1,27 @@
-import { ethers, upgrades, network, run } from "hardhat";
-import { getAddresses, sleep } from "./helpers";
+import { sleep, verify} from "./helpers";
+import { task } from "hardhat/config";
 
-async function main() {
-  const addresses = getAddresses(network.name);
+task("deploy-consortium", "Deploys the LombardConsortium contract")
+  .addParam("owner", "The address of the owner")
+  .addParam("thresholdKey", "The address of LombardConsortium")
+  .addParam("testEnv", "testnet deployment", false)
+  .setAction(async (taskArgs, hre) => {
 
-  if (!addresses.ThresholdKey) {
-    throw Error(`ThresholdKey not set for ${network.name}`);
-  }
+    const { owner, thresholdKey, testEnv } = taskArgs;
+    const { ethers, upgrades, run } = hre;
 
-  if (!addresses.Owner) {
-    throw Error(`Owner not set for ${network.name}`);
-  }
+    const res = await upgrades.deployProxy(
+      await ethers.getContractFactory("LombardConsortium"),
+      [thresholdKey, owner]
+    );
+    await res.waitForDeployment();
 
-  const res = await upgrades.deployProxy(
-    await ethers.getContractFactory("LombardConsortium"),
-    [addresses.ThresholdKey, addresses.Owner]
-  );
-  await res.waitForDeployment();
+    console.log(`Deployment address is ${await res.getAddress()}`);
+    console.log(`Going to verify...`);
 
-  console.log(`Deployment address is ${await res.getAddress()}`);
-  console.log(`Going to verify...`);
-
-  await sleep(12_000);
-
-  try {
-    await run("verify", {
-      address: await res.getAddress(),
-    });
-  } catch (e) {
-    console.error(`Verification failed: ${e}`);
-  }
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+    try {
+      await verify(run, await res.getAddress());
+    } catch (e) {
+      console.error(`Verification failed: ${e}`);
+    }
+  });
