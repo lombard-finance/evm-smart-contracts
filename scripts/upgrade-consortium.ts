@@ -1,7 +1,6 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, run } from "hardhat";
 import { getAddresses, verify } from "./helpers";
 import hardhat from "hardhat";
-import { vars } from "hardhat/config";
 
 async function main() {
   const addresses = getAddresses(hardhat.network.name);
@@ -21,7 +20,7 @@ async function main() {
 
   console.log(`Deployment address is ${await res.getAddress()}`);
 
-  await verify(await res.getAddress());
+  await verify(run, await res.getAddress());
 }
 
 main().catch((error) => {
