@@ -1,4 +1,4 @@
-import { ethers, upgrades, network, run } from "hardhat";
+import { ethers, network, run } from "hardhat";
 import { getAddresses, sleep } from "./helpers";
 
 async function main() {

@@ -1,4 +1,4 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, run } from "hardhat";
 import { vars } from "hardhat/config";
 import { verify } from "./helpers";
 
@@ -17,7 +17,7 @@ async function main() {
   await res.waitForDeployment();
 
   console.log(await res.getAddress());
-  await verify(await res.getAddress());
+  await verify(run, await res.getAddress());
 }
 
 main().catch((error) => {

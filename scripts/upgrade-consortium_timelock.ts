@@ -1,7 +1,6 @@
 import { ethers, upgrades } from "hardhat";
 import {getAddresses, schedule, verify} from "./helpers";
 import hardhat from "hardhat";
-import { vars } from "hardhat/config";
 
 async function main() {
   const addresses = getAddresses(hardhat.network.name);
