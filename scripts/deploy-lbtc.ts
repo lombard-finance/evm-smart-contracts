@@ -1,29 +1,20 @@
-import {ethers, network, upgrades} from "hardhat";
-import { vars } from "hardhat/config";
-import {getAddresses, verify} from "./helpers";
+import { task } from "hardhat/config";
+import { verify } from "./helpers";
 
-const testEnv = vars.get("LOMBARD_TEST_ENV", "disabled") === "enabled";
+task("deploy-lbtc", "Deploys the LBTC contract")
+  .addParam("consortium", "The address of LombardConsortium")
+  .addParam("testEnv", "testnet deployment", false)
+  .setAction(async (taskArgs, hre) => {
+    const { consortium, testEnv } = taskArgs;
+    const { ethers, upgrades, run } = hre;
 
-async function main() {
-  const addresses = getAddresses(network.name);
+    const res = await upgrades.deployProxy(
+      await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
+      [consortium]
+    );
+    await res.waitForDeployment();
+    console.log(`Deployment address is ${await res.getAddress()}`);
 
-  if (!addresses.Consortium) {
-    throw Error('set consortium before deployment')
-  }
-
-  const burnCommission = 100n;
-
-  const res = await upgrades.deployProxy(
-    await ethers.getContractFactory(testEnv ? "LBTCMock" : "LBTC"),
-    [addresses.Consortium, burnCommission]
-  );
-  await res.waitForDeployment();
-
-  console.log(await res.getAddress());
-  await verify(await res.getAddress());
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+    console.log(await res.getAddress());
+    await verify(run, await res.getAddress());
+  });

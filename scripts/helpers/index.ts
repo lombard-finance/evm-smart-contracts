@@ -1,5 +1,5 @@
-import { run } from "hardhat";
-import {vars} from "hardhat/config";
+import {BigNumberish, ContractTransaction} from "ethers";
+import {BytesLike} from "ethers/lib.commonjs/utils/data";
 
 type TAddressesWithNetwork = {
   [k: string]: TAddresses;
@@ -10,12 +10,12 @@ export type TAddresses = {
   ThresholdKey?: string;
   Owner?: string;
   Consortium?: string;
+  Timelock?: string;
+  BTCB?: string;
 };
 
 export function getAddresses(network: string): TAddresses {
-  const env = vars.get("LOMBARD_ENV", "mainnet");
-
-  const addresses: TAddressesWithNetwork = require(`../../addresses-${env}.json`);
+  const addresses: TAddressesWithNetwork = require("../../addresses.json");
   if (!addresses[network]) {
     throw Error(`network ${network} not supported`);
   }
@@ -26,7 +26,7 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function verify(address: string) {
+export async function verify(run: any, address: string) {
   console.log(`Going to verify...`);
 
   await sleep(12_000);
@@ -38,4 +38,32 @@ export async function verify(address: string) {
   } catch (e) {
     console.error(`Verification failed: ${e}`);
   }
+}
+
+export async function schedule(ethers: any,{timelockAddr, transaction, predecessor, salt, delay}: {
+  timelockAddr: string
+  transaction: ContractTransaction;
+  predecessor?: BytesLike;
+  salt?: BytesLike;
+  delay?: BigNumberish;
+}) {
+  const timelock = await ethers.getContractAt(
+    'ITimelockController',
+    timelockAddr,
+  );
+
+  if (!delay) {
+    delay = await timelock.getMinDelay();
+  }
+
+  const res = await timelock.schedule(
+    transaction.to,
+    transaction.value || '0',
+    transaction.data,
+    predecessor || ethers.ZeroHash,
+    salt || ethers.ZeroHash,
+    delay
+  );
+  await res.wait();
+  console.log(res.hash);
 }
