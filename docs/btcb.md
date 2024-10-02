@@ -34,8 +34,14 @@ await btcbpmmContract.connect(user).swapBTCBToLBTC(amount);
 
 **Emits:**
 
-- Transfer event on BTCB
-- Transfer event on LBTC
+- `Transfer(from, to, value)` event on BTCB
+  - `from`: Address of the user swapping BTCB
+  - `to`: Address of the BTCBPMM contract
+  - `value`: Amount of BTCB being swapped
+- `Transfer(from, to, value)` event on LBTC
+  - `from`: Zero address (0x0)
+  - `to`: Address of the user receiving LBTC
+  - `value`: Amount of LBTC being minted
 
 **Error Handling:**
 
@@ -109,7 +115,8 @@ await btcbpmmContract.connect(pauser).pause();
 
 **Emits:**
 
-- Paused event
+- `Paused(account)` event
+  - `account`: Address of the pauser that paused the contract
 
 ### 6. Unpause Contract
 
@@ -129,7 +136,8 @@ await btcbpmmContract.connect(admin).unpause();
 
 **Emits:**
 
-- Unpaused event
+- `Unpaused(account)` event
+  - `account`: Address of the admin that unpaused the contract
 
 ### 7. Set Withdrawal Address
 
@@ -159,7 +167,8 @@ await timelock.execute(
 
 **Emits:**
 
-- WithdrawalAddressSet event
+- `WithdrawalAddressSet(newWithdrawAddress)` event
+  - `newWithdrawAddress`: The newly set withdrawal address
 
 ### 8. Set Stake Limit
 
@@ -189,4 +198,5 @@ await timelock.execute(
 
 **Emits:**
 
-- StakeLimitSet event
+- `StakeLimitSet(newStakeLimit)` event
+  - `newStakeLimit`: The newly set stake limit value
