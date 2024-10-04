@@ -31,7 +31,7 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     error StakeLimitExceeded();
     error UnauthorizedAccount(address account);
-
+    error ZeroAmount();
     event StakeLimitSet(uint256 newStakeLimit);
     event WithdrawalAddressSet(address newWithdrawAddress);
 
@@ -60,11 +60,14 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     function swapBTCBToLBTC(uint256 amount) external whenNotPaused {
         PMMStorage storage $ = _getPMMStorage();
-        if ($.totalStake + amount > $.stakeLimit) revert StakeLimitExceeded();
 
-        $.totalStake += amount;
-        $.btcb.safeTransferFrom(_msgSender(), address(this), amount);
-        $.lbtc.mint(_msgSender(), amount);
+        uint256 amountLBTC = (amount / 10 ** 10);
+        if(amountLBTC == 0) revert ZeroAmount();
+        if ($.totalStake + amountLBTC > $.stakeLimit) revert StakeLimitExceeded();
+
+        $.totalStake += amountLBTC;
+        $.btcb.safeTransferFrom(_msgSender(), address(this), amountLBTC * (10 ** 10));
+        $.lbtc.mint(_msgSender(), amountLBTC);
     }
 
     function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
