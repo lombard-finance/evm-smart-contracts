@@ -24,7 +24,6 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
     }
     
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BTCBPMM")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant PMM_STORAGE_LOCATION = 0x75814abe757fd1afd999e293d51fa6528839552b73d81c6cc151470e3106f500;
@@ -79,12 +78,12 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         $.btcb.transfer($.withdrawAddress, amount); 
     }
 
-    function setWithdrawalAddress(address newWithdrawAddress) external onlyRole(TIMELOCK_ROLE) {
+    function setWithdrawalAddress(address newWithdrawAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _getPMMStorage().withdrawAddress = newWithdrawAddress;
         emit WithdrawalAddressSet(newWithdrawAddress);
     }
 
-    function setStakeLimit(uint256 newStakeLimit) external onlyRole(TIMELOCK_ROLE) {
+    function setStakeLimit(uint256 newStakeLimit) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _getPMMStorage().stakeLimit = newStakeLimit;
         emit StakeLimitSet(newStakeLimit);
     }

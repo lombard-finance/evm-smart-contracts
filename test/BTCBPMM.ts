@@ -54,16 +54,16 @@ describe("BTCBPMM", function () {
 
   describe("Access Control", function () {
 
-    it("should revert if withdrawal address is not set by the timelock", async function () {
+    it("should revert if withdrawal address is not set by the admin", async function () {
       await expect(pmm.connect(signer1).setWithdrawalAddress(await signer1.getAddress())) 
       .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
-      .withArgs(signer1.address, await pmm.TIMELOCK_ROLE());
+      .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
     });
 
-    it("should revert if stake limit is set by non-timelock", async function () {
-        await expect(pmm.setStakeLimit(100))
+    it("should revert if stake limit is set by non-admin", async function () {
+        await expect(pmm.connect(signer1).setStakeLimit(100))
         .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
-        .withArgs(deployer.address, await pmm.TIMELOCK_ROLE());
+        .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
     });
 
     it("should revert if pause is triggered by non-pauser", async function () {
@@ -110,32 +110,25 @@ describe("BTCBPMM", function () {
         });
     });
 
-    describe("With Timelock", function () {
-        beforeEach(async function () {
-            await pmm.grantRole(await pmm.TIMELOCK_ROLE(), await timeLock.getAddress());
-        });
+    it("should set the withdrawal address", async function () {
+        await expect(pmm.setWithdrawalAddress(withdrawalAddress.address))
+            .to.emit(pmm, "WithdrawalAddressSet")
+            .withArgs(withdrawalAddress.address);
+        expect(await pmm.withdrawalAddress()).to.equal(withdrawalAddress.address);
+    });
 
-        it("should set the withdrawal address", async function () {
-            await expect(pmm.connect(timeLock).setWithdrawalAddress(withdrawalAddress.address))
-                .to.emit(pmm, "WithdrawalAddressSet")
-                .withArgs(withdrawalAddress.address);
-            expect(await pmm.withdrawalAddress()).to.equal(withdrawalAddress.address);
-        });
-
-        it("should set the stake limit", async function () {
-            await expect(pmm.connect(timeLock).setStakeLimit(100))
-                .to.emit(pmm, "StakeLimitSet")
-                .withArgs(100);
-            expect(await pmm.stakeLimit()).to.equal(100);
-            expect(await pmm.remainingStake()).to.equal(100);
-        });
+    it("should set the stake limit", async function () {
+        await expect(pmm.setStakeLimit(100))
+            .to.emit(pmm, "StakeLimitSet")
+            .withArgs(100);
+        expect(await pmm.stakeLimit()).to.equal(100);
+        expect(await pmm.remainingStake()).to.equal(100);
     });
   });
   
   describe("Operations", function () {
     beforeEach(async function () {
         await pmm.grantRole(await pmm.PAUSER_ROLE(), await pauser.getAddress());
-        await pmm.grantRole(await pmm.TIMELOCK_ROLE(), await timeLock.getAddress());
 
         // some btcb for signers
         await btcb.mint(await signer1.getAddress(), ethers.parseUnits("100", 18));
@@ -184,7 +177,7 @@ describe("BTCBPMM", function () {
             await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
             expect(await pmm.remainingStake()).to.equal(0);
 
-            await pmm.connect(timeLock).setStakeLimit(ethers.parseUnits("40", 8));
+            await pmm.setStakeLimit(ethers.parseUnits("40", 8));
             expect(await pmm.remainingStake()).to.equal(ethers.parseUnits("10", 8));
             await btcb.connect(signer2).approve(await pmm.getAddress(), ethers.parseUnits("10", 18));
             await pmm.connect(signer2).swapBTCBToLBTC(ethers.parseUnits("10", 18));
@@ -205,7 +198,7 @@ describe("BTCBPMM", function () {
             await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("30", 18));
             await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
 
-            await pmm.connect(timeLock).setStakeLimit(ethers.parseUnits("20", 8));
+            await pmm.setStakeLimit(ethers.parseUnits("20", 8));
             expect(await pmm.remainingStake()).to.equal(0);
         });
 
