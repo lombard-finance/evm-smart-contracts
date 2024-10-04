@@ -41,6 +41,9 @@ describe("BTCBPMM", function () {
         await withdrawalAddress.getAddress()
     ]);
 
+    // use btcb decimals of 8
+    await btcb.setDecimals(18);
+
     snapshot = await takeSnapshot();
   });
 
