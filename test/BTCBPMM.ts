@@ -38,7 +38,8 @@ describe("BTCBPMM", function () {
         await btcb.getAddress(),
         await deployer.getAddress(),
         ethers.parseUnits("30", 8),
-        await withdrawalAddress.getAddress()
+        await withdrawalAddress.getAddress(),
+        1000 // 10%
     ]);
 
     // use btcb decimals of 8
@@ -136,8 +137,8 @@ describe("BTCBPMM", function () {
     });
 
     it("should fail to swap if PMM is not whitelisted as minter", async function () {
-        await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("10", 10));
-        await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("10", 10)))
+        await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("1000", 10));
+        await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("1000", 10)))
             .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
             .withArgs(await pmm.getAddress());
     });
@@ -159,9 +160,12 @@ describe("BTCBPMM", function () {
                 .to.emit(btcb, "Transfer")
                 .withArgs(signer1.address, await pmm.getAddress(), ethers.parseUnits("11", 18))
                 .to.emit(lbtc, "Transfer")
-                .withArgs(ethers.ZeroAddress, signer1.address, ethers.parseUnits("11", 8));
+                .withArgs(ethers.ZeroAddress, signer1.address, ethers.parseUnits("9.9", 8))
+                .to.emit(lbtc, "Transfer")
+                .withArgs(ethers.ZeroAddress, await pmm.getAddress(), ethers.parseUnits("1.1", 8));
             expect(await pmm.remainingStake()).to.equal(ethers.parseUnits("19", 8));
-            expect(await lbtc.balanceOf(signer1.address)).to.equal(ethers.parseUnits("11", 8));
+            expect(await lbtc.balanceOf(signer1.address)).to.equal(ethers.parseUnits("9.9", 8));
+            expect(await lbtc.balanceOf(await pmm.getAddress())).to.equal(ethers.parseUnits("1.1", 8));
             expect(await btcb.balanceOf(signer1.address)).to.equal(ethers.parseUnits("89", 18));
             expect(await btcb.balanceOf(await pmm.getAddress())).to.equal(ethers.parseUnits("11", 18));
         });
