@@ -85,6 +85,12 @@ describe("BTCBPMM", function () {
             .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
     });
 
+    it("should revert if withdrawLBTC is triggered by non-admin", async function () {
+        await expect(pmm.connect(signer1).withdrawLBTC(100))
+            .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
+            .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
+    });
+
     it("should revert if contract is not paused", async function () {
         await expect(pmm.unpause())
             .to.be.revertedWithCustomError(pmm, "ExpectedPause");
@@ -215,6 +221,11 @@ describe("BTCBPMM", function () {
                 .to.emit(btcb, "Transfer")
                 .withArgs(await pmm.getAddress(), await withdrawalAddress.getAddress(), 1);
             expect(await btcb.balanceOf(await withdrawalAddress.getAddress())).to.equal(1);
+
+            await expect(pmm.withdrawLBTC(1))
+                .to.emit(lbtc, "Transfer")
+                .withArgs(await pmm.getAddress(), await withdrawalAddress.getAddress(), 1);
+            expect(await lbtc.balanceOf(await withdrawalAddress.getAddress())).to.equal(1);
         });
 
         it("should have zero remaining stake if total stake is greater than limit", async function () {
