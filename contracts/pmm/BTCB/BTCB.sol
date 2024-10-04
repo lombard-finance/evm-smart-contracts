@@ -3,20 +3,20 @@ pragma solidity 0.8.24;
 
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-
-interface IMinteable {
+interface ILBTC {
     function mint(address to, uint256 amount) external;
+    function decimals() external view returns (uint256);
 }
 
 contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20Metadata;
 
     struct PMMStorage {
-        IERC20 btcb;
-        IMinteable lbtc;   
+        IERC20Metadata btcb;
+        ILBTC lbtc;   
 
         uint256 stakeLimit;
         uint256 totalStake;
@@ -31,7 +31,7 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     error StakeLimitExceeded();
     error UnauthorizedAccount(address account);
-
+    error ZeroAmount();
     event StakeLimitSet(uint256 newStakeLimit);
     event WithdrawalAddressSet(address newWithdrawAddress);
 
@@ -48,8 +48,8 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         $.stakeLimit = _stakeLimit;
         $.withdrawAddress = withdrawAddress;
         
-        $.lbtc = IMinteable(_lbtc);
-        $.btcb = IERC20(_btcb);
+        $.lbtc = ILBTC(_lbtc);
+        $.btcb = IERC20Metadata(_btcb);
     }
 
     function initialize(address _lbtc, address _btcb, address admin,uint256 _stakeLimit, address withdrawAddress) external initializer {
@@ -60,11 +60,18 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     function swapBTCBToLBTC(uint256 amount) external whenNotPaused {
         PMMStorage storage $ = _getPMMStorage();
-        if ($.totalStake + amount > $.stakeLimit) revert StakeLimitExceeded();
 
-        $.totalStake += amount;
-        $.btcb.safeTransferFrom(_msgSender(), address(this), amount);
-        $.lbtc.mint(_msgSender(), amount);
+        ILBTC lbtc = $.lbtc;
+        IERC20Metadata btcb = $.btcb;
+
+        uint256 decimalsDifference = 10 ** (btcb.decimals() - lbtc.decimals());
+        uint256 amountLBTC = (amount / decimalsDifference); 
+        if(amountLBTC == 0) revert ZeroAmount();
+        if ($.totalStake + amountLBTC > $.stakeLimit) revert StakeLimitExceeded();
+
+        $.totalStake += amountLBTC;
+        btcb.safeTransferFrom(_msgSender(), address(this), amountLBTC * decimalsDifference);
+        lbtc.mint(_msgSender(), amountLBTC);
     }
 
     function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
