@@ -125,6 +125,25 @@ describe("BTCBPMM", function () {
         expect(await pmm.stakeLimit()).to.equal(100);
         expect(await pmm.remainingStake()).to.equal(100);
     });
+
+    it("should set the relative fee", async function () {
+        await expect(pmm.setRelativeFee(100))
+            .to.emit(pmm, "RelativeFeeChanged")
+            .withArgs(1000, 100);
+        expect(await pmm.relativeFee()).to.equal(100);
+    });
+
+    it("should fail to set the relative fee if not admin", async function () {
+        await expect(pmm.connect(signer1).setRelativeFee(100))
+            .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
+            .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
+    });
+
+    it("should fail to set the relative fee if over max commission", async function () {
+        const iface = {interface: ethers.Interface.from(["error BadCommission()"])};
+        await expect(pmm.setRelativeFee(10001))
+            .to.be.revertedWithCustomError(iface, "BadCommission");
+    });
   });
   
   describe("Operations", function () {

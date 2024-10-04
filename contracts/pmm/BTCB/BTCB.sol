@@ -124,6 +124,10 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         return _getPMMStorage().stakeLimit;
     }
 
+    function relativeFee() external view returns (uint16) {
+        return _getPMMStorage().relativeFee;
+    }
+
     function remainingStake() external view returns (uint256) {
         PMMStorage storage $ = _getPMMStorage();
         if ($.totalStake > $.stakeLimit) return 0;
