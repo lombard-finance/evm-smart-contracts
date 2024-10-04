@@ -37,9 +37,12 @@ describe("BTCBPMM", function () {
         await lbtc.getAddress(),
         await btcb.getAddress(),
         await deployer.getAddress(),
-        30,
+        ethers.parseUnits("30", 8),
         await withdrawalAddress.getAddress()
     ]);
+
+    // use btcb decimals of 8
+    await btcb.setDecimals(18);
 
     snapshot = await takeSnapshot();
   });
@@ -135,15 +138,21 @@ describe("BTCBPMM", function () {
         await pmm.grantRole(await pmm.TIMELOCK_ROLE(), await timeLock.getAddress());
 
         // some btcb for signers
-        await btcb.mint(await signer1.getAddress(), 100);
-        await btcb.mint(await signer2.getAddress(), 100);
+        await btcb.mint(await signer1.getAddress(), ethers.parseUnits("100", 18));
+        await btcb.mint(await signer2.getAddress(), ethers.parseUnits("100", 18));
     });
 
-    it("should fail to swap is PMM is not whitelisted as minter", async function () {
-        await btcb.connect(signer1).approve(await pmm.getAddress(), 1);
-        await expect(pmm.connect(signer1).swapBTCBToLBTC(1))
+    it("should fail to swap if PMM is not whitelisted as minter", async function () {
+        await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("10", 10));
+        await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("10", 10)))
             .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
             .withArgs(await pmm.getAddress());
+    });
+
+    it("should fail to swap if amount is to low and will result in 0 LBTC", async function () {
+        await btcb.connect(signer1).approve(await pmm.getAddress(), 1);
+        await expect(pmm.connect(signer1).swapBTCBToLBTC(1))
+            .to.be.revertedWithCustomError(lbtc, "ZeroAmount");
     });
 
     describe("With whitelisted minter", function () {
@@ -152,39 +161,39 @@ describe("BTCBPMM", function () {
         });
 
         it("should allow swaps", async function () {
-            await btcb.connect(signer1).approve(await pmm.getAddress(), 1);
-            await expect(pmm.connect(signer1).swapBTCBToLBTC(1))
+            await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("11", 18) + 10n);
+            await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("11", 18) + 10n))
                 .to.emit(btcb, "Transfer")
-                .withArgs(signer1.address, await pmm.getAddress(), 1)
+                .withArgs(signer1.address, await pmm.getAddress(), ethers.parseUnits("11", 18))
                 .to.emit(lbtc, "Transfer")
-                .withArgs(ethers.ZeroAddress, signer1.address, 1);
-            expect(await pmm.remainingStake()).to.equal(29);
-            expect(await lbtc.balanceOf(signer1.address)).to.equal(1);
-            expect(await btcb.balanceOf(signer1.address)).to.equal(99);
-            expect(await btcb.balanceOf(await pmm.getAddress())).to.equal(1);
+                .withArgs(ethers.ZeroAddress, signer1.address, ethers.parseUnits("11", 8));
+            expect(await pmm.remainingStake()).to.equal(ethers.parseUnits("19", 8));
+            expect(await lbtc.balanceOf(signer1.address)).to.equal(ethers.parseUnits("11", 8));
+            expect(await btcb.balanceOf(signer1.address)).to.equal(ethers.parseUnits("89", 18));
+            expect(await btcb.balanceOf(await pmm.getAddress())).to.equal(ethers.parseUnits("11", 18));
         });
 
         it("should fail to swap more than limit", async function () {
-            await btcb.connect(signer1).approve(await pmm.getAddress(), 35);
-            await expect(pmm.connect(signer1).swapBTCBToLBTC(35))
+            await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("35", 18));
+            await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("35", 18)))
                 .to.be.revertedWithCustomError(pmm, "StakeLimitExceeded");
         });
 
-        it("should allow more swaos if limit is increased", async function () {
-            await btcb.connect(signer1).approve(await pmm.getAddress(), 30);
-            await pmm.connect(signer1).swapBTCBToLBTC(30);
+        it("should allow more swaps if limit is increased", async function () {
+            await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("30", 18));
+            await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
             expect(await pmm.remainingStake()).to.equal(0);
 
-            await pmm.connect(timeLock).setStakeLimit(40);
-            expect(await pmm.remainingStake()).to.equal(10);
-            await btcb.connect(signer2).approve(await pmm.getAddress(), 10);
-            await pmm.connect(signer2).swapBTCBToLBTC(10);
+            await pmm.connect(timeLock).setStakeLimit(ethers.parseUnits("40", 8));
+            expect(await pmm.remainingStake()).to.equal(ethers.parseUnits("10", 8));
+            await btcb.connect(signer2).approve(await pmm.getAddress(), ethers.parseUnits("10", 18));
+            await pmm.connect(signer2).swapBTCBToLBTC(ethers.parseUnits("10", 18));
             expect(await pmm.remainingStake()).to.equal(0);
         });
 
         it("should allow withdrawals", async function () {
-            await btcb.connect(signer1).approve(await pmm.getAddress(), 30);
-            await pmm.connect(signer1).swapBTCBToLBTC(30);
+            await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("30", 18));
+            await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
 
             await expect(pmm.withdrawBTCB(1))
                 .to.emit(btcb, "Transfer")
@@ -193,10 +202,10 @@ describe("BTCBPMM", function () {
         });
 
         it("should have zero remaining stake if total stake is greater than limit", async function () {
-            await btcb.connect(signer1).approve(await pmm.getAddress(), 30);
-            await pmm.connect(signer1).swapBTCBToLBTC(30);
+            await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("30", 18));
+            await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
 
-            await pmm.connect(timeLock).setStakeLimit(20);
+            await pmm.connect(timeLock).setStakeLimit(ethers.parseUnits("20", 8));
             expect(await pmm.remainingStake()).to.equal(0);
         });
 
