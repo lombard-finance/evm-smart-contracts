@@ -5095,6 +5095,10 @@ solidity-coverage@^0.8.0:
     shelljs "^0.8.3"
     web3-utils "^1.3.6"
 
+"solmate@https://github.com/transmissions11/solmate":
+  version "6.2.0"
+  resolved "https://github.com/transmissions11/solmate#97bdb2003b70382996a79a406813f76417b1cf90"
+
 source-map-support@^0.5.13:
   version "0.5.21"
   resolved "https://registry.npmjs.org/source-map-support/-/source-map-support-0.5.21.tgz"
