@@ -26,14 +26,15 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function verify(run: any, address: string) {
+export async function verify(run: any, address: string, options: any = {}) {
   console.log(`Going to verify...`);
 
   await sleep(12_000);
 
   try {
-    await run("verify", {
+    await run("verify:verify", {
       address,
+      ...options,
     });
   } catch (e) {
     console.error(`Verification failed: ${e}`);
