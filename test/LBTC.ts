@@ -726,7 +726,7 @@ describe("LBTC", function () {
 
       await lbtc["mint(address,uint256)"](
         signer1.address,
-        await lbtc.MAX_COMMISSION()
+        10000n
       );
       await lbtc.addDestination(
         CHAIN_ID,
@@ -743,11 +743,11 @@ describe("LBTC", function () {
     });
 
     it("full flow", async () => {
-      let amount = await lbtc.MAX_COMMISSION();
+      let amount = 10000n;
 
       let fee =
         (amount * (await lbtc.getDepositRelativeCommission(CHAIN_ID))) /
-        (await lbtc.MAX_COMMISSION());
+        10000n;
 
       let amountWithoutFee = amount - fee;
 
@@ -814,7 +814,7 @@ describe("LBTC", function () {
 
       fee =
         (amount * (await lbtc2.getDepositRelativeCommission(CHAIN_ID))) /
-        (await lbtc.MAX_COMMISSION());
+        10000n;
       fee = (fee === 0n ? 1n : fee) + absoluteFee;
 
       amountWithoutFee = amount - fee;
@@ -881,11 +881,11 @@ describe("LBTC", function () {
         .withArgs(ethers.ZeroAddress, await bascule.getAddress());
 
       // Use the 2nd half of the full flow test to test the Bascule integration
-      let amount = await lbtc.MAX_COMMISSION();
+      let amount = 10000n;
 
       let fee =
         (amount * (await lbtc.getDepositRelativeCommission(CHAIN_ID))) /
-        (await lbtc.MAX_COMMISSION());
+        10000n;
 
       let amountWithoutFee = amount - fee;
 
