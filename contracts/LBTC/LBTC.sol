@@ -83,11 +83,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _changeBurnCommission(burnCommission_);
     }
 
-    function initialize(address consortium_, uint64 burnCommission_) external initializer {
+    function initialize(address consortium_, uint64 burnCommission_, address owner) external initializer {
         __ERC20_init("LBTC", "LBTC");
         __ERC20Pausable_init();
 
-        __Ownable_init(_msgSender());
+        __Ownable_init(owner);
         __Ownable2Step_init();
 
         __ReentrancyGuard_init();

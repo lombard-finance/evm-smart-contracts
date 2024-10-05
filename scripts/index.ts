@@ -1,4 +1,5 @@
 import "./deploy-btcbpmm";
 import "./deploy-btcb-mock";
 import "./deploy-consortium";
-import "./deploy-lbtc";
+import "./lbtc";
+import "./deploy-create3-factory";
