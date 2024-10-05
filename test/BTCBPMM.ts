@@ -38,7 +38,8 @@ describe("BTCBPMM", function () {
         await btcb.getAddress(),
         await deployer.getAddress(),
         ethers.parseUnits("30", 8),
-        await withdrawalAddress.getAddress()
+        await withdrawalAddress.getAddress(),
+        1000 // 10%
     ]);
 
     // use btcb decimals of 8
@@ -54,16 +55,16 @@ describe("BTCBPMM", function () {
 
   describe("Access Control", function () {
 
-    it("should revert if withdrawal address is not set by the timelock", async function () {
+    it("should revert if withdrawal address is not set by the admin", async function () {
       await expect(pmm.connect(signer1).setWithdrawalAddress(await signer1.getAddress())) 
       .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
-      .withArgs(signer1.address, await pmm.TIMELOCK_ROLE());
+      .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
     });
 
-    it("should revert if stake limit is set by non-timelock", async function () {
-        await expect(pmm.setStakeLimit(100))
+    it("should revert if stake limit is set by non-admin", async function () {
+        await expect(pmm.connect(signer1).setStakeLimit(100))
         .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
-        .withArgs(deployer.address, await pmm.TIMELOCK_ROLE());
+        .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
     });
 
     it("should revert if pause is triggered by non-pauser", async function () {
@@ -80,6 +81,12 @@ describe("BTCBPMM", function () {
 
     it("should revert if withdrawBTCB is triggered by non-admin", async function () {
         await expect(pmm.connect(signer1).withdrawBTCB(100))
+            .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
+            .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
+    });
+
+    it("should revert if withdrawLBTC is triggered by non-admin", async function () {
+        await expect(pmm.connect(signer1).withdrawLBTC(100))
             .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
             .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
     });
@@ -110,32 +117,44 @@ describe("BTCBPMM", function () {
         });
     });
 
-    describe("With Timelock", function () {
-        beforeEach(async function () {
-            await pmm.grantRole(await pmm.TIMELOCK_ROLE(), await timeLock.getAddress());
-        });
+    it("should set the withdrawal address", async function () {
+        await expect(pmm.setWithdrawalAddress(withdrawalAddress.address))
+            .to.emit(pmm, "WithdrawalAddressSet")
+            .withArgs(withdrawalAddress.address);
+        expect(await pmm.withdrawalAddress()).to.equal(withdrawalAddress.address);
+    });
 
-        it("should set the withdrawal address", async function () {
-            await expect(pmm.connect(timeLock).setWithdrawalAddress(withdrawalAddress.address))
-                .to.emit(pmm, "WithdrawalAddressSet")
-                .withArgs(withdrawalAddress.address);
-            expect(await pmm.withdrawalAddress()).to.equal(withdrawalAddress.address);
-        });
+    it("should set the stake limit", async function () {
+        await expect(pmm.setStakeLimit(100))
+            .to.emit(pmm, "StakeLimitSet")
+            .withArgs(100);
+        expect(await pmm.stakeLimit()).to.equal(100);
+        expect(await pmm.remainingStake()).to.equal(100);
+    });
 
-        it("should set the stake limit", async function () {
-            await expect(pmm.connect(timeLock).setStakeLimit(100))
-                .to.emit(pmm, "StakeLimitSet")
-                .withArgs(100);
-            expect(await pmm.stakeLimit()).to.equal(100);
-            expect(await pmm.remainingStake()).to.equal(100);
-        });
+    it("should set the relative fee", async function () {
+        await expect(pmm.setRelativeFee(100))
+            .to.emit(pmm, "RelativeFeeChanged")
+            .withArgs(1000, 100);
+        expect(await pmm.relativeFee()).to.equal(100);
+    });
+
+    it("should fail to set the relative fee if not admin", async function () {
+        await expect(pmm.connect(signer1).setRelativeFee(100))
+            .to.be.revertedWithCustomError(pmm, "AccessControlUnauthorizedAccount")
+            .withArgs(signer1.address, await pmm.DEFAULT_ADMIN_ROLE());
+    });
+
+    it("should fail to set the relative fee if over max commission", async function () {
+        const iface = {interface: ethers.Interface.from(["error BadCommission()"])};
+        await expect(pmm.setRelativeFee(10001))
+            .to.be.revertedWithCustomError(iface, "BadCommission");
     });
   });
   
   describe("Operations", function () {
     beforeEach(async function () {
         await pmm.grantRole(await pmm.PAUSER_ROLE(), await pauser.getAddress());
-        await pmm.grantRole(await pmm.TIMELOCK_ROLE(), await timeLock.getAddress());
 
         // some btcb for signers
         await btcb.mint(await signer1.getAddress(), ethers.parseUnits("100", 18));
@@ -143,8 +162,8 @@ describe("BTCBPMM", function () {
     });
 
     it("should fail to swap if PMM is not whitelisted as minter", async function () {
-        await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("10", 10));
-        await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("10", 10)))
+        await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("1000", 10));
+        await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("1000", 10)))
             .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
             .withArgs(await pmm.getAddress());
     });
@@ -166,9 +185,12 @@ describe("BTCBPMM", function () {
                 .to.emit(btcb, "Transfer")
                 .withArgs(signer1.address, await pmm.getAddress(), ethers.parseUnits("11", 18))
                 .to.emit(lbtc, "Transfer")
-                .withArgs(ethers.ZeroAddress, signer1.address, ethers.parseUnits("11", 8));
+                .withArgs(ethers.ZeroAddress, signer1.address, ethers.parseUnits("9.9", 8))
+                .to.emit(lbtc, "Transfer")
+                .withArgs(ethers.ZeroAddress, await pmm.getAddress(), ethers.parseUnits("1.1", 8));
             expect(await pmm.remainingStake()).to.equal(ethers.parseUnits("19", 8));
-            expect(await lbtc.balanceOf(signer1.address)).to.equal(ethers.parseUnits("11", 8));
+            expect(await lbtc.balanceOf(signer1.address)).to.equal(ethers.parseUnits("9.9", 8));
+            expect(await lbtc.balanceOf(await pmm.getAddress())).to.equal(ethers.parseUnits("1.1", 8));
             expect(await btcb.balanceOf(signer1.address)).to.equal(ethers.parseUnits("89", 18));
             expect(await btcb.balanceOf(await pmm.getAddress())).to.equal(ethers.parseUnits("11", 18));
         });
@@ -184,7 +206,7 @@ describe("BTCBPMM", function () {
             await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
             expect(await pmm.remainingStake()).to.equal(0);
 
-            await pmm.connect(timeLock).setStakeLimit(ethers.parseUnits("40", 8));
+            await pmm.setStakeLimit(ethers.parseUnits("40", 8));
             expect(await pmm.remainingStake()).to.equal(ethers.parseUnits("10", 8));
             await btcb.connect(signer2).approve(await pmm.getAddress(), ethers.parseUnits("10", 18));
             await pmm.connect(signer2).swapBTCBToLBTC(ethers.parseUnits("10", 18));
@@ -199,13 +221,18 @@ describe("BTCBPMM", function () {
                 .to.emit(btcb, "Transfer")
                 .withArgs(await pmm.getAddress(), await withdrawalAddress.getAddress(), 1);
             expect(await btcb.balanceOf(await withdrawalAddress.getAddress())).to.equal(1);
+
+            await expect(pmm.withdrawLBTC(1))
+                .to.emit(lbtc, "Transfer")
+                .withArgs(await pmm.getAddress(), await withdrawalAddress.getAddress(), 1);
+            expect(await lbtc.balanceOf(await withdrawalAddress.getAddress())).to.equal(1);
         });
 
         it("should have zero remaining stake if total stake is greater than limit", async function () {
             await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits("30", 18));
             await pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits("30", 18));
 
-            await pmm.connect(timeLock).setStakeLimit(ethers.parseUnits("20", 8));
+            await pmm.setStakeLimit(ethers.parseUnits("20", 8));
             expect(await pmm.remainingStake()).to.equal(0);
         });
 
