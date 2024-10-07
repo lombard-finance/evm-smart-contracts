@@ -1,13 +1,11 @@
 import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployContract, signPayload, ACTIONS, getSignersWithPrivateKeys, getPayloadForAction } from "./helpers";
+import { deployContract, signPayload, getSignersWithPrivateKeys, getPayloadForAction } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 import { keccak256 } from "ethers";
-
-const EIP1271_MAGICVALUE = 0x1626ba7e;
 
 describe("LombardConsortium", function () {
   let deployer: HardhatEthersSigner,
@@ -21,6 +19,7 @@ describe("LombardConsortium", function () {
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
     lombard = await deployContract<LombardConsortium>("LombardConsortium", [
       [signer3.address, signer1.address, signer2.address],
+      [1, 1, 1],
       2,
       deployer.address,
     ]);
@@ -48,63 +47,71 @@ describe("LombardConsortium", function () {
   it("should set the new consortium correctly", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [true, true, false],
+      [1, 1, 1],
       2,
+      [true, true, false],
       [
         [signer1.address, signer2.address],
-        1,
+        [1, 2],
+        3,
       ],
-      ACTIONS.SET_VALIDATORS
+      "setValidators"
     );
-    await expect(lombard.transferValidatorsOwnership([signer1.address, signer2.address], 1, data.proof))
+    await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
     .to.emit(lombard, "ValidatorSetUpdated")
-    .withArgs(2, [signer1.address, signer2.address]);
+    .withArgs(2, [signer1.address, signer2.address], [1, 2], 3);
 
-    expect(await lombard.getThreshold(2)).to.equal(1);
+    expect(await lombard.getThreshold(2)).to.equal(3);
   });
 
   it("should fail if new consortium is not increasing", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [true, true, false],
+      [1, 1, 1],
       2,
+      [true, true, false],
       [
         [signer2.address, signer1.address],
+        [1, 1],
         1,
       ],
-      ACTIONS.SET_VALIDATORS
+      "setValidators"
     );
-    await expect(lombard.transferValidatorsOwnership([signer2.address, signer1.address], 1, data.proof))
+    await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
     .to.be.revertedWithCustomError(lombard, "NotIncreasingValidatorSet");
   });
 
   it("should fail if treshold is zero", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [true, true, false],
+      [1, 1, 1],
       2,
+      [true, true, false],
       [
         [signer2.address, signer1.address],
+        [1, 1],
         0,
       ],
-      ACTIONS.SET_VALIDATORS
+      "setValidators"
     );
-    await expect(lombard.transferValidatorsOwnership([signer2.address, signer1.address], 0, data.proof))
+    await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
     .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
   });
 
-  it("should fail if treshold is over the size of the consortium", async function () {
+  it("should fail if treshold is over the sum of weights", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [true, true, false],
+      [1, 1, 1],
       2,
+      [true, true, false],
       [
         [signer2.address, signer1.address],
+        [1, 1],
         3,
       ],
-      ACTIONS.SET_VALIDATORS
+      "setValidators"
     );
-    await expect(lombard.transferValidatorsOwnership([signer2.address, signer1.address], 3, data.proof))
+    await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
     .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
   });
 
@@ -112,21 +119,20 @@ describe("LombardConsortium", function () {
     it("should validate correct signatures", async function () {
       const data = await signPayload(
         [signer3, signer1, signer2],
-        [true, true, false],
+        [1, 1, 1],
         2,
+        [true, true, false],
         [
+          1,
           signer1.address, //any address
           1,
           signer2.address, //any address
-          1,
           signer3.address, //any address
           10,
-          ethers.keccak256("0x0001"),
-          0
+          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
-        ACTIONS.BRIDGE
+        "burn"
       );
-      console.log("here");
 
       await lombard.checkProof(keccak256(data.payload), data.proof);
     });
@@ -134,32 +140,31 @@ describe("LombardConsortium", function () {
     it("should revert on invalid signatures", async function () {
       const data = await signPayload(
         [signer3, signer1, signer2],
-        [true, true, false],
+        [1, 1, 1],
         2,
+        [true, true, false],
         [
+          1,
           signer1.address, //any address
           1,
           signer2.address, //any address
-          1,
           signer3.address, //any address
           10,
-          ethers.keccak256("0x0001"),
-          0
+          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
-        ACTIONS.BRIDGE
+        "burn"
       );
 
       const payload = getPayloadForAction([
-          signer1.address, //any address
-          2,               // mismatched chain id
-          signer2.address, //any address
           1,
+          signer1.address, //any address
+          2,               // mismatching chainId
+          signer2.address, //any address
           signer3.address, //any address
           10,
-          ethers.keccak256("0x0001"),
-          0
+          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
-        ACTIONS.BRIDGE
+        "burn"
       );
 
       await expect(lombard.checkProof(keccak256(payload), data.proof))

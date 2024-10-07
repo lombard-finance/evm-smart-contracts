@@ -43,7 +43,7 @@ describe("LBTC", function () {
       reporter,
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<LombardConsortium>("LombardConsortium", [[signer1.address], 1, deployer.address]);
+    consortium = await deployContract<LombardConsortium>("LombardConsortium", [[signer1.address], [1], 1, deployer.address]);
     lbtc = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100]);
     lbtc2 = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100]);
     bascule = await deployContract<Bascule>("Bascule", [admin.address, pauser.address, reporter.address, await lbtc.getAddress(), 100], false);
@@ -192,8 +192,9 @@ describe("LBTC", function () {
   
           const data = await signPayload(
             [signer1], 
-            [true],
+            [1],
             1,
+            [true],
             [
               CHAIN_ID,
               await lbtc.getAddress(),
@@ -229,8 +230,9 @@ describe("LBTC", function () {
     
             const data = await signPayload(
               [signer1], 
-              [true],
+              [1],
               1,
+              [true],
               [ 
                 CHAIN_ID, 
                 await lbtc.getAddress(),
@@ -282,7 +284,8 @@ describe("LBTC", function () {
       const defaultExtraData = ethers.hexlify(ethers.randomBytes(4));
       const defaultArgs = {
         signers: () => [signer1, signer2],
-        weights: [true, true],
+        weights: [1, 1],
+        signatures: [true, true],
         threshold: 2,
         mintRecipient: () => signer1.address,
         signatureRecipient: () => signer1.address,
@@ -307,6 +310,7 @@ describe("LBTC", function () {
           "LombardConsortium", 
           [
             [signer1.address, signer2.address],
+            [1, 1],
             2,
             deployer.address
           ]
@@ -315,6 +319,7 @@ describe("LBTC", function () {
           defaultArgs.signers(), 
           defaultArgs.weights,
           defaultArgs.threshold,
+          defaultArgs.signatures,
           [
             defaultArgs.signatureChainId,
             await defaultArgs.signatureDestinationContract().getAddress(),
@@ -334,8 +339,15 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "not enough signatures",
-          weights: [true, false],
+          signatures: [true, false],
           customError: "NotEnoughSignatures",
+        },
+        {
+          ...defaultArgs,
+          name: "wrong weights",
+          weights: [1, 10],
+          customError: "InvalidEpochForValidatorSet",
+          params: () => [1]
         },
         {
           ...defaultArgs,
@@ -404,6 +416,7 @@ describe("LBTC", function () {
             args.signers(), 
             args.weights,
             args.threshold,
+            args.signatures,
             [
               args.signatureChainId, 
               await args.signatureDestinationContract().getAddress(), 
@@ -733,8 +746,9 @@ describe("LBTC", function () {
 
       const data1 = await signPayload(
         [signer1],
-        [true],
+        [1],
         1,
+        [true],
         [
           CHAIN_ID,
           await lbtc.getAddress(),
@@ -797,8 +811,9 @@ describe("LBTC", function () {
 
       const data2 = await signPayload(
         [signer1],
-        [true],
+        [1],
         1,
+        [true],
         [
           CHAIN_ID,
           await lbtc2.getAddress(),
@@ -830,8 +845,9 @@ describe("LBTC", function () {
 
       const data = await signPayload(
         [signer1],
-        [true],
+        [1],
         1,
+        [true],
         [
           CHAIN_ID,
           await lbtc2.getAddress(),
@@ -871,8 +887,9 @@ describe("LBTC", function () {
 
       const data = await signPayload(
         [signer2],
-        [true],
+        [1],
         1,
+        [true],
         [
           CHAIN_ID,
           await lbtc2.getAddress(),
@@ -888,7 +905,7 @@ describe("LBTC", function () {
       await expect(
         lbtc.connect(signer2).withdrawFromBridge(data.payload, data.proof)
       ).to.revertedWithCustomError(consortium, "InvalidEpochForValidatorSet")
-        .withArgs(0);
+        .withArgs(1);
     });
   });
 });

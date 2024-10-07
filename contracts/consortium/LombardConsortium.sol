@@ -13,7 +13,7 @@ error InsufficientInitialPlayers(uint256 provided, uint256 minimum);
 error InvalidValidatorSetSize();
 
 /// @dev Error thrown when trying to initialize with a validator set that already exists
-error ValidatorSetAlreadyExists();
+error ValidatorSetClash();
 
 /// @dev Error thrown when trying to initialize with a validator that is zero address
 error ZeroValidator();
@@ -51,12 +51,16 @@ error NotEnoughSignatures();
 /// @dev Error thrown when signature verification fails
 error SignatureVerificationFailed();
 
+/// @dev Error thrown when unexpected action is used
+error UnexpectedAction(bytes4 action);
+
+/// @dev Event emitted when the validator set is updated
+event ValidatorSetUpdated(uint256 epoch, address[] validators, uint256[] weights, uint256 threshold);
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
-contract LombardConsortium is Ownable2StepUpgradeable {
-    event ValidatorSetUpdated(uint256 epoch, address[] validators);
-    
+contract LombardConsortium is Ownable2StepUpgradeable {    
     struct ValidatorSet {
         bytes32 hash;
         uint256 threshold;
@@ -77,6 +81,9 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         /// @dev True if the proof is used, false otherwise
         mapping(bytes32 => bool) usedProofs;
     }
+
+    // bytes4(keccak256("setValidators(address[],uint256[],uint256)"))
+    bytes4 constant SET_VALIDATORS_ACTION = 0x56a02237;
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant CONSORTIUM_STORAGE_LOCATION =
@@ -117,11 +124,13 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
     /// @notice Initializes the consortium contract with players and the owner key
     /// @param _initialValidatorSet - The initial list of validators
+    /// @param _weights - The initial list of weights
+    /// @param _threshold - The initial threshold
     /// @param _owner - The address of the initial owner 
-    function initialize(address[] memory _initialValidatorSet, uint256 _threshold, address _owner) external initializer {
+    function initialize(address[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold, address _owner) external initializer {
         __Ownable_init(_owner);
         __Ownable2Step_init();
-        __Consortium_init(_initialValidatorSet, _threshold);
+        __Consortium_init(_initialValidatorSet, _weights, _threshold);
     }
 
     /// @notice Validates the provided signature against the given hash
@@ -144,15 +153,25 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         return _getConsortiumStorage().epoch;
     }
 
-    function transferValidatorsOwnership(address[] memory _newValidators, uint256 _threshold, bytes memory proof) external onlyOwner {
-        _checkProof(keccak256(abi.encode(_newValidators, _threshold)), proof);
-        _setValidatorSet(_newValidators, _threshold);
+    function transferValidatorsOwnership(bytes calldata payload, bytes calldata proof) external onlyOwner {
+        // check proof
+        _checkProof(keccak256(payload), proof);
+
+        // payload validation
+        if (bytes4(payload) != SET_VALIDATORS_ACTION) {
+            revert UnexpectedAction(bytes4(payload));
+        }
+        // extra data can be btc txn hash here, irrelevant for verification
+        (address[] memory validators, uint256[] memory weights, uint256 threshold) =
+            abi.decode(payload[4:], (address[], uint256[], uint256));
+        
+        _setValidatorSet(validators, weights, threshold);
     }
 
     /// @notice Internal initializer for the consortium with players
     /// @param _initialValidators - The initial list of validators
-    function __Consortium_init(address[] memory _initialValidators, uint256 _threshold) internal onlyInitializing {
-        _setValidatorSet(_initialValidators, _threshold);
+    function __Consortium_init(address[] memory _initialValidators, uint256[] memory _weights, uint256 _threshold) internal onlyInitializing {
+        _setValidatorSet(_initialValidators, _weights, _threshold);
     }
 
     /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
@@ -166,16 +185,30 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         }
     }
 
-    function _setValidatorSet(address[] memory _validators, uint256 _threshold) internal {
+    function _setValidatorSet(address[] memory _validators, uint256[] memory _weights, uint256 _threshold) internal {
         if(_validators.length < MIN_VALIDATOR_SET_SIZE|| _validators.length > MAX_VALIDATOR_SET_SIZE) 
-            revert InvalidValidatorSetSize();       
+            revert InvalidValidatorSetSize();  
 
-        if(_threshold == 0 || _threshold > _validators.length) revert InvalidThreshold();
+        if(_validators.length != _weights.length) 
+            revert LengthMismatch();
+
+        if(_threshold == 0) 
+            revert InvalidThreshold();
+
+        uint256 sum = 0;
+        for(uint256 i; i < _weights.length;) {
+            sum += _weights[i];
+            unchecked { ++i; }
+        }
+        if(sum < _threshold) 
+            revert InvalidThreshold();
 
         ConsortiumStorage storage $ = _getConsortiumStorage();
-
-        bytes32 validatorSetHash = keccak256(abi.encode(_validators, _threshold));
-        if($.validatorSetEpoch[validatorSetHash] != 0) revert ValidatorSetAlreadyExists();
+        
+        uint256 epoch = ++$.epoch;
+        bytes32 validatorSetHash = keccak256(abi.encode(_validators, _weights, _threshold, epoch));
+        if($.validatorSetEpoch[validatorSetHash] != 0) 
+            revert ValidatorSetClash(); // Should never happen as epoch is included in the hash
 
         address curValidator = _validators[0];
         if(curValidator == address(0)) revert ZeroValidator();
@@ -185,10 +218,9 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             unchecked { ++i; }
         }
 
-        uint256 epoch = ++$.epoch;
         $.validatorSet[epoch] = ValidatorSet(validatorSetHash, _threshold);
         $.validatorSetEpoch[validatorSetHash] = epoch;
-        emit ValidatorSetUpdated(epoch, _validators);
+        emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
     }
 
     /// @dev Checks that `_proof` is correct
@@ -206,9 +238,9 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             revert LengthMismatch();
         
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        bytes32 validatorSetHash = keccak256(abi.encode(validators, threshold));
-        uint256 epoch = $.validatorSetEpoch[validatorSetHash];
-        if(epoch == 0 || (epoch + EPOCH_EXPIRY < $.epoch)) 
+        uint256 epoch = $.epoch;
+        bytes32 validatorSetHash = keccak256(abi.encode(validators, weights, threshold, epoch));
+        if($.validatorSetEpoch[validatorSetHash] != epoch) 
             revert InvalidEpochForValidatorSet(epoch);
 
         bytes32 proofHash = keccak256(_proof);
@@ -216,10 +248,10 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
         uint256 count = 0;
         for(uint256 i; i < validators.length;) {
-            if(weights[i] != 0) {
+            if(signatures[i].length != 0) {
                 if(!EIP1271SignatureUtils.checkSignature(validators[i], _message, signatures[i])) 
                     revert SignatureVerificationFailed();
-                unchecked { ++count; } 
+                unchecked { count += weights[i]; } 
             }
             unchecked { ++i; }
         }

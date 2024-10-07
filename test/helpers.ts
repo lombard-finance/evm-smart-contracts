@@ -26,8 +26,9 @@ export function getPayloadForAction(data: any[], action: string) {
 
 export async function signPayload(
   signers: HardhatEthersSigner[],
-  weights: boolean[],
+  weights: number[],
   threshold: number,
+  signatures: boolean[],
   data: any[],
   action: string
 ): Promise<{
@@ -35,16 +36,15 @@ export async function signPayload(
   proof: string;
 }> {
   
-  if (weights.length !== signers.length) {
-    throw new Error("Weights and signers must have the same length");
+  if (weights.length !== signers.length || weights.length !== signatures.length) {
+    throw new Error("Weights, signers & signatures must have the same length");
   }
 
   const packed = getPayloadForAction(data, action);
   const message = ethers.keccak256(packed);
   const validators = signers.map(signer => signer.address);
-  const numericWeights = weights.map(Number);
-  const signatures = await Promise.all(signers.map(async(signer, index) => {
-    if (!weights[index]) return "0x";
+  const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
+    if (!signatures[index]) return "0x";
     
     const signingKey = new ethers.SigningKey(signer.privateKey);
     const signature = signingKey.sign(message);
@@ -56,7 +56,7 @@ export async function signPayload(
     payload: packed,
     proof: encode(
       ["address[]", "uint256[]", "uint256", "bytes[]"],
-      [validators, numericWeights, threshold, signatures]
+      [validators, weights, threshold, signaturesArray]
     ),
   };
 }
