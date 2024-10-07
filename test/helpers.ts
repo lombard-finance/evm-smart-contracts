@@ -14,31 +14,14 @@ export const ERRORS_IFACE = {
   ]),
 };
 
-export enum ACTIONS {
-  MINT,
-  BRIDGE,
-  SET_VALIDATORS,
-}
+const ACTIONS_IFACE = ethers.Interface.from([
+  "function mint(uint256,address,address,uint256,bytes) external",
+  "function burn(uint256,address,uint256,address,address,uint256,bytes) external",
+  "function setValidators(address[],uint256[],uint256) external",
+])
 
-function getActionDataEncodingFormat(action: ACTIONS) {
-  switch (action) {
-    case ACTIONS.MINT:
-      // chainId, recipient, amount, txnId, eventIndex
-      return ["uint256", "address", "uint64", "bytes32", "uint32"];
-    case ACTIONS.BRIDGE:
-      // fromContract, fromChainId, toContract, toChainId, toAddress, amount, txnId, eventIndex
-      return ["address", "uint256", "address", "uint256", "address", "uint64", "bytes32", "uint32",];
-    case ACTIONS.SET_VALIDATORS:
-      // validators, threshold
-      return ["address[]", "uint256"];
-  }
-}
-
-export function getPayloadForAction(data: any[], action: ACTIONS) {
-  return encode(
-    getActionDataEncodingFormat(action),
-    data
-  );
+export function getPayloadForAction(data: any[], action: string) {
+  return ACTIONS_IFACE.encodeFunctionData(action, data);
 }
 
 export async function signPayload(
@@ -46,7 +29,7 @@ export async function signPayload(
   weights: boolean[],
   threshold: number,
   data: any[],
-  action: ACTIONS
+  action: string
 ): Promise<{
   payload: string;
   proof: string;

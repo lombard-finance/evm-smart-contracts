@@ -4,12 +4,13 @@ pragma solidity 0.8.24;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {ERC20PausableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IBascule } from "../bascule/interfaces/IBascule.sol";
+import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {ILBTC} from "./ILBTC.sol";
 import {OutputCodec} from "../libs/OutputCodec.sol";
 import {BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
@@ -22,24 +23,24 @@ import {BridgeDepositPayload, BridgeDepositCodec} from "../libs/BridgeDepositCod
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
  */
+
 contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
+    // bytes4(keccak256("mint(uint256,address,address,uint256,bytes)"))
+    bytes4 constant MINT_ACTION = 0x2adfefeb;
+    // bytes4(keccak256("burn(uint256,address,uint256,address,address,uint256,bytes)"))
+    bytes4 constant BURN_ACTION = 0xca2443c0;
 
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
         /// @custom:oz-renamed-from usedProofs
         mapping(bytes32 => bool) __removed_usedProofs;
-
         string name;
         string symbol;
-
         bool isWithdrawalsEnabled;
         address consortium;
         bool isWBTCEnabled;
-
         IERC20 wbtc;
-
         address treasury;
-
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
         /// @custom:oz-renamed-from depositCommission
@@ -48,18 +49,16 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         mapping(bytes32 => bool) __removed_usedBridgeProofs;
         /// @custom:oz-renamed-from globalNonce
         uint256 __removed_globalNonce;
-
         mapping(bytes32 => bytes32) destinations;
         mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
         mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
-
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
-
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
-
         address pauser;
+        // Increments with each cross chain operation and should be part of the payload
+        uint256 crossChainOperationsNonce;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -78,7 +77,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _disableInitializers();
     }
 
-    function __LBTC_init(string memory name_, string memory symbol_, address consortium_, uint64 burnCommission_) internal onlyInitializing {
+    function __LBTC_init(string memory name_, string memory symbol_, address consortium_, uint64 burnCommission_)
+        internal
+        onlyInitializing
+    {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeBurnCommission(burnCommission_);
@@ -130,27 +132,41 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         $.consortium = newVal;
     }
 
-    function mint(
-        bytes calldata payload,
-        bytes calldata proof
-    ) external nonReentrant {
+    function mint(bytes calldata payload, bytes calldata proof) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 
-        bytes32 message = keccak256(payload);
-        LombardConsortium($.consortium).checkProof(message, proof);
+        // payload validation
+        if (bytes4(payload) != MINT_ACTION) {
+            revert UnexpectedAction(bytes4(payload));
+        }
+        // extra data can be btc txn hash here, irrelevant for verification
+        (uint256 toChainId, address toContract, address toAddress, uint256 amount, /* extra data */ ) =
+            abi.decode(payload[4:], (uint256, address, address, uint256, bytes));
+        if (toChainId != block.chainid) {
+            revert WrongChainId();
+        }
+        if (toContract != address(this)) {
+            revert WrongContract();
+        }
+        if (toAddress == address(0)) {
+            revert ZeroAddress();
+        }
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        // check proof validity
+        LombardConsortium($.consortium).checkProof(keccak256(payload), proof);
 
         bytes32 proofHash = keccak256(proof);
 
-        // parse deposit
-        OutputWithPayload memory output = OutputCodec.decode(payload);
-
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, output.amount);
+        _confirmDeposit($, proofHash, amount);
 
         // Actually mint
-        _mint(output.to, output.amount);
+        _mint(toAddress, amount);
 
-        emit MintProofConsumed(output.to, output.amount, proofHash);
+        emit MintProofConsumed(toAddress, amount, proofHash);
     }
 
     /**
@@ -178,7 +194,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(outType,scriptPubkey, $.dustFeeRate);
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(outType, scriptPubkey, $.dustFeeRate);
 
         if (amountAfterFee < dustLimit) {
             revert AmountBelowDustLimit(dustLimit);
@@ -188,11 +204,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _transfer(fromAddress, getTreasury(), fee);
         _burn(fromAddress, amountAfterFee);
 
-        emit UnstakeRequest(
-            fromAddress,
-            scriptPubkey,
-            amountAfterFee
-        );
+        emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
     }
 
     /**
@@ -245,14 +257,14 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * Because LBTC repsents BTC we use the same decimals.
      *
      */
-    function decimals() public override view virtual returns (uint8) {
+    function decimals() public view virtual override returns (uint8) {
         return 8;
     }
 
     /**
      * @dev Returns the name of the token.
      */
-    function name() public override view virtual returns (string memory) {
+    function name() public view virtual override returns (string memory) {
         return _getLBTCStorage().name;
     }
 
@@ -260,7 +272,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @dev Returns the symbol of the token, usually a shorter version of the
      * name.
      */
-    function symbol() public override view virtual returns (string memory) {
+    function symbol() public view virtual override returns (string memory) {
         return _getLBTCStorage().symbol;
     }
 
@@ -288,9 +300,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
      * @param amount amount of tokens to be bridged.
      */
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
-
+        LBTCStorage storage $ = _getLBTCStorage();
         // relative fee
-        uint16 relativeComs = getDepositRelativeCommission(toChain);
+        uint16 relativeComs = $.depositRelativeCommission[toChain];
         if (amount < relativeComs) {
             revert AmountTooSmallToPayRelativeFee();
         }
@@ -298,59 +310,84 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint256 fee = _calcRelativeFee(amount, relativeComs);
 
         // absolute fee
-        fee += getDepositAbsoluteCommission(toChain);
+        fee += $.depositAbsoluteCommission[toChain];
 
         if (fee >= amount) {
             revert AmountLessThanCommission(fee);
         }
 
         address fromAddress = _msgSender();
-        _transfer(fromAddress, getTreasury(), fee);
+        _transfer(fromAddress, $.treasury, fee);
         uint256 amountWithoutFee = amount - fee;
         _burn(fromAddress, amountWithoutFee);
 
-        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee));
+        // prepare burn payload
+        bytes memory extraData = abi.encode($.crossChainOperationsNonce++);
+        bytes memory payload = abi.encodeWithSelector(
+            BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
+        );
+
+        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee), keccak256(payload));
     }
 
     function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
-        return Math.mulDiv(
-            amount,
-            commission,
-            MAX_COMMISSION,
-            Math.Rounding.Ceil
-        );
+        return Math.mulDiv(amount, commission, MAX_COMMISSION, Math.Rounding.Ceil);
     }
 
-    function withdrawFromBridge(
-        bytes calldata payload,
-        bytes calldata proof
-    ) external nonReentrant {
+    function withdrawFromBridge(bytes calldata payload, bytes calldata proof) external nonReentrant {
         _withdraw(payload, proof);
     }
 
-    function _withdraw(
-        bytes calldata payload,
-        bytes calldata proof
-    ) internal {
+    function _withdraw(bytes calldata payload, bytes calldata proof) internal {
         LBTCStorage storage $ = _getLBTCStorage();
 
-        bytes32 message = keccak256(payload);
-        LombardConsortium($.consortium).checkProof(message, proof);
-        
+        // payload validation
+        if (bytes4(payload) != BURN_ACTION) {
+            revert UnexpectedAction(bytes4(payload));
+        }
+        (
+            uint256 fromChainId,
+            address fromContract,
+            uint256 toChainId,
+            address toContract,
+            address toAddress,
+            uint256 amount,
+            /* extra data */
+        ) = abi.decode(payload[4:], (uint256, address, uint256, address, address, uint256, bytes));
+        if (toChainId != block.chainid) {
+            revert WrongChainId();
+        }
+        if (toContract != address(this)) {
+            revert WrongContract();
+        }
+        if ($.destinations[bytes32(fromChainId)] != bytes32(uint256(uint160(fromContract)))) {
+            revert UnknownOriginContract(fromChainId, fromContract);
+        }
+        if (toAddress == address(0)) {
+            revert ZeroAddress();
+        }
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        // proof validation
+        LombardConsortium($.consortium).checkProof(keccak256(payload), proof);
+
         bytes32 proofHash = keccak256(proof);
 
-        BridgeDepositPayload memory deposit = BridgeDepositCodec.create(payload);
-
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, deposit.amount);
+        _confirmDeposit($, proofHash, amount);
 
         // Actually mint
-        _mint(deposit.toAddress, deposit.amount);
+        _mint(toAddress, amount);
 
-        emit WithdrawFromBridge(deposit.toAddress, deposit.amount, proofHash);
+        emit WithdrawFromBridge(toAddress, amount, proofHash);
     }
 
-    function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission) external onlyOwner {
+    function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission)
+        external
+        onlyOwner
+    {
         if (toContract == bytes32(0)) {
             revert ZeroContractHash();
         }
@@ -403,19 +440,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().treasury;
     }
 
-    function getDepositAbsoluteCommission(bytes32 toChain)
-      public
-      view
-    returns (uint64)
-    {
+    function getDepositAbsoluteCommission(bytes32 toChain) public view returns (uint64) {
         return _getLBTCStorage().depositAbsoluteCommission[toChain];
     }
 
-    function getDepositRelativeCommission(bytes32 toChain)
-      public
-      view
-    returns (uint16)
-    {
+    function getDepositRelativeCommission(bytes32 toChain) public view returns (uint16) {
         return _getLBTCStorage().depositRelativeCommission[toChain];
     }
 
@@ -423,19 +452,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().burnCommission;
     }
 
-    function changeDepositAbsoluteCommission(uint64 newValue, bytes32 chain)
-      external
-      onlyOwner
-    {
+    function changeDepositAbsoluteCommission(uint64 newValue, bytes32 chain) external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
         $.depositAbsoluteCommission[chain] = newValue;
         emit DepositAbsoluteCommissionChanged(newValue, chain);
     }
 
-    function changeDepositRelativeCommission(uint16 newValue, bytes32 chain)
-      external
-      onlyOwner
-    {
+    function changeDepositRelativeCommission(uint16 newValue, bytes32 chain) external onlyOwner {
         // do not allow 100% commission
         if (newValue >= MAX_COMMISSION) {
             revert BadCommission();
@@ -445,10 +468,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit DepositRelativeCommissionChanged(newValue, chain);
     }
 
-    function changeTreasuryAddress(address newValue)
-    external
-    onlyOwner
-    {
+    function changeTreasuryAddress(address newValue) external onlyOwner {
         if (newValue == address(0)) {
             revert ZeroAddress();
         }
@@ -486,7 +506,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().dustFeeRate;
     }
 
-    /** Get Bascule contract. */
+    /**
+     * Get Bascule contract.
+     */
     function Bascule() external view returns (IBascule) {
         return _getLBTCStorage().bascule;
     }
@@ -527,8 +549,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
     }
 
-    /** PAUSE */
-
+    /**
+     * PAUSE
+     */
     modifier onlyPauser() {
         _checkPauser();
         _;
@@ -545,7 +568,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     function unpause() external onlyPauser {
         _unpause();
     }
-
 
     function _checkPauser() internal view {
         if (pauser() != _msgSender()) {

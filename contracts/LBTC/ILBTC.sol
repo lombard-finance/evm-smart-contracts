@@ -20,8 +20,13 @@ interface ILBTC {
     error AmountBelowDustLimit(uint256 dustLimit);
     error InvalidDustFeeRate();
     error UnauthorizedAccount(address account);
-    event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
+    error WrongChainId();
+    error WrongContract();
+    error UnexpectedAction(bytes4 action);
+    error UnknownOriginContract(uint256 fromChainId, address fromContract);
+    error ZeroAmount();
 
+    event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
@@ -29,7 +34,14 @@ interface ILBTC {
     event OutputProcessed(bytes32 indexed transactionId, uint32 indexed index, bytes32 proofHash);
     event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
     event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
-    event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 toContract, bytes32 chainId, uint64 amount);
+    event DepositToBridge(
+        address indexed fromAddress,
+        bytes32 indexed toAddress,
+        bytes32 toContract,
+        bytes32 chainId,
+        uint64 amount,
+        bytes32 extraData
+    );
     event WithdrawFromBridge(address indexed toAddress, uint256 indexed amount, bytes32 indexed proofHash);
     event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
     event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
