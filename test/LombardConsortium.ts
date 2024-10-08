@@ -1,7 +1,7 @@
 import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployContract, signPayload, getSignersWithPrivateKeys, getPayloadForAction } from "./helpers";
+import { deployContract, signPayload, getSignersWithPrivateKeys, getPayloadForAction, CHAIN_ID } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
@@ -47,14 +47,16 @@ describe("LombardConsortium", function () {
   it("should set the new consortium correctly", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [1, 1, 1],
-      2,
       [true, true, false],
       [
         [signer1.address, signer2.address],
         [1, 2],
         3,
       ],
+      CHAIN_ID,
+      await lombard.getAddress(),
+      await lombard.getAddress(),
+      await lombard.getValidatorSetHash(),
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -67,14 +69,16 @@ describe("LombardConsortium", function () {
   it("should fail if new consortium is not increasing", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [1, 1, 1],
-      2,
       [true, true, false],
       [
         [signer2.address, signer1.address],
         [1, 1],
         1,
       ],
+      CHAIN_ID,
+      await lombard.getAddress(),
+      await lombard.getAddress(),
+      await lombard.getValidatorSetHash(),
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -84,14 +88,16 @@ describe("LombardConsortium", function () {
   it("should fail if treshold is zero", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [1, 1, 1],
-      2,
       [true, true, false],
       [
         [signer2.address, signer1.address],
         [1, 1],
         0,
       ],
+      CHAIN_ID,
+      await lombard.getAddress(),
+      await lombard.getAddress(),
+      await lombard.getValidatorSetHash(),
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -101,14 +107,16 @@ describe("LombardConsortium", function () {
   it("should fail if treshold is over the sum of weights", async function () {
     const data = await signPayload(
       [signer3, signer1, signer2],
-      [1, 1, 1],
-      2,
       [true, true, false],
       [
         [signer2.address, signer1.address],
         [1, 1],
         3,
       ],
+      CHAIN_ID,
+      await lombard.getAddress(),
+      await lombard.getAddress(),
+      await lombard.getValidatorSetHash(),
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -119,8 +127,6 @@ describe("LombardConsortium", function () {
     it("should validate correct signatures", async function () {
       const data = await signPayload(
         [signer3, signer1, signer2],
-        [1, 1, 1],
-        2,
         [true, true, false],
         [
           1,
@@ -131,6 +137,10 @@ describe("LombardConsortium", function () {
           10,
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
+        CHAIN_ID,
+        deployer.address,
+        await lombard.getAddress(),
+        await lombard.getValidatorSetHash(),
         "burn"
       );
 
@@ -140,8 +150,6 @@ describe("LombardConsortium", function () {
     it("should revert on invalid signatures", async function () {
       const data = await signPayload(
         [signer3, signer1, signer2],
-        [1, 1, 1],
-        2,
         [true, true, false],
         [
           1,
@@ -152,6 +160,10 @@ describe("LombardConsortium", function () {
           10,
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
+        CHAIN_ID,
+        deployer.address,
+        await lombard.getAddress(),
+        await lombard.getValidatorSetHash(),
         "burn"
       );
 

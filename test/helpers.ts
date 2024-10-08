@@ -1,7 +1,9 @@
 import { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
-import { AddressLike, BaseContract } from "ethers";
+import { AddressLike, BaseContract, BigNumberish } from "ethers";
+
+export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
 const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
 
@@ -26,38 +28,41 @@ export function getPayloadForAction(data: any[], action: string) {
 
 export async function signPayload(
   signers: HardhatEthersSigner[],
-  weights: number[],
-  threshold: number,
   signatures: boolean[],
   data: any[],
+  executionChainId: BigNumberish,
+  caller: AddressLike,
+  verifier: AddressLike,
+  validatorSetHash: string,
   action: string
 ): Promise<{
   payload: string;
+  enhancedPayload: string;
   proof: string;
 }> {
   
-  if (weights.length !== signers.length || weights.length !== signatures.length) {
-    throw new Error("Weights, signers & signatures must have the same length");
+  if (signers.length !== signatures.length) {
+    throw new Error("Signers & signatures must have the same length");
   }
 
-  const packed = getPayloadForAction(data, action);
-  const message = ethers.keccak256(packed);
-  const validators = signers.map(signer => signer.address);
+  const originalMessage = getPayloadForAction(data, action);
+  const finalMessage = ethers.keccak256(encode(
+    ["uint256", "address", "address", "bytes32", "bytes32"],
+    [executionChainId, caller, verifier, validatorSetHash, ethers.keccak256(originalMessage)]
+  ))
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
     
     const signingKey = new ethers.SigningKey(signer.privateKey);
-    const signature = signingKey.sign(message);
+    const signature = signingKey.sign(finalMessage);
     
     return signature.serialized;
   }));
   
   return {
-    payload: packed,
-    proof: encode(
-      ["address[]", "uint256[]", "uint256", "bytes[]"],
-      [validators, weights, threshold, signaturesArray]
-    ),
+    payload: originalMessage,
+    enhancedPayload: finalMessage,
+    proof: encode(["bytes[]"], [signaturesArray]),
   };
 }
 

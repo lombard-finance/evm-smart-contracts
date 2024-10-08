@@ -6,14 +6,12 @@ import {
   deployContract,
   getSignersWithPrivateKeys,
   getPayloadForAction,
-  ERRORS_IFACE
+  CHAIN_ID
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 import { keccak256 } from "ethers";
-
-const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
 describe("LBTC", function () {
   let deployer: HardhatEthersSigner,
@@ -192,8 +190,6 @@ describe("LBTC", function () {
   
           const data = await signPayload(
             [signer1], 
-            [1],
-            1,
             [true],
             [
               CHAIN_ID,
@@ -202,6 +198,10 @@ describe("LBTC", function () {
               args.amount, 
               ethers.hexlify(ethers.randomBytes(42)), // extra data, irrelevant
             ],
+            CHAIN_ID,
+            await lbtc.getAddress(),
+            await consortium.getAddress(),
+            await consortium.getValidatorSetHash(),
             "mint",
           );
   
@@ -230,8 +230,6 @@ describe("LBTC", function () {
     
             const data = await signPayload(
               [signer1], 
-              [1],
-              1,
               [true],
               [ 
                 CHAIN_ID, 
@@ -240,6 +238,10 @@ describe("LBTC", function () {
                 args.amount, 
                 ethers.hexlify(ethers.randomBytes(12)), // extra data, irrelevant
               ],
+              CHAIN_ID,
+              await lbtc.getAddress(),
+              await consortium.getAddress(),
+              await consortium.getValidatorSetHash(),
               "mint",
             );
     
@@ -284,17 +286,20 @@ describe("LBTC", function () {
       const defaultExtraData = ethers.hexlify(ethers.randomBytes(4));
       const defaultArgs = {
         signers: () => [signer1, signer2],
-        weights: [1, 1],
         signatures: [true, true],
         threshold: 2,
         mintRecipient: () => signer1.address,
         signatureRecipient: () => signer1.address,
         mintAmount: 100_000_000n,
         signatureAmount: 100_000_000n,
-        destinationContract: () => lbtc,
-        signatureDestinationContract: () => lbtc,
-        chainId: config.networks.hardhat.chainId,
-        signatureChainId: config.networks.hardhat.chainId,
+        destinationContract: () => lbtc.getAddress(),
+        signatureDestinationContract: () => lbtc.getAddress(),
+        chainId: CHAIN_ID,
+        signatureChainId: CHAIN_ID,
+        executionChain: CHAIN_ID,
+        caller: () => lbtc.getAddress(),
+        verifier: () => newConsortium.getAddress(),
+        hash: () => newConsortium.getValidatorSetHash(),
         extraData: defaultExtraData,
         signatureExtraData: defaultExtraData,
         interface: () => newConsortium,
@@ -317,16 +322,18 @@ describe("LBTC", function () {
         );
         const {proof, payload} = await signPayload(
           defaultArgs.signers(), 
-          defaultArgs.weights,
-          defaultArgs.threshold,
           defaultArgs.signatures,
           [
             defaultArgs.signatureChainId,
-            await defaultArgs.signatureDestinationContract().getAddress(),
+            await defaultArgs.signatureDestinationContract(),
             defaultArgs.signatureRecipient(), 
             defaultArgs.signatureAmount, 
             defaultArgs.signatureExtraData,
           ],
+          defaultArgs.executionChain,
+          await defaultArgs.caller(),
+          await defaultArgs.verifier(),
+          await defaultArgs.hash(),
           "mint",
         );
         defaultProof = proof;
@@ -341,13 +348,6 @@ describe("LBTC", function () {
           name: "not enough signatures",
           signatures: [true, false],
           customError: "NotEnoughSignatures",
-        },
-        {
-          ...defaultArgs,
-          name: "wrong weights",
-          weights: [1, 10],
-          customError: "InvalidEpochForValidatorSet",
-          params: () => [1]
         },
         {
           ...defaultArgs,
@@ -406,30 +406,38 @@ describe("LBTC", function () {
           ...defaultArgs,
           name: "unknown validator set",
           signers: () => [signer1, deployer],
-          customError: "InvalidEpochForValidatorSet",
-          params: () => [0]
+          customError: "SignatureVerificationFailed",
+        },
+        {
+          ...defaultArgs,
+          name: "wrong amount of signatures",
+          signers: () => [signer1],
+          signatures: [true],
+          customError: "LengthMismatch",
         },
       ];
       args.forEach(function (args) {
         it(`Reverts when ${args.name}`, async function () {
           const signature = (await signPayload(
             args.signers(), 
-            args.weights,
-            args.threshold,
             args.signatures,
             [
               args.signatureChainId, 
-              await args.signatureDestinationContract().getAddress(), 
+              await args.signatureDestinationContract(), 
               args.signatureRecipient(), 
               args.signatureAmount, 
               args.signatureExtraData
             ],
+            args.executionChain,
+            await args.caller(),
+            await args.verifier(),
+            await args.hash(),
             "mint",
           )).proof;
           const payload = getPayloadForAction(
             [
               args.chainId, 
-              await args.destinationContract().getAddress(), 
+              await args.destinationContract(), 
               args.mintRecipient(), 
               args.mintAmount, 
               args.extraData
@@ -453,52 +461,14 @@ describe("LBTC", function () {
         ).to.revertedWithCustomError(lbtc, "EnforcedPause");
       });
   
-      describe("Wrong proof", function () {
-        it("Reverts when proof already used", async function () {
-          // use the proof
-          await lbtc.mint(defaultPayload, defaultProof);
-          // try to use the same proof again
-          await expect(
-            lbtc.mint(defaultPayload, defaultProof)
-          ).to.revertedWithCustomError(lbtc, "ProofAlreadyUsed");
-        });
-    
-        it("Reverts when signature, weights & signers lenght mismatch", async function () {
-          // Decode the signature to extract signers and signatures
-          const [addrs,,,signatures] = ethers.AbiCoder.defaultAbiCoder().decode(
-            ['address[]', 'uint256[]', 'uint256', 'bytes[]'],
-            defaultProof
-          );
-    
-          // Re-encode the proof with mismatched lengths
-          let mismatchedProof = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['address[]', 'uint256[]', 'uint256', 'bytes[]'],
-            [[addrs[0]], defaultArgs.weights.map(Number), defaultArgs.threshold, signatures]
-          );
-    
-          await expect(
-            lbtc.mint(defaultPayload, mismatchedProof)
-          ).to.revertedWithCustomError(newConsortium, "LengthMismatch");
-  
-          mismatchedProof = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['address[]', 'uint256[]', 'uint256', 'bytes[]'],
-            [addrs, defaultArgs.weights.map(Number), defaultArgs.threshold, [signatures[0]]]
-          );
-  
-          await expect(
-            lbtc.mint(defaultPayload, mismatchedProof)
-          ).to.revertedWithCustomError(newConsortium, "LengthMismatch");
-
-          mismatchedProof = ethers.AbiCoder.defaultAbiCoder().encode(
-            ['address[]', 'uint256[]', 'uint256', 'bytes[]'],
-            [addrs, [Number(defaultArgs.weights[0])], defaultArgs.threshold, signatures]
-          );
-  
-          await expect(
-            lbtc.mint(defaultPayload, mismatchedProof)
-          ).to.revertedWithCustomError(newConsortium, "LengthMismatch");
-        });
-      })
+      it("Reverts when proof already used", async function () {
+        // use the proof
+        await lbtc.mint(defaultPayload, defaultProof);
+        // try to use the same proof again
+        await expect(
+          lbtc.mint(defaultPayload, defaultProof)
+        ).to.revertedWithCustomError(lbtc, "ProofAlreadyUsed");
+      });
     });
   });
   
@@ -746,8 +716,6 @@ describe("LBTC", function () {
 
       const data1 = await signPayload(
         [signer1],
-        [1],
-        1,
         [true],
         [
           CHAIN_ID,
@@ -758,6 +726,10 @@ describe("LBTC", function () {
           amountWithoutFee,
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
+        CHAIN_ID,
+        await lbtc2.getAddress(),
+        await consortium.getAddress(),
+        await consortium.getValidatorSetHash(),
         "burn"
       );
 
@@ -811,8 +783,6 @@ describe("LBTC", function () {
 
       const data2 = await signPayload(
         [signer1],
-        [1],
-        1,
         [true],
         [
           CHAIN_ID,
@@ -823,6 +793,10 @@ describe("LBTC", function () {
           amountWithoutFee,
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
+        CHAIN_ID,
+        await lbtc.getAddress(),
+        await consortium.getAddress(),
+        await consortium.getValidatorSetHash(),
         "burn"
       );
 
@@ -845,8 +819,6 @@ describe("LBTC", function () {
 
       const data = await signPayload(
         [signer1],
-        [1],
-        1,
         [true],
         [
           CHAIN_ID,
@@ -857,6 +829,10 @@ describe("LBTC", function () {
           amount,
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
         ],
+        CHAIN_ID,
+        await lbtc.getAddress(),
+        await consortium.getAddress(),
+        await consortium.getValidatorSetHash(),
         "burn"
       );
 
@@ -879,33 +855,6 @@ describe("LBTC", function () {
           amount,
           keccak256(data.proof)
         );
-    });
-
-    it("reverts: Non-consortium signing", async () => {
-      let receiver = signer3.address;
-      let amount = 1n;
-
-      const data = await signPayload(
-        [signer2],
-        [1],
-        1,
-        [true],
-        [
-          CHAIN_ID,
-          await lbtc2.getAddress(),
-          CHAIN_ID,
-          await lbtc.getAddress(),
-          receiver,
-          amount,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
-        "burn"
-      );
-
-      await expect(
-        lbtc.connect(signer2).withdrawFromBridge(data.payload, data.proof)
-      ).to.revertedWithCustomError(consortium, "InvalidEpochForValidatorSet")
-        .withArgs(1);
     });
   });
 });

@@ -64,6 +64,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     struct ValidatorSet {
         bytes32 hash;
         uint256 threshold;
+        address[] validators;
+        uint256[] weights;
     }
     /// @title ConsortiumStorage
     /// @dev Struct to hold the consortium's state
@@ -136,8 +138,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @notice Validates the provided signature against the given hash
     /// @param _message the hash of the data to be signed
     /// @param _proof nonce, expiry and signatures to validate
-    function checkProof(bytes32 _message, bytes calldata _proof) external {
-        _checkProof(_message, _proof);
+    function checkProof(bytes32 _message, bytes calldata _proof) public {
+        _checkProof(enhanceMessage(_message), _proof);
     }
 
     /// @notice Returns the current threshold for valid signatures
@@ -153,9 +155,29 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         return _getConsortiumStorage().epoch;
     }
 
+    /// @notice Returns current validator set hash
+    function getValidatorSetHash() external view returns (bytes32) {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        return $.validatorSet[$.epoch].hash;
+    }
+
+    /// @notice returns an enhanced version of the message
+    /// @param _message the payload to enhance
+    function enhanceMessage(bytes32 _message) public view returns (bytes32) {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        bytes32 enhancedMessage = keccak256(abi.encode(
+            block.chainid, 
+            msg.sender, 
+            address(this), 
+            $.validatorSet[$.epoch].hash,
+            _message
+        ));
+        return enhancedMessage;
+    }
+
     function transferValidatorsOwnership(bytes calldata payload, bytes calldata proof) external onlyOwner {
         // check proof
-        _checkProof(keccak256(payload), proof);
+        this.checkProof(keccak256(payload), proof);
 
         // payload validation
         if (bytes4(payload) != SET_VALIDATORS_ACTION) {
@@ -218,7 +240,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             unchecked { ++i; }
         }
 
-        $.validatorSet[epoch] = ValidatorSet(validatorSetHash, _threshold);
+        $.validatorSet[epoch] = ValidatorSet(validatorSetHash, _threshold, _validators, _weights);
         $.validatorSetEpoch[validatorSetHash] = epoch;
         emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
     }
@@ -229,25 +251,21 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
     function _checkProof(bytes32 _message, bytes memory _proof) internal {
         // decode proof
-        (address[] memory validators, uint256[] memory weights, uint256 threshold, bytes[] memory signatures) = abi.decode(_proof, (address[], uint256[], uint256, bytes[]));
-        
-        uint256 validatorsLength = validators.length;
-        if(validatorsLength == 0) 
-            revert EmptyValidatorSet();
-        if(signatures.length != validatorsLength || weights.length != validatorsLength) 
-            revert LengthMismatch();
+        bytes[] memory signatures = abi.decode(_proof, (bytes[]));
         
         ConsortiumStorage storage $ = _getConsortiumStorage();
         uint256 epoch = $.epoch;
-        bytes32 validatorSetHash = keccak256(abi.encode(validators, weights, threshold, epoch));
-        if($.validatorSetEpoch[validatorSetHash] != epoch) 
-            revert InvalidEpochForValidatorSet(epoch);
+        address[] storage validators = $.validatorSet[epoch].validators;
+        uint256 length = validators.length;
+        if(signatures.length != length) 
+            revert LengthMismatch();
 
         bytes32 proofHash = keccak256(_proof);
         if($.usedProofs[proofHash]) revert ProofAlreadyUsed();
 
         uint256 count = 0;
-        for(uint256 i; i < validators.length;) {
+        uint256[] storage weights = $.validatorSet[epoch].weights;
+        for(uint256 i; i < length;) {
             if(signatures[i].length != 0) {
                 if(!EIP1271SignatureUtils.checkSignature(validators[i], _message, signatures[i])) 
                     revert SignatureVerificationFailed();
@@ -255,7 +273,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             }
             unchecked { ++i; }
         }
-        if(count < threshold) revert NotEnoughSignatures();
+        if(count < $.validatorSet[epoch].threshold) revert NotEnoughSignatures();
 
         $.usedProofs[proofHash] = true;
     }
