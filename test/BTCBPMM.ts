@@ -29,6 +29,8 @@ describe("BTCBPMM", function () {
     [deployer, withdrawalAddress, signer1, signer2, timeLock, pauser] = await ethers.getSigners();
 
     btcb = await deploy<WBTCMock>("WBTCMock", "WBTCMock");
+    // use btcb decimals of 8
+    await btcb.setDecimals(18);
     lbtc = await deploy<LBTC>("LBTC", "LBTC", [
         ethers.hexlify(ethers.randomBytes(20)), // not relevant for BTCB tests
         1000                                    // not relevant for BTCB tests 
@@ -41,9 +43,6 @@ describe("BTCBPMM", function () {
         await withdrawalAddress.getAddress(),
         1000 // 10%
     ]);
-
-    // use btcb decimals of 8
-    await btcb.setDecimals(18);
 
     snapshot = await takeSnapshot();
   });
