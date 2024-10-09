@@ -139,7 +139,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _message the hash of the data to be signed
     /// @param _proof nonce, expiry and signatures to validate
     function checkProof(bytes32 _message, bytes calldata _proof) public {
-        _checkProof(enhanceMessage(_message), _proof);
+        _checkProof(enhanceMessage(_message, _msgSender()), _proof);
     }
 
     /// @notice Returns the current threshold for valid signatures
@@ -163,11 +163,12 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
     /// @notice returns an enhanced version of the message
     /// @param _message the payload to enhance
-    function enhanceMessage(bytes32 _message) public view returns (bytes32) {
+    /// @param _sender address of the account that will trigger the verification
+    function enhanceMessage(bytes32 _message, address _sender) public view returns (bytes32) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         bytes32 enhancedMessage = keccak256(abi.encode(
             block.chainid, 
-            msg.sender, 
+            _sender, 
             address(this), 
             $.validatorSet[$.epoch].hash,
             _message
