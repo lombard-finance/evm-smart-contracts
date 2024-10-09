@@ -36,7 +36,7 @@ describe("LombardConsortium", function () {
     });
 
     it("should set the correct threshold", async function () {
-      expect(await lombard.getThreshold(1)).to.equal(2);
+      expect(await lombard.getThreshold()).to.equal(2);
     });
 
     it("should set the correct epoch", async function () {
@@ -56,14 +56,14 @@ describe("LombardConsortium", function () {
       CHAIN_ID,
       await lombard.getAddress(),
       await lombard.getAddress(),
-      await lombard.getValidatorSetHash(),
+      1,
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
     .to.emit(lombard, "ValidatorSetUpdated")
     .withArgs(2, [signer1.address, signer2.address], [1, 2], 3);
 
-    expect(await lombard.getThreshold(2)).to.equal(3);
+    expect(await lombard.getThreshold()).to.equal(3);
   });
 
   it("should fail if new consortium is not increasing", async function () {
@@ -78,7 +78,7 @@ describe("LombardConsortium", function () {
       CHAIN_ID,
       await lombard.getAddress(),
       await lombard.getAddress(),
-      await lombard.getValidatorSetHash(),
+      1,
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -97,7 +97,7 @@ describe("LombardConsortium", function () {
       CHAIN_ID,
       await lombard.getAddress(),
       await lombard.getAddress(),
-      await lombard.getValidatorSetHash(),
+      1,
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -116,7 +116,7 @@ describe("LombardConsortium", function () {
       CHAIN_ID,
       await lombard.getAddress(),
       await lombard.getAddress(),
-      await lombard.getValidatorSetHash(),
+      1,
       "setValidators"
     );
     await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
@@ -140,7 +140,7 @@ describe("LombardConsortium", function () {
         CHAIN_ID,
         deployer.address,
         await lombard.getAddress(),
-        await lombard.getValidatorSetHash(),
+        1,
         "burn"
       );
 
@@ -163,7 +163,7 @@ describe("LombardConsortium", function () {
         CHAIN_ID,
         deployer.address,
         await lombard.getAddress(),
-        await lombard.getValidatorSetHash(),
+        1,
         "burn"
       );
 

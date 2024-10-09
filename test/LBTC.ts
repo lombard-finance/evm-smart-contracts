@@ -201,7 +201,7 @@ describe("LBTC", function () {
             CHAIN_ID,
             await lbtc.getAddress(),
             await consortium.getAddress(),
-            await consortium.getValidatorSetHash(),
+            1,
             "mint",
           );
   
@@ -241,7 +241,7 @@ describe("LBTC", function () {
               CHAIN_ID,
               await lbtc.getAddress(),
               await consortium.getAddress(),
-              await consortium.getValidatorSetHash(),
+              1,
               "mint",
             );
     
@@ -299,7 +299,7 @@ describe("LBTC", function () {
         executionChain: CHAIN_ID,
         caller: () => lbtc.getAddress(),
         verifier: () => newConsortium.getAddress(),
-        hash: () => newConsortium.getValidatorSetHash(),
+        epoch: 1,
         extraData: defaultExtraData,
         signatureExtraData: defaultExtraData,
         interface: () => newConsortium,
@@ -333,7 +333,7 @@ describe("LBTC", function () {
           defaultArgs.executionChain,
           await defaultArgs.caller(),
           await defaultArgs.verifier(),
-          await defaultArgs.hash(),
+          await defaultArgs.epoch,
           "mint",
         );
         defaultProof = proof;
@@ -431,7 +431,7 @@ describe("LBTC", function () {
             args.executionChain,
             await args.caller(),
             await args.verifier(),
-            await args.hash(),
+            await args.epoch,
             "mint",
           )).proof;
           const payload = getPayloadForAction(
@@ -729,7 +729,7 @@ describe("LBTC", function () {
         CHAIN_ID,
         await lbtc2.getAddress(),
         await consortium.getAddress(),
-        await consortium.getValidatorSetHash(),
+        1,
         "burn"
       );
 
@@ -796,7 +796,7 @@ describe("LBTC", function () {
         CHAIN_ID,
         await lbtc.getAddress(),
         await consortium.getAddress(),
-        await consortium.getValidatorSetHash(),
+        1,
         "burn"
       );
 
@@ -832,7 +832,7 @@ describe("LBTC", function () {
         CHAIN_ID,
         await lbtc.getAddress(),
         await consortium.getAddress(),
-        await consortium.getValidatorSetHash(),
+        1,
         "burn"
       );
 

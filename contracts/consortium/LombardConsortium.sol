@@ -61,12 +61,6 @@ event ValidatorSetUpdated(uint256 epoch, address[] validators, uint256[] weights
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
 contract LombardConsortium is Ownable2StepUpgradeable {    
-    struct ValidatorSet {
-        bytes32 hash;
-        uint256 threshold;
-        address[] validators;
-        uint256[] weights;
-    }
     /// @title ConsortiumStorage
     /// @dev Struct to hold the consortium's state
     /// @custom:storage-location erc7201:lombardfinance.storage.Consortium
@@ -74,10 +68,12 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         /// @notice Current epoch
         uint256 epoch;
 
-        /// @notice Mapping of epoch to validator set information
-        mapping(uint256 => ValidatorSet) validatorSet;
-        /// @notice Mapping of validator set hash to epoch
-        mapping(bytes32 => uint256) validatorSetEpoch;
+        /// @notice current threshold for signatures to be accepted
+        uint256 threshold;
+        /// @notice addresses of the signers
+        address[] validators;
+        /// @notice weight of each signer
+        uint256[] weights;
 
         /// @notice Mapping of proofs to their use status
         /// @dev True if the proof is used, false otherwise
@@ -114,10 +110,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @dev TODO: Review if needed
     uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
 
-    /// @dev Number of epochs after which a validator set is considered expired
-    /// @dev TODO: Check if needed and which amount to set
-    uint256 private constant EPOCH_EXPIRY = 16;
-
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -143,22 +135,13 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     }
 
     /// @notice Returns the current threshold for valid signatures
-    /// @param _epoch the epoch to get the threshold for
-    /// @return The threshold number of signatures required
-    function getThreshold(uint256 _epoch) external view returns (uint256) {
-        return _getConsortiumStorage().validatorSet[_epoch].threshold;
+    function getThreshold() external view returns (uint256) {
+        return _getConsortiumStorage().threshold;
     }
 
     /// @notice Returns the current epoch
-    /// @return The current epoch
     function curEpoch() external view returns (uint256) {
         return _getConsortiumStorage().epoch;
-    }
-
-    /// @notice Returns current validator set hash
-    function getValidatorSetHash() external view returns (bytes32) {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-        return $.validatorSet[$.epoch].hash;
     }
 
     /// @notice returns an enhanced version of the message
@@ -170,7 +153,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             block.chainid, 
             _sender, 
             address(this), 
-            $.validatorSet[$.epoch].hash,
+            $.epoch,
             _message
         ));
         return enhancedMessage;
@@ -228,11 +211,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
         ConsortiumStorage storage $ = _getConsortiumStorage();
         
-        uint256 epoch = ++$.epoch;
-        bytes32 validatorSetHash = keccak256(abi.encode(_validators, _weights, _threshold, epoch));
-        if($.validatorSetEpoch[validatorSetHash] != 0) 
-            revert ValidatorSetClash(); // Should never happen as epoch is included in the hash
-
         address curValidator = _validators[0];
         if(curValidator == address(0)) revert ZeroValidator();
         for(uint256 i = 1; i < _validators.length;) {
@@ -241,9 +219,10 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             unchecked { ++i; }
         }
 
-        $.validatorSet[epoch] = ValidatorSet(validatorSetHash, _threshold, _validators, _weights);
-        $.validatorSetEpoch[validatorSetHash] = epoch;
-        emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
+        $.validators = _validators;
+        $.weights = _weights;
+        $.threshold = _threshold;
+        emit ValidatorSetUpdated(++$.epoch, _validators, _weights, _threshold);
     }
 
     /// @dev Checks that `_proof` is correct
@@ -255,8 +234,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         bytes[] memory signatures = abi.decode(_proof, (bytes[]));
         
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        uint256 epoch = $.epoch;
-        address[] storage validators = $.validatorSet[epoch].validators;
+        address[] storage validators = $.validators;
         uint256 length = validators.length;
         if(signatures.length != length) 
             revert LengthMismatch();
@@ -265,7 +243,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         if($.usedProofs[proofHash]) revert ProofAlreadyUsed();
 
         uint256 count = 0;
-        uint256[] storage weights = $.validatorSet[epoch].weights;
+        uint256[] storage weights = $.weights;
         for(uint256 i; i < length;) {
             if(signatures[i].length != 0) {
                 if(!EIP1271SignatureUtils.checkSignature(validators[i], _message, signatures[i])) 
@@ -274,7 +252,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             }
             unchecked { ++i; }
         }
-        if(count < $.validatorSet[epoch].threshold) revert NotEnoughSignatures();
+        if(count < $.threshold) revert NotEnoughSignatures();
 
         $.usedProofs[proofHash] = true;
     }

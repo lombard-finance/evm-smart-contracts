@@ -33,7 +33,7 @@ export async function signPayload(
   executionChainId: BigNumberish,
   caller: AddressLike,
   verifier: AddressLike,
-  validatorSetHash: string,
+  epoch: number,
   action: string
 ): Promise<{
   payload: string;
@@ -47,8 +47,8 @@ export async function signPayload(
 
   const originalMessage = getPayloadForAction(data, action);
   const finalMessage = ethers.keccak256(encode(
-    ["uint256", "address", "address", "bytes32", "bytes32"],
-    [executionChainId, caller, verifier, validatorSetHash, ethers.keccak256(originalMessage)]
+    ["uint256", "address", "address", "uint256", "bytes32"],
+    [executionChainId, caller, verifier, epoch, ethers.keccak256(originalMessage)]
   ))
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
