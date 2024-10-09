@@ -19,7 +19,9 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     struct PMMStorage {
         IERC20Metadata btcb;
-        ILBTC lbtc;   
+        ILBTC lbtc;
+        uint256 multiplier;
+        uint256 divider;
 
         uint256 stakeLimit;
         uint256 totalStake;
@@ -55,6 +57,16 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         $.lbtc = ILBTC(_lbtc);
         $.btcb = IERC20Metadata(_btcb);
         $.relativeFee = _relativeFee;
+
+        uint256 lbtcDecimals = $.lbtc.decimals();
+        uint256 btcbDecimals = $.btcb.decimals();
+        if(lbtcDecimals <= btcbDecimals) {
+            $.divider = 10 ** (btcbDecimals - lbtcDecimals);
+            $.multiplier = 1;
+        } else {
+            $.multiplier = 10 ** (lbtcDecimals - btcbDecimals);
+            $.divider = 1;
+        }
     }
 
     function initialize(address _lbtc, address _btcb, address admin,uint256 _stakeLimit, address withdrawAddress, uint16 _relativeFee) external initializer {
@@ -69,10 +81,10 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         ILBTC lbtc = $.lbtc;
         IERC20Metadata btcb = $.btcb;
 
-        uint256 decimalsOut = (10 ** lbtc.decimals());
-        uint256 decimalsIn = (10 ** btcb.decimals());
-        uint256 amountLBTC = (amount * decimalsOut / decimalsIn);
-        uint256 amountBTCB = (amountLBTC * decimalsIn / decimalsOut);
+        uint256 multiplier = $.multiplier;
+        uint256 divider = $.divider;
+        uint256 amountLBTC = (amount * multiplier / divider);
+        uint256 amountBTCB = (amountLBTC * divider / multiplier);
         if(amountLBTC == 0) revert ZeroAmount();
 
         if ($.totalStake + amountLBTC > $.stakeLimit) revert StakeLimitExceeded();
