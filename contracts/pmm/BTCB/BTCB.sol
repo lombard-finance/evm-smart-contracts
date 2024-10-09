@@ -19,14 +19,16 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     struct PMMStorage {
         IERC20Metadata btcb;
-        ILBTC lbtc;   
+        ILBTC lbtc;
+        uint256 multiplier;
+        uint256 divider;
 
         uint256 stakeLimit;
         uint256 totalStake;
         address withdrawAddress;
         uint16 relativeFee;
     }
-    
+
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BTCBPMM")) - 1)) & ~bytes32(uint256(0xff))
@@ -51,10 +53,20 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         PMMStorage storage $ = _getPMMStorage();
         $.stakeLimit = _stakeLimit;
         $.withdrawAddress = withdrawAddress;
-        
+
         $.lbtc = ILBTC(_lbtc);
         $.btcb = IERC20Metadata(_btcb);
         $.relativeFee = _relativeFee;
+
+        uint256 lbtcDecimals = $.lbtc.decimals();
+        uint256 btcbDecimals = $.btcb.decimals();
+        if(lbtcDecimals <= btcbDecimals) {
+            $.divider = 10 ** (btcbDecimals - lbtcDecimals);
+            $.multiplier = 1;
+        } else {
+            $.multiplier = 10 ** (lbtcDecimals - btcbDecimals);
+            $.divider = 1;
+        }
     }
 
     function initialize(address _lbtc, address _btcb, address admin,uint256 _stakeLimit, address withdrawAddress, uint16 _relativeFee) external initializer {
@@ -69,8 +81,10 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         ILBTC lbtc = $.lbtc;
         IERC20Metadata btcb = $.btcb;
 
-        uint256 decimalsDifference = 10 ** (btcb.decimals() - lbtc.decimals());
-        uint256 amountLBTC = (amount / decimalsDifference); 
+        uint256 multiplier = $.multiplier;
+        uint256 divider = $.divider;
+        uint256 amountLBTC = (amount * multiplier / divider);
+        uint256 amountBTCB = (amountLBTC * divider / multiplier);
         if(amountLBTC == 0) revert ZeroAmount();
 
         if ($.totalStake + amountLBTC > $.stakeLimit) revert StakeLimitExceeded();
@@ -79,19 +93,19 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         uint256 fee = FeeUtils.getRelativeFee(amountLBTC, $.relativeFee);
 
         $.totalStake += amountLBTC;
-        btcb.safeTransferFrom(_msgSender(), address(this), amountLBTC * decimalsDifference);
+        btcb.safeTransferFrom(_msgSender(), address(this), amountBTCB);
         lbtc.mint(_msgSender(), amountLBTC - fee);
         lbtc.mint(address(this), fee);
     }
 
     function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         PMMStorage storage $ = _getPMMStorage();
-        $.btcb.transfer($.withdrawAddress, amount); 
+        $.btcb.transfer($.withdrawAddress, amount);
     }
 
     function withdrawLBTC(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         PMMStorage storage $ = _getPMMStorage();
-        $.lbtc.transfer($.withdrawAddress, amount); 
+        $.lbtc.transfer($.withdrawAddress, amount);
     }
 
     function setWithdrawalAddress(address newWithdrawAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
