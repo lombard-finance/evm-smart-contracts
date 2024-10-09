@@ -69,8 +69,10 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         ILBTC lbtc = $.lbtc;
         IERC20Metadata btcb = $.btcb;
 
-        uint256 decimalsDifference = 10 ** (btcb.decimals() - lbtc.decimals());
-        uint256 amountLBTC = (amount / decimalsDifference); 
+        uint256 decimalsOut = (10 ** lbtc.decimals());
+        uint256 decimalsIn = (10 ** btcb.decimals());
+        uint256 amountLBTC = (amount * decimalsOut / decimalsIn);
+        uint256 amountBTCB = (amountLBTC * decimalsIn / decimalsOut);
         if(amountLBTC == 0) revert ZeroAmount();
 
         if ($.totalStake + amountLBTC > $.stakeLimit) revert StakeLimitExceeded();
@@ -79,7 +81,7 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         uint256 fee = FeeUtils.getRelativeFee(amountLBTC, $.relativeFee);
 
         $.totalStake += amountLBTC;
-        btcb.safeTransferFrom(_msgSender(), address(this), amountLBTC * decimalsDifference);
+        btcb.safeTransferFrom(_msgSender(), address(this), amountBTCB);
         lbtc.mint(_msgSender(), amountLBTC - fee);
         lbtc.mint(address(this), fee);
     }
