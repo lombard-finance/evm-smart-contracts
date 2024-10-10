@@ -12,9 +12,7 @@ interface ILBTC {
     error BadDestination();
     error KnownDestination();
     error UnknownDestination();
-    error BadCommission();
     error ScriptPubkeyUnsupported();
-    error AmountTooSmallToPayRelativeFee();
     error AmountLessThanCommission(uint256 fee);
     error AmountBelowDustLimit(uint256 dustLimit);
     error InvalidDustFeeRate();
