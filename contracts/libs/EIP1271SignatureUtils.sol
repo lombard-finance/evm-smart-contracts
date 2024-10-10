@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/interfaces/IERC1271.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @title Library of utilities for making EIP1271-compliant signature checks.

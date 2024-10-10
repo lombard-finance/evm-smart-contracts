@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.24;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
-import "./interfaces/IBascule.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {AccessControlDefaultAdminRules} from "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
+import {IBascule} from "./interfaces/IBascule.sol";
 
 /// Bascule contract for preventing bridge hacks from hitting the chain.
 /// This is the on-chain component of an off-chain/on-chain system.

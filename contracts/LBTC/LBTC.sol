@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -11,10 +9,10 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import { BitcoinUtils, OutputType } from "../libs/BitcoinUtils.sol";
 import { IBascule } from "../bascule/interfaces/IBascule.sol";
 import { FeeUtils } from "../libs/FeeUtils.sol";
-import "./ILBTC.sol";
-import "../libs/OutputCodec.sol";
-import "../libs/BridgeDepositCodec.sol";
-import "../libs/EIP1271SignatureUtils.sol";
+import {ILBTC} from "./ILBTC.sol";
+import {OutputCodec, OutputWithPayload} from "../libs/OutputCodec.sol";
+import {BridgeDepositCodec, BridgeDepositPayload} from "../libs/BridgeDepositCodec.sol";
+import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -83,11 +81,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _changeBurnCommission(burnCommission_);
     }
 
-    function initialize(address consortium_, uint64 burnCommission_, address owner) external initializer {
+    function initialize(address consortium_, uint64 burnCommission_) external initializer {
         __ERC20_init("LBTC", "LBTC");
         __ERC20Pausable_init();
 
-        __Ownable_init(owner);
+        __Ownable_init(_msgSender());
         __Ownable2Step_init();
 
         __ReentrancyGuard_init();
