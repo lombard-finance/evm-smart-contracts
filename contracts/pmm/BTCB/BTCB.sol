@@ -8,14 +8,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {FeeUtils} from "../../../contracts/libs/FeeUtils.sol";
 
-interface ILBTC {
+interface ILBTC is IERC20Metadata {
     function mint(address to, uint256 amount) external;
-    function transfer(address to, uint256 amount) external;
-    function decimals() external view returns (uint256);
 }
 
 contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20Metadata;
+    using SafeERC20 for ILBTC;
 
     struct PMMStorage {
         IERC20Metadata btcb;
@@ -100,12 +99,12 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     function withdrawBTCB(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         PMMStorage storage $ = _getPMMStorage();
-        $.btcb.transfer($.withdrawAddress, amount); 
+        $.btcb.safeTransfer($.withdrawAddress, amount); 
     }
 
     function withdrawLBTC(uint256 amount) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         PMMStorage storage $ = _getPMMStorage();
-        $.lbtc.transfer($.withdrawAddress, amount); 
+        $.lbtc.safeTransfer($.withdrawAddress, amount); 
     }
 
     function setWithdrawalAddress(address newWithdrawAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
