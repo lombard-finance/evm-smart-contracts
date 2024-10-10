@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-
-
 struct OutputWithPayload {
     uint256 chainId;
     address to;
@@ -10,7 +8,6 @@ struct OutputWithPayload {
     bytes32 txId;
     uint32 index;
 }
-
 
 library OutputCodec {
     error WrongDataLength();
