@@ -137,8 +137,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     }
 
     function mint(
-        bytes calldata data,
-        bytes calldata proofSignature
+        bytes calldata payload,
+        bytes calldata proof
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 

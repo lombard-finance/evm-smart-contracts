@@ -6,7 +6,7 @@ import {
   deployContract,
   getSignersWithPrivateKeys,
   getPayloadForAction,
-  CHAIN_ID
+  CHAIN_ID,
   generatePermitSignature
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
@@ -42,8 +42,8 @@ describe("LBTC", function () {
     ] = await getSignersWithPrivateKeys();
 
     consortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
-    lbtc = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100]);
-    lbtc2 = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100]);
+    lbtc = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
+    lbtc2 = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
     bascule = await deployContract<Bascule>("Bascule", [admin.address, pauser.address, reporter.address, await lbtc.getAddress(), 100], false);
 
     await lbtc.changeTreasuryAddress(treasury.address);
@@ -231,7 +231,7 @@ describe("LBTC", function () {
             "mint",
           );
   
-          await expect(lbtc.connect(args.msgSender()).mint(data.payload, data.proof))
+          await expect(lbtc.connect(args.msgSender())["mint(bytes,bytes)"](data.payload, data.proof))
             .to.emit(lbtc, "Transfer")
             .withArgs(ethers.ZeroAddress, args.recipient(), args.amount);
   
@@ -275,7 +275,7 @@ describe("LBTC", function () {
             await expect(
               lbtc
                 .connect(args.msgSender())
-                .mint(data.payload, data.proof)
+                ["mint(bytes,bytes)"](data.payload, data.proof)
             ).to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation");
     
             // report deposit
@@ -292,7 +292,7 @@ describe("LBTC", function () {
             await expect(
               lbtc
                 .connect(args.msgSender())
-                .mint(data.payload, data.proof)
+                ["mint(bytes,bytes)"](data.payload, data.proof)
             )
               .to.emit(lbtc, "Transfer")
               .withArgs(ethers.ZeroAddress, args.recipient(), args.amount);
@@ -465,7 +465,7 @@ describe("LBTC", function () {
           );
   
           await expect(
-            lbtc.mint(payload, signature)
+            lbtc["mint(bytes,bytes)"](payload, signature)
           ).to.revertedWithCustomError(args.interface(), args.customError);
         });
       });
@@ -476,16 +476,16 @@ describe("LBTC", function () {
         
         // try to use the same proof again
         await expect(
-          lbtc.mint(defaultPayload, defaultProof)
+          lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
         ).to.revertedWithCustomError(lbtc, "EnforcedPause");
       });
   
       it("Reverts when payload is already used", async function () {
         // use the payload
-        await lbtc.mint(defaultPayload, defaultProof);
+        await lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof);
         // try to use the same payload again
         await expect(
-          lbtc.mint(defaultPayload, defaultProof)
+          lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
         ).to.revertedWithCustomError(consortium, "PayloadAlreadyUsed");
       });
     });
@@ -726,10 +726,10 @@ describe("LBTC", function () {
       });
 
       const params: [() => Signer, () => string, bigint, () => number, string][] = [
-        [() => signer1, () => signer3.address, 10_000n, () => timestamp + 100, "is sensitive to wrong spender"],
-        [() => signer3, () => signer2.address, 10_000n, () => timestamp + 100, "is sensitive to wrong signer"],
-        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 1, "is sensitive to wrong deadline"],
-        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, "is sensitive to wrong value"],
+        [() => signer1.address, () => signer3.address, 10_000n, () => timestamp + 100, "is sensitive to wrong spender"],
+        [() => signer3.address, () => signer2.address, 10_000n, () => timestamp + 100, "is sensitive to wrong signer"],
+        [() => signer1.address, () => signer2.address, 10_000n, () => timestamp + 200,   "is sensitive to wrong deadline"],
+        [() => signer1.address, () => signer2.address, 1n,      () => timestamp + 100, "is sensitive to wrong value"],
       ];
  
       params.forEach(async function([signer, spender, value, deadline, label]) {
