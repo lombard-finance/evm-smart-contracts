@@ -57,6 +57,12 @@ error UnexpectedAction(bytes4 action);
 /// @dev Event emitted when the validator set is updated
 event ValidatorSetUpdated(uint256 epoch, address[] validators, uint256[] weights, uint256 threshold);
 
+/// @dev Error thrown when validator set must be approved the action
+error ValidatorSetMustApprove();
+
+/// @dev Error thrown when no validator set is set
+error NoValidatorSet();
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
@@ -115,15 +121,26 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         _disableInitializers();
     }
 
-    /// @notice Initializes the consortium contract with players and the owner key
+    /// @notice Initializes the consortium contract
+    /// @param _owner - The address of the initial owner 
+    function initialize(address _owner) external initializer {
+        __Ownable_init(_owner);
+        __Ownable2Step_init();
+        __Consortium_init();
+    }
+
+    /// @notice Sets the initial validator set
     /// @param _initialValidatorSet - The initial list of validators
     /// @param _weights - The initial list of weights
     /// @param _threshold - The initial threshold
-    /// @param _owner - The address of the initial owner 
-    function initialize(address[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold, address _owner) external initializer {
-        __Ownable_init(_owner);
-        __Ownable2Step_init();
-        __Consortium_init(_initialValidatorSet, _weights, _threshold);
+    function setInitalValidatorSet(address[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold) external onlyOwner {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+
+        if($.epoch != 0) {
+            revert ValidatorSetMustApprove();
+        }
+
+        _setValidatorSet(_initialValidatorSet, _weights, _threshold);
     }
 
     /// @notice Validates the provided signature against the given hash
@@ -173,11 +190,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         _setValidatorSet(validators, weights, threshold);
     }
 
-    /// @notice Internal initializer for the consortium with players
-    /// @param _initialValidators - The initial list of validators
-    function __Consortium_init(address[] memory _initialValidators, uint256[] memory _weights, uint256 _threshold) internal onlyInitializing {
-        _setValidatorSet(_initialValidators, _weights, _threshold);
-    }
+    /// @notice Internal initializer for the consortium
+    function __Consortium_init() internal onlyInitializing {}
 
     /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
     function _getConsortiumStorage()
@@ -191,7 +205,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     }
 
     function _setValidatorSet(address[] memory _validators, uint256[] memory _weights, uint256 _threshold) internal {
-        if(_validators.length < MIN_VALIDATOR_SET_SIZE|| _validators.length > MAX_VALIDATOR_SET_SIZE) 
+        if(_validators.length < MIN_VALIDATOR_SET_SIZE || _validators.length > MAX_VALIDATOR_SET_SIZE) 
             revert InvalidValidatorSetSize();  
 
         if(_validators.length != _weights.length) 
@@ -229,10 +243,13 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _proof encoding of (validators, weights, signatures)
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
     function _checkProof(bytes32 _message, bytes memory _proof) internal {
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        if($.epoch == 0) {
+            revert NoValidatorSet();
+        }
         // decode proof
         bytes[] memory signatures = abi.decode(_proof, (bytes[]));
         
-        ConsortiumStorage storage $ = _getConsortiumStorage();
         address[] storage validators = $.validators;
         uint256 length = validators.length;
         if(signatures.length != length) 

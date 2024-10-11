@@ -41,13 +41,15 @@ describe("LBTC", function () {
       reporter,
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<LombardConsortium>("LombardConsortium", [[signer1.address], [1], 1, deployer.address]);
+    consortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
     lbtc = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100]);
     lbtc2 = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100]);
     bascule = await deployContract<Bascule>("Bascule", [admin.address, pauser.address, reporter.address, await lbtc.getAddress(), 100], false);
 
     await lbtc.changeTreasuryAddress(treasury.address);
     await lbtc2.changeTreasuryAddress(treasury.address);
+
+    await consortium.setInitalValidatorSet([signer1.address], [1], 1);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock("latest"))!.timestamp;
@@ -311,15 +313,8 @@ describe("LBTC", function () {
       
       beforeEach (async function () {
         // Use a bigger consortium to cover more cases
-        newConsortium = await deployContract<LombardConsortium>(
-          "LombardConsortium", 
-          [
-            [signer1.address, signer2.address],
-            [1, 1],
-            2,
-            deployer.address
-          ]
-        );
+        newConsortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
+        await newConsortium.setInitalValidatorSet([signer1.address, signer2.address], [1, 1], 2);
         const {proof, payload} = await signPayload(
           defaultArgs.signers(), 
           defaultArgs.signatures,
