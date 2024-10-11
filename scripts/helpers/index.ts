@@ -1,5 +1,7 @@
 import {BigNumberish, ContractTransaction} from "ethers";
 import {BytesLike} from "ethers/lib.commonjs/utils/data";
+import {Proxy} from "../../typechain-types";
+import {DEFAULT_PROXY_FACTORY} from "./constants";
 
 type TAddressesWithNetwork = {
   [k: string]: TAddresses;
@@ -67,4 +69,16 @@ export async function schedule(ethers: any,{timelockAddr, transaction, predecess
   );
   await res.wait();
   console.log(res.hash);
+}
+
+export async function getProxyFactoryAt(ethers: any, address: string = DEFAULT_PROXY_FACTORY){
+  return ethers.getContractAt("ProxyFactory", address);
+}
+
+
+/*
+ * @return keccak256(finance.lombard.v1.{ledger-network}.{contractName})
+ */
+export function getProxySalt(ethers: any, ledgerNetwork: string, contractName: string) {
+  return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}`);
 }
