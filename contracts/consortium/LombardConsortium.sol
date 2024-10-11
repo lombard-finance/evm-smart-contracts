@@ -99,8 +99,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// - The lower value of 10,000 (CometBFT limit) and 10,509 (gas calculation) is chosen
     /// @dev This limit ensures compatibility with CometBFT while also considering gas limitations
     ///      for signature verification within a single block.
-    /// @dev TODO: Review this amount after final implementation, too many might make signatures unverifiable
-    uint256 private constant MAX_VALIDATOR_SET_SIZE = 10_000;
+    uint256 private constant MAX_VALIDATOR_SET_SIZE = 102;
 
     /// @dev Minimum number of players allowed in the system.
     /// @notice While set to 1 to allow for non-distributed scenarios, this configuration
