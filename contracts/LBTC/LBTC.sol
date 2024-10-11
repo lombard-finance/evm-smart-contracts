@@ -18,6 +18,7 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {LombardConsortium} from "../consortium/LombardConsortium.sol";
 import {OutputWithPayload, OutputCodec} from "../libs/OutputCodec.sol";
 import {BridgeDepositPayload, BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
+import {CrossChainActions} from "../libs/CrossChainActions.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -25,11 +26,6 @@ import {BridgeDepositPayload, BridgeDepositCodec} from "../libs/BridgeDepositCod
  */
 
 contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
-    // bytes4(keccak256("mint(uint256,address,address,uint256,bytes)"))
-    bytes4 constant MINT_ACTION = 0x2adfefeb;
-    // bytes4(keccak256("burn(uint256,address,uint256,address,address,uint256,bytes)"))
-    bytes4 constant BURN_ACTION = 0xca2443c0;
-
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
         /// @custom:oz-renamed-from usedProofs
@@ -136,22 +132,21 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != MINT_ACTION) {
+        if (bytes4(payload) != CrossChainActions.MINT_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        // extra data can be btc txn hash here, irrelevant for verification
-        (uint256 toChainId, address toContract, address toAddress, uint256 amount, /* extra data */ ) =
-            abi.decode(payload[4:], (uint256, address, address, uint256, bytes));
-        if (toChainId != block.chainid) {
+        CrossChainActions.MintAction memory action = CrossChainActions.mint(payload[4:]);
+
+        if (action.toChain != block.chainid) {
             revert WrongChainId();
         }
-        if (toContract != address(this)) {
+        if (action.toContract != address(this)) {
             revert WrongContract();
         }
-        if (toAddress == address(0)) {
+        if (action.recipient == address(0)) {
             revert ZeroAddress();
         }
-        if (amount == 0) {
+        if (action.amount == 0) {
             revert ZeroAmount();
         }
 
@@ -161,12 +156,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         bytes32 proofHash = sha256(proof);
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, amount);
+        _confirmDeposit($, proofHash, action.amount);
 
         // Actually mint
-        _mint(toAddress, amount);
+        _mint(action.recipient, action.amount);
 
-        emit MintProofConsumed(toAddress, amount, proofHash);
+        emit MintProofConsumed(action.recipient, action.amount, proofHash);
     }
 
     /**
@@ -324,7 +319,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // prepare burn payload
         bytes memory extraData = abi.encode($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
+            CrossChainActions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
         );
 
         emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee), sha256(payload));
@@ -342,31 +337,23 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != BURN_ACTION) {
+        if (bytes4(payload) != CrossChainActions.BURN_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        (
-            uint256 fromChainId,
-            address fromContract,
-            uint256 toChainId,
-            address toContract,
-            address toAddress,
-            uint256 amount,
-            /* extra data */
-        ) = abi.decode(payload[4:], (uint256, address, uint256, address, address, uint256, bytes));
-        if (toChainId != block.chainid) {
+        CrossChainActions.BurnAction memory action = CrossChainActions.burn(payload[4:]);
+        if (action.toChain != block.chainid) {
             revert WrongChainId();
         }
-        if (toContract != address(this)) {
+        if (action.toContract != address(this)) {
             revert WrongContract();
         }
-        if ($.destinations[bytes32(fromChainId)] != bytes32(uint256(uint160(fromContract)))) {
-            revert UnknownOriginContract(fromChainId, fromContract);
+        if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
+            revert UnknownOriginContract(action.toChain, action.toContract);
         }
-        if (toAddress == address(0)) {
+        if (action.recipient == address(0)) {
             revert ZeroAddress();
         }
-        if (amount == 0) {
+        if (action.amount == 0) {
             revert ZeroAmount();
         }
 
@@ -376,12 +363,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         bytes32 proofHash = sha256(proof);
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, amount);
+        _confirmDeposit($, proofHash, action.amount);
 
         // Actually mint
-        _mint(toAddress, amount);
+        _mint(action.recipient, action.amount);
 
-        emit WithdrawFromBridge(toAddress, amount, proofHash);
+        emit WithdrawFromBridge(action.recipient, action.amount, proofHash);
     }
 
     function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission)

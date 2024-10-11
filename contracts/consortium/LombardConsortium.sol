@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import "../libs/EIP1271SignatureUtils.sol";
+import { EIP1271SignatureUtils } from "../libs/EIP1271SignatureUtils.sol";
+import { CrossChainActions } from "../libs/CrossChainActions.sol";
 
 /// @dev Error thrown when trying to initialize with too few players
 error InsufficientInitialPlayers(uint256 provided, uint256 minimum);
@@ -186,14 +187,12 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         this.checkProof(sha256(payload), proof);
 
         // payload validation
-        if (bytes4(payload) != SET_VALIDATORS_ACTION) {
+        if (bytes4(payload) != CrossChainActions.SET_VALIDATORS_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        // extra data can be btc txn hash here, irrelevant for verification
-        (bytes[] memory validators, uint256[] memory weights, uint256 threshold) =
-            abi.decode(payload[4:], (bytes[], uint256[], uint256));
+        CrossChainActions.ValidatorSetAction memory action = CrossChainActions.setValidatorSet(payload[4:]);
         
-        _setValidatorSet(_pubKeysToAddress(validators), weights, threshold);
+        _setValidatorSet(_pubKeysToAddress(action.validators), action.weights, action.threshold);
     }
 
     /// @notice Internal initializer for the consortium
