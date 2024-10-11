@@ -2,15 +2,10 @@
 pragma solidity 0.8.24;
 
 interface ILBTC {
-    error ProofAlreadyUsed();
     error ZeroAddress();
     error ZeroContractHash();
     error ZeroChainId();
-    error InvalidAmount();
     error WithdrawalsDisabled();
-    error BadChainId(uint256 expected, uint256 received);
-    error BadToContractAddress(address expected, address received);
-    error BadDestination();
     error KnownDestination();
     error UnknownDestination();
     error BadCommission();
@@ -20,18 +15,14 @@ interface ILBTC {
     error AmountBelowDustLimit(uint256 dustLimit);
     error InvalidDustFeeRate();
     error UnauthorizedAccount(address account);
-    error WrongChainId();
-    error WrongContract();
     error UnexpectedAction(bytes4 action);
     error UnknownOriginContract(uint256 fromChainId, address fromContract);
-    error ZeroAmount();
 
     event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
-    event OutputProcessed(bytes32 indexed transactionId, uint32 indexed index, bytes32 proofHash);
     event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
     event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
     event DepositToBridge(

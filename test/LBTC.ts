@@ -461,7 +461,7 @@ describe("LBTC", function () {
         // try to use the same proof again
         await expect(
           lbtc.mint(defaultPayload, defaultProof)
-        ).to.revertedWithCustomError(lbtc, "ProofAlreadyUsed");
+        ).to.revertedWithCustomError(consortium, "ProofAlreadyUsed");
       });
     });
   });

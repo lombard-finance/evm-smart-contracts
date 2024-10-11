@@ -7,44 +7,11 @@ import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/Mes
 import { EIP1271SignatureUtils } from "../libs/EIP1271SignatureUtils.sol";
 import { Actions } from "../libs/Actions.sol";
 
-/// @dev Error thrown when trying to initialize with too few players
-error InsufficientInitialPlayers(uint256 provided, uint256 minimum);
-
-/// @dev Error thrown when trying to initialize with invalid validator set size
-error InvalidValidatorSetSize();
-
-/// @dev Error thrown when trying to initialize with a validator set that already exists
-error ValidatorSetClash();
-
-/// @dev Error thrown when trying to initialize with a validator that is zero address
-error ZeroValidator();
-
-/// @dev Error thrown when trying to initialize with a validator set that is not increasing
-error NotIncreasingValidatorSet();
-
-/// @dev Error thrown when invalid validator set is used in a proof
-error InvalidValidatorSet();
-
-/// @dev Error thrown when validator set is empty
-error EmptyValidatorSet();
-
-/// @dev Error thrown when threshold is zero
-error InvalidThreshold();
-
-/// @dev Error thrown when epoch is invalid for validator set
-error InvalidEpochForValidatorSet(uint256 epoch);
-
 /// @dev Error thrown when signature proof is already used
 error ProofAlreadyUsed();
 
-/// @dev Error thrown when signature proof is expired
-error ProofExpired();
-
 /// @dev Error thrown when signatures length is not equal to signers length
 error LengthMismatch();
-
-/// @dev Error thrown when nonce is already used
-error NonceAlreadyUsed();
 
 /// @dev Error thrown when there are not enough signatures
 error NotEnoughSignatures();
@@ -63,9 +30,6 @@ error ValidatorSetMustApprove();
 
 /// @dev Error thrown when no validator set is set
 error NoValidatorSet();
-
-/// @dev Error thrown when invalid public key is provided
-error InvalidPublicKey(bytes pubKey);
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -99,28 +63,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     bytes32 private constant CONSORTIUM_STORAGE_LOCATION =
         0xbac09a3ab0e06910f94a49c10c16eb53146536ec1a9e948951735cde3a58b500;
 
-    /// @dev Maximum number of players allowed in the consortium.
-    /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
-    /// - CometBFT has a hard limit of 10,000 validators (https://docs.cometbft.com/v0.38/spec/core/state)
-    /// - Gas-based calculation:
-    ///   - Assumes 4281 gas per ECDSA signature verification
-    ///   - Uses a conservative 30 million gas block limit
-    ///   - Maximum possible signatures: 30,000,000 / 4,281 ≈ 7007
-    ///   - Reverse calculated for BFT consensus (2/3 + 1):
-    ///     7,007 = (10,509 * 2/3 + 1) rounded down
-    /// - The lower value of 10,000 (CometBFT limit) and 10,509 (gas calculation) is chosen
-    /// @dev This limit ensures compatibility with CometBFT while also considering gas limitations
-    ///      for signature verification within a single block.
-    uint256 private constant MAX_VALIDATOR_SET_SIZE = 102;
-
-    /// @dev Minimum number of players allowed in the system.
-    /// @notice While set to 1 to allow for non-distributed scenarios, this configuration
-    /// does not provide Byzantine fault tolerance. For a truly distributed and
-    /// fault-tolerant system, a minimum of 4 players would be recommended to tolerate
-    /// at least one Byzantine fault.
-    /// @dev TODO: Review if needed
-    uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
-
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -146,7 +88,9 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             revert ValidatorSetMustApprove();
         }
 
-        _setValidatorSet(_pubKeysToAddress(_initialValidatorSet), _weights, _threshold);
+        Actions.ValidatorSetAction memory action = Actions.validateValidatorSet(_initialValidatorSet, _weights, _threshold);
+
+        _setValidatorSet(action.validators, action.weights, action.threshold);
     }
 
     /// @notice Validates the provided signature against the given hash
@@ -192,7 +136,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         }
         Actions.ValidatorSetAction memory action = Actions.setValidatorSet(payload[4:]);
         
-        _setValidatorSet(_pubKeysToAddress(action.validators), action.weights, action.threshold);
+        _setValidatorSet(action.validators, action.weights, action.threshold);
     }
 
     /// @notice Internal initializer for the consortium
@@ -210,32 +154,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     }
 
     function _setValidatorSet(address[] memory _validators, uint256[] memory _weights, uint256 _threshold) internal {
-        if(_validators.length < MIN_VALIDATOR_SET_SIZE || _validators.length > MAX_VALIDATOR_SET_SIZE) 
-            revert InvalidValidatorSetSize();  
-
-        if(_validators.length != _weights.length) 
-            revert LengthMismatch();
-
-        if(_threshold == 0) 
-            revert InvalidThreshold();
-
-        uint256 sum = 0;
-        for(uint256 i; i < _weights.length;) {
-            sum += _weights[i];
-            unchecked { ++i; }
-        }
-        if(sum < _threshold) 
-            revert InvalidThreshold();
-
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        
-        address curValidator = _validators[0];
-        if(curValidator == address(0)) revert ZeroValidator();
-        for(uint256 i = 1; i < _validators.length;) {
-            if(curValidator <= _validators[i]) revert NotIncreasingValidatorSet();
-            curValidator = _validators[i];
-            unchecked { ++i; }
-        }
 
         uint256 epoch = ++$.epoch;
         $.validatorSet[epoch] = ValidatorSet({
@@ -244,18 +163,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             threshold: _threshold
         });
         emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
-    }
-
-    function _pubKeysToAddress(bytes[] memory _pubKeys) internal pure returns (address[] memory) {
-        address[] memory addresses = new address[](_pubKeys.length);
-        for(uint256 i; i < _pubKeys.length;) {
-            if(_pubKeys[i].length != 64) {
-                revert InvalidPublicKey(_pubKeys[i]);
-            }
-            addresses[i] = address(uint160(uint256(keccak256(_pubKeys[i]))));
-            unchecked { ++i; }
-        }
-        return addresses;
     }
 
     /// @dev Checks that `_proof` is correct

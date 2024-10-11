@@ -137,19 +137,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
         Actions.MintAction memory action = Actions.mint(payload[4:]);
 
-        if (action.toChain != block.chainid) {
-            revert WrongChainId();
-        }
-        if (action.toContract != address(this)) {
-            revert WrongContract();
-        }
-        if (action.recipient == address(0)) {
-            revert ZeroAddress();
-        }
-        if (action.amount == 0) {
-            revert ZeroAmount();
-        }
-
         // check proof validity
         LombardConsortium($.consortium).checkProof(sha256(payload), proof);
 
@@ -341,20 +328,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert UnexpectedAction(bytes4(payload));
         }
         Actions.BurnAction memory action = Actions.burn(payload[4:]);
-        if (action.toChain != block.chainid) {
-            revert WrongChainId();
-        }
-        if (action.toContract != address(this)) {
-            revert WrongContract();
-        }
+
         if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
             revert UnknownOriginContract(action.toChain, action.toContract);
-        }
-        if (action.recipient == address(0)) {
-            revert ZeroAddress();
-        }
-        if (action.amount == 0) {
-            revert ZeroAmount();
         }
 
         // proof validation
