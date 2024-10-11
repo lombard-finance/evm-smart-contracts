@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-library CrossChainActions {
+library Actions {
     // bytes4(keccak256("mint(uint256,address,address,uint256,bytes)"))
     bytes4 internal constant MINT_ACTION = 0x2adfefeb;
     // bytes4(keccak256("burn(uint256,address,uint256,address,address,uint256,bytes)"))

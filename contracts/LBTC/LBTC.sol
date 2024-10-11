@@ -18,7 +18,7 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {LombardConsortium} from "../consortium/LombardConsortium.sol";
 import {OutputWithPayload, OutputCodec} from "../libs/OutputCodec.sol";
 import {BridgeDepositPayload, BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
-import {CrossChainActions} from "../libs/CrossChainActions.sol";
+import {Actions} from "../libs/Actions.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -132,10 +132,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != CrossChainActions.MINT_ACTION) {
+        if (bytes4(payload) != Actions.MINT_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        CrossChainActions.MintAction memory action = CrossChainActions.mint(payload[4:]);
+        Actions.MintAction memory action = Actions.mint(payload[4:]);
 
         if (action.toChain != block.chainid) {
             revert WrongChainId();
@@ -319,7 +319,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // prepare burn payload
         bytes memory extraData = abi.encode($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            CrossChainActions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
+            Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
         );
 
         emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee), sha256(payload));
@@ -337,10 +337,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != CrossChainActions.BURN_ACTION) {
+        if (bytes4(payload) != Actions.BURN_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        CrossChainActions.BurnAction memory action = CrossChainActions.burn(payload[4:]);
+        Actions.BurnAction memory action = Actions.burn(payload[4:]);
         if (action.toChain != block.chainid) {
             revert WrongChainId();
         }

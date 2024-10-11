@@ -5,7 +5,7 @@ import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/acc
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import { EIP1271SignatureUtils } from "../libs/EIP1271SignatureUtils.sol";
-import { CrossChainActions } from "../libs/CrossChainActions.sol";
+import { Actions } from "../libs/Actions.sol";
 
 /// @dev Error thrown when trying to initialize with too few players
 error InsufficientInitialPlayers(uint256 provided, uint256 minimum);
@@ -187,10 +187,10 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         this.checkProof(sha256(payload), proof);
 
         // payload validation
-        if (bytes4(payload) != CrossChainActions.SET_VALIDATORS_ACTION) {
+        if (bytes4(payload) != Actions.SET_VALIDATORS_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        CrossChainActions.ValidatorSetAction memory action = CrossChainActions.setValidatorSet(payload[4:]);
+        Actions.ValidatorSetAction memory action = Actions.setValidatorSet(payload[4:]);
         
         _setValidatorSet(_pubKeysToAddress(action.validators), action.weights, action.threshold);
     }
