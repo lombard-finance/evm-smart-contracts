@@ -50,7 +50,10 @@ describe("LombardConsortium", function () {
     })
 
     it("should set the correct threshold", async function () {
-      expect(await lombard.getThreshold()).to.equal(2);
+      const validatorSet = await lombard.getValidatoSet(1);
+      expect(validatorSet.threshold).to.equal(2);
+      expect(validatorSet.weights).to.deep.equal([1, 1, 1]);
+      expect(validatorSet.validators).to.deep.equal([signer3.address, signer1.address, signer2.address]);
     });
 
     it("should set the correct epoch", async function () {
@@ -72,11 +75,14 @@ describe("LombardConsortium", function () {
         1,
         "setValidators"
       );
-      await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.emit(lombard, "ValidatorSetUpdated")
       .withArgs(2, [signer1.address, signer2.address], [1, 2], 3);
 
-      expect(await lombard.getThreshold()).to.equal(3);
+      const validatorSet = await lombard.getValidatoSet(2);
+      expect(validatorSet.threshold).to.equal(3);
+      expect(validatorSet.weights).to.deep.equal([1, 2]);
+      expect(validatorSet.validators).to.deep.equal([signer1.address, signer2.address]);
     });
 
     it("should fail if new consortium is not increasing", async function () {
@@ -94,7 +100,7 @@ describe("LombardConsortium", function () {
         1,
         "setValidators"
       );
-      await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "NotIncreasingValidatorSet");
     });
 
@@ -113,7 +119,7 @@ describe("LombardConsortium", function () {
         1,
         "setValidators"
       );
-      await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
     });
 
@@ -132,7 +138,7 @@ describe("LombardConsortium", function () {
         1,
         "setValidators"
       );
-      await expect(lombard.transferValidatorsOwnership(data.payload, data.proof))
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
     });
 

@@ -67,19 +67,21 @@ error NoValidatorSet();
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
 contract LombardConsortium is Ownable2StepUpgradeable {    
-    /// @title ConsortiumStorage
-    /// @dev Struct to hold the consortium's state
+    struct ValidatorSet {
+        /// @notice addresses of the signers
+        address[] validators;
+        /// @notice weight of each signer
+        uint256[] weights;
+        /// @notice current threshold for signatures to be accepted
+        uint256 threshold;
+    }
     /// @custom:storage-location erc7201:lombardfinance.storage.Consortium
     struct ConsortiumStorage {
         /// @notice Current epoch
         uint256 epoch;
 
-        /// @notice current threshold for signatures to be accepted
-        uint256 threshold;
-        /// @notice addresses of the signers
-        address[] validators;
-        /// @notice weight of each signer
-        uint256[] weights;
+        /// @notice Store the Validator set for each epoch
+        mapping(uint256 => ValidatorSet) validatorSet;
 
         /// @notice Mapping of proofs to their use status
         /// @dev True if the proof is used, false otherwise
@@ -150,9 +152,10 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         _checkProof(enhanceMessage(_message, _msgSender()), _proof);
     }
 
-    /// @notice Returns the current threshold for valid signatures
-    function getThreshold() external view returns (uint256) {
-        return _getConsortiumStorage().threshold;
+    /// @notice Returns the validator for a given epoch
+    /// @param epoch the epoch to get the threshold for
+    function getValidatoSet(uint256 epoch) external view returns (ValidatorSet memory) {
+        return _getConsortiumStorage().validatorSet[epoch];
     }
 
     /// @notice Returns the current epoch
@@ -175,7 +178,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         return enhancedMessage;
     }
 
-    function transferValidatorsOwnership(bytes calldata payload, bytes calldata proof) external onlyOwner {
+    function setNextValidatorSet(bytes calldata payload, bytes calldata proof) external {
         // check proof
         this.checkProof(keccak256(payload), proof);
 
@@ -232,10 +235,13 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             unchecked { ++i; }
         }
 
-        $.validators = _validators;
-        $.weights = _weights;
-        $.threshold = _threshold;
-        emit ValidatorSetUpdated(++$.epoch, _validators, _weights, _threshold);
+        uint256 epoch = ++$.epoch;
+        $.validatorSet[epoch] = ValidatorSet({
+            validators: _validators,
+            weights: _weights,
+            threshold: _threshold
+        });
+        emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
     }
 
     /// @dev Checks that `_proof` is correct
@@ -250,26 +256,31 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         // decode proof
         bytes[] memory signatures = abi.decode(_proof, (bytes[]));
         
-        address[] storage validators = $.validators;
+        address[] storage validators = $.validatorSet[$.epoch].validators;
         uint256 length = validators.length;
-        if(signatures.length != length) 
+        if(signatures.length != length) {
             revert LengthMismatch();
+        }
 
         bytes32 proofHash = keccak256(_proof);
-        if($.usedProofs[proofHash]) revert ProofAlreadyUsed();
+        if($.usedProofs[proofHash]) {
+            revert ProofAlreadyUsed();
+        }
 
         uint256 count = 0;
-        uint256[] storage weights = $.weights;
+        uint256[] storage weights = $.validatorSet[$.epoch].weights;
         for(uint256 i; i < length;) {
             if(signatures[i].length != 0) {
-                if(!EIP1271SignatureUtils.checkSignature(validators[i], _message, signatures[i])) 
+                if(!EIP1271SignatureUtils.checkSignature(validators[i], _message, signatures[i])) {
                     revert SignatureVerificationFailed();
+                }
                 unchecked { count += weights[i]; } 
             }
             unchecked { ++i; }
         }
-        if(count < $.threshold) revert NotEnoughSignatures();
-
+        if(count < $.validatorSet[$.epoch].threshold) {
+            revert NotEnoughSignatures();
+        }
         $.usedProofs[proofHash] = true;
     }
 }
