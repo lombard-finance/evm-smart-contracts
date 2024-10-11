@@ -1,31 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PausableUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {ILBTC} from "./ILBTC.sol";
-import {OutputCodec} from "../libs/OutputCodec.sol";
-import {BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
-import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
+import { FeeUtils } from "../libs/FeeUtils.sol";
 import {LombardConsortium} from "../consortium/LombardConsortium.sol";
-import {OutputWithPayload, OutputCodec} from "../libs/OutputCodec.sol";
-import {BridgeDepositPayload, BridgeDepositCodec} from "../libs/BridgeDepositCodec.sol";
 import {Actions} from "../libs/Actions.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
  */
-
-contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
+contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable, ERC20PermitUpgradeable {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
         /// @custom:oz-renamed-from usedProofs
@@ -55,11 +48,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         address pauser;
         // Increments with each cross chain operation and should be part of the payload
         uint256 crossChainOperationsNonce;
+
+        mapping(address => bool) minters;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION = 0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
-    uint16 public constant MAX_COMMISSION = 10000; // 100.00%
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
         assembly {
@@ -82,11 +76,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _changeBurnCommission(burnCommission_);
     }
 
-    function initialize(address consortium_, uint64 burnCommission_) external initializer {
+    function initialize(address consortium_, uint64 burnCommission_, address owner_) external initializer {
         __ERC20_init("LBTC", "LBTC");
         __ERC20Pausable_init();
 
-        __Ownable_init(_msgSender());
+        __Ownable_init(owner_);
         __Ownable2Step_init();
 
         __ReentrancyGuard_init();
@@ -96,6 +90,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
         $.dustFeeRate = 3000; // Default value - 3 satoshis per byte
         emit DustFeeRateChanged(0, $.dustFeeRate);
+    }
+
+    function reinitialize() external reinitializer(2) {
+        __ERC20Permit_init("Lombard Staked Bitcoin");
     }
 
     function toggleWithdrawals() external onlyOwner {
@@ -128,7 +126,20 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         $.consortium = newVal;
     }
 
-    function mint(bytes calldata payload, bytes calldata proof) external nonReentrant {
+    /// @notice Mint LBTC to the specified address
+    /// @param amount The amount of LBTC to mint    
+    /// @dev Only callable by whitelisted minters
+    function mint(address to, uint256 amount) external {
+        if(!_getLBTCStorage().minters[_msgSender()]) 
+            revert UnauthorizedAccount(_msgSender());
+
+        _mint(to, amount);
+    }
+
+    function mint(
+        bytes calldata data,
+        bytes calldata proofSignature
+    ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
@@ -285,13 +296,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
         LBTCStorage storage $ = _getLBTCStorage();
         // relative fee
-        uint16 relativeComs = $.depositRelativeCommission[toChain];
-        if (amount < relativeComs) {
-            revert AmountTooSmallToPayRelativeFee();
-        }
-
-        uint256 fee = _calcRelativeFee(amount, relativeComs);
-
+        uint256 fee = FeeUtils.getRelativeFee(amount, getDepositRelativeCommission(toChain));
         // absolute fee
         fee += $.depositAbsoluteCommission[toChain];
 
@@ -313,12 +318,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
     }
 
-    function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
-        return Math.mulDiv(amount, commission, MAX_COMMISSION, Math.Rounding.Ceil);
-    }
-
-    function withdrawFromBridge(bytes calldata payload, bytes calldata proof) external nonReentrant {
-        _withdraw(payload, proof);
+    function withdrawFromBridge(
+        bytes calldata data,
+        bytes calldata proofSignature
+    ) external nonReentrant {
+        _withdraw(data, proofSignature);
     }
 
     function _withdraw(bytes calldata payload, bytes calldata proof) internal {
@@ -364,9 +368,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             revert KnownDestination();
         }
         // do not allow 100% commission or higher values
-        if (relCommission >= MAX_COMMISSION) {
-            revert BadCommission();
-        }
+        FeeUtils.validateCommission(relCommission);
 
         LBTCStorage storage $ = _getLBTCStorage();
         $.destinations[toChain] = toContract;
@@ -425,9 +427,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
     function changeDepositRelativeCommission(uint16 newValue, bytes32 chain) external onlyOwner {
         // do not allow 100% commission
-        if (newValue >= MAX_COMMISSION) {
-            revert BadCommission();
-        }
+        FeeUtils.validateCommission(newValue);
         LBTCStorage storage $ = _getLBTCStorage();
         $.depositRelativeCommission[chain] = newValue;
         emit DepositRelativeCommissionChanged(newValue, chain);
@@ -552,5 +552,32 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
+    }
+
+    function addMinter(address newMinter) external onlyOwner {
+        _updateMinter(newMinter, true);
+    }
+
+    function removeMinter(address oldMinter) external onlyOwner {
+        _updateMinter(oldMinter, false);
+    }
+
+    function isMinter(address minter) external view returns (bool) {
+        return _getLBTCStorage().minters[minter];
+    }
+
+    function _updateMinter(address minter, bool _isMinter) internal {
+        if (minter == address(0)) {
+            revert ZeroAddress();
+        }
+        _getLBTCStorage().minters[minter] = _isMinter;
+        emit MinterUpdated(minter, _isMinter);
+    }
+
+    /**
+     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+     */
+    function _update(address from, address to, uint256 value) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._update(from, to, value);
     }
 }

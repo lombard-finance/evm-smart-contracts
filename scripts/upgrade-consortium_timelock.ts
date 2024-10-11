@@ -1,7 +1,6 @@
 import { ethers, upgrades } from "hardhat";
 import {getAddresses, schedule, verify} from "./helpers";
 import hardhat from "hardhat";
-import { vars } from "hardhat/config";
 
 async function main() {
   const addresses = getAddresses(hardhat.network.name);
@@ -33,19 +32,19 @@ async function main() {
   }
 
   const upgradeTx = await proxyAdmin.upgradeAndCall.populateTransaction(
-    addresses.LBTC,
+    addresses.Consortium,
     newImpl,
     '0x'
   );
   console.log('upgrade tx', upgradeTx);
 
   // only for mainnet
-  await schedule({
+  await schedule(ethers, {
     timelockAddr: addresses.Timelock,
     transaction: upgradeTx,
   });
 
-  await verify(newImpl);
+  await verify(run, newImpl);
 }
 
 main().catch((error) => {

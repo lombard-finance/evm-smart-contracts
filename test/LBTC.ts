@@ -1,4 +1,4 @@
-import { config, ethers } from "hardhat";
+import { ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
@@ -7,6 +7,7 @@ import {
   getSignersWithPrivateKeys,
   getPayloadForAction,
   CHAIN_ID
+  generatePermitSignature
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, LombardConsortium } from "../typechain-types";
@@ -49,6 +50,10 @@ describe("LBTC", function () {
     await lbtc2.changeTreasuryAddress(treasury.address);
 
     await consortium.setInitalValidatorSet([signer1.publicKey], [1], 1, 1);
+
+    // mock minter for lbtc
+    await lbtc.addMinter(deployer.address);
+    await lbtc2.addMinter(deployer.address);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock("latest"))!.timestamp;
@@ -164,6 +169,26 @@ describe("LBTC", function () {
       await expect(lbtc.changeBascule(ethers.ZeroAddress))
         .to.emit(lbtc, "BasculeChanged")
         .withArgs(await bascule.getAddress(), ethers.ZeroAddress);
+    });
+
+    it("addMinter should be callable by owner", async function () {
+      await expect(lbtc.addMinter(signer1.address))
+        .to.emit(lbtc, "MinterUpdated")
+        .withArgs(signer1.address, true);
+      expect(await lbtc.isMinter(signer1.address)).to.be.true;
+      await lbtc.connect(signer1)[["mint(address,uint256)"]](signer2.address, 100_000_000n);
+      expect(await lbtc.balanceOf(signer2.address)).to.be.eq(100_000_000n);
+    });
+
+    it("removeMinter should be callable by owner", async function () {
+      await lbtc.addMinter(signer1.address);
+      await expect(lbtc.removeMinter(signer1.address))
+        .to.emit(lbtc, "MinterUpdated")
+        .withArgs(signer1.address, false);
+      expect(await lbtc.isMinter(signer1.address)).to.be.false;
+      await expect(lbtc.connect(signer1)[["mint(address,uint256)"]](signer2.address, 100_000_000n))
+        .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+        .withArgs(signer1.address);
     });
   });
 
@@ -648,13 +673,100 @@ describe("LBTC", function () {
     });
   });
 
+  describe("Permit", function () {
+    let timestamp: number;
+    let chainId: bigint;
+
+    before(async function () {
+      const block = await ethers.provider.getBlock("latest");
+      timestamp = block!.timestamp;  
+      chainId = (await ethers.provider.getNetwork()).chainId; 
+    });
+
+    beforeEach(async function () {
+      // Initialize the permit module
+      await lbtc.reinitialize();      
+
+      // Mint some tokens
+      await lbtc["mint(address,uint256)"](signer1.address, 100_000_000n);
+    });
+
+    afterEach(async function () {
+      await snapshot.restore();
+    });
+
+    it("should transfer funds with permit", async function () {
+      // generate permit signature
+      const { v, r, s } = await generatePermitSignature(lbtc, signer1, signer2.address, 10_000n, timestamp + 100, chainId, 0);
+      
+      await lbtc.permit(signer1.address, signer2.address, 10_000n, timestamp + 100, v, r, s);
+      
+      // check allowance
+      expect(await lbtc.allowance(signer1.address, signer2.address)).to.equal(10_000n);
+
+      // check transferFrom
+      await lbtc.connect(signer2).transferFrom(signer1.address, signer3.address, 10_000n);
+      expect(await lbtc.balanceOf(signer3.address)).to.equal(10_000n);
+
+      // check nonce is incremented
+      expect(await lbtc.nonces(signer1.address)).to.equal(1);
+    });
+
+    describe("fail if permit params don't match the signature", function () {
+      let v: number;
+      let r: string;
+      let s: string;
+
+      before(async function () {
+        // generate permit signature
+        const signature = await generatePermitSignature(lbtc, signer1, signer2.address, 10_000n, timestamp + 100, chainId, 0);
+        v = signature.v;
+        r = signature.r;
+        s = signature.s;
+      });
+
+      const params: [() => Signer, () => string, bigint, () => number, string][] = [
+        [() => signer1, () => signer3.address, 10_000n, () => timestamp + 100, "is sensitive to wrong spender"],
+        [() => signer3, () => signer2.address, 10_000n, () => timestamp + 100, "is sensitive to wrong signer"],
+        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 1, "is sensitive to wrong deadline"],
+        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, "is sensitive to wrong value"],
+      ];
+ 
+      params.forEach(async function([signer, spender, value, deadline, label]) {
+        it(label, async function () {
+          await expect(lbtc.permit(signer(), spender(), value, deadline(), v, r, s))
+          .to.be.revertedWithCustomError(lbtc, "ERC2612InvalidSigner");
+        });
+      });
+    });
+
+    describe("fail if signature don't match permit params", function () {
+      // generate permit signature
+      const signaturesData: [() => Signer, () => string, bigint, () => number, () => bigint, number, string][] = [
+        [() => signer3, () => signer2.address, 10_000n, () => timestamp + 100, () => chainId, 0, "is sensitive to wrong signer"],
+        [() => signer1, () => signer3.address, 10_000n, () => timestamp + 100, () => chainId, 0, "is sensitive to wrong spender"],
+        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, () => chainId, 0, "is sensitive to wrong value"],
+        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 1, () => chainId, 0, "is sensitive to wrong deadline"],
+        [() => signer1, () => signer2.address, 10_000n, () => timestamp + 100, () => 1234n, 0, "is sensitive to wrong chainId"],
+        [() => signer1, () => signer2.address, 1n, () => timestamp + 100, () => chainId, 1, "is sensitive to wrong nonce"],
+      ];
+      signaturesData.forEach(async ([signer, spender, value, deadline, chainId, nonce, label]) => {
+        it(label, async () => {
+        const { v, r, s } = await generatePermitSignature(lbtc, signer(), spender(), value, deadline(), chainId(), nonce);
+        await expect(lbtc.permit(signer1, signer2.address, 10_000n, timestamp + 100, v, r, s))
+          .to.be.revertedWithCustomError(lbtc, "ERC2612InvalidSigner");
+        });
+      });
+    });
+  });
+
   describe("Bridge", function () {
     const absoluteFee = 100n;
 
     beforeEach(async function () {
       await lbtc.mintTo(
         signer1.address,
-        await lbtc.MAX_COMMISSION()
+        10000n
       );
       await lbtc.addDestination(
         CHAIN_ID,
@@ -673,6 +785,7 @@ describe("LBTC", function () {
     it("full flow", async () => {
       let amount = 10000n;
       let fee = amount / 10n;
+
       let amountWithoutFee = amount - fee;
       let receiver = signer2.address;
 

@@ -1,7 +1,7 @@
 import { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
-import { AddressLike, BaseContract, BigNumberish } from "ethers";
+import { LBTC, WBTCMock, Bascule } from "../typechain-types";
+import { AddressLike, BaseContract, Contract, Signer, Signature, BigNumberish } from "ethers";
 
 export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
@@ -96,11 +96,11 @@ export async function getSignersWithPrivateKeys(
 
 
 export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  const LBTC = await ethers.getContractFactory("LBTCMock");
+  const LBTC = await ethers.getContractFactory("LBTC");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
     burnCommission
-  ])) as unknown as LBTCMock;
+  ])) as unknown as LBTC;
   await lbtc.waitForDeployment();
 
   const WBTC = await ethers.getContractFactory("WBTCMock");
@@ -116,4 +116,45 @@ export async function deployBascule(reporter: HardhatEthersSigner, lbtc: Address
   const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
   await bascule.waitForDeployment();
   return bascule;
+}
+
+export async function generatePermitSignature(
+  token: Contract, 
+  owner: Signer, 
+  spender: string,
+  value: number, 
+  deadline: number, 
+  chainId: number , 
+  nonce: number
+): Promise<{ v: number; r: string; s: string }> {
+  const ownerAddress = await owner.getAddress();
+
+  const permitMessage = {
+    owner: ownerAddress,
+    spender: spender,
+    value: value,
+    nonce: nonce,
+    deadline: deadline,
+  };
+
+  const types = {
+    Permit: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
+  };
+
+  const signature = await owner.signTypedData({
+    name: "Lombard Staked Bitcoin",
+    version: "1",
+    chainId: chainId,
+    verifyingContract: await token.getAddress(),
+  }, types, permitMessage);
+
+  // Split the signature into v, r, s components
+  const signatureObj = Signature.from(signature); 
+  return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
 }

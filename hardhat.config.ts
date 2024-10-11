@@ -3,11 +3,19 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "@nomicfoundation/hardhat-ethers";
 
+import "./scripts";
+
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
         version: "0.8.24",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200
+          },
+        }
       },
     ],
   },
@@ -27,11 +35,11 @@ const config: HardhatUserConfig = {
       gasMultiplier: 1.5,
       timeout: 180_000,
     },
-    bsc_testnet: {
+    bscTestnet: {
       loggingEnabled: true,
       url: vars.get(
         "BSC_TESTNET_RPC",
-        "https://rpc.ankr.com/bsc_testnet_chapel"
+        "https://bsc-testnet-rpc.publicnode.com"
       ),
       chainId: 97,
       accounts: [
@@ -154,7 +162,7 @@ const config: HardhatUserConfig = {
     },
     bsc: {
       loggingEnabled: true,
-      url: vars.get("MAINNET_RPC", "https://rpc.ankr.com/bsc"),
+      url: vars.get("MAINNET_RPC", "https://bsc-rpc.publicnode.com"),
       chainId: 56,
       accounts: [
         vars.get(
@@ -242,7 +250,7 @@ const config: HardhatUserConfig = {
         "ETHERSCAN_API_KEY",
         "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
       ),
-      bsc_testnet: vars.get(
+      bscTestnet: vars.get(
         "BSCSCAN_API_KEY",
         "UI7BPX1FHRXIUBSW95UPW6MYIPKM696HV6"
       ),
