@@ -63,6 +63,9 @@ error ValidatorSetMustApprove();
 /// @dev Error thrown when no validator set is set
 error NoValidatorSet();
 
+/// @dev Error thrown when invalid public key is provided
+error InvalidPublicKey(bytes pubKey);
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
@@ -88,8 +91,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         mapping(bytes32 => bool) usedProofs;
     }
 
-    // bytes4(keccak256("setValidators(address[],uint256[],uint256)"))
-    bytes4 constant SET_VALIDATORS_ACTION = 0x56a02237;
+    // bytes4(keccak256("setValidators(bytes[],uint256[],uint256)"))
+    bytes4 constant SET_VALIDATORS_ACTION = 0x333b09c0;
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant CONSORTIUM_STORAGE_LOCATION =
@@ -135,14 +138,14 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _initialValidatorSet - The initial list of validators
     /// @param _weights - The initial list of weights
     /// @param _threshold - The initial threshold
-    function setInitalValidatorSet(address[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold) external onlyOwner {
+    function setInitalValidatorSet(bytes[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold) external onlyOwner {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         if($.epoch != 0) {
             revert ValidatorSetMustApprove();
         }
 
-        _setValidatorSet(_initialValidatorSet, _weights, _threshold);
+        _setValidatorSet(_pubKeysToAddress(_initialValidatorSet), _weights, _threshold);
     }
 
     /// @notice Validates the provided signature against the given hash
@@ -187,10 +190,10 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             revert UnexpectedAction(bytes4(payload));
         }
         // extra data can be btc txn hash here, irrelevant for verification
-        (address[] memory validators, uint256[] memory weights, uint256 threshold) =
-            abi.decode(payload[4:], (address[], uint256[], uint256));
+        (bytes[] memory validators, uint256[] memory weights, uint256 threshold) =
+            abi.decode(payload[4:], (bytes[], uint256[], uint256));
         
-        _setValidatorSet(validators, weights, threshold);
+        _setValidatorSet(_pubKeysToAddress(validators), weights, threshold);
     }
 
     /// @notice Internal initializer for the consortium
@@ -242,6 +245,18 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             threshold: _threshold
         });
         emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
+    }
+
+    function _pubKeysToAddress(bytes[] memory _pubKeys) internal pure returns (address[] memory) {
+        address[] memory addresses = new address[](_pubKeys.length);
+        for(uint256 i; i < _pubKeys.length;) {
+            if(_pubKeys[i].length != 64) {
+                revert InvalidPublicKey(_pubKeys[i]);
+            }
+            addresses[i] = address(uint160(uint256(keccak256(_pubKeys[i]))));
+            unchecked { ++i; }
+        }
+        return addresses;
     }
 
     /// @dev Checks that `_proof` is correct

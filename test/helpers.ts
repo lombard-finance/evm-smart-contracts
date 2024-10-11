@@ -19,7 +19,7 @@ export const ERRORS_IFACE = {
 const ACTIONS_IFACE = ethers.Interface.from([
   "function mint(uint256,address,address,uint256,bytes) external",
   "function burn(uint256,address,uint256,address,address,uint256,bytes) external",
-  "function setValidators(address[],uint256[],uint256) external",
+  "function setValidators(bytes[],uint256[],uint256) external",
 ])
 
 export function getPayloadForAction(data: any[], action: string) {
@@ -88,6 +88,7 @@ export async function getSignersWithPrivateKeys(
     );
     if (wallet.address === signers[i].address) {
       signers[i].privateKey = wallet.privateKey;
+      signers[i].publicKey = `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
     }
   }
   return signers;

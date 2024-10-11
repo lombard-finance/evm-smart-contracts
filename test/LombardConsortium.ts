@@ -42,7 +42,7 @@ describe("LombardConsortium", function () {
   describe("With Initial ValidatorSet", function () {
     beforeEach(async function () {
       await lombard.setInitalValidatorSet(
-        [signer3.address, signer1.address, signer2.address],
+        [signer3.publicKey, signer1.publicKey, signer2.publicKey],
         [1, 1, 1],
         2
       );
@@ -64,7 +64,7 @@ describe("LombardConsortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         [
-          [signer1.address, signer2.address],
+          [signer1.publicKey, signer2.publicKey],
           [1, 2],
           3,
         ],
@@ -89,7 +89,7 @@ describe("LombardConsortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         [
-          [signer2.address, signer1.address],
+          [signer2.publicKey, signer1.publicKey],
           [1, 1],
           1,
         ],
@@ -108,7 +108,7 @@ describe("LombardConsortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         [
-          [signer2.address, signer1.address],
+          [signer2.publicKey, signer1.publicKey],
           [1, 1],
           0,
         ],
@@ -127,7 +127,7 @@ describe("LombardConsortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         [
-          [signer2.address, signer1.address],
+          [signer2.publicKey, signer1.publicKey],
           [1, 1],
           3,
         ],

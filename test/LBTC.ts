@@ -48,7 +48,7 @@ describe("LBTC", function () {
     await lbtc.changeTreasuryAddress(treasury.address);
     await lbtc2.changeTreasuryAddress(treasury.address);
 
-    await consortium.setInitalValidatorSet([signer1.address], [1], 1);
+    await consortium.setInitalValidatorSet([signer1.publicKey], [1], 1);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock("latest"))!.timestamp;
@@ -313,7 +313,7 @@ describe("LBTC", function () {
       beforeEach (async function () {
         // Use a bigger consortium to cover more cases
         newConsortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
-        await newConsortium.setInitalValidatorSet([signer1.address, signer2.address], [1, 1], 2);
+        await newConsortium.setInitalValidatorSet([signer1.publicKey, signer2.publicKey], [1, 1], 2);
         const {proof, payload} = await signPayload(
           defaultArgs.signers(), 
           defaultArgs.signatures,
