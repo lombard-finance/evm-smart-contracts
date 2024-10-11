@@ -7,8 +7,8 @@ import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/Mes
 import { EIP1271SignatureUtils } from "../libs/EIP1271SignatureUtils.sol";
 import { Actions } from "../libs/Actions.sol";
 
-/// @dev Error thrown when signature proof is already used
-error ProofAlreadyUsed();
+/// @dev Error thrown when signature payload is already used
+error PayloadAlreadyUsed();
 
 /// @dev Error thrown when signatures length is not equal to signers length
 error LengthMismatch();
@@ -56,7 +56,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
         /// @notice Mapping of proofs to their use status
         /// @dev True if the proof is used, false otherwise
-        mapping(bytes32 => bool) usedProofs;
+        mapping(bytes32 => bool) usedPayloads;
     }
 
     // bytes4(keccak256("setValidators(bytes[],uint256[],uint256)"))
@@ -193,9 +193,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             revert LengthMismatch();
         }
 
-        bytes32 proofHash = sha256(_proof);
-        if($.usedProofs[proofHash]) {
-            revert ProofAlreadyUsed();
+        if($.usedPayloads[_message]) {
+            revert PayloadAlreadyUsed();
         }
 
         uint256 count = 0;
@@ -212,6 +211,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         if(count < $.validatorSet[$.epoch].threshold) {
             revert NotEnoughSignatures();
         }
-        $.usedProofs[proofHash] = true;
+        $.usedPayloads[_message] = true;
     }
 }

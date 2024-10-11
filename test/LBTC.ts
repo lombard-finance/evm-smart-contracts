@@ -455,13 +455,13 @@ describe("LBTC", function () {
         ).to.revertedWithCustomError(lbtc, "EnforcedPause");
       });
   
-      it("Reverts when proof already used", async function () {
-        // use the proof
+      it("Reverts when payload is already used", async function () {
+        // use the payload
         await lbtc.mint(defaultPayload, defaultProof);
-        // try to use the same proof again
+        // try to use the same payload again
         await expect(
           lbtc.mint(defaultPayload, defaultProof)
-        ).to.revertedWithCustomError(consortium, "ProofAlreadyUsed");
+        ).to.revertedWithCustomError(consortium, "PayloadAlreadyUsed");
       });
     });
   });
