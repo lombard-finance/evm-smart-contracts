@@ -32,7 +32,7 @@ interface ILBTC {
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     
-    event DepositToBridge(address indexed fromAddress, bytes indexed payload);
-    event WithdrawFromBridge(bytes indexed payload, bytes32 indexed proofHash);
-    event MintProofConsumed(bytes indexed payload, bytes32 indexed proofHash);
+    event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 indexed payloadHash, bytes payload);
+    event WithdrawFromBridge(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
+    event MintProofConsumed(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
 }

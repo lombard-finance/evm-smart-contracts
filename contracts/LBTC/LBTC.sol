@@ -138,7 +138,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         Actions.MintAction memory action = Actions.mint(payload[4:]);
 
         // check proof validity
-        LombardConsortium($.consortium).checkProof(sha256(payload), proof);
+        bytes32 payloadHash = sha256(payload);
+        LombardConsortium($.consortium).checkProof(payloadHash, proof);
 
         bytes32 proofHash = sha256(proof);
 
@@ -148,7 +149,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // Actually mint
         _mint(action.recipient, action.amount);
 
-        emit MintProofConsumed(payload, proofHash);
+        emit MintProofConsumed(action.recipient, payloadHash, payload);
     }
 
     /**
@@ -309,7 +310,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
         );
 
-        emit DepositToBridge(fromAddress, payload);
+        emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
     }
 
     function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
@@ -334,7 +335,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         // proof validation
-        LombardConsortium($.consortium).checkProof(sha256(payload), proof);
+        bytes32 payloadHash = sha256(payload);
+        LombardConsortium($.consortium).checkProof(payloadHash, proof);
 
         bytes32 proofHash = sha256(proof);
 
@@ -344,7 +346,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // Actually mint
         _mint(action.recipient, action.amount);
 
-        emit WithdrawFromBridge(payload, proofHash);
+        emit WithdrawFromBridge(action.recipient, payloadHash, payload);
     }
 
     function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission)
