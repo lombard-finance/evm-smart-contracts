@@ -1,7 +1,7 @@
 # Unstake LBTC
 
 ## Prepare output script
-LBTC currently supports only `p2wpkh` and `p2tr` scripts
+LBTC currently supports only `p2wpkh`, `p2wsh` and `p2tr` scripts
 
 ```js
 import bitcoin, {initEccLib} from "bitcoinjs-lib";
@@ -28,7 +28,11 @@ const example = () => {
 
 ## Make transaction
 
-Call the function `burn(bytes calldata scriptPubkey, uint256 amount)`
+## Validate unstake
+
+Call the function `calcUnstakeRequestAmount(bytes calldata scriptPubkey, uint256 amount) public view returns (uint256 amountAfterFee, bool isAboveDust)` to validate unstake amount and payment script.
+
+Call the function `redeem(bytes calldata scriptPubkey, uint256 amount)`
 
 **Params**
 
