@@ -31,6 +31,9 @@ error ValidatorSetMustApprove();
 /// @dev Error thrown when no validator set is set
 error NoValidatorSet();
 
+/// @dev Error thrown when invalid epoch is provided
+error InvalidEpoch();
+
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
@@ -81,16 +84,19 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _initialValidatorSet - The initial list of validators
     /// @param _weights - The initial list of weights
     /// @param _threshold - The initial threshold
-    function setInitalValidatorSet(bytes[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold) external onlyOwner {
+    function setInitalValidatorSet(bytes[] memory _initialValidatorSet, uint256[] memory _weights, uint256 _threshold, uint256 _epoch) external onlyOwner {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         if($.epoch != 0) {
             revert ValidatorSetMustApprove();
         }
+        if(_epoch == 0) {
+            revert InvalidEpoch();
+        }
 
-        Actions.ValidatorSetAction memory action = Actions.validateValidatorSet(_initialValidatorSet, _weights, _threshold);
+        Actions.ValidatorSetAction memory action = Actions.validateValidatorSet(_initialValidatorSet, _weights, _threshold, _epoch);
 
-        _setValidatorSet(action.validators, action.weights, action.threshold);
+        _setValidatorSet(action.validators, action.weights, action.threshold, action.epoch);
     }
 
     /// @notice Validates the provided signature against the given hash
@@ -135,8 +141,12 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             revert UnexpectedAction(bytes4(payload));
         }
         Actions.ValidatorSetAction memory action = Actions.setValidatorSet(payload[4:]);
+
+        ConsortiumStorage storage $ = _getConsortiumStorage();
+        if(action.epoch != $.epoch + 1)
+            revert InvalidEpoch();
         
-        _setValidatorSet(action.validators, action.weights, action.threshold);
+        _setValidatorSet(action.validators, action.weights, action.threshold, action.epoch);
     }
 
     /// @notice Internal initializer for the consortium
@@ -153,16 +163,16 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         }
     }
 
-    function _setValidatorSet(address[] memory _validators, uint256[] memory _weights, uint256 _threshold) internal {
+    function _setValidatorSet(address[] memory _validators, uint256[] memory _weights, uint256 _threshold, uint256 _epoch) internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        uint256 epoch = ++$.epoch;
-        $.validatorSet[epoch] = ValidatorSet({
+        $.epoch = _epoch;
+        $.validatorSet[_epoch] = ValidatorSet({
             validators: _validators,
             weights: _weights,
             threshold: _threshold
         });
-        emit ValidatorSetUpdated(epoch, _validators, _weights, _threshold);
+        emit ValidatorSetUpdated(_epoch, _validators, _weights, _threshold);
     }
 
     /// @dev Checks that `_proof` is correct

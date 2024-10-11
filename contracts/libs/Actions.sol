@@ -24,6 +24,7 @@ library Actions {
         address[] validators;
         uint256[] weights;
         uint256 threshold;
+        uint256 epoch;
     }
 
     /// @dev Error thrown when invalid public key is provided
@@ -56,12 +57,15 @@ library Actions {
     /// @dev Error thrown when zero amount is provided
     error ZeroAmount();
 
+    /// @dev Error thrown when zero weight is provided
+    error ZeroWeight();
+
     // bytes4(keccak256("mint(uint256,address,address,uint256,bytes)"))
     bytes4 internal constant MINT_ACTION = 0x2adfefeb;
     // bytes4(keccak256("burn(uint256,address,uint256,address,address,uint256,bytes)"))
     bytes4 internal constant BURN_ACTION = 0xca2443c0;
-    // bytes4(keccak256("setValidators(bytes[],uint256[],uint256)"))
-    bytes4 internal constant SET_VALIDATORS_ACTION = 0x333b09c0;
+    // bytes4(keccak256("setValidators(bytes[],uint256[],uint256,uint256)"))
+    bytes4 internal constant SET_VALIDATORS_ACTION = 0x8ece3b88;
 
      /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -162,13 +166,14 @@ library Actions {
         (
             bytes[] memory pubKeys, 
             uint256[] memory weights, 
-            uint256 threshold
-        ) = abi.decode(payload, (bytes[], uint256[], uint256));
+            uint256 threshold,
+            uint256 epoch
+        ) = abi.decode(payload, (bytes[], uint256[], uint256, uint256));
 
-        return validateValidatorSet(pubKeys, weights, threshold);
+        return validateValidatorSet(pubKeys, weights, threshold, epoch);
     }
 
-    function validateValidatorSet(bytes[] memory pubKeys, uint256[] memory weights, uint256 threshold) internal pure returns (ValidatorSetAction memory) {
+    function validateValidatorSet(bytes[] memory pubKeys, uint256[] memory weights, uint256 threshold, uint256 epoch) internal pure returns (ValidatorSetAction memory) {
         if(pubKeys.length < MIN_VALIDATOR_SET_SIZE || pubKeys.length > MAX_VALIDATOR_SET_SIZE) 
             revert InvalidValidatorSetSize();  
 
@@ -180,6 +185,9 @@ library Actions {
 
         uint256 sum = 0;
         for(uint256 i; i < weights.length;) {
+            if(weights[i] == 0) { 
+                revert ZeroWeight();
+            }
             sum += weights[i];
             unchecked { ++i; }
         }
@@ -198,7 +206,7 @@ library Actions {
             unchecked { ++i; }
         }
 
-        return ValidatorSetAction(validators, weights, threshold);
+        return ValidatorSetAction(validators, weights, threshold, epoch);
     }
 
     function pubKeysToAddress(bytes[] memory _pubKeys) internal pure returns (address[] memory) {

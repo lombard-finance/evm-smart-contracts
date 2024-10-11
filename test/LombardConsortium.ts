@@ -44,19 +44,20 @@ describe("LombardConsortium", function () {
       await lombard.setInitalValidatorSet(
         [signer3.publicKey, signer1.publicKey, signer2.publicKey],
         [1, 1, 1],
-        2
+        2,
+        10
       );
     })
 
     it("should set the correct threshold", async function () {
-      const validatorSet = await lombard.getValidatoSet(1);
+      const validatorSet = await lombard.getValidatoSet(10);
       expect(validatorSet.threshold).to.equal(2);
       expect(validatorSet.weights).to.deep.equal([1, 1, 1]);
       expect(validatorSet.validators).to.deep.equal([signer3.address, signer1.address, signer2.address]);
     });
 
     it("should set the correct epoch", async function () {
-      expect(await lombard.curEpoch()).to.equal(1);
+      expect(await lombard.curEpoch()).to.equal(10);
     });
 
     it("should set the new consortium correctly", async function () {
@@ -67,21 +68,47 @@ describe("LombardConsortium", function () {
           [signer1.publicKey, signer2.publicKey],
           [1, 2],
           3,
+          11
         ],
         CHAIN_ID,
         await lombard.getAddress(),
         await lombard.getAddress(),
-        1,
+        10,
         "setValidators"
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.emit(lombard, "ValidatorSetUpdated")
-      .withArgs(2, [signer1.address, signer2.address], [1, 2], 3);
+      .withArgs(11, [signer1.address, signer2.address], [1, 2], 3);
 
-      const validatorSet = await lombard.getValidatoSet(2);
+      const validatorSet = await lombard.getValidatoSet(11);
       expect(validatorSet.threshold).to.equal(3);
       expect(validatorSet.weights).to.deep.equal([1, 2]);
       expect(validatorSet.validators).to.deep.equal([signer1.address, signer2.address]);
+    });
+
+    it("should fail to set initial validator set", async function () {
+      await expect(lombard.setInitalValidatorSet([signer1.publicKey], [1], 1, 11))
+        .to.revertedWithCustomError(lombard, "ValidatorSetMustApprove");
+    });
+
+    it("should fail if epoch is not increasing", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer1.publicKey, signer2.publicKey],
+          [1, 1],
+          1,
+          10
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "InvalidEpoch");
     });
 
     it("should fail if new consortium is not increasing", async function () {
@@ -92,11 +119,12 @@ describe("LombardConsortium", function () {
           [signer2.publicKey, signer1.publicKey],
           [1, 1],
           1,
+          11
         ],
         CHAIN_ID,
         await lombard.getAddress(),
         await lombard.getAddress(),
-        1,
+        10,
         "setValidators"
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
@@ -111,11 +139,12 @@ describe("LombardConsortium", function () {
           [signer2.publicKey, signer1.publicKey],
           [1, 1],
           0,
+          11
         ],
         CHAIN_ID,
         await lombard.getAddress(),
         await lombard.getAddress(),
-        1,
+        10,
         "setValidators"
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
@@ -130,15 +159,36 @@ describe("LombardConsortium", function () {
           [signer2.publicKey, signer1.publicKey],
           [1, 1],
           3,
+          11
         ],
         CHAIN_ID,
         await lombard.getAddress(),
         await lombard.getAddress(),
-        1,
+        10,
         "setValidators"
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
+    });
+
+    it("should fail if zero weights are used", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer2.publicKey, signer1.publicKey],
+          [1, 0],
+          3,
+          11
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "ZeroWeight");
     });
 
     describe("Signature verification", function () {
@@ -158,7 +208,7 @@ describe("LombardConsortium", function () {
           CHAIN_ID,
           deployer.address,
           await lombard.getAddress(),
-          1,
+          10,
           "burn"
         );
 
