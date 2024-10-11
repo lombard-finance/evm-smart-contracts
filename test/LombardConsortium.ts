@@ -5,7 +5,6 @@ import { deployContract, signPayload, getSignersWithPrivateKeys, getPayloadForAc
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import { keccak256 } from "ethers";
 
 describe("LombardConsortium", function () {
   let deployer: HardhatEthersSigner,
@@ -163,7 +162,7 @@ describe("LombardConsortium", function () {
           "burn"
         );
 
-        await lombard.checkProof(keccak256(data.payload), data.proof);
+        await lombard.checkProof(ethers.sha256(data.payload), data.proof);
       });
 
       it("should revert on invalid signatures", async function () {
@@ -198,7 +197,7 @@ describe("LombardConsortium", function () {
           "burn"
         );
 
-        await expect(lombard.checkProof(keccak256(payload), data.proof))
+        await expect(lombard.checkProof(ethers.sha256(payload), data.proof))
         .to.be.revertedWithCustomError(lombard, "SignatureVerificationFailed");
       });
     });

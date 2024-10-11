@@ -156,9 +156,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         // check proof validity
-        LombardConsortium($.consortium).checkProof(keccak256(payload), proof);
+        LombardConsortium($.consortium).checkProof(sha256(payload), proof);
 
-        bytes32 proofHash = keccak256(proof);
+        bytes32 proofHash = sha256(proof);
 
         // Confirm deposit against Bascule
         _confirmDeposit($, proofHash, amount);
@@ -327,7 +327,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
         );
 
-        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee), keccak256(payload));
+        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee), sha256(payload));
     }
 
     function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
@@ -371,9 +371,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
 
         // proof validation
-        LombardConsortium($.consortium).checkProof(keccak256(payload), proof);
+        LombardConsortium($.consortium).checkProof(sha256(payload), proof);
 
-        bytes32 proofHash = keccak256(proof);
+        bytes32 proofHash = sha256(proof);
 
         // Confirm deposit against Bascule
         _confirmDeposit($, proofHash, amount);

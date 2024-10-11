@@ -11,7 +11,6 @@ import {
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import { keccak256 } from "ethers";
 
 describe("LBTC", function () {
   let deployer: HardhatEthersSigner,
@@ -259,7 +258,7 @@ describe("LBTC", function () {
             await expect(
               bascule
                 .connect(reporter)
-                .reportDeposits(reportId, [keccak256(data.proof)])
+                .reportDeposits(reportId, [ethers.sha256(data.proof)])
             )
               .to.emit(bascule, "DepositsReported")
               .withArgs(reportId, 1);
@@ -689,7 +688,7 @@ describe("LBTC", function () {
           ethers.zeroPadValue(await lbtc2.getAddress(), 32),
           CHAIN_ID,
           amountWithoutFee,
-          ethers.keccak256(
+          ethers.sha256(
             getPayloadForAction([
               CHAIN_ID,
               await lbtc.getAddress(),
@@ -733,7 +732,7 @@ describe("LBTC", function () {
         .withArgs(
           receiver,
           amountWithoutFee,
-          keccak256(data1.proof)
+          ethers.sha256(data1.proof)
         );
       expect((await lbtc2.totalSupply()).toString()).to.be.equal(amount - fee);
       expect((await lbtc2.balanceOf(signer2.address)).toString()).to.be.equal(
@@ -759,7 +758,7 @@ describe("LBTC", function () {
           ethers.zeroPadValue(await lbtc.getAddress(), 32),
           CHAIN_ID,
           amountWithoutFee,
-          ethers.keccak256(
+          ethers.sha256(
             getPayloadForAction([
               CHAIN_ID,
               await lbtc2.getAddress(),
@@ -800,7 +799,7 @@ describe("LBTC", function () {
         .withArgs(
           receiver,
           amountWithoutFee,
-          keccak256(data2.proof)
+          ethers.sha256(data2.proof)
         );
     });
 
@@ -834,11 +833,11 @@ describe("LBTC", function () {
       // withdraw without report fails
       await expect(lbtc.connect(signer2).withdrawFromBridge(data.payload, data.proof))
         .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
-        .withArgs(keccak256(data.proof), amount);
+        .withArgs(ethers.sha256(data.proof), amount);
 
       // report deposit
       const reportId = ethers.zeroPadValue("0x01", 32);
-      await bascule.connect(reporter).reportDeposits(reportId, [keccak256(data.proof)]);
+      await bascule.connect(reporter).reportDeposits(reportId, [ethers.sha256(data.proof)]);
 
       // withdraw works
       await expect(
@@ -848,7 +847,7 @@ describe("LBTC", function () {
         .withArgs(
           receiver,
           amount,
-          keccak256(data.proof)
+          ethers.sha256(data.proof)
         );
     });
   });

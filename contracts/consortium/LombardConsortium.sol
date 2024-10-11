@@ -168,7 +168,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _sender address of the account that will trigger the verification
     function enhanceMessage(bytes32 _message, address _sender) public view returns (bytes32) {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        bytes32 enhancedMessage = keccak256(abi.encode(
+        bytes32 enhancedMessage = sha256(abi.encode(
             block.chainid, 
             _sender, 
             address(this), 
@@ -180,7 +180,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
     function setNextValidatorSet(bytes calldata payload, bytes calldata proof) external {
         // check proof
-        this.checkProof(keccak256(payload), proof);
+        this.checkProof(sha256(payload), proof);
 
         // payload validation
         if (bytes4(payload) != SET_VALIDATORS_ACTION) {
@@ -262,7 +262,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
             revert LengthMismatch();
         }
 
-        bytes32 proofHash = keccak256(_proof);
+        bytes32 proofHash = sha256(_proof);
         if($.usedProofs[proofHash]) {
             revert ProofAlreadyUsed();
         }
