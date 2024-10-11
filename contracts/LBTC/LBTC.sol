@@ -304,9 +304,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _burn(fromAddress, amountWithoutFee);
 
         // prepare burn payload
-        bytes memory extraData = abi.encode($.crossChainOperationsNonce++);
+        bytes memory uniqueActionData = abi.encode($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
+            Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
         );
 
         emit DepositToBridge(fromAddress, payload);

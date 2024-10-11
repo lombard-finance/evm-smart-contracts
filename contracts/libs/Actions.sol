@@ -7,7 +7,7 @@ library Actions {
         address toContract;
         address recipient;
         uint256 amount;
-        bytes extraData;
+        bytes uniqueActionData;
     }
 
     struct BurnAction {
@@ -17,7 +17,7 @@ library Actions {
         address toContract;
         address recipient;
         uint256 amount;
-        bytes extraData;
+        bytes uniqueActionData;
     }
 
     struct ValidatorSetAction {
@@ -96,7 +96,7 @@ library Actions {
             address toContract, 
             address recipient, 
             uint256 amount, 
-            bytes memory extraData
+            bytes memory uniqueActionData
         ) = abi.decode(
             payload, 
             (uint256, address, address, uint256, bytes)
@@ -115,7 +115,7 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return MintAction(toChain, toContract, recipient, amount, extraData);
+        return MintAction(toChain, toContract, recipient, amount, uniqueActionData);
     }
 
     /**
@@ -131,7 +131,7 @@ library Actions {
             address toContract, 
             address recipient, 
             uint256 amount, 
-            bytes memory extraData
+            bytes memory uniqueActionData
         ) = abi.decode(
             payload, 
             (uint256, address, uint256, address, address, uint256, bytes)
@@ -150,7 +150,7 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return BurnAction(fromChain, fromContract, toChain, toContract, recipient, amount, extraData);
+        return BurnAction(fromChain, fromContract, toChain, toContract, recipient, amount, uniqueActionData);
     }
 
     /**
