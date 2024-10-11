@@ -148,7 +148,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // Actually mint
         _mint(action.recipient, action.amount);
 
-        emit MintProofConsumed(action.recipient, action.amount, proofHash);
+        emit MintProofConsumed(payload, proofHash);
     }
 
     /**
@@ -309,7 +309,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
             Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
         );
 
-        emit DepositToBridge(fromAddress, toAddress, toContract, toChain, uint64(amountWithoutFee), sha256(payload));
+        emit DepositToBridge(fromAddress, payload);
     }
 
     function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {
@@ -344,7 +344,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // Actually mint
         _mint(action.recipient, action.amount);
 
-        emit WithdrawFromBridge(action.recipient, action.amount, proofHash);
+        emit WithdrawFromBridge(payload, proofHash);
     }
 
     function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission)

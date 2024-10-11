@@ -25,20 +25,14 @@ interface ILBTC {
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
     event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
     event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
-    event DepositToBridge(
-        address indexed fromAddress,
-        bytes32 indexed toAddress,
-        bytes32 toContract,
-        bytes32 chainId,
-        uint64 amount,
-        bytes32 extraData
-    );
-    event WithdrawFromBridge(address indexed toAddress, uint256 indexed amount, bytes32 indexed proofHash);
     event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
     event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
     event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed toChain);
     event BurnCommissionChanged(uint64 indexed prevValue, uint64 indexed newValue);
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
-    event MintProofConsumed(address indexed to, uint256 indexed amount, bytes32 indexed proofHash);
+    
+    event DepositToBridge(address indexed fromAddress, bytes indexed payload);
+    event WithdrawFromBridge(bytes indexed payload, bytes32 indexed proofHash);
+    event MintProofConsumed(bytes indexed payload, bytes32 indexed proofHash);
 }

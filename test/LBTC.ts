@@ -684,21 +684,15 @@ describe("LBTC", function () {
         .to.emit(lbtc, "DepositToBridge")
         .withArgs(
           signer1.address,
-          ethers.zeroPadValue(receiver, 32),
-          ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-          CHAIN_ID,
-          amountWithoutFee,
-          ethers.sha256(
-            getPayloadForAction([
-              CHAIN_ID,
-              await lbtc.getAddress(),
-              CHAIN_ID,
-              await lbtc2.getAddress(),
-              receiver,
-              amountWithoutFee,
-              ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-            ], "burn")
-          )
+          getPayloadForAction([
+            CHAIN_ID,
+            await lbtc.getAddress(),
+            CHAIN_ID,
+            await lbtc2.getAddress(),
+            receiver,
+            amountWithoutFee,
+            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          ], "burn")
         );
 
       expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
@@ -730,8 +724,7 @@ describe("LBTC", function () {
       await expect(lbtc2.connect(signer2).withdrawFromBridge(data1.payload, data1.proof))
         .to.emit(lbtc2, "WithdrawFromBridge")
         .withArgs(
-          receiver,
-          amountWithoutFee,
+          data1.payload,
           ethers.sha256(data1.proof)
         );
       expect((await lbtc2.totalSupply()).toString()).to.be.equal(amount - fee);
@@ -754,21 +747,15 @@ describe("LBTC", function () {
         .to.emit(lbtc2, "DepositToBridge")
         .withArgs(
           signer2.address,
-          ethers.zeroPadValue(receiver, 32),
-          ethers.zeroPadValue(await lbtc.getAddress(), 32),
-          CHAIN_ID,
-          amountWithoutFee,
-          ethers.sha256(
-            getPayloadForAction([
-              CHAIN_ID,
-              await lbtc2.getAddress(),
-              CHAIN_ID,
-              await lbtc.getAddress(),
-              receiver,
-              amountWithoutFee,
-              ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-            ], "burn")
-          )
+          getPayloadForAction([
+            CHAIN_ID,
+            await lbtc2.getAddress(),
+            CHAIN_ID,
+            await lbtc.getAddress(),
+            receiver,
+            amountWithoutFee,
+            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          ], "burn")
         );
 
       expect(await lbtc2.balanceOf(signer2.address)).to.be.equal(0);
@@ -797,8 +784,7 @@ describe("LBTC", function () {
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2.payload, data2.proof))
         .to.emit(lbtc, "WithdrawFromBridge")
         .withArgs(
-          receiver,
-          amountWithoutFee,
+          data2.payload,
           ethers.sha256(data2.proof)
         );
     });
@@ -845,8 +831,7 @@ describe("LBTC", function () {
       )
         .to.emit(lbtc, "WithdrawFromBridge")
         .withArgs(
-          receiver,
-          amount,
+          data.payload,
           ethers.sha256(data.proof)
         );
     });
