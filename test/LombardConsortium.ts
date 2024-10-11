@@ -1,170 +1,254 @@
-import { config, ethers, upgrades } from "hardhat";
+import { config, ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { enrichWithPrivateKeys, signOutputPayload } from "./helpers";
+import { deployContract, signPayload, getSignersWithPrivateKeys, getPayloadForAction, CHAIN_ID } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LombardConsortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
 
-const EIP1271_MAGICVALUE = 0x1626ba7e;
-const EIP1271_WRONGVALUE = 0xffffffff;
-
-async function init(
-  threshold: HardhatEthersSigner,
-  owner: HardhatEthersSigner
-) {
-  const LombardConsortium = await ethers.getContractFactory(
-    "LombardConsortium"
-  );
-  const lombard = (await upgrades.deployProxy(LombardConsortium, [
-    threshold.address,
-    owner.address,
-  ])) as LombardConsortium;
-  await lombard.waitForDeployment();
-  return { lombard };
-}
-
 describe("LombardConsortium", function () {
   let deployer: HardhatEthersSigner,
-    threshold: HardhatEthersSigner,
     signer1: HardhatEthersSigner,
     signer2: HardhatEthersSigner,
     signer3: HardhatEthersSigner;
-  let signers;
   let lombard: LombardConsortium;
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [deployer, threshold, signer1, signer2, signer3] =
-      await ethers.getSigners();
-    signers = [deployer, threshold, signer1, signer2, signer3];
-    await enrichWithPrivateKeys(signers);
-    const result = await init(threshold, deployer);
-    lombard = result.lombard;
+    [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
+    lombard = await deployContract<LombardConsortium>("LombardConsortium", [
+      deployer.address,
+    ]);
     snapshot = await takeSnapshot();
   });
 
+  afterEach(async function () {
+    await snapshot.restore();
+  });
+
   describe("Setters and getters", function () {
-    beforeEach(async function () {
-      await snapshot.restore();
-    });
-    it("Should set right threshold key", async function () {
+    it("should set the correct owner", async function () {
       expect(await lombard.owner()).to.equal(deployer.address);
-    });
-    it("Should set right threshold owner", async function () {
-      expect(await lombard.thresholdAddr()).to.equal(threshold.address);
-    });
-    it("changeThresholdAdrr()", async function () {
-      const prevValue = await lombard.thresholdAddr();
-      const newValue = signer1.address;
-      await expect(lombard.changeThresholdAddr(newValue))
-        .to.emit(lombard, "ThresholdAddrChanged")
-        .withArgs(prevValue, newValue);
-      expect(await lombard.thresholdAddr()).to.be.eq(newValue);
-
-      //Validate with new key
-      const amount = 100_000_000n;
-      const signedData = signOutputPayload(signer1.privateKey, {
-        to: signer2.address,
-        amount,
-      });
-      expect(
-        BigInt(
-          await lombard.isValidSignature(signedData.hash, signedData.signature)
-        )
-      ).to.be.eq(EIP1271_MAGICVALUE);
-    });
-
-    it("changeThresholdAddr() reverts when called by not an owner", async function () {
-      await expect(
-        lombard.connect(signer1).changeThresholdAddr(signer1.address)
-      ).to.revertedWithCustomError(lombard, "OwnableUnauthorizedAccount");
     });
   });
 
-  describe("Signature", function () {
-    const valid = [
-      {
-        name: "1 BTC",
-        amount: 100_000_000n,
-        recipient: () => signer1,
-        msgSender: () => signer2,
-      },
-      {
-        name: "1 satoshi",
-        amount: 1n,
-        recipient: () => signer1,
-        msgSender: () => signer2,
-      },
-    ];
-    valid.forEach(function (arg) {
-      it(`Mint ${arg.name}`, async function () {
-        const amount = arg.amount;
-        const recipient = arg.recipient();
-        const signedData = signOutputPayload(threshold.privateKey, {
-          to: recipient.address,
-          amount,
-        });
-        expect(
-          BigInt(
-            await lombard.isValidSignature(
-              signedData.hash,
-              signedData.signature
-            )
-          )
-        ).to.be.eq(EIP1271_MAGICVALUE);
-      });
+  it("should revert if not validator set is set", async function () {
+    // Empty proof should bypass check if not properly handled
+    // Message is not relevant for this test
+    await expect(lombard.checkProof(ethers.randomBytes(32), "0x")) 
+      .to.be.revertedWithCustomError(lombard, "NoValidatorSet");
+  })
+
+  describe("With Initial ValidatorSet", function () {
+    beforeEach(async function () {
+      await lombard.setInitalValidatorSet(
+        [signer3.publicKey, signer1.publicKey, signer2.publicKey],
+        [1, 1, 1],
+        2,
+        10
+      );
+    })
+
+    it("should set the correct threshold", async function () {
+      const validatorSet = await lombard.getValidatoSet(10);
+      expect(validatorSet.threshold).to.equal(2);
+      expect(validatorSet.weights).to.deep.equal([1, 1, 1]);
+      expect(validatorSet.validators).to.deep.equal([signer3.address, signer1.address, signer2.address]);
     });
 
-    const invalid = [
-      {
-        name: "signer is not a consortium",
-        signer: () => signer1,
-        signOutputPayload: signOutputPayload,
-        recipient: () => signer1.address,
-        amount: 100_000_000n,
-        chainId: config.networks.hardhat.chainId,
-      },
-      {
-        name: "hash does not match signature",
-        signer: () => signer1,
-        signOutputPayload: function (
-          privateKey: string,
-          data: { to: string; amount: bigint; chainId?: number }
-        ): {
-          data: string;
-          hash: string;
-          signature: string;
-        } {
-          const result1 = signOutputPayload(privateKey, data);
-          const result2 = signOutputPayload(privateKey, {
-            to: signer2.address,
-            amount: 100_000_000n,
-          });
-          return {
-            data: result1.data,
-            hash: result1.hash,
-            signature: result2.signature,
-          };
-        },
-        recipient: () => signer1.address,
-        amount: 100_000_000n,
-        chainId: config.networks.hardhat.chainId,
-      },
-    ];
-    invalid.forEach(function (arg) {
-      it(`Returns wrong value when ${arg.name}`, async function () {
-        const amount = arg.amount;
-        const recipient = arg.recipient();
-        const signer = arg.signer();
-        const signedData = arg.signOutputPayload(signer.privateKey, {
-          to: recipient,
-          amount: amount,
-          chainId: arg.chainId,
-        });
-        expect(
-          await lombard.isValidSignature(signedData.hash, signedData.signature)
-        ).to.be.equal(BigInt(EIP1271_WRONGVALUE));
+    it("should set the correct epoch", async function () {
+      expect(await lombard.curEpoch()).to.equal(10);
+    });
+
+    it("should set the new consortium correctly", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer1.publicKey, signer2.publicKey],
+          [1, 2],
+          3,
+          11
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.emit(lombard, "ValidatorSetUpdated")
+      .withArgs(11, [signer1.address, signer2.address], [1, 2], 3);
+
+      const validatorSet = await lombard.getValidatoSet(11);
+      expect(validatorSet.threshold).to.equal(3);
+      expect(validatorSet.weights).to.deep.equal([1, 2]);
+      expect(validatorSet.validators).to.deep.equal([signer1.address, signer2.address]);
+    });
+
+    it("should fail to set initial validator set", async function () {
+      await expect(lombard.setInitalValidatorSet([signer1.publicKey], [1], 1, 11))
+        .to.revertedWithCustomError(lombard, "ValidatorSetMustApprove");
+    });
+
+    it("should fail if epoch is not increasing", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer1.publicKey, signer2.publicKey],
+          [1, 1],
+          1,
+          10
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "InvalidEpoch");
+    });
+
+    it("should fail if new consortium is not increasing", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer2.publicKey, signer1.publicKey],
+          [1, 1],
+          1,
+          11
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "NotIncreasingValidatorSet");
+    });
+
+    it("should fail if treshold is zero", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer2.publicKey, signer1.publicKey],
+          [1, 1],
+          0,
+          11
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
+    });
+
+    it("should fail if treshold is over the sum of weights", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer2.publicKey, signer1.publicKey],
+          [1, 1],
+          3,
+          11
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
+    });
+
+    it("should fail if zero weights are used", async function () {
+      const data = await signPayload(
+        [signer3, signer1, signer2],
+        [true, true, false],
+        [
+          [signer2.publicKey, signer1.publicKey],
+          [1, 0],
+          3,
+          11
+        ],
+        CHAIN_ID,
+        await lombard.getAddress(),
+        await lombard.getAddress(),
+        10,
+        "setValidators"
+      );
+      await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+      .to.be.revertedWithCustomError(lombard, "ZeroWeight");
+    });
+
+    describe("Signature verification", function () {
+      it("should validate correct signatures", async function () {
+        const data = await signPayload(
+          [signer3, signer1, signer2],
+          [true, true, false],
+          [
+            1,
+            signer1.address, //any address
+            1,
+            signer2.address, //any address
+            signer3.address, //any address
+            10,
+            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          ],
+          CHAIN_ID,
+          deployer.address,
+          await lombard.getAddress(),
+          10,
+          "burn"
+        );
+
+        await lombard.checkProof(ethers.sha256(data.payload), data.proof);
+      });
+
+      it("should revert on invalid signatures", async function () {
+        const data = await signPayload(
+          [signer3, signer1, signer2],
+          [true, true, false],
+          [
+            1,
+            signer1.address, //any address
+            1,
+            signer2.address, //any address
+            signer3.address, //any address
+            10,
+            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          ],
+          CHAIN_ID,
+          deployer.address,
+          await lombard.getAddress(),
+          1,
+          "burn"
+        );
+
+        const payload = getPayloadForAction([
+            1,
+            signer1.address, //any address
+            2,               // mismatching chainId
+            signer2.address, //any address
+            signer3.address, //any address
+            10,
+            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          ],
+          "burn"
+        );
+
+        await expect(lombard.checkProof(ethers.sha256(payload), data.proof))
+        .to.be.revertedWithCustomError(lombard, "SignatureVerificationFailed");
       });
     });
   });

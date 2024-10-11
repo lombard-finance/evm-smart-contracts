@@ -6,7 +6,7 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 /**
  * @title Use for Consortium 
  * @author Lombard.Finance
- * @notice The contracts is a part of Lombard.Finace protocol. Executor is EOA controlled by decentralized consortium consensus mechanism.
+ * @notice The contracts is a part of Lombard.Finance protocol. Executor is EOA controlled by decentralized consortium consensus mechanism.
  */
 contract LombardTimeLock is TimelockController {
     constructor(
