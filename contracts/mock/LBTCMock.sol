@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.24;
 
 import { LBTC } from "../LBTC/LBTC.sol";
 
@@ -10,7 +10,7 @@ import { LBTC } from "../LBTC/LBTC.sol";
  */
 contract LBTCMock is LBTC {
 
-    function mint(address to, uint256 amount) external {
+    function mintTo(address to, uint256 amount) external {
         _mint(to, amount);
     }
 }

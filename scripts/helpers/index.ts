@@ -1,4 +1,6 @@
-import { run } from "hardhat";
+import {ethers, run} from "hardhat";
+import {BigNumberish, ContractTransaction} from "ethers";
+import {BytesLike} from "ethers/lib.commonjs/utils/data";
 
 type TAddressesWithNetwork = {
   [k: string]: TAddresses;
@@ -8,6 +10,8 @@ export type TAddresses = {
   LBTC?: string;
   ThresholdKey?: string;
   Owner?: string;
+  Consortium?: string;
+  Timelock?: string;
 };
 
 export function getAddresses(network: string): TAddresses {
@@ -34,4 +38,32 @@ export async function verify(address: string) {
   } catch (e) {
     console.error(`Verification failed: ${e}`);
   }
+}
+
+export async function schedule({timelockAddr, transaction, predecessor, salt, delay}: {
+  timelockAddr: string
+  transaction: ContractTransaction;
+  predecessor?: BytesLike;
+  salt?: BytesLike;
+  delay?: BigNumberish;
+}) {
+  const timelock = await ethers.getContractAt(
+    'ITimelockController',
+    timelockAddr,
+  );
+
+  if (!delay) {
+    delay = await timelock.getMinDelay();
+  }
+
+  const res = await timelock.schedule(
+    transaction.to,
+    transaction.value || '0',
+    transaction.data,
+    predecessor || ethers.ZeroHash,
+    salt || ethers.ZeroHash,
+    delay
+  );
+  await res.wait();
+  console.log(res.hash);
 }

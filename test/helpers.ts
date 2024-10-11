@@ -1,108 +1,83 @@
-import { config, ethers, network, upgrades } from "hardhat";
-import secp256k1 from "secp256k1";
+import { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, WBTCMock, Bascule, Address } from "../typechain-types";
-import { AddressLike } from "ethers";
+import { LBTCMock, WBTCMock, Bascule } from "../typechain-types";
+import { AddressLike, BaseContract, BigNumberish } from "ethers";
 
-export function signOutputPayload(
-  privateKey: string,
-  data: {
-    to: string;
-    amount: bigint;
-    chainId?: number;
-    txId?: string;
-    outputIndex?: number;
-  }
-): {
-  data: string;
-  hash: string;
-  signature: string;
-} {
-  //pack and hash
-  const packed = ethers.AbiCoder.defaultAbiCoder().encode(
-    ["uint256", "address", "uint64", "bytes32", "uint32"],
-    [
-      data.chainId || network.config.chainId,
-      data.to,
-      data.amount,
-      data.txId || ethers.randomBytes(32),
-      data.outputIndex || Math.floor(Math.random() * 4294967295),
-    ]
-  );
-  const hash = ethers.keccak256(packed);
+export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
-  // sign hash
-  const { signature, recid } = secp256k1.ecdsaSign(
-    ethers.getBytes(hash),
-    ethers.getBytes(privateKey)
-  );
-  const signedHash = ethers.hexlify(signature) + (recid === 0 ? "1b" : "1c");
+const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
 
-  return {
-    data: packed,
-    hash: hash,
-    signature: signedHash,
-  };
+export const ERRORS_IFACE = {
+  interface: ethers.Interface.from([
+    "error WrongChainId()",
+    "error ZeroAddress()",
+    "error ZeroTxId()",
+    "error ZeroAmount()",
+  ]),
+};
+
+const ACTIONS_IFACE = ethers.Interface.from([
+  "function mint(uint256,address,address,uint256,bytes) external",
+  "function burn(uint256,address,uint256,address,address,uint256,bytes) external",
+  "function setValidators(bytes[],uint256[],uint256,uint256) external",
+])
+
+export function getPayloadForAction(data: any[], action: string) {
+  return ACTIONS_IFACE.encodeFunctionData(action, data);
 }
 
-export function signBridgeDepositPayload(
-  privateKey: string,
-  fromContract: string,
-  fromChainId: string,
-  toContract: string,
-  toChainId: string,
-  toAddress: string,
-  amount: bigint,
-  txHash: string,
-  eventIndex: number
-): {
-  data: string;
-  hash: string;
-  signature: string;
-} {
-  const packed = ethers.AbiCoder.defaultAbiCoder().encode(
-    [
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "bytes32",
-      "uint64",
-      "bytes32",
-      "uint32",
-    ],
-    [
-      fromContract,
-      fromChainId,
-      toContract,
-      toChainId,
-      toAddress,
-      amount,
-      txHash,
-      eventIndex,
-    ]
-  );
-
-  const hash = ethers.keccak256(packed);
-
-  // sign hash
-  const { signature, recid } = secp256k1.ecdsaSign(
-    ethers.getBytes(hash),
-    ethers.getBytes(privateKey)
-  );
-  const signedHash = ethers.hexlify(signature) + (recid === 0 ? "1b" : "1c");
-
-  return {
-    data: packed,
-    hash: hash,
-    signature: signedHash,
-  };
-}
-
-export async function enrichWithPrivateKeys(
+export async function signPayload(
   signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  data: any[],
+  executionChainId: BigNumberish,
+  caller: AddressLike,
+  verifier: AddressLike,
+  epoch: number,
+  action: string
+): Promise<{
+  payload: string;
+  enhancedPayload: string;
+  proof: string;
+}> {
+  
+  if (signers.length !== signatures.length) {
+    throw new Error("Signers & signatures must have the same length");
+  }
+
+  const originalMessage = getPayloadForAction(data, action);
+  const finalMessage = ethers.sha256(encode(
+    ["uint256", "address", "address", "uint256", "bytes32"],
+    [executionChainId, caller, verifier, epoch, ethers.sha256(originalMessage)]
+  ))
+  const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
+    if (!signatures[index]) return "0x";
+    
+    const signingKey = new ethers.SigningKey(signer.privateKey);
+    const signature = signingKey.sign(finalMessage);
+    
+    return signature.serialized;
+  }));
+  
+  return {
+    payload: originalMessage,
+    enhancedPayload: finalMessage,
+    proof: encode(["bytes[]"], [signaturesArray]),
+  };
+}
+
+export async function deployContract<T extends BaseContract>(contractName: string, args: any[], isProxy: boolean = true) : Promise<T> {
+  const factory = await ethers.getContractFactory(contractName);
+  const contract = await (isProxy ? upgrades.deployProxy(factory, args) : factory.deploy(...args));
+  await contract.waitForDeployment();
+
+  return factory.attach(contract.target) as T;
+}
+
+export async function getSignersWithPrivateKeys(
   phrase?: string
-) {
+): Promise<HardhatEthersSigner[]> {
+  const signers = await ethers.getSigners();
   const mnemonic = ethers.Mnemonic.fromPhrase(
     phrase || config.networks.hardhat.accounts.mnemonic
   );
@@ -113,12 +88,14 @@ export async function enrichWithPrivateKeys(
     );
     if (wallet.address === signers[i].address) {
       signers[i].privateKey = wallet.privateKey;
+      signers[i].publicKey = `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
     }
   }
+  return signers;
 }
 
+
 export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  console.log("=== LBTC");
   const LBTC = await ethers.getContractFactory("LBTCMock");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
@@ -126,7 +103,6 @@ export async function init(consortium: HardhatEthersSigner, burnCommission: numb
   ])) as unknown as LBTCMock;
   await lbtc.waitForDeployment();
 
-  console.log("=== WBTC");
   const WBTC = await ethers.getContractFactory("WBTCMock");
   const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
   await wbtc.waitForDeployment();
@@ -135,7 +111,6 @@ export async function init(consortium: HardhatEthersSigner, burnCommission: numb
 }
 
 export async function deployBascule(reporter: HardhatEthersSigner, lbtc: AddressLike): Promise<Bascule> {
-  console.log("=== Bascule");
   const Bascule = await ethers.getContractFactory("Bascule");
   const [admin, pauser, maxDeposits] = [ reporter.address, reporter.address, 100 ];
   const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
