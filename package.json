@@ -32,5 +32,8 @@
     "typechain": "^8.3.0",
     "typescript": ">=4.5.0",
     "web3": "^1.10.0"
+  },
+  "dependencies": {
+    "@chainlink/contracts-ccip": "^1.5.0"
   }
 }

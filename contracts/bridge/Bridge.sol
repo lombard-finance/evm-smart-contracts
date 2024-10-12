@@ -135,7 +135,7 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
     /// ACTIONS ///
 
-    function deposit(bytes32 toChain, bytes32 toAddress, uint64 amount) external payable nonReentrant returns (uint256) {
+    function deposit(bytes32 toChain, bytes32 toAddress, uint64 amount) external payable nonReentrant returns (uint256, bytes memory) {
         bytes32 toContract = getDestination(toChain);
 
         if (toContract == bytes32(0)) {
@@ -267,7 +267,7 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @param toAddress claimer of 'amount' on destination chain.
      * @param amount amount of tokens to be bridged.
      */
-    function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal returns (uint256) {
+    function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal returns (uint256, bytes memory) {
         BridgeStorage storage $ = _getBridgeStorage();
         // relative fee
         uint256 fee;
@@ -311,10 +311,10 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         bytes32 payloadHash = sha256(payload);
         $.adapter.deposit{
             value: $.adapter.getFee(toChain, toContract, toAddress, amountWithoutFee, payload)
-        }(toChain, toContract, toAddress, amountWithoutFee, payload);
+        }(fromAddress,toChain, toContract, toAddress, amountWithoutFee, payload);
 
         emit DepositToBridge(fromAddress, toAddress, payloadHash, payload);
-        return amountWithoutFee;
+        return (amountWithoutFee, payload);
     }
 
     function _calcRelativeFee(uint64 amount, uint16 commission) internal pure returns (uint256 fee) {

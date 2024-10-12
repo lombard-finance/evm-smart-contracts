@@ -19,7 +19,7 @@ contract DefaultAdapter is AbstractAdapter {
      * @dev Must handle the burn, assets deposited must be sent to this adapter in advance
      * @param _amount Amount of assets deposited after deducting fees
      */
-    function deposit(bytes32, bytes32, bytes32, uint256 _amount, bytes memory) external payable override onlyBridge {
+    function deposit(address,bytes32, bytes32, bytes32, uint256 _amount, bytes memory) external payable override onlyBridge {
         // burn received assets
         lbtc.burn(_amount);
     }

@@ -7,7 +7,7 @@ import {LBTC} from "../../LBTC/LBTC.sol";
 
 abstract contract AbstractAdapter is IAdapter, Ownable2Step {
     LBTC lbtc;
-    address bridge;
+    address public override bridge;
 
     constructor(address lbtc_, address owner_) Ownable(owner_) {
         lbtc = LBTC(lbtc_);
