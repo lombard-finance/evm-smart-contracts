@@ -38,18 +38,18 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         mapping(bytes32 => bool) __removed_usedBridgeProofs;
         /// @custom:oz-renamed-from globalNonce
         uint256 __removed_globalNonce;
-        mapping(bytes32 => bytes32) destinations;
-        mapping(bytes32 => uint16) depositRelativeCommission; // relative to amount commission to charge on bridge deposit
-        mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
+        mapping(bytes32 => bytes32) __removed__destinations;
+        mapping(bytes32 => uint16) __removed__depositRelativeCommission; // relative to amount commission to charge on bridge deposit
+        mapping(bytes32 => uint64) __removed__depositAbsoluteCommission; // absolute commission to charge on bridge deposit
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
         address pauser;
-        // Increments with each cross chain operation and should be part of the payload
-        uint256 crossChainOperationsNonce;
 
         mapping(address => bool) minters;
+
+        address bridge;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -130,9 +130,9 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
     /// @param amount The amount of LBTC to mint    
     /// @dev Only callable by whitelisted minters
     function mint(address to, uint256 amount) external {
-        if(!_getLBTCStorage().minters[_msgSender()]) 
+        if(!_getLBTCStorage().minters[_msgSender()]) {
             revert UnauthorizedAccount(_msgSender());
-
+        }
         _mint(to, amount);
     }
 
@@ -161,6 +161,27 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _mint(action.recipient, action.amount);
 
         emit MintProofConsumed(action.recipient, payloadHash, payload);
+    }
+
+    function withdraw(Actions.BurnAction memory action, bytes calldata payload, bytes calldata proof) external nonReentrant {
+        LBTCStorage storage $ = _getLBTCStorage();
+        if(_msgSender() != $.bridge) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+
+        // proof validation
+        bytes32 payloadHash = sha256(payload);
+        LombardConsortium($.consortium).checkProof(payloadHash, proof);
+
+        bytes32 proofHash = sha256(proof);
+
+        // Confirm deposit against Bascule
+        _confirmDeposit($, proofHash, action.amount);
+
+        // Actually mint
+        _mint(action.recipient, action.amount);
+
+        emit WithdrawFromBridge(action.recipient, payloadHash, payload);
     }
 
     /**
@@ -270,167 +291,12 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         return _getLBTCStorage().symbol;
     }
 
-    // --- Bridge ---
-
-    function depositToBridge(bytes32 toChain, bytes32 toAddress, uint64 amount) external nonReentrant {
-        bytes32 toContract = getDestination(toChain);
-
-        if (toContract == bytes32(0)) {
-            revert UnknownDestination();
-        }
-
-        if (toAddress == bytes32(0)) {
-            revert ZeroAddress();
-        }
-
-        _deposit(toChain, toContract, toAddress, amount);
-    }
-
-    /**
-     * @dev LBTC on source and destination chains are linked with independent supplies.
-     * Burns tokens on source chain (to later mint on destination chain).
-     * @param toChain one of many destination chain ID.
-     * @param toAddress claimer of 'amount' on destination chain.
-     * @param amount amount of tokens to be bridged.
-     */
-    function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
-        // relative fee
-        uint256 fee = FeeUtils.getRelativeFee(amount, getDepositRelativeCommission(toChain));
-        // absolute fee
-        fee += $.depositAbsoluteCommission[toChain];
-
-        if (fee >= amount) {
-            revert AmountLessThanCommission(fee);
-        }
-
-        address fromAddress = _msgSender();
-        _transfer(fromAddress, $.treasury, fee);
-        uint256 amountWithoutFee = amount - fee;
-        _burn(fromAddress, amountWithoutFee);
-
-        // prepare burn payload
-        bytes memory uniqueActionData = abi.encode($.crossChainOperationsNonce++);
-        bytes memory payload = abi.encodeWithSelector(
-            Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
-        );
-
-        emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
-    }
-
-    function withdrawFromBridge(
-        bytes calldata data,
-        bytes calldata proofSignature
-    ) external nonReentrant {
-        _withdraw(data, proofSignature);
-    }
-
-    function _withdraw(bytes calldata payload, bytes calldata proof) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
-
-        // payload validation
-        if (bytes4(payload) != Actions.BURN_ACTION) {
-            revert UnexpectedAction(bytes4(payload));
-        }
-        Actions.BurnAction memory action = Actions.burn(payload[4:]);
-
-        if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
-            revert UnknownOriginContract(action.toChain, action.toContract);
-        }
-
-        // proof validation
-        bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
-
-        bytes32 proofHash = sha256(proof);
-
-        // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, action.amount);
-
-        // Actually mint
-        _mint(action.recipient, action.amount);
-
-        emit WithdrawFromBridge(action.recipient, payloadHash, payload);
-    }
-
-    function addDestination(bytes32 toChain, bytes32 toContract, uint16 relCommission, uint64 absCommission)
-        external
-        onlyOwner
-    {
-        if (toContract == bytes32(0)) {
-            revert ZeroContractHash();
-        }
-        if (toChain == bytes32(0)) {
-            revert ZeroChainId();
-        }
-
-        if (getDestination(toChain) != bytes32(0)) {
-            revert KnownDestination();
-        }
-        // do not allow 100% commission or higher values
-        FeeUtils.validateCommission(relCommission);
-
-        LBTCStorage storage $ = _getLBTCStorage();
-        $.destinations[toChain] = toContract;
-        $.depositRelativeCommission[toChain] = relCommission;
-        $.depositAbsoluteCommission[toChain] = absCommission;
-
-        emit DepositAbsoluteCommissionChanged(absCommission, toChain);
-        emit DepositRelativeCommissionChanged(relCommission, toChain);
-        emit BridgeDestinationAdded(toChain, toContract);
-    }
-
-    function removeDestination(bytes32 toChain) external onlyOwner {
-        LBTCStorage storage $ = _getLBTCStorage();
-        bytes32 toContract = $.destinations[toChain];
-        if (toContract == bytes32(0)) {
-            revert ZeroContractHash();
-        }
-        delete $.destinations[toChain];
-        delete $.depositRelativeCommission[toChain];
-        delete $.depositAbsoluteCommission[toChain];
-
-        emit DepositAbsoluteCommissionChanged(0, toChain);
-        emit DepositRelativeCommissionChanged(0, toChain);
-        emit BridgeDestinationRemoved(toChain, toContract);
-    }
-
-    /**
-     * @dev Get destination contract for chain id
-     * @param chainId Chain id of the destination chain
-     */
-    function getDestination(bytes32 chainId) public view returns (bytes32) {
-        return _getLBTCStorage().destinations[chainId];
-    }
-
     function getTreasury() public view returns (address) {
         return _getLBTCStorage().treasury;
     }
 
-    function getDepositAbsoluteCommission(bytes32 toChain) public view returns (uint64) {
-        return _getLBTCStorage().depositAbsoluteCommission[toChain];
-    }
-
-    function getDepositRelativeCommission(bytes32 toChain) public view returns (uint16) {
-        return _getLBTCStorage().depositRelativeCommission[toChain];
-    }
-
     function getBurnCommission() public view returns (uint64) {
         return _getLBTCStorage().burnCommission;
-    }
-
-    function changeDepositAbsoluteCommission(uint64 newValue, bytes32 chain) external onlyOwner {
-        LBTCStorage storage $ = _getLBTCStorage();
-        $.depositAbsoluteCommission[chain] = newValue;
-        emit DepositAbsoluteCommissionChanged(newValue, chain);
-    }
-
-    function changeDepositRelativeCommission(uint16 newValue, bytes32 chain) external onlyOwner {
-        // do not allow 100% commission
-        FeeUtils.validateCommission(newValue);
-        LBTCStorage storage $ = _getLBTCStorage();
-        $.depositRelativeCommission[chain] = newValue;
-        emit DepositRelativeCommissionChanged(newValue, chain);
     }
 
     function changeTreasuryAddress(address newValue) external onlyOwner {
@@ -572,6 +438,16 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         }
         _getLBTCStorage().minters[minter] = _isMinter;
         emit MinterUpdated(minter, _isMinter);
+    }
+
+    function changeBridge(address newBridge) external onlyOwner {
+        if(newBridge == address(0)) {
+            revert ZeroAddress();
+        }
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldBridge = $.bridge;
+        $.bridge = newBridge;
+        emit BridgeChanged(oldBridge, newBridge);
     }
 
     /**
