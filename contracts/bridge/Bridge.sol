@@ -270,35 +270,48 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal returns (uint256) {
         BridgeStorage storage $ = _getBridgeStorage();
         // relative fee
-        uint16 relativeComs = $.depositRelativeCommission[toChain];
-        if (amount < relativeComs) {
-            revert AmountTooSmallToPayRelativeFee();
+        uint256 fee;
+        {
+            uint16 relativeComs = $.depositRelativeCommission[toChain];
+            if (amount < relativeComs) {
+                revert AmountTooSmallToPayRelativeFee();
+            }
+
+            fee = _calcRelativeFee(amount, relativeComs);
+
+            // absolute fee
+            fee += $.depositAbsoluteCommission[toChain];
+
+            if (fee >= amount) {
+                revert AmountLessThanCommission(fee);
+            }
         }
 
-        uint256 fee = _calcRelativeFee(amount, relativeComs);
-
-        // absolute fee
-        fee += $.depositAbsoluteCommission[toChain];
-
-        if (fee >= amount) {
-            revert AmountLessThanCommission(fee);
-        }
-
-        LBTC lbtc = $.lbtc;
         address fromAddress = _msgSender();
-        lbtc.safeTransferFrom(fromAddress, $.treasury, fee);
         uint256 amountWithoutFee = amount - fee;
-        // adapter will handle the burn
-        lbtc.safeTransferFrom(fromAddress, address($.adapter), amountWithoutFee);
+        {
+            LBTC lbtc = $.lbtc;
+            lbtc.safeTransferFrom(fromAddress, $.treasury, fee);
+            // adapter will handle the burn
+            lbtc.safeTransferFrom(fromAddress, address($.adapter), amountWithoutFee);
+        }
 
         // prepare burn payload
-        bytes memory extraData = abi.encode($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, extraData
+            Actions.BURN_ACTION, 
+            block.chainid, 
+            address(this), 
+            toChain, 
+            toContract, 
+            toAddress, 
+            amountWithoutFee, 
+            abi.encode($.crossChainOperationsNonce++)
         );
 
         bytes32 payloadHash = sha256(payload);
-        $.adapter.deposit(toChain, toContract, toAddress, amountWithoutFee, payload);
+        $.adapter.deposit{
+            value: $.adapter.getFee(toChain, toContract, toAddress, amountWithoutFee, payload)
+        }(toChain, toContract, toAddress, amountWithoutFee, payload);
 
         emit DepositToBridge(fromAddress, toAddress, payloadHash, payload);
         return amountWithoutFee;
