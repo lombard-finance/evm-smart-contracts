@@ -10,7 +10,7 @@ library Actions {
         bytes uniqueActionData;
     }
 
-    struct BurnAction {
+    struct BridgeAction {
         uint256 fromChain;
         address fromContract;
         uint256 toChain;
@@ -62,8 +62,8 @@ library Actions {
 
     // bytes4(keccak256("mint(uint256,address,address,uint256,bytes)"))
     bytes4 internal constant MINT_ACTION = 0x2adfefeb;
-    // bytes4(keccak256("burn(uint256,address,uint256,address,address,uint256,bytes)"))
-    bytes4 internal constant BURN_ACTION = 0xca2443c0;
+    // bytes4(keccak256("bridge(uint256,address,uint256,address,address,uint256,bytes)"))
+    bytes4 internal constant BRIDGE_ACTION = 0x26578db1;
     // bytes4(keccak256("setValidators(bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant SET_VALIDATORS_ACTION = 0x8ece3b88;
 
@@ -123,11 +123,11 @@ library Actions {
     }
 
     /**
-     * @notice Returns decoded burn payload
+     * @notice Returns decoded bridge payload
      * @dev Payload should not contain the selector
      * @param payload Body of the burn payload
      */
-    function burn(bytes memory payload) internal view returns (BurnAction memory) {
+    function bridge(bytes memory payload) internal view returns (BridgeAction memory) {
         (   
             uint256 fromChain, 
             address fromContract, 
@@ -154,7 +154,7 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return BurnAction(fromChain, fromContract, toChain, toContract, recipient, amount, uniqueActionData);
+        return BridgeAction(fromChain, fromContract, toChain, toContract, recipient, amount, uniqueActionData);
     }
 
     /**

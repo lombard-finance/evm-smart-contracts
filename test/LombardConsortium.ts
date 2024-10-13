@@ -209,7 +209,7 @@ describe("LombardConsortium", function () {
           deployer.address,
           await lombard.getAddress(),
           10,
-          "burn"
+          "bridge"
         );
 
         await lombard.checkProof(ethers.sha256(data.payload), data.proof);
@@ -232,7 +232,7 @@ describe("LombardConsortium", function () {
           deployer.address,
           await lombard.getAddress(),
           1,
-          "burn"
+          "bridge"
         );
 
         const payload = getPayloadForAction([
@@ -244,7 +244,7 @@ describe("LombardConsortium", function () {
             10,
             ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
           ],
-          "burn"
+          "bridge"
         );
 
         await expect(lombard.checkProof(ethers.sha256(payload), data.proof))

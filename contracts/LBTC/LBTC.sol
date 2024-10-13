@@ -312,7 +312,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         // prepare burn payload
         bytes memory uniqueActionData = abi.encode($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            Actions.BURN_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
+            Actions.BRIDGE_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
         );
 
         emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
@@ -329,10 +329,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != Actions.BURN_ACTION) {
+        if (bytes4(payload) != Actions.BRIDGE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.BurnAction memory action = Actions.burn(payload[4:]);
+        Actions.BridgeAction memory action = Actions.bridge(payload[4:]);
 
         if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
             revert UnknownOriginContract(action.toChain, action.toContract);

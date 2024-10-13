@@ -797,7 +797,7 @@ describe("LBTC", function () {
         receiver,
         amountWithoutFee,
         ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-      ], "burn");
+      ], "bridge");
 
       await expect(lbtc.connect(signer1).depositToBridge(
         CHAIN_ID,
@@ -835,7 +835,7 @@ describe("LBTC", function () {
         await lbtc2.getAddress(),
         await consortium.getAddress(),
         1,
-        "burn"
+        "bridge"
       );
 
       await expect(lbtc2.connect(signer2).withdrawFromBridge(data1.payload, data1.proof))
@@ -865,7 +865,7 @@ describe("LBTC", function () {
         receiver,
         amountWithoutFee,
         ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-      ], "burn");
+      ], "bridge");
 
       await expect(lbtc2.connect(signer2).depositToBridge(
         CHAIN_ID,
@@ -900,7 +900,7 @@ describe("LBTC", function () {
         await lbtc.getAddress(),
         await consortium.getAddress(),
         1,
-        "burn"
+        "bridge"
       );
 
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2.payload, data2.proof))
@@ -936,7 +936,7 @@ describe("LBTC", function () {
         await lbtc.getAddress(),
         await consortium.getAddress(),
         1,
-        "burn"
+        "bridge"
       );
 
       // withdraw without report fails
