@@ -27,6 +27,13 @@ library Actions {
         uint256 epoch;
     }
 
+    struct FeeApprovalAction {
+        uint256 amount;
+        uint256 minimumReceivedAmount;
+        uint256 fee;
+        uint256 expiry;
+    }
+
     /// @dev Error thrown when invalid public key is provided
     error InvalidPublicKey(bytes pubKey);
 
@@ -60,12 +67,23 @@ library Actions {
     /// @dev Error thrown when zero weight is provided
     error ZeroWeight();
 
-    // bytes4(keccak256("mint(uint256,address,address,uint256,bytes)"))
-    bytes4 internal constant MINT_ACTION = 0x2adfefeb;
+    /// @dev Error thrown when fee is greater than amount
+    error FeeGreaterThanAmount();
+
+    /// @dev Error thrown when fee approval is expired
+    error UserSignatureExpired(uint256 expiry);
+
+    /// @dev Error thrown when amount is below fee
+    error NotEnoughAmountToUseApproval();
+
+    // bytes4(keccak256("stake(uint256,address,address,uint256,bytes)"))
+    bytes4 internal constant STAKE_ACTION = 0xfcabc66e;
     // bytes4(keccak256("bridge(uint256,address,uint256,address,address,uint256,bytes)"))
     bytes4 internal constant BRIDGE_ACTION = 0x26578db1;
     // bytes4(keccak256("setValidators(bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant SET_VALIDATORS_ACTION = 0x8ece3b88;
+    // bytes4(keccak256("feeApproval(uint256,uint256,uint256)"))
+    bytes4 internal constant FEE_APPROVAL_ACTION = 0xebbdf0bd;
 
      /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -90,11 +108,11 @@ library Actions {
     uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
 
     /**
-     * @notice Returns decoded mint payload
+     * @notice Returns decoded stake payload
      * @dev Payload should not contain the selector
-     * @param payload Body of the mint payload
+     * @param payload Body of the stake payload
      */
-    function mint(bytes memory payload) internal view returns (MintAction memory) {
+    function stake(bytes memory payload) internal view returns (MintAction memory) {
         (
             uint256 toChain, 
             address toContract, 
@@ -219,5 +237,22 @@ library Actions {
             unchecked { ++i; }
         }
         return addresses;
+    }
+
+    function feeApproval(bytes calldata payload, uint256 originalAmount) internal view returns (FeeApprovalAction memory){
+        (uint256 minimumReceivedAmount, uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256, uint256));
+
+        if(block.timestamp > expiry) {
+            revert UserSignatureExpired(expiry);
+        }
+        if(originalAmount <= fee) {
+            revert FeeGreaterThanAmount();
+        }
+        uint256 amount = originalAmount - fee;
+        if(amount < minimumReceivedAmount) {
+            revert NotEnoughAmountToUseApproval();
+        }
+
+        return FeeApprovalAction(amount, minimumReceivedAmount, fee, expiry);
     }
 }

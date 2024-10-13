@@ -6,19 +6,29 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {ILBTC} from "./ILBTC.sol";
 import { FeeUtils } from "../libs/FeeUtils.sol";
 import {LombardConsortium} from "../consortium/LombardConsortium.sol";
 import {Actions} from "../libs/Actions.sol";
+import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
+
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
  */
-contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable, ERC20PermitUpgradeable {
+contract LBTC is 
+    ILBTC,  
+    ERC20PausableUpgradeable, 
+    Ownable2StepUpgradeable, 
+    ReentrancyGuardUpgradeable, 
+    EIP712Upgradeable,
+    ERC20PermitUpgradeable
+{
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
         /// @custom:oz-renamed-from usedProofs
@@ -96,6 +106,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         __ERC20Permit_init("Lombard Staked Bitcoin");
     }
 
+    function reinitializeV3(string memory name_, string memory version_) external reinitializer(3) {
+        __EIP712_init(name_, version_);
+    }
+
     function toggleWithdrawals() external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
@@ -136,29 +150,79 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _mint(to, amount);
     }
 
+    /**
+     * @notice Mint LBTC byt proving and stake action happened
+     * @param payload The message with the stake data
+     * @param proof Signature of the consortium approving the mint
+     */
     function mint(
         bytes calldata payload,
         bytes calldata proof
     ) external nonReentrant {
-        LBTCStorage storage $ = _getLBTCStorage();
-
         // payload validation
-        if (bytes4(payload) != Actions.MINT_ACTION) {
+        if (bytes4(payload) != Actions.STAKE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.MintAction memory action = Actions.mint(payload[4:]);
+        Actions.MintAction memory action = Actions.stake(payload[4:]);
 
+        _validateAndMint(action.recipient, action.amount, action.amount, payload, proof);
+    }
+
+    /**
+     * @notice Mint LBTC applying a commission to the amount
+     * @dev Payload should be same as mint to avoid reusing them with and without fee
+     * @dev Payload used in proof should be abi.encode(mintPayload, userSignature) 
+     * to make sure the signature use is approved by consortium as well
+     * @param mintPayload The message with the stake data
+     * @param proof Signature of the consortium approving the mint
+     * @param feePayload Contents of the fee approval signed by the user
+     * @param userSignature Signature of the user to allow Fee
+     */
+    function mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) external nonReentrant {
+        // payload validation
+        if (bytes4(mintPayload) != Actions.STAKE_ACTION) {
+            revert UnexpectedAction(bytes4(mintPayload));
+        }
+        Actions.MintAction memory mintAction = Actions.stake(mintPayload[4:]);
+
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload, mintAction.amount);
+
+        // Fee validation
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+            Actions.FEE_APPROVAL_ACTION,
+            feeAction.minimumReceivedAmount,
+            feeAction.fee,
+            feeAction.expiry
+        )));
+
+        if(!EIP1271SignatureUtils.checkSignature(mintAction.recipient, digest, userSignature)) {
+            revert InvalidUserSignature();
+        }
+
+        // modified payload to be signed
+        _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, abi.encode(mintPayload, userSignature), proof);
+    }
+
+
+    function _validateAndMint(address recipient, uint256 amountToMint, uint256 stakeAmount, bytes memory payload, bytes calldata proof) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+    
         // check proof validity
         bytes32 payloadHash = sha256(payload);
         LombardConsortium($.consortium).checkProof(payloadHash, proof);
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, payloadHash, action.amount);
+        _confirmDeposit($, payloadHash, stakeAmount);
 
         // Actually mint
-        _mint(action.recipient, action.amount);
+        _mint(recipient, amountToMint);
 
-        emit MintProofConsumed(action.recipient, payloadHash, payload);
+        emit MintProofConsumed(recipient, payloadHash, payload);
     }
 
     /**

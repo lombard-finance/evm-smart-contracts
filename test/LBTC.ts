@@ -228,7 +228,7 @@ describe("LBTC", function () {
             await lbtc.getAddress(),
             await consortium.getAddress(),
             1,
-            "mint",
+            "stake",
           );
   
           await expect(lbtc.connect(args.msgSender())["mint(bytes,bytes)"](data.payload, data.proof))
@@ -268,7 +268,7 @@ describe("LBTC", function () {
               await lbtc.getAddress(),
               await consortium.getAddress(),
               1,
-              "mint",
+              "stake",
             );
     
             // mint without report fails
@@ -353,7 +353,7 @@ describe("LBTC", function () {
           await defaultArgs.caller(),
           await defaultArgs.verifier(),
           await defaultArgs.epoch,
-          "mint",
+          "stake",
         );
         defaultProof = proof;
         defaultPayload = payload;
@@ -451,7 +451,7 @@ describe("LBTC", function () {
             await args.caller(),
             await args.verifier(),
             await args.epoch,
-            "mint",
+            "stake",
           )).proof;
           const payload = getPayloadForAction(
             [
@@ -461,7 +461,7 @@ describe("LBTC", function () {
               args.mintAmount, 
               args.extraData
             ],
-            "mint",
+            "stake",
           );
   
           await expect(

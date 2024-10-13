@@ -17,7 +17,7 @@ export const ERRORS_IFACE = {
 };
 
 const ACTIONS_IFACE = ethers.Interface.from([
-  "function mint(uint256,address,address,uint256,bytes) external",
+  "function stake(uint256,address,address,uint256,bytes) external",
   "function bridge(uint256,address,uint256,address,address,uint256,bytes) external",
   "function setValidators(bytes[],uint256[],uint256,uint256) external",
 ])
