@@ -152,10 +152,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         bytes32 payloadHash = sha256(payload);
         LombardConsortium($.consortium).checkProof(payloadHash, proof);
 
-        bytes32 proofHash = sha256(proof);
-
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, action.amount);
+        _confirmDeposit($, payloadHash, action.amount);
 
         // Actually mint
         _mint(action.recipient, action.amount);
@@ -342,10 +340,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         bytes32 payloadHash = sha256(payload);
         LombardConsortium($.consortium).checkProof(payloadHash, proof);
 
-        bytes32 proofHash = sha256(proof);
-
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, action.amount);
+        _confirmDeposit($, payloadHash, action.amount);
 
         // Actually mint
         _mint(action.recipient, action.amount);

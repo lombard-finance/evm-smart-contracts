@@ -283,7 +283,7 @@ describe("LBTC", function () {
             await expect(
               bascule
                 .connect(reporter)
-                .reportDeposits(reportId, [ethers.sha256(data.proof)])
+                .reportDeposits(reportId, [ethers.sha256(data.payload)])
             )
               .to.emit(bascule, "DepositsReported")
               .withArgs(reportId, 1);
@@ -942,11 +942,11 @@ describe("LBTC", function () {
       // withdraw without report fails
       await expect(lbtc.connect(signer2).withdrawFromBridge(data.payload, data.proof))
         .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
-        .withArgs(ethers.sha256(data.proof), amount);
+        .withArgs(ethers.sha256(data.payload), amount);
 
       // report deposit
       const reportId = ethers.zeroPadValue("0x01", 32);
-      await bascule.connect(reporter).reportDeposits(reportId, [ethers.sha256(data.proof)]);
+      await bascule.connect(reporter).reportDeposits(reportId, [ethers.sha256(data.payload)]);
 
       // withdraw works
       await expect(
