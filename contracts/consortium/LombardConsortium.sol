@@ -54,8 +54,8 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         /// @notice Store the Validator set for each epoch
         mapping(uint256 => ValidatorSet) validatorSet;
 
-        /// @notice Mapping of proofs to their use status
-        /// @dev True if the proof is used, false otherwise
+        /// @notice Mapping of payloads to their use status
+        /// @dev True if the payload is used, false otherwise
         mapping(bytes32 => bool) usedPayloads;
     }
 
