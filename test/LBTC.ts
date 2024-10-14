@@ -373,8 +373,8 @@ describe("LBTC", function () {
         signers: () => [signer1, signer2],
         signatures: [true, true],
         threshold: 2,
-        mintRecipient: () => signer1.address,
-        signatureRecipient: () => signer1.address,
+        mintRecipient: () => signer1,
+        signatureRecipient: () => signer1,
         mintAmount: 100_000_000n,
         signatureAmount: 100_000_000n,
         destinationContract: () => lbtc.getAddress(),
@@ -404,7 +404,7 @@ describe("LBTC", function () {
           [
             defaultArgs.signatureChainId,
             await defaultArgs.signatureDestinationContract(),
-            defaultArgs.signatureRecipient(), 
+            defaultArgs.signatureRecipient().address, 
             defaultArgs.signatureAmount, 
             defaultArgs.signatureExtraData,
           ],
@@ -442,8 +442,8 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "recipient is 0 address",
-          mintRecipient: () => ethers.ZeroAddress,
-          signatureRecipient: () => ethers.ZeroAddress,
+          mintRecipient: () => { return {address: ethers.ZeroAddress}},
+          signatureRecipient: () => {return {address: ethers.ZeroAddress}},
           customError: "ZeroAddress",
           interface: () => lbtc
         },
@@ -468,12 +468,12 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "Wrong signature recipient",
-          signatureRecipient: () => signer2.address,
+          signatureRecipient: () => signer2,
         },
         {
           ...defaultArgs,
           name: "Wrong mint recipient",
-          mintRecipient: () => signer2.address,
+          mintRecipient: () => signer2,
         },
         {
           ...defaultArgs,
@@ -502,7 +502,7 @@ describe("LBTC", function () {
             [
               args.signatureChainId, 
               await args.signatureDestinationContract(), 
-              args.signatureRecipient(), 
+              args.signatureRecipient().address, 
               args.signatureAmount, 
               args.signatureExtraData
             ],
@@ -516,7 +516,7 @@ describe("LBTC", function () {
             [
               args.chainId, 
               await args.destinationContract(), 
-              args.mintRecipient(), 
+              args.mintRecipient().address, 
               args.mintAmount, 
               args.extraData
             ],
@@ -556,6 +556,93 @@ describe("LBTC", function () {
           )
         ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
       });
+
+      describe("With fee", function () {
+        beforeEach(async function () {
+          await lbtc.reinitializeV3("Lombard", "1");
+        })
+
+        it("should revert if expired", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            ethers.randomBytes(65),  // not relevant, should not get to valition
+            getPayloadForAction([1, 1, snapshotTimestamp], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              1,
+              snapshotTimestamp // it is already passed as some txns had happen
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "UserSignatureExpired")
+            .withArgs(snapshotTimestamp);
+        })
+
+        it("should revert if fee is too much", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            ethers.randomBytes(65),  // not relevant, should not get to valition
+            getPayloadForAction([1, defaultArgs.mintAmount, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              defaultArgs.mintAmount,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "FeeGreaterThanAmount");        
+        })
+
+        it("should revert if minimum received is not met", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            ethers.randomBytes(65),  // not relevant, should not get to valition
+            getPayloadForAction([defaultArgs.mintAmount - 1n, 2, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              defaultArgs.mintAmount - 1n,
+              2,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "NotEnoughAmountToUseApproval");        
+        })
+
+        it("should revert if signature is not from receiver", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            ethers.randomBytes(65),  // not relevant, should not get to valition
+            getPayloadForAction([1, 1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              deployer,
+              await lbtc.getAddress(),
+              1,
+              1,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "InvalidUserSignature");        
+        })
+
+        it("should revert if fee signature doesn't match fee payload", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            ethers.randomBytes(65),  // not relevant, should not get to valition
+            getPayloadForAction([1, 1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              2, // wrong fee
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "InvalidUserSignature");        
+        })
+      })
     });
   });
   
