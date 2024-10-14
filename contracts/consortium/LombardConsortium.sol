@@ -7,9 +7,6 @@ import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/Mes
 import { EIP1271SignatureUtils } from "../libs/EIP1271SignatureUtils.sol";
 import { Actions } from "../libs/Actions.sol";
 
-/// @dev Error thrown when signature payload is already used
-error PayloadAlreadyUsed();
-
 /// @dev Error thrown when signatures length is not equal to signers length
 error LengthMismatch();
 
@@ -53,10 +50,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
 
         /// @notice Store the Validator set for each epoch
         mapping(uint256 => ValidatorSet) validatorSet;
-
-        /// @notice Mapping of payloads to their use status
-        /// @dev True if the payload is used, false otherwise
-        mapping(bytes32 => bool) usedPayloads;
     }
 
     // bytes4(keccak256("setValidators(bytes[],uint256[],uint256)"))
@@ -102,7 +95,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @notice Validates the provided signature against the given hash
     /// @param _message the hash of the data to be signed
     /// @param _proof nonce, expiry and signatures to validate
-    function checkProof(bytes32 _message, bytes calldata _proof) public {
+    function checkProof(bytes32 _message, bytes calldata _proof) public view {
         _checkProof(enhanceMessage(_message, _msgSender()), _proof);
     }
 
@@ -179,7 +172,7 @@ contract LombardConsortium is Ownable2StepUpgradeable {
     /// @param _message data to be signed
     /// @param _proof encoding of (validators, weights, signatures)
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
-    function _checkProof(bytes32 _message, bytes memory _proof) internal {
+    function _checkProof(bytes32 _message, bytes memory _proof) internal view {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         if($.epoch == 0) {
             revert NoValidatorSet();
@@ -191,10 +184,6 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         uint256 length = validators.length;
         if(signatures.length != length) {
             revert LengthMismatch();
-        }
-
-        if($.usedPayloads[_message]) {
-            revert PayloadAlreadyUsed();
         }
 
         uint256 count = 0;
@@ -211,6 +200,5 @@ contract LombardConsortium is Ownable2StepUpgradeable {
         if(count < $.validatorSet[$.epoch].threshold) {
             revert NotEnoughSignatures();
         }
-        $.usedPayloads[_message] = true;
     }
 }

@@ -545,7 +545,16 @@ describe("LBTC", function () {
         // try to use the same payload again
         await expect(
           lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
-        ).to.revertedWithCustomError(consortium, "PayloadAlreadyUsed");
+        ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
+
+        await expect(
+          lbtc.mintWithFee(
+            defaultPayload, 
+            defaultProof,
+            ethers.randomBytes(30), // not relevant feePayload
+            ethers.randomBytes(65), // not relevant signature
+          )
+        ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
       });
     });
   });

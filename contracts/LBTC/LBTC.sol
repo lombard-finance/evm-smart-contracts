@@ -32,7 +32,8 @@ contract LBTC is
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
         /// @custom:oz-renamed-from usedProofs
-        mapping(bytes32 => bool) __removed_usedProofs;
+        mapping(bytes32 => bool) usedPayloads;
+        
         string name;
         string symbol;
         bool isWithdrawalsEnabled;
@@ -160,12 +161,14 @@ contract LBTC is
         bytes calldata proof
     ) external nonReentrant {
         // payload validation
+        _notUsedPayload(payload);
         if (bytes4(payload) != Actions.STAKE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
         Actions.MintAction memory action = Actions.stake(payload[4:]);
 
         _validateAndMint(action.recipient, action.amount, action.amount, payload, proof);
+        _storePayload(payload);
     }
 
     /**
@@ -184,7 +187,8 @@ contract LBTC is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) external nonReentrant {
-        // payload validation
+        // mint payload validation
+        _notUsedPayload(mintPayload);
         if (bytes4(mintPayload) != Actions.STAKE_ACTION) {
             revert UnexpectedAction(bytes4(mintPayload));
         }
@@ -214,8 +218,8 @@ contract LBTC is
 
         // modified payload to be signed
         _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, abi.encode(mintPayload, userSignature), proof);
+        _storePayload(mintPayload);
     }
-
 
     function _validateAndMint(address recipient, uint256 amountToMint, uint256 stakeAmount, bytes memory payload, bytes calldata proof) internal {
         LBTCStorage storage $ = _getLBTCStorage();
@@ -389,10 +393,12 @@ contract LBTC is
     }
 
     function withdrawFromBridge(
-        bytes calldata data,
-        bytes calldata proofSignature
+        bytes calldata payload,
+        bytes calldata proof
     ) external nonReentrant {
-        _withdraw(data, proofSignature);
+        _notUsedPayload(payload);
+        _withdraw(payload, proof);
+        _storePayload(payload);
     }
 
     function _withdraw(bytes calldata payload, bytes calldata proof) internal {
@@ -640,6 +646,18 @@ contract LBTC is
         }
         _getLBTCStorage().minters[minter] = _isMinter;
         emit MinterUpdated(minter, _isMinter);
+    }
+
+    function _notUsedPayload(bytes calldata payload) internal view {
+        LBTCStorage storage $ = _getLBTCStorage();
+        if($.usedPayloads[keccak256(payload)]) {
+            revert PayloadAlreadyUsed(); 
+        }
+    }
+
+    function _storePayload(bytes calldata payload) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.usedPayloads[keccak256(payload)] = true;
     }
 
     /**
