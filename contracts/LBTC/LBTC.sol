@@ -141,25 +141,46 @@ contract LBTC is
         $.consortium = newVal;
     }
 
-    /// @notice Mint LBTC to the specified address
-    /// @param amount The amount of LBTC to mint    
-    /// @dev Only callable by whitelisted minters
+    /** 
+     * @notice Mint LBTC to the specified address
+     * @param to The address to mint to
+     * @param amount The amount of LBTC to mint    
+     * @dev Only callable by whitelisted minters
+     */ 
     function mint(address to, uint256 amount) external {
-        if(!_getLBTCStorage().minters[_msgSender()]) 
-            revert UnauthorizedAccount(_msgSender());
+        _onlyMinter(_msgSender());
 
         _mint(to, amount);
     }
 
+
+    /** 
+     * @notice Mint LBTC in batches
+     * @param to The addresses to mint to
+     * @param amount The amounts of LBTC to mint    
+     * @dev Only callable by whitelisted minters
+     */ 
+    function batchMint(address[] calldata to, uint256[] calldata amount) external {
+        _onlyMinter(_msgSender());
+
+        if(to.length != amount.length) {
+            revert InvalidInputLength();
+        }
+
+        for(uint256 i; i < to.length; ++i) {
+            _mint(to[i], amount[i]);
+        }
+    }
+
     /**
-     * @notice Mint LBTC byt proving and stake action happened
+     * @notice Mint LBTC by proving a stake action happened
      * @param payload The message with the stake data
      * @param proof Signature of the consortium approving the mint
      */
     function mint(
         bytes calldata payload,
         bytes calldata proof
-    ) external nonReentrant {
+    ) public nonReentrant {
         // payload validation
         _notUsedPayload(payload);
         if (bytes4(payload) != Actions.STAKE_ACTION) {
@@ -169,6 +190,24 @@ contract LBTC is
 
         _validateAndMint(action.recipient, action.amount, action.amount, payload, proof);
         _storePayload(payload);
+    }
+
+    /**
+     * @notice Mint LBTC in batches by proving stake actions happened
+     * @param payload The messages with the stake data
+     * @param proof Signatures of the consortium approving the mints
+     */
+    function batchMint(
+        bytes[] calldata payload,
+        bytes[] calldata proof
+    ) external {
+        if(payload.length != proof.length) {
+            revert InvalidInputLength();
+        }
+
+        for(uint256 i; i < payload.length; ++i) {
+            mint(payload[i], proof[i]);
+        }
     }
 
     /**
@@ -186,7 +225,7 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external nonReentrant {
+    ) public nonReentrant {
         // mint payload validation
         _notUsedPayload(mintPayload);
         if (bytes4(mintPayload) != Actions.STAKE_ACTION) {
@@ -219,6 +258,29 @@ contract LBTC is
         // modified payload to be signed
         _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, abi.encode(mintPayload, userSignature), proof);
         _storePayload(mintPayload);
+    }
+
+    /**
+     * @notice Mint LBTC in batches proving stake actions happened
+     * @param mintPayload The messages with the stake data
+     * @param proof Signatures of the consortium approving the mints
+     * @param feePayload Contents of the fee approvals signed by the user
+     * @param userSignature Signatures of the user to allow Fees
+     */
+    function batchMintWithFee(
+        bytes[] calldata mintPayload,
+        bytes[] calldata proof,
+        bytes[] calldata feePayload,
+        bytes[] calldata userSignature
+    ) external nonReentrant {
+        uint256 length = mintPayload.length;
+        if(length != proof.length || length != feePayload.length || length != userSignature.length) {
+            revert InvalidInputLength();
+        }   
+
+        for(uint256 i; i < mintPayload.length; ++i) {
+            mintWithFee(mintPayload[i], proof[i], feePayload[i], userSignature[i]);
+        }
     }
 
     function _validateAndMint(address recipient, uint256 amountToMint, uint256 stakeAmount, bytes memory payload, bytes calldata proof) internal {
@@ -658,6 +720,12 @@ contract LBTC is
     function _storePayload(bytes calldata payload) internal {
         LBTCStorage storage $ = _getLBTCStorage();
         $.usedPayloads[keccak256(payload)] = true;
+    }
+
+    function _onlyMinter(address sender) internal view {
+        if(!_getLBTCStorage().minters[sender]) {
+            revert UnauthorizedAccount(sender);
+        }
     }
 
     /**

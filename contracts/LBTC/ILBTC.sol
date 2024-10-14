@@ -17,6 +17,7 @@ interface ILBTC {
     error UnknownOriginContract(uint256 fromChainId, address fromContract);
     error InvalidUserSignature();
     error PayloadAlreadyUsed();
+    error InvalidInputLength();
 
     event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
