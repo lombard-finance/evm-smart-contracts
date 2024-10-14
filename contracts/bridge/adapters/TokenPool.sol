@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { BurnMintTokenPool } from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/BurnMintTokenPool.sol";
+import { TokenPool } from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
 import { Pool } from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ERC20/IBurnMintERC20.sol";
 import {IAdapter} from "./IAdapter.sol";
@@ -11,7 +11,7 @@ interface IPayloadStore {
     function latestPayloadHashSent() external returns (bytes32);
 }
 
-contract TokenPool is BurnMintTokenPool {
+contract LBTCTokenPool is TokenPool {
     address adapter;
 
     /// @notice Error emitted when the proof is malformed
@@ -23,7 +23,7 @@ contract TokenPool is BurnMintTokenPool {
         address[] memory allowlist,
         address rmnProxy,
         address router
-    ) BurnMintTokenPool(token, allowlist, rmnProxy, router) {
+    ) TokenPool(token, allowlist, rmnProxy, router) {
         adapter = adapter_;
     }
 
@@ -34,25 +34,26 @@ contract TokenPool is BurnMintTokenPool {
     ) external virtual override returns (Pool.LockOrBurnOutV1 memory) {
         _validateLockOrBurn(lockOrBurnIn);
 
-        uint256 amountWithoutFee;
+        uint256 burnedAmount;
         bytes32 payloadHash;
-        bytes memory payload;
         if(lockOrBurnIn.originalSender == adapter) {
             payloadHash = IPayloadStore(adapter).latestPayloadHashSent();
-            // fee was deducted already in the bridge
-            amountWithoutFee = lockOrBurnIn.amount;
+            // fee was deducted already in the bridge, tokens can be burned
+            IBurnMintERC20(address(i_token)).burn(lockOrBurnIn.amount);
+            burnedAmount = lockOrBurnIn.amount;
         }
         else {
-            (amountWithoutFee, payload) = _bridge().deposit(
+            // deposit assets, they will be burned in the proccess
+            (uint256 amountWithoutFee, bytes memory payload) = _bridge().deposit(
                 bytes32(uint256(lockOrBurnIn.remoteChainSelector)), 
                 bytes32(lockOrBurnIn.receiver), 
                 uint64(lockOrBurnIn.amount)
             );
             payloadHash = sha256(payload);
+            burnedAmount = amountWithoutFee;
         }
-        _burn(lockOrBurnIn.amount);
 
-        emit Burned(msg.sender, lockOrBurnIn.amount);
+        emit Burned(lockOrBurnIn.originalSender, burnedAmount);
 
         return Pool.LockOrBurnOutV1({
             destTokenAddress: getRemoteToken(lockOrBurnIn.remoteChainSelector), 
