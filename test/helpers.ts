@@ -5,7 +5,7 @@ import { AddressLike, BaseContract, Contract, Signer, Signature, BigNumberish } 
 
 export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
-const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
+export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
 
 export const ERRORS_IFACE = {
   interface: ethers.Interface.from([
@@ -20,10 +20,34 @@ const ACTIONS_IFACE = ethers.Interface.from([
   "function stake(uint256,address,address,uint256,bytes) external",
   "function bridge(uint256,address,uint256,address,address,uint256,bytes) external",
   "function setValidators(bytes[],uint256[],uint256,uint256) external",
+  "function feeApproval(uint256,uint256,uint256)"
 ])
 
 export function getPayloadForAction(data: any[], action: string) {
   return ACTIONS_IFACE.encodeFunctionData(action, data);
+}
+
+export function rawSign(
+  signer: HardhatEthersSigner,
+  message: string
+): string {
+  const signingKey = new ethers.SigningKey(signer.privateKey);
+  const signature = signingKey.sign(message);
+  
+  return signature.serialized;
+}
+
+export function enhancePayload(
+  executionChainId: BigNumberish,
+  caller: AddressLike,
+  verifier: AddressLike,
+  epoch: number,
+  originalMessage: string
+) {
+  return ethers.sha256(encode(
+    ["uint256", "address", "address", "uint256", "bytes32"],
+    [executionChainId, caller, verifier, epoch, ethers.sha256(originalMessage)]
+  ))
 }
 
 export async function signPayload(
@@ -46,17 +70,11 @@ export async function signPayload(
   }
 
   const originalMessage = getPayloadForAction(data, action);
-  const finalMessage = ethers.sha256(encode(
-    ["uint256", "address", "address", "uint256", "bytes32"],
-    [executionChainId, caller, verifier, epoch, ethers.sha256(originalMessage)]
-  ))
+  const finalMessage = enhancePayload(executionChainId, caller, verifier, epoch, originalMessage);
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
     
-    const signingKey = new ethers.SigningKey(signer.privateKey);
-    const signature = signingKey.sign(finalMessage);
-    
-    return signature.serialized;
+    return rawSign(signer, finalMessage);
   }));
   
   return {
@@ -157,4 +175,32 @@ export async function generatePermitSignature(
   // Split the signature into v, r, s components
   const signatureObj = Signature.from(signature); 
   return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
+}
+
+export async function getFeeTypedMessage(
+  signer: HardhatEthersSigner,
+  verifyingContract: string,
+  minimumReceived: BigNumberish,
+  fee: BigNumberish,
+  expiry: BigNumberish,
+  domainName: string = "Lombard",
+  version: string = "1",
+  chain: BigNumberish = Number(CHAIN_ID)
+) {
+  const domain = {
+      name: domainName,
+      version: version,
+      chainId: chain,
+      verifyingContract: verifyingContract
+  };
+  const types = {
+      feeApproval: [
+          { name: "minimumReceived", type: "uint256" },
+          { name: "fee", type: "uint256" },
+          { name: "expiry", type: "uint256" }
+      ]
+  };
+  const message = {minimumReceived, fee, expiry};
+
+  return signer.signTypedData(domain, types, message);
 }

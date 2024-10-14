@@ -76,6 +76,9 @@ library Actions {
     /// @dev Error thrown when amount is below fee
     error NotEnoughAmountToUseApproval();
 
+    /// @dev Error thrown when zero fee is used
+    error ZeroFee();
+
     // bytes4(keccak256("stake(uint256,address,address,uint256,bytes)"))
     bytes4 internal constant STAKE_ACTION = 0xfcabc66e;
     // bytes4(keccak256("bridge(uint256,address,uint256,address,address,uint256,bytes)"))
@@ -84,6 +87,8 @@ library Actions {
     bytes4 internal constant SET_VALIDATORS_ACTION = 0x8ece3b88;
     // bytes4(keccak256("feeApproval(uint256,uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0xebbdf0bd;
+    // keccak256("feeApproval(uint256 minimumReceived,uint256 fee,uint256 expiry)")
+    bytes32 internal constant FEE_APPROVAL_EIP712_ACTION = 0x1c93b8f00a746e5eb22bb745dfd2628f02914a201b1687e581f5948c4d9eacad;
 
      /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -239,7 +244,13 @@ library Actions {
         return addresses;
     }
 
-    function feeApproval(bytes calldata payload, uint256 originalAmount) internal view returns (FeeApprovalAction memory){
+    /**
+     * @notice Returns decoded fee approval
+     * @dev Payload should not contain the selector
+     * @param payload Body of the fee approval payload
+     * @param originalAmount Value to apply the fee on
+     */
+    function feeApproval(bytes memory payload, uint256 originalAmount) internal view returns (FeeApprovalAction memory){
         (uint256 minimumReceivedAmount, uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256, uint256));
 
         if(block.timestamp > expiry) {
@@ -247,6 +258,9 @@ library Actions {
         }
         if(originalAmount <= fee) {
             revert FeeGreaterThanAmount();
+        }
+        if(fee == 0) {
+            revert ZeroFee();
         }
         uint256 amount = originalAmount - fee;
         if(amount < minimumReceivedAmount) {

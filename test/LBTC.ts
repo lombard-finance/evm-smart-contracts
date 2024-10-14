@@ -7,7 +7,11 @@ import {
   getSignersWithPrivateKeys,
   getPayloadForAction,
   CHAIN_ID,
-  generatePermitSignature
+  generatePermitSignature,
+  getFeeTypedMessage,
+  encode,
+  rawSign,
+  enhancePayload
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, LombardConsortium } from "../typechain-types";
@@ -198,20 +202,20 @@ describe("LBTC", function () {
         {
           name: "1 BTC",
           amount: 100_000_000n,
-          recipient: () => signer2.address,
+          recipient: () => signer2,
           msgSender: () => signer1,
         },
         {
-          name: "1 satoshi",
-          amount: 1n,
-          recipient: () => signer3.address,
+          name: "3 satoshi",
+          amount: 3n,
+          recipient: () => signer3,
           msgSender: () => signer2,
         }
       ];
       
       args.forEach(async function (args) {        
         it(`Mint ${args.name}`, async function () {
-          const balanceBefore = await lbtc.balanceOf(args.recipient());
+          const balanceBefore = await lbtc.balanceOf(args.recipient().address);
           const totalSupplyBefore = await lbtc.totalSupply();
   
           const data = await signPayload(
@@ -220,7 +224,7 @@ describe("LBTC", function () {
             [
               CHAIN_ID,
               await lbtc.getAddress(),
-              args.recipient(), 
+              args.recipient().address, 
               args.amount, 
               ethers.hexlify(ethers.randomBytes(42)), // extra data, irrelevant
             ],
@@ -233,14 +237,69 @@ describe("LBTC", function () {
   
           await expect(lbtc.connect(args.msgSender())["mint(bytes,bytes)"](data.payload, data.proof))
             .to.emit(lbtc, "Transfer")
-            .withArgs(ethers.ZeroAddress, args.recipient(), args.amount);
+            .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount);
   
-          const balanceAfter = await lbtc.balanceOf(args.recipient());
+          const balanceAfter = await lbtc.balanceOf(args.recipient().address);
           const totalSupplyAfter = await lbtc.totalSupply();
   
           expect(balanceAfter - balanceBefore).to.be.eq(args.amount);
           expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(args.amount);
         });
+
+        const fees = [1n, args.amount - 1n];
+        fees.forEach(async function (fee) {
+          it(`Mint ${args.name} with ${fee} satoshis fee`, async function () {
+            // set domain
+            await lbtc.reinitializeV3("Lombard", "1");
+
+            const userBalanceBefore = await lbtc.balanceOf(args.recipient().address);
+            const treasuryBalanceBefore = await lbtc.balanceOf(treasury.address);
+            const totalSupplyBefore = await lbtc.totalSupply();
+    
+            const payload = getPayloadForAction(
+              [
+                CHAIN_ID,
+                await lbtc.getAddress(),
+                args.recipient().address, 
+                args.amount, 
+                ethers.hexlify(ethers.randomBytes(42)), // extra data, irrelevant
+              ],
+              "stake",
+            );
+            const userSignature = await getFeeTypedMessage(
+              args.recipient(),
+              await lbtc.getAddress(),
+              1, // smallest minimum as we want it to be valid for any case
+              fee,
+              snapshotTimestamp + 100,
+            );
+            const finalPayload = enhancePayload(
+              CHAIN_ID,
+              await lbtc.getAddress(),
+              await consortium.getAddress(),
+              1,
+              encode(["bytes", "bytes"], [payload, userSignature])
+            );
+            const signature = [rawSign(signer1, finalPayload)];
+    
+            await expect(lbtc.connect(args.msgSender()).mintWithFee(
+              payload,
+              encode(["bytes[]"], [signature]),
+              getPayloadForAction([1, fee, snapshotTimestamp + 100], "feeApproval"),
+              userSignature
+            ))
+              .to.emit(lbtc, "Transfer")
+              .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount - fee);
+    
+            const userBalanceAfter = await lbtc.balanceOf(args.recipient().address);
+            const treasuryBalanceAfter = await lbtc.balanceOf(treasury.address);
+            const totalSupplyAfter = await lbtc.totalSupply();
+    
+            expect(userBalanceAfter - userBalanceBefore).to.be.eq(args.amount - fee);
+            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.be.eq(fee);
+            expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(args.amount);
+          });
+        })
       });
   
       describe("With bascule", function () {
@@ -251,7 +310,7 @@ describe("LBTC", function () {
   
         args.forEach(function (args) {
           it(`Mint ${args.name}`, async function () {
-            const balanceBefore = await lbtc.balanceOf(args.recipient());
+            const balanceBefore = await lbtc.balanceOf(args.recipient().address);
             const totalSupplyBefore = await lbtc.totalSupply();
     
             const data = await signPayload(
@@ -260,7 +319,7 @@ describe("LBTC", function () {
               [ 
                 CHAIN_ID, 
                 await lbtc.getAddress(),
-                args.recipient(), 
+                args.recipient().address, 
                 args.amount, 
                 ethers.hexlify(ethers.randomBytes(12)), // extra data, irrelevant
               ],
@@ -295,9 +354,9 @@ describe("LBTC", function () {
                 ["mint(bytes,bytes)"](data.payload, data.proof)
             )
               .to.emit(lbtc, "Transfer")
-              .withArgs(ethers.ZeroAddress, args.recipient(), args.amount);
+              .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount);
     
-            const balanceAfter = await lbtc.balanceOf(args.recipient());
+            const balanceAfter = await lbtc.balanceOf(args.recipient().address);
             const totalSupplyAfter = await lbtc.totalSupply();
     
             expect(balanceAfter - balanceBefore).to.be.eq(args.amount);
@@ -796,7 +855,7 @@ describe("LBTC", function () {
         await lbtc2.getAddress(),
         receiver,
         amountWithoutFee,
-        ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+        encode(["uint256"], [0])
       ], "bridge");
 
       await expect(lbtc.connect(signer1).depositToBridge(
@@ -829,7 +888,7 @@ describe("LBTC", function () {
           await lbtc2.getAddress(),
           receiver,
           amountWithoutFee,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          encode(["uint256"], [0])
         ],
         CHAIN_ID,
         await lbtc2.getAddress(),
@@ -864,7 +923,7 @@ describe("LBTC", function () {
         await lbtc.getAddress(),
         receiver,
         amountWithoutFee,
-        ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+        encode(["uint256"], [0])
       ], "bridge");
 
       await expect(lbtc2.connect(signer2).depositToBridge(
@@ -894,7 +953,7 @@ describe("LBTC", function () {
           await lbtc.getAddress(),
           receiver,
           amountWithoutFee,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          encode(["uint256"], [0])
         ],
         CHAIN_ID,
         await lbtc.getAddress(),
@@ -930,7 +989,7 @@ describe("LBTC", function () {
           await lbtc.getAddress(),
           receiver,
           amount,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
+          encode(["uint256"], [0])
         ],
         CHAIN_ID,
         await lbtc.getAddress(),

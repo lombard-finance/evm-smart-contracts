@@ -190,11 +190,15 @@ contract LBTC is
         }
         Actions.MintAction memory mintAction = Actions.stake(mintPayload[4:]);
 
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload, mintAction.amount);
+        // fee payload validation
+        if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
+            revert UnexpectedAction(bytes4(feePayload));
+        }
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload[4:], mintAction.amount);
 
         // Fee validation
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-            Actions.FEE_APPROVAL_ACTION,
+            Actions.FEE_APPROVAL_EIP712_ACTION,
             feeAction.minimumReceivedAmount,
             feeAction.fee,
             feeAction.expiry
@@ -203,6 +207,10 @@ contract LBTC is
         if(!EIP1271SignatureUtils.checkSignature(mintAction.recipient, digest, userSignature)) {
             revert InvalidUserSignature();
         }
+
+        // mint fee to treasury
+        LBTCStorage storage $ = _getLBTCStorage();
+        _mint($.treasury, feeAction.fee);
 
         // modified payload to be signed
         _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, abi.encode(mintPayload, userSignature), proof);
