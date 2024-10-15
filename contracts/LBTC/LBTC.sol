@@ -11,7 +11,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {ILBTC} from "./ILBTC.sol";
 import { FeeUtils } from "../libs/FeeUtils.sol";
-import {LombardConsortium} from "../consortium/LombardConsortium.sol";
+import {Consortium} from "../consortium/Consortium.sol";
 import {Actions} from "../libs/Actions.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -21,8 +21,7 @@ import {Actions} from "../libs/Actions.sol";
 contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable, ERC20PermitUpgradeable {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        /// @custom:oz-renamed-from usedProofs
-        mapping(bytes32 => bool) __removed_usedProofs;
+        mapping(bytes32 => bool) usedProofs;
         string name;
         string symbol;
         bool isWithdrawalsEnabled;
@@ -136,6 +135,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _mint(to, amount);
     }
 
+    /// @notice Mint LBTC using notary consortium proof
+    /// @param payload selector || ABI-encoded message
     function mint(
         bytes calldata payload,
         bytes calldata proof
@@ -143,14 +144,18 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != Actions.MINT_ACTION) {
+        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.MintAction memory action = Actions.mint(payload[4:]);
+        Actions.DepositBtcAction memory action = Actions.depositBtc(payload[4:]);
 
         // check proof validity
         bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
+        if ($.usedProofs[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        Consortium($.consortium).checkProof(payloadHash, proof);
+        $.usedProofs[payloadHash] = true;
 
         // Confirm deposit against Bascule
         _confirmDeposit($, payloadHash, action.amount);
@@ -307,10 +312,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         uint256 amountWithoutFee = amount - fee;
         _burn(fromAddress, amountWithoutFee);
 
-        // prepare burn payload
+        // prepare deposit payload
         bytes memory uniqueActionData = abi.encode($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            Actions.BRIDGE_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
+            Actions.DEPOSIT_BRIDGE_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
         );
 
         emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
@@ -327,10 +332,10 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != Actions.BRIDGE_ACTION) {
+        if (bytes4(payload) != Actions.DEPOSIT_BRIDGE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.BridgeAction memory action = Actions.bridge(payload[4:]);
+        Actions.DepositBridgeAction memory action = Actions.depositBridge(payload[4:]);
 
         if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
             revert UnknownOriginContract(action.toChain, action.toContract);
@@ -338,10 +343,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // proof validation
         bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
-
-        // Confirm deposit against Bascule
-        _confirmDeposit($, payloadHash, action.amount);
+        if ($.usedProofs[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        Consortium($.consortium).checkProof(payloadHash, proof);
+        $.usedProofs[payloadHash] = true;
 
         // Actually mint
         _mint(action.recipient, action.amount);
