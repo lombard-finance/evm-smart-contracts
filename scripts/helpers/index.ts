@@ -17,7 +17,7 @@ export type TAddresses = {
 };
 
 export function getAddresses(network: string): TAddresses {
-  const addresses: TAddressesWithNetwork = require("../../addresses.json");
+  const addresses: TAddressesWithNetwork = require("../../addresses-mainnet.json");
   if (!addresses[network]) {
     throw Error(`network ${network} not supported`);
   }
