@@ -274,7 +274,7 @@ contract LBTC is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external nonReentrant {
+    ) external {
         uint256 length = mintPayload.length;
         if(length != proof.length || length != feePayload.length || length != userSignature.length) {
             revert InvalidInputLength();
