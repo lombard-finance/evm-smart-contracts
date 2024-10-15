@@ -59,6 +59,10 @@ describe("LBTC", function () {
     await lbtc.addMinter(deployer.address);
     await lbtc2.addMinter(deployer.address);
 
+    // set deployer as claimer for lbtc
+    await lbtc.addClaimer(deployer.address);
+    await lbtc2.addClaimer(deployer.address);
+
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock("latest"))!.timestamp;
   });
@@ -287,7 +291,7 @@ describe("LBTC", function () {
             );
     
             const approval = getPayloadForAction([fee, snapshotTimestamp + 100], "feeApproval");
-            await expect(lbtc.connect(args.msgSender()).mintWithFee(
+            await expect(lbtc.mintWithFee(
               data.payload,
               data.proof,
               approval,

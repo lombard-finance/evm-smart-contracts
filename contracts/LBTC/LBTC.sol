@@ -59,6 +59,7 @@ contract LBTC is
         address pauser;
 
         mapping(address => bool) minters;
+        mapping(address => bool) claimers;
 
         // Increments with each cross chain operation and should be part of the payload
         uint256 crossChainOperationsNonce;
@@ -226,42 +227,11 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) public nonReentrant {
-        // mint payload validation
-        _notUsedPayload(mintPayload);
-        if (bytes4(mintPayload) != Actions.STAKE_ACTION) {
-            revert UnexpectedAction(bytes4(mintPayload));
-        }
-        Actions.MintAction memory mintAction = Actions.stake(mintPayload[4:]);
+    ) public {
+        _onlyClaimer(_msgSender());
 
-        // fee payload validation
-        if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
-            revert UnexpectedAction(bytes4(feePayload));
-        }
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload[4:], mintAction.amount);
-
-        // Fee validation
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-            Actions.FEE_APPROVAL_EIP712_ACTION,
-            block.chainid,
-            feeAction.fee,
-            feeAction.expiry
-        )));
-
-        if(!EIP1271SignatureUtils.checkSignature(mintAction.recipient, digest, userSignature)) {
-            revert InvalidUserSignature();
-        }
-
-        // modified payload to be signed
-        _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, mintPayload, proof);
-        
-        // mint fee to treasury
-        LBTCStorage storage $ = _getLBTCStorage();
-        _mint($.treasury, feeAction.fee);
-
-        _storePayload(mintPayload);
+        _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
-
     /**
      * @notice Mint LBTC in batches proving stake actions happened
      * @param mintPayload The messages with the stake data
@@ -275,13 +245,15 @@ contract LBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external {
+        _onlyClaimer(_msgSender());
+
         uint256 length = mintPayload.length;
         if(length != proof.length || length != feePayload.length || length != userSignature.length) {
             revert InvalidInputLength();
         }   
 
         for(uint256 i; i < mintPayload.length; ++i) {
-            mintWithFee(mintPayload[i], proof[i], feePayload[i], userSignature[i]);
+            _mintWithFee(mintPayload[i], proof[i], feePayload[i], userSignature[i]);
         }
     }
 
@@ -704,12 +676,32 @@ contract LBTC is
         return _getLBTCStorage().minters[minter];
     }
 
+    function addClaimer(address newClaimer) external onlyOwner {
+        _updateClaimer(newClaimer, true);
+    }
+
+    function removeClaimer(address oldClaimer) external onlyOwner {
+        _updateClaimer(oldClaimer, false);
+    }
+
+    function isClaimer(address claimer) external view returns (bool) {
+        return _getLBTCStorage().claimers[claimer];
+    }
+
     function _updateMinter(address minter, bool _isMinter) internal {
         if (minter == address(0)) {
             revert ZeroAddress();
         }
         _getLBTCStorage().minters[minter] = _isMinter;
         emit MinterUpdated(minter, _isMinter);
+    }
+
+    function _updateClaimer(address claimer, bool _isClaimer) internal {
+        if (claimer == address(0)) {
+            revert ZeroAddress();
+        }
+        _getLBTCStorage().claimers[claimer] = _isClaimer;
+        emit ClaimerUpdated(claimer, _isClaimer);
     }
 
     function _notUsedPayload(bytes calldata payload) internal view {
@@ -728,6 +720,53 @@ contract LBTC is
         if(!_getLBTCStorage().minters[sender]) {
             revert UnauthorizedAccount(sender);
         }
+    }
+
+    function _onlyClaimer(address sender) internal view {
+        if(!_getLBTCStorage().claimers[sender]) {
+            revert UnauthorizedAccount(sender);
+        }
+    }
+
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) internal nonReentrant {
+        // mint payload validation
+        _notUsedPayload(mintPayload);
+        if (bytes4(mintPayload) != Actions.STAKE_ACTION) {
+            revert UnexpectedAction(bytes4(mintPayload));
+        }
+        Actions.MintAction memory mintAction = Actions.stake(mintPayload[4:]);
+
+        // fee payload validation
+        if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
+            revert UnexpectedAction(bytes4(feePayload));
+        }
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload[4:], mintAction.amount);
+
+        // Fee validation
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+            Actions.FEE_APPROVAL_EIP712_ACTION,
+            block.chainid,
+            feeAction.fee,
+            feeAction.expiry
+        )));
+
+        if(!EIP1271SignatureUtils.checkSignature(mintAction.recipient, digest, userSignature)) {
+            revert InvalidUserSignature();
+        }
+
+        // modified payload to be signed
+        _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, mintPayload, proof);
+        
+        // mint fee to treasury
+        LBTCStorage storage $ = _getLBTCStorage();
+        _mint($.treasury, feeAction.fee);
+
+        _storePayload(mintPayload);
     }
 
     /**
