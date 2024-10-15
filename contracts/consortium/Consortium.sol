@@ -27,10 +27,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
         /// @notice Store the Validator set for each epoch
         mapping(uint256 => ValidatorSet) validatorSet;
-
-        /// @notice Mapping of payloads to their use status
-        /// @dev True if the payload is used, false otherwise
-        mapping(bytes32 => bool) usedPayloads;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Consortium")) - 1)) & ~bytes32(uint256(0xff))
@@ -95,13 +91,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
         // check proof
         bytes32 payloadHash = sha256(payload);
-
-        if ($.usedPayloads[payloadHash]) {
-            revert PayloadAlreadyUsed();
-        }
         this.checkProof(payloadHash, proof);
-        $.usedPayloads[payloadHash] = true;
-
 
         if(action.epoch != $.epoch + 1)
             revert InvalidEpoch();
