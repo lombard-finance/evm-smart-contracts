@@ -7,12 +7,13 @@ import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ER
 import {IAdapter} from "./IAdapter.sol";
 import {Bridge} from "../Bridge.sol";
 
-interface IPayloadStore {
+interface IPayloadStore is IAdapter {
     function latestPayloadHashSent() external returns (bytes32);
 }
 
 contract LBTCTokenPool is TokenPool {
-    address adapter;
+    IPayloadStore adapter;
+
 
     /// @notice Error emitted when the proof is malformed
     error MalformedProof();
@@ -24,7 +25,7 @@ contract LBTCTokenPool is TokenPool {
         address rmnProxy,
         address router
     ) TokenPool(token, allowlist, rmnProxy, router) {
-        adapter = adapter_;
+        adapter = IPayloadStore(adapter_);
     }
 
     /// @notice Burn the token in the pool
@@ -36,8 +37,8 @@ contract LBTCTokenPool is TokenPool {
 
         uint256 burnedAmount;
         bytes32 payloadHash;
-        if(lockOrBurnIn.originalSender == adapter) {
-            payloadHash = IPayloadStore(adapter).latestPayloadHashSent();
+        if(lockOrBurnIn.originalSender == address(adapter)) {
+            payloadHash = adapter.latestPayloadHashSent();
             // fee was deducted already in the bridge, tokens can be burned
             IBurnMintERC20(address(i_token)).burn(lockOrBurnIn.amount);
             burnedAmount = lockOrBurnIn.amount;
@@ -83,6 +84,6 @@ contract LBTCTokenPool is TokenPool {
     }
 
     function _bridge() internal view returns (Bridge) {
-        return Bridge(IAdapter(adapter).bridge());
+        return Bridge(adapter.bridge());
     }
 }

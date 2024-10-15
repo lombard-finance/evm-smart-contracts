@@ -17,9 +17,13 @@ contract TokenPoolAdapter is AbstractAdapter {
     /// @notice Emmitted when msg.value is not enough to pay CCIP fee.
     error NotEnoughToPayFee(uint256 fee);
 
-    constructor(address ccipRouter_, address lbtc_,  address owner_) AbstractAdapter(lbtc_, owner_) {
+    constructor(address ccipRouter_, address lbtc_, address owner_) AbstractAdapter(lbtc_, owner_) {
         ccipRouter = IRouterClient(ccipRouter_);
         gasLimit = 200_000; // TODO: estimate
+    }
+
+    function setTokenPool(address tokenPool_) external onlyOwner {
+        tokenPool = tokenPool_;
     }
 
     function getFee(

@@ -311,7 +311,7 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         bytes32 payloadHash = sha256(payload);
         $.adapter.deposit{
             value: $.adapter.getFee(toChain, toContract, toAddress, amountWithoutFee, payload)
-        }(fromAddress,toChain, toContract, toAddress, amountWithoutFee, payload);
+        }(fromAddress, toChain, toContract, toAddress, amountWithoutFee, payload);
 
         emit DepositToBridge(fromAddress, toAddress, payloadHash, payload);
         return (amountWithoutFee, payload);

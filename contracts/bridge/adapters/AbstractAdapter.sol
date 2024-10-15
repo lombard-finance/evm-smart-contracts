@@ -6,18 +6,20 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {LBTC} from "../../LBTC/LBTC.sol";
 
 abstract contract AbstractAdapter is IAdapter, Ownable2Step {
-    LBTC lbtc;
-    address public override bridge;
-
-    constructor(address lbtc_, address owner_) Ownable(owner_) {
-        lbtc = LBTC(lbtc_);
-    }
-
     error ZeroAddress();
 
     error NotBridge();
 
     event BridgeChanged(address indexed oldBridge, address indexed newBridge);
+
+    LBTC lbtc;
+    address public override bridge;
+
+    constructor(address lbtc_,address owner_) Ownable(owner_) {
+        _notZero(lbtc_);
+
+        lbtc = LBTC(lbtc_);
+    }
 
     modifier onlyBridge() {
         _onlyBridge();
@@ -29,9 +31,8 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
      * @param bridge_ New bridge address
      */
     function changeBridge(address bridge_) external onlyOwner {
-        if(bridge_ == address(0)) {
-            revert ZeroAddress();
-        }
+        _notZero(bridge_);
+        
         address oldBridge = bridge;
         bridge = bridge_;
         emit BridgeChanged(oldBridge, bridge_);
@@ -40,6 +41,12 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
     function _onlyBridge() internal view {
         if(msg.sender != bridge) {
             revert NotBridge();
+        }
+    }
+
+    function _notZero(address addr) internal pure {
+        if(addr == address(0)) {
+            revert ZeroAddress();
         }
     }
 }
