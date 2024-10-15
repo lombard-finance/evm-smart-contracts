@@ -198,6 +198,41 @@ describe("LBTC", function () {
         .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
         .withArgs(signer1.address);
     });
+
+    it("should fail to add minter if not owner", async function () {
+      await expect(lbtc.connect(signer1).addMinter(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("should fail to remove minter if not owner", async function () {
+      await expect(lbtc.connect(signer1).removeMinter(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("addClaimer should be callable by owner", async function () {
+      await expect(lbtc.addClaimer(signer1.address))
+        .to.emit(lbtc, "ClaimerUpdated")
+        .withArgs(signer1.address, true);
+      expect(await lbtc.isClaimer(signer1.address)).to.be.true;
+    });
+
+    it("removeClaimer should be callable by owner", async function () {
+      await lbtc.addClaimer(signer1.address);
+      await expect(lbtc.removeClaimer(signer1.address))
+        .to.emit(lbtc, "ClaimerUpdated")
+        .withArgs(signer1.address, false);
+      expect(await lbtc.isClaimer(signer1.address)).to.be.false;
+    });
+
+    it("should fail to add claimer if not owner", async function () {
+      await expect(lbtc.connect(signer1).addClaimer(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("should fail to remove claimer if not owner", async function () {
+      await expect(lbtc.connect(signer1).removeClaimer(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
   });
 
   describe("Mint", function () {
@@ -616,7 +651,23 @@ describe("LBTC", function () {
         it("should revert if expired", async function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
-            ethers.randomBytes(65),  // not relevant, should not get to valition
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              snapshotTimestamp // it is already passed as some txns had happen
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "UserSignatureExpired")
+            .withArgs(snapshotTimestamp);
+        })
+
+        it("should revert if not claimer", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            defaultProof,
             getPayloadForAction([1, snapshotTimestamp], "feeApproval"),
             await getFeeTypedMessage(
               defaultArgs.mintRecipient(),
@@ -632,7 +683,7 @@ describe("LBTC", function () {
         it("should revert if fee is too much", async function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
-            ethers.randomBytes(65),  // not relevant, should not get to valition
+            defaultProof,
             getPayloadForAction([defaultArgs.mintAmount, snapshotTimestamp + 100], "feeApproval"),
             await getFeeTypedMessage(
               defaultArgs.mintRecipient(),
@@ -647,7 +698,7 @@ describe("LBTC", function () {
         it("should revert if signature is not from receiver", async function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
-            ethers.randomBytes(65),  // not relevant, should not get to valition
+            defaultProof,
             getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
             await getFeeTypedMessage(
               deployer,
@@ -662,7 +713,7 @@ describe("LBTC", function () {
         it("should revert if fee signature doesn't match fee payload", async function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
-            ethers.randomBytes(65),  // not relevant, should not get to valition
+            defaultProof,
             getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
             await getFeeTypedMessage(
               defaultArgs.mintRecipient(),
@@ -674,9 +725,53 @@ describe("LBTC", function () {
             .to.revertedWithCustomError(lbtc, "InvalidUserSignature");        
         })
 
-        it("should mint in batches", async function () {
-
+        it("should revert if not claimer", async function () {
+          await expect(lbtc.connect(signer1).mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+            .withArgs(signer1);        
         })
+
+        describe("With batch", function () {
+          it("should fail to batch if something is wrong with the data", async function () {
+            const proofs = [...mintWithFee[1]];
+            proofs[proofs.length - 1] = "0x";
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3]))
+              .to.be.reverted;
+          });
+  
+          it("should fail to batch if not claimer", async function () {
+            const proofs = [...mintWithFee[1]];
+            proofs[proofs.length - 1] = "0x";
+            await expect(lbtc.connect(signer1).batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount").withArgs(signer1.address);
+          });
+  
+          it("should fail to batch if parameters length missmatch", async function () {
+            let pop = (arg: string[]) => {
+              const data = [...arg];
+              data.pop();
+              return data;
+            }
+            await expect(lbtc.batchMintWithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3])))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+          });
+        });
       })
 
       it("should fail to batch mint for free if something is wrong in a mint", async function () {
@@ -697,35 +792,6 @@ describe("LBTC", function () {
           .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
         await expect(lbtc["batchMint(bytes[],bytes[])"](payloads, mintWithoutFee[1]))
           .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
-      });
-
-      describe("Batch with fee", function () {
-        beforeEach(async function () {
-          await lbtc.reinitializeV3("Lombard", "1");
-        });
-
-        it("should fail to batch if something is wrong with the data", async function () {
-          const proofs = [...mintWithFee[1]];
-          proofs[proofs.length - 1] = "0x";
-          await expect(lbtc.batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3]))
-            .to.be.reverted;
-        });
-
-        it("should fail to batch if parameters length missmatch", async function () {
-          let pop = (arg: string[]) => {
-            const data = [...arg];
-            data.pop();
-            return data;
-          }
-          await expect(lbtc.batchMintWithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3]))
-            .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
-          await expect(lbtc.batchMintWithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3]))
-            .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
-          await expect(lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3]))
-            .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
-          await expect(lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3])))
-            .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
-        });
       });
     });
 
