@@ -6,7 +6,8 @@ library Actions {
         uint256 toChain;
         address recipient;
         uint256 amount;
-        bytes bitcoinData;
+        bytes32 txid;
+        uint32 vout;
     }
 
     struct DepositBridgeAction {
@@ -62,10 +63,10 @@ library Actions {
 
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
     bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
-    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,bytes32,uint32)"))
-    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0xb6c68fd9;
-    // bytes4(keccak256("payload(uint256,uint256,tuple[])"))
-    bytes4 internal constant NEW_VALSET = 0x1c455e4f;
+    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
+    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
+    // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
+    bytes4 internal constant NEW_VALSET = 0x4aab1d6f;
 
      /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -99,10 +100,11 @@ library Actions {
             uint256 toChain,
             address recipient,
             uint256 amount,
-            bytes memory bitcoinData // txid || vout
+            bytes32 txid,
+            uint32 vout
         ) = abi.decode(
             msg,
-            (uint256, address, uint256, bytes)
+            (uint256, address, uint256, bytes32, uint32)
         );
 
         if (toChain != block.chainid) {
@@ -115,7 +117,7 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return DepositBtcAction(toChain, recipient, amount, bitcoinData);
+        return DepositBtcAction(toChain, recipient, amount, txid, vout);
     }
 
     /**
