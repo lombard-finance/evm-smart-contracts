@@ -29,7 +29,6 @@ library Actions {
 
     struct FeeApprovalAction {
         uint256 amount;
-        uint256 minimumReceivedAmount;
         uint256 fee;
         uint256 expiry;
     }
@@ -85,10 +84,10 @@ library Actions {
     bytes4 internal constant BRIDGE_ACTION = 0x26578db1;
     // bytes4(keccak256("setValidators(bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant SET_VALIDATORS_ACTION = 0x8ece3b88;
-    // bytes4(keccak256("feeApproval(uint256,uint256,uint256)"))
-    bytes4 internal constant FEE_APPROVAL_ACTION = 0xebbdf0bd;
-    // keccak256("feeApproval(uint256 minimumReceived,uint256 fee,uint256 expiry)")
-    bytes32 internal constant FEE_APPROVAL_EIP712_ACTION = 0x1c93b8f00a746e5eb22bb745dfd2628f02914a201b1687e581f5948c4d9eacad;
+    // bytes4(keccak256("feeApproval(uint256,uint256)"))
+    bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
+    // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
+    bytes32 internal constant FEE_APPROVAL_EIP712_ACTION = 0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
 
      /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -251,7 +250,7 @@ library Actions {
      * @param originalAmount Value to apply the fee on
      */
     function feeApproval(bytes memory payload, uint256 originalAmount) internal view returns (FeeApprovalAction memory){
-        (uint256 minimumReceivedAmount, uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256, uint256));
+        (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
 
         if(block.timestamp > expiry) {
             revert UserSignatureExpired(expiry);
@@ -262,11 +261,7 @@ library Actions {
         if(fee == 0) {
             revert ZeroFee();
         }
-        uint256 amount = originalAmount - fee;
-        if(amount < minimumReceivedAmount) {
-            revert NotEnoughAmountToUseApproval();
-        }
 
-        return FeeApprovalAction(amount, minimumReceivedAmount, fee, expiry);
+        return FeeApprovalAction(originalAmount - fee, fee, expiry);
     }
 }

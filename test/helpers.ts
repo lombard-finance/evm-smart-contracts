@@ -20,7 +20,7 @@ const ACTIONS_IFACE = ethers.Interface.from([
   "function stake(uint256,address,address,uint256,bytes) external",
   "function bridge(uint256,address,uint256,address,address,uint256,bytes) external",
   "function setValidators(bytes[],uint256[],uint256,uint256) external",
-  "function feeApproval(uint256,uint256,uint256)"
+  "function feeApproval(uint256,uint256)"
 ])
 
 export function getPayloadForAction(data: any[], action: string) {
@@ -180,27 +180,26 @@ export async function generatePermitSignature(
 export async function getFeeTypedMessage(
   signer: HardhatEthersSigner,
   verifyingContract: string,
-  minimumReceived: BigNumberish,
   fee: BigNumberish,
   expiry: BigNumberish,
   domainName: string = "Lombard",
   version: string = "1",
-  chain: BigNumberish = Number(CHAIN_ID)
+  chainId: BigNumberish = Number(CHAIN_ID)
 ) {
   const domain = {
       name: domainName,
       version: version,
-      chainId: chain,
+      chainId: chainId,
       verifyingContract: verifyingContract
   };
   const types = {
       feeApproval: [
-          { name: "minimumReceived", type: "uint256" },
+          { name: "chainId", type: "uint256" },
           { name: "fee", type: "uint256" },
           { name: "expiry", type: "uint256" }
       ]
   };
-  const message = {minimumReceived, fee, expiry};
+  const message = {chainId, fee, expiry};
 
   return signer.signTypedData(domain, types, message);
 }

@@ -57,10 +57,11 @@ contract LBTC is
         // Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
         address pauser;
-        // Increments with each cross chain operation and should be part of the payload
-        uint256 crossChainOperationsNonce;
 
         mapping(address => bool) minters;
+
+        // Increments with each cross chain operation and should be part of the payload
+        uint256 crossChainOperationsNonce;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -242,7 +243,7 @@ contract LBTC is
         // Fee validation
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
             Actions.FEE_APPROVAL_EIP712_ACTION,
-            feeAction.minimumReceivedAmount,
+            block.chainid,
             feeAction.fee,
             feeAction.expiry
         )));
@@ -251,12 +252,13 @@ contract LBTC is
             revert InvalidUserSignature();
         }
 
+        // modified payload to be signed
+        _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, mintPayload, proof);
+        
         // mint fee to treasury
         LBTCStorage storage $ = _getLBTCStorage();
         _mint($.treasury, feeAction.fee);
 
-        // modified payload to be signed
-        _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, abi.encode(mintPayload, userSignature), proof);
         _storePayload(mintPayload);
     }
 

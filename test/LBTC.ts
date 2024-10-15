@@ -256,7 +256,9 @@ describe("LBTC", function () {
             const treasuryBalanceBefore = await lbtc.balanceOf(treasury.address);
             const totalSupplyBefore = await lbtc.totalSupply();
     
-            const payload = getPayloadForAction(
+            const data = await signPayload(
+              [signer1],
+              [true],
               [
                 CHAIN_ID,
                 await lbtc.getAddress(),
@@ -264,28 +266,23 @@ describe("LBTC", function () {
                 args.amount, 
                 ethers.hexlify(ethers.randomBytes(42)), // extra data, irrelevant
               ],
+              CHAIN_ID,
+              await lbtc.getAddress(),
+              await consortium.getAddress(),
+              1,
               "stake",
             );
             const userSignature = await getFeeTypedMessage(
               args.recipient(),
               await lbtc.getAddress(),
-              1, // smallest minimum as we want it to be valid for any case
               fee,
               snapshotTimestamp + 100,
             );
-            const finalPayload = enhancePayload(
-              CHAIN_ID,
-              await lbtc.getAddress(),
-              await consortium.getAddress(),
-              1,
-              encode(["bytes", "bytes"], [payload, userSignature])
-            );
-            const signature = [rawSign(signer1, finalPayload)];
     
             await expect(lbtc.connect(args.msgSender()).mintWithFee(
-              payload,
-              encode(["bytes[]"], [signature]),
-              getPayloadForAction([1, fee, snapshotTimestamp + 100], "feeApproval"),
+              data.payload,
+              data.proof,
+              getPayloadForAction([fee, snapshotTimestamp + 100], "feeApproval"),
               userSignature
             ))
               .to.emit(lbtc, "Transfer")
@@ -566,11 +563,10 @@ describe("LBTC", function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
             ethers.randomBytes(65),  // not relevant, should not get to valition
-            getPayloadForAction([1, 1, snapshotTimestamp], "feeApproval"),
+            getPayloadForAction([1, snapshotTimestamp], "feeApproval"),
             await getFeeTypedMessage(
               defaultArgs.mintRecipient(),
               await lbtc.getAddress(),
-              1,
               1,
               snapshotTimestamp // it is already passed as some txns had happen
             )
@@ -583,11 +579,10 @@ describe("LBTC", function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
             ethers.randomBytes(65),  // not relevant, should not get to valition
-            getPayloadForAction([1, defaultArgs.mintAmount, snapshotTimestamp + 100], "feeApproval"),
+            getPayloadForAction([defaultArgs.mintAmount, snapshotTimestamp + 100], "feeApproval"),
             await getFeeTypedMessage(
               defaultArgs.mintRecipient(),
               await lbtc.getAddress(),
-              1,
               defaultArgs.mintAmount,
               snapshotTimestamp + 100
             )
@@ -595,31 +590,14 @@ describe("LBTC", function () {
             .to.revertedWithCustomError(lbtc, "FeeGreaterThanAmount");        
         })
 
-        it("should revert if minimum received is not met", async function () {
-          await expect(lbtc.mintWithFee(
-            defaultPayload,
-            ethers.randomBytes(65),  // not relevant, should not get to valition
-            getPayloadForAction([defaultArgs.mintAmount - 1n, 2, snapshotTimestamp + 100], "feeApproval"),
-            await getFeeTypedMessage(
-              defaultArgs.mintRecipient(),
-              await lbtc.getAddress(),
-              defaultArgs.mintAmount - 1n,
-              2,
-              snapshotTimestamp + 100
-            )
-          ))
-            .to.revertedWithCustomError(lbtc, "NotEnoughAmountToUseApproval");        
-        })
-
         it("should revert if signature is not from receiver", async function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
             ethers.randomBytes(65),  // not relevant, should not get to valition
-            getPayloadForAction([1, 1, snapshotTimestamp + 100], "feeApproval"),
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
             await getFeeTypedMessage(
               deployer,
               await lbtc.getAddress(),
-              1,
               1,
               snapshotTimestamp + 100
             )
@@ -631,11 +609,10 @@ describe("LBTC", function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
             ethers.randomBytes(65),  // not relevant, should not get to valition
-            getPayloadForAction([1, 1, snapshotTimestamp + 100], "feeApproval"),
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
             await getFeeTypedMessage(
               defaultArgs.mintRecipient(),
               await lbtc.getAddress(),
-              1,
               2, // wrong fee
               snapshotTimestamp + 100
             )
