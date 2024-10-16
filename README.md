@@ -45,6 +45,16 @@ yarn hardhat compile
 yarn hardhat test
 ```
 #### Deploy
+Compile contracts before deployment
+```bash
+yarn hardhat compile
+```
+##### Proxy factory
+Deploy proxy factory from zero nonce account
+```bash
+yarn hardhat deploy-proxy-factory --network '$NETWORK'
+```
+
 ```bash
 yarn hardhat deploy-consortium [params]
 yarn hardhat deploy-timelock [params]

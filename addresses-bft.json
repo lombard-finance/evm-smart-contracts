@@ -1,19 +1,14 @@
 {
   "sepolia": {
-    "ThresholdKey": "",
+    "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
     "LBTC": "",
-    "Owner": "",
+    "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
     "Consortium": "",
     "TimeLock": ""
   },
-  "btcTestnet": {
-    "ThresholdKey": "",
+  "linea_testnet": {
+    "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
     "LBTC": "",
-    "Owner": "",
-    "Consortium": "",
-    "TimeLock": "",
-    "BTCB": "",
-    "BTCBPMM": "",
-    "ProxyFactory": ""
+    "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508"
   }
 }
