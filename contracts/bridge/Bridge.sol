@@ -44,8 +44,8 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
         _disableInitializers();
     }
 
-    function initialize(address lbtc_, address treasury_, address adapter_) external initializer {
-        __Ownable_init(_msgSender());
+    function initialize(address lbtc_, address treasury_, address adapter_, address owner_) external initializer {
+        __Ownable_init(owner_);
         __Ownable2Step_init();
         __ReentrancyGuard_init();
 

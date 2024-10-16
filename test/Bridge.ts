@@ -53,7 +53,7 @@ describe("Bridge", function () {
     // chain 1
     lbtcSource = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
     adapterSource = await deployContract<DefaultAdapter>("DefaultAdapter", [await lbtcSource.getAddress(), deployer.address], false);
-    bridgeSource = await deployContract<Bridge>("Bridge", [await lbtcSource.getAddress(), treasury.address, await adapterSource.getAddress()]);
+    bridgeSource = await deployContract<Bridge>("Bridge", [await lbtcSource.getAddress(), treasury.address, await adapterSource.getAddress(), deployer.address]);
     bascule = await deployContract<Bascule>("Bascule", [admin.address, pauser.address, reporter.address, await lbtcSource.getAddress(), 100], false);
     await adapterSource.changeBridge(await bridgeSource.getAddress());
     await lbtcSource.changeBridge(await bridgeSource.getAddress());
@@ -61,7 +61,7 @@ describe("Bridge", function () {
     // chain 2
     lbtcDestination = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
     adapterDestination = await deployContract<DefaultAdapter>("DefaultAdapter", [await lbtcDestination.getAddress(), deployer.address], false);
-    bridgeDestination = await deployContract<Bridge>("Bridge", [await lbtcDestination.getAddress(), treasury.address,  await adapterDestination.getAddress()]);
+    bridgeDestination = await deployContract<Bridge>("Bridge", [await lbtcDestination.getAddress(), treasury.address,  await adapterDestination.getAddress(), deployer.address]);
     await adapterDestination.changeBridge(await bridgeDestination.getAddress());
     await lbtcDestination.changeBridge(await bridgeDestination.getAddress());
 
