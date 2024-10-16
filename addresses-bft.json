@@ -1,0 +1,19 @@
+{
+  "sepolia": {
+    "ThresholdKey": "",
+    "LBTC": "",
+    "Owner": "",
+    "Consortium": "",
+    "TimeLock": ""
+  },
+  "btcTestnet": {
+    "ThresholdKey": "",
+    "LBTC": "",
+    "Owner": "",
+    "Consortium": "",
+    "TimeLock": "",
+    "BTCB": "",
+    "BTCBPMM": "",
+    "ProxyFactory": ""
+  }
+}
