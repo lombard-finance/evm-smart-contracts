@@ -69,6 +69,10 @@ describe("LBTC", function () {
     await lbtc.addClaimer(deployer.address);
     await lbtc2.addClaimer(deployer.address);
 
+    // Initialize the permit module
+    await lbtc.reinitialize();     
+    await lbtc2.reinitialize();   
+    
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock("latest"))!.timestamp;
   });
@@ -293,9 +297,6 @@ describe("LBTC", function () {
         const fees = [1n, args.amount - 1n];
         fees.forEach(async function (fee, j) {
           it(`Mint ${args.name} with ${fee} satoshis fee`, async function () {
-            // set domain
-            await lbtc.reinitializeV3("Lombard", "1");
-
             const userBalanceBefore = await lbtc.balanceOf(args.recipient().address);
             const treasuryBalanceBefore = await lbtc.balanceOf(treasury.address);
             const totalSupplyBefore = await lbtc.totalSupply();
@@ -366,8 +367,6 @@ describe("LBTC", function () {
       });
 
       it("should do batch mint with fee", async function () {
-        await lbtc.reinitializeV3("Lombard", "1");
-
         const mintPromise = lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
 
         const transferPromises = mintWithFee[4].map(async (args) => 
@@ -600,8 +599,6 @@ describe("LBTC", function () {
           lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
         ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
 
-        await lbtc.reinitializeV3("Lombard", "1");
-
         await expect(
           lbtc.mintWithFee(
             defaultPayload, 
@@ -618,10 +615,6 @@ describe("LBTC", function () {
       });
 
       describe("With fee", function () {
-        beforeEach(async function () {
-          await lbtc.reinitializeV3("Lombard", "1");
-        })
-
         it("should revert if expired", async function () {
           await expect(lbtc.mintWithFee(
             defaultPayload,
@@ -958,10 +951,7 @@ describe("LBTC", function () {
       chainId = (await ethers.provider.getNetwork()).chainId; 
     });
 
-    beforeEach(async function () {
-      // Initialize the permit module
-      await lbtc.reinitialize();      
-
+    beforeEach(async function () { 
       // Mint some tokens
       await lbtc["mint(address,uint256)"](signer1.address, 100_000_000n);
     });

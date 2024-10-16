@@ -6,7 +6,6 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
@@ -25,7 +24,6 @@ contract LBTC is
     ERC20PausableUpgradeable, 
     Ownable2StepUpgradeable, 
     ReentrancyGuardUpgradeable, 
-    EIP712Upgradeable,
     ERC20PermitUpgradeable
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
@@ -106,10 +104,6 @@ contract LBTC is
 
     function reinitialize() external reinitializer(2) {
         __ERC20Permit_init("Lombard Staked Bitcoin");
-    }
-
-    function reinitializeV3(string memory name_, string memory version_) external reinitializer(3) {
-        __EIP712_init(name_, version_);
     }
 
     function toggleWithdrawals() external onlyOwner {

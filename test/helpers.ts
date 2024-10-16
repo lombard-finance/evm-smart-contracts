@@ -238,7 +238,7 @@ export async function getFeeTypedMessage(
   verifyingContract: string,
   fee: BigNumberish,
   expiry: BigNumberish,
-  domainName: string = "Lombard",
+  domainName: string = "Lombard Staked Bitcoin",
   version: string = "1",
   chainId: BigNumberish = Number(CHAIN_ID)
 ) {
