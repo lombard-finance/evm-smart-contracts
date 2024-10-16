@@ -2,29 +2,30 @@
 pragma solidity 0.8.24;
 
 library Actions {
-    struct MintAction {
+    struct DepositBtcAction {
         uint256 toChain;
-        address toContract;
         address recipient;
         uint256 amount;
-        bytes uniqueActionData;
+        bytes32 txid;
+        uint32 vout;
     }
 
-    struct BridgeAction {
+    struct DepositBridgeAction {
         uint256 fromChain;
         address fromContract;
         uint256 toChain;
         address toContract;
         address recipient;
         uint256 amount;
-        bytes uniqueActionData;
+        bytes32 uniqueActionData;
     }
 
-    struct ValidatorSetAction {
+    struct ValSetAction {
+        uint256 epoch;
         address[] validators;
         uint256[] weights;
-        uint256 threshold;
-        uint256 epoch;
+        uint256 weightThreshold;
+        uint256 height;
     }
 
     struct FeeApprovalAction {
@@ -78,16 +79,16 @@ library Actions {
     /// @dev Error thrown when zero fee is used
     error ZeroFee();
 
-    // bytes4(keccak256("stake(uint256,address,address,uint256,bytes)"))
-    bytes4 internal constant STAKE_ACTION = 0xfcabc66e;
-    // bytes4(keccak256("bridge(uint256,address,uint256,address,address,uint256,bytes)"))
-    bytes4 internal constant BRIDGE_ACTION = 0x26578db1;
-    // bytes4(keccak256("setValidators(bytes[],uint256[],uint256,uint256)"))
-    bytes4 internal constant SET_VALIDATORS_ACTION = 0x8ece3b88;
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
     // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
     bytes32 internal constant FEE_APPROVAL_EIP712_ACTION = 0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
+    // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
+    bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
+    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
+    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
+    // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
+    bytes4 internal constant NEW_VALSET = 0x4aab1d6f;
 
      /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -112,27 +113,24 @@ library Actions {
     uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
 
     /**
-     * @notice Returns decoded stake payload
-     * @dev Payload should not contain the selector
-     * @param payload Body of the stake payload
+     * @notice Returns decoded deposit btc msg
+     * @dev Message should not contain the selector
+     * @param payload Body of the mint payload
      */
-    function stake(bytes memory payload) internal view returns (MintAction memory) {
+    function depositBtc(bytes memory payload) internal view returns (DepositBtcAction memory) {
         (
-            uint256 toChain, 
-            address toContract, 
-            address recipient, 
-            uint256 amount, 
-            bytes memory uniqueActionData
+            uint256 toChain,
+            address recipient,
+            uint256 amount,
+            bytes32 txid,
+            uint32 vout
         ) = abi.decode(
-            payload, 
-            (uint256, address, address, uint256, bytes)
+            payload,
+            (uint256, address, uint256, bytes32, uint32)
         );
 
         if (toChain != block.chainid) {
             revert WrongChainId();
-        }
-        if (toContract != address(this)) {
-            revert WrongContract();
         }
         if (recipient == address(0)) {
             revert ZeroAddress();
@@ -141,7 +139,7 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return MintAction(toChain, toContract, recipient, amount, uniqueActionData);
+        return DepositBtcAction(toChain, recipient, amount, txid, vout);
     }
 
     /**
@@ -149,7 +147,7 @@ library Actions {
      * @dev Payload should not contain the selector
      * @param payload Body of the burn payload
      */
-    function bridge(bytes memory payload) internal view returns (BridgeAction memory) {
+    function depositBridge(bytes memory payload) internal view returns (DepositBridgeAction memory) {
         (   
             uint256 fromChain, 
             address fromContract, 
@@ -157,10 +155,10 @@ library Actions {
             address toContract, 
             address recipient, 
             uint256 amount, 
-            bytes memory uniqueActionData
+            bytes32 uniqueActionData
         ) = abi.decode(
             payload, 
-            (uint256, address, uint256, address, address, uint256, bytes)
+            (uint256, address, uint256, address, address, uint256, bytes32)
         );
 
         if (toChain != block.chainid) {
@@ -176,7 +174,7 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return BridgeAction(fromChain, fromContract, toChain, toContract, recipient, amount, uniqueActionData);
+        return DepositBridgeAction(fromChain, fromContract, toChain, toContract, recipient, amount, uniqueActionData);
     }
 
     /**
@@ -184,25 +182,23 @@ library Actions {
      * @dev Payload should not contain the selector
      * @param payload Body of the set validators set payload
      */
-    function setValidatorSet(bytes memory payload) internal pure returns (ValidatorSetAction memory) {
+    function validateValSet(bytes memory payload) internal pure returns (ValSetAction memory) {
+
         (
-            bytes[] memory pubKeys, 
-            uint256[] memory weights, 
-            uint256 threshold,
-            uint256 epoch
-        ) = abi.decode(payload, (bytes[], uint256[], uint256, uint256));
+            uint256 epoch,
+            bytes[] memory pubKeys,
+            uint256[] memory weights,
+            uint256 weightThreshold,
+            uint256 height
+        ) = abi.decode(payload, (uint256, bytes[], uint256[], uint256, uint256));
 
-        return validateValidatorSet(pubKeys, weights, threshold, epoch);
-    }
-
-    function validateValidatorSet(bytes[] memory pubKeys, uint256[] memory weights, uint256 threshold, uint256 epoch) internal pure returns (ValidatorSetAction memory) {
         if(pubKeys.length < MIN_VALIDATOR_SET_SIZE || pubKeys.length > MAX_VALIDATOR_SET_SIZE) 
             revert InvalidValidatorSetSize();  
 
         if(pubKeys.length != weights.length) 
             revert LengthMismatch();
 
-        if(threshold == 0) 
+        if(weightThreshold == 0)
             revert InvalidThreshold();
 
         uint256 sum = 0;
@@ -213,7 +209,7 @@ library Actions {
             sum += weights[i];
             unchecked { ++i; }
         }
-        if(sum < threshold) 
+        if(sum < weightThreshold)
             revert InvalidThreshold();
 
         address[] memory validators = pubKeysToAddress(pubKeys);
@@ -228,7 +224,7 @@ library Actions {
             unchecked { ++i; }
         }
 
-        return ValidatorSetAction(validators, weights, threshold, epoch);
+        return ValSetAction(epoch, validators, weights, weightThreshold, height);
     }
 
     function pubKeysToAddress(bytes[] memory _pubKeys) internal pure returns (address[] memory) {

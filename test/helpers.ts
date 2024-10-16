@@ -1,7 +1,8 @@
-import { config, ethers, upgrades } from "hardhat";
+import hardhat, { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTC, WBTCMock, Bascule } from "../typechain-types";
 import { AddressLike, BaseContract, Contract, Signer, Signature, BigNumberish } from "ethers";
+import {string} from "hardhat/internal/core/params/argumentTypes";
 
 export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
@@ -17,10 +18,10 @@ export const ERRORS_IFACE = {
 };
 
 const ACTIONS_IFACE = ethers.Interface.from([
-  "function stake(uint256,address,address,uint256,bytes) external",
-  "function bridge(uint256,address,uint256,address,address,uint256,bytes) external",
-  "function setValidators(bytes[],uint256[],uint256,uint256) external",
-  "function feeApproval(uint256,uint256)"
+  "function feeApproval(uint256,uint256)",
+  "function payload(bytes32,bytes32,uint64,bytes32,uint32) external",
+  "function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external",
+  "function payload(uint256,bytes[],uint256[],uint256,uint256) external",
 ])
 
 export function getPayloadForAction(data: any[], action: string) {
@@ -37,31 +38,86 @@ export function rawSign(
   return signature.serialized;
 }
 
-export function enhancePayload(
-  executionChainId: BigNumberish,
-  caller: AddressLike,
-  verifier: AddressLike,
-  epoch: number,
-  originalMessage: string
+export const DEPOSIT_BTC_ACTION = "0xf2e73f7c";
+export const DEPOSIT_BRIDGE_ACTION = "0x5c70a505";
+export const NEW_VALSET = "0x4aab1d6f";
+
+export async function signDepositBridgePayload(
+  signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  fromChain: string | BigInt,
+  fromContract: string,
+  toChain: string | BigInt,
+  toContract: string,
+  recipient: string,
+  amount: number | BigInt,
+  nonce: BigInt | number = 0n,
 ) {
-  return ethers.sha256(encode(
-    ["uint256", "address", "address", "uint256", "bytes32"],
-    [executionChainId, caller, verifier, epoch, ethers.sha256(originalMessage)]
-  ))
+
+  let msg = getPayloadForAction([
+    typeof fromChain === 'string' && ethers.getBytes(fromChain).length < 32 ? fromChain : encode(["uint256"], [fromChain]),
+    encode(["address"], [fromContract]),
+    typeof toChain === 'string' && ethers.getBytes(toChain).length < 32 ? toChain : encode(["uint256"], [toChain]),
+    encode(["address"], [toContract]),
+    encode(["address"], [recipient]),
+    amount,
+    encode(["uint256"], [nonce])
+  ], DEPOSIT_BRIDGE_ACTION);
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signDepositBtcPayload(
+  signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  toChain: string | bigint | number | Uint8Array,
+  recipient: string,
+  amount: BigInt | number,
+  txid: string | Uint8Array,
+  vout: BigInt = 0n,
+) {
+
+  let toChainBytes = toChain;
+  if (typeof toChain === 'number' || typeof toChain === 'bigint') {
+    toChainBytes = encode(["uint256"], [toChain]);
+  }
+
+  let msg = getPayloadForAction([
+    toChainBytes,
+    encode(["address"], [recipient]),
+    amount,
+    txid,
+    encode(["uint32"], [vout])
+  ], DEPOSIT_BTC_ACTION);
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signNewValSetPayload(
+  signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  epoch: BigInt | number,
+  validators: string[],
+  weights: number[],
+  weightThreshold: number,
+  height: BigInt | number = 0n,
+) {
+
+  let msg = getPayloadForAction([
+    epoch,
+    validators,
+    weights,
+    weightThreshold,
+    height,
+  ], NEW_VALSET);
+  return signPayload(signers, signatures, msg);
 }
 
 export async function signPayload(
   signers: HardhatEthersSigner[],
   signatures: boolean[],
-  data: any[],
-  executionChainId: BigNumberish,
-  caller: AddressLike,
-  verifier: AddressLike,
-  epoch: number,
-  action: string
+  payload: string,
 ): Promise<{
   payload: string;
-  enhancedPayload: string;
+  payloadHash: string;
   proof: string;
 }> {
   
@@ -69,17 +125,17 @@ export async function signPayload(
     throw new Error("Signers & signatures must have the same length");
   }
 
-  const originalMessage = getPayloadForAction(data, action);
-  const finalMessage = enhancePayload(executionChainId, caller, verifier, epoch, originalMessage);
+  const hash = ethers.sha256(payload);
+
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
-    
-    return rawSign(signer, finalMessage);
+
+    return rawSign(signer, hash);
   }));
   
   return {
-    payload: originalMessage,
-    enhancedPayload: finalMessage,
+    payload: payload,
+    payloadHash: hash,
     proof: encode(["bytes[]"], [signaturesArray]),
   };
 }

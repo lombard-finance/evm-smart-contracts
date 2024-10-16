@@ -12,10 +12,9 @@ import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {ILBTC} from "./ILBTC.sol";
 import { FeeUtils } from "../libs/FeeUtils.sol";
-import {LombardConsortium} from "../consortium/LombardConsortium.sol";
+import {Consortium} from "../consortium/Consortium.sol";
 import {Actions} from "../libs/Actions.sol";
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
-
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -31,7 +30,7 @@ contract LBTC is
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        /// @custom:oz-renamed-from usedProofs
+        /// @custom:oz-renamed-from usedPayloads
         mapping(bytes32 => bool) usedPayloads;
         
         string name;
@@ -155,7 +154,6 @@ contract LBTC is
         _mint(to, amount);
     }
 
-
     /** 
      * @notice Mint LBTC in batches
      * @param to The addresses to mint to
@@ -184,14 +182,12 @@ contract LBTC is
         bytes calldata proof
     ) public nonReentrant {
         // payload validation
-        _notUsedPayload(payload);
-        if (bytes4(payload) != Actions.STAKE_ACTION) {
+        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.MintAction memory action = Actions.stake(payload[4:]);
+        Actions.DepositBtcAction memory action = Actions.depositBtc(payload[4:]);
 
         _validateAndMint(action.recipient, action.amount, action.amount, payload, proof);
-        _storePayload(payload);
     }
 
     /**
@@ -262,7 +258,11 @@ contract LBTC is
     
         // check proof validity
         bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
+        if ($.usedPayloads[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        Consortium($.consortium).checkProof(payloadHash, proof);
+        $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
         _confirmDeposit($, payloadHash, stakeAmount);
@@ -419,10 +419,10 @@ contract LBTC is
         uint256 amountWithoutFee = amount - fee;
         _burn(fromAddress, amountWithoutFee);
 
-        // prepare burn payload
-        bytes memory uniqueActionData = abi.encode($.crossChainOperationsNonce++);
+        // prepare deposit payload
+        bytes32 uniqueActionData = bytes32($.crossChainOperationsNonce++);
         bytes memory payload = abi.encodeWithSelector(
-            Actions.BRIDGE_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
+            Actions.DEPOSIT_BRIDGE_ACTION, block.chainid, address(this), toChain, toContract, toAddress, amountWithoutFee, uniqueActionData
         );
 
         emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
@@ -441,10 +441,10 @@ contract LBTC is
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != Actions.BRIDGE_ACTION) {
+        if (bytes4(payload) != Actions.DEPOSIT_BRIDGE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.BridgeAction memory action = Actions.bridge(payload[4:]);
+        Actions.DepositBridgeAction memory action = Actions.depositBridge(payload[4:]);
 
         if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
             revert UnknownOriginContract(action.toChain, action.toContract);
@@ -452,10 +452,11 @@ contract LBTC is
 
         // proof validation
         bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
-
-        // Confirm deposit against Bascule
-        _confirmDeposit($, payloadHash, action.amount);
+        if ($.usedPayloads[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        Consortium($.consortium).checkProof(payloadHash, proof);
+        $.usedPayloads[payloadHash] = true;
 
         // Actually mint
         _mint(action.recipient, action.amount);
@@ -735,11 +736,10 @@ contract LBTC is
         bytes calldata userSignature
     ) internal nonReentrant {
         // mint payload validation
-        _notUsedPayload(mintPayload);
-        if (bytes4(mintPayload) != Actions.STAKE_ACTION) {
+        if (bytes4(mintPayload) != Actions.DEPOSIT_BTC_ACTION) {
             revert UnexpectedAction(bytes4(mintPayload));
         }
-        Actions.MintAction memory mintAction = Actions.stake(mintPayload[4:]);
+        Actions.DepositBtcAction memory mintAction = Actions.depositBtc(mintPayload[4:]);
 
         // fee payload validation
         if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
@@ -765,8 +765,6 @@ contract LBTC is
         // mint fee to treasury
         LBTCStorage storage $ = _getLBTCStorage();
         _mint($.treasury, feeAction.fee);
-
-        _storePayload(mintPayload);
     }
 
     /**
