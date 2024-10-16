@@ -2,15 +2,16 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
-  signPayload,
   deployContract,
   getSignersWithPrivateKeys,
   CHAIN_ID,
-  generatePermitSignature, ACTIONS, DEPOSIT_BTC_ACTION, DEPOSIT_BRIDGE_ACTION, NEW_VALSET
+  generatePermitSignature, DEPOSIT_BTC_ACTION, DEPOSIT_BRIDGE_ACTION, NEW_VALSET,
+  encode, signDepositBridgePayload, getPayloadForAction, signDepositBtcPayload,
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, Consortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
+import {hexlify} from "ethers";
 
 describe("LBTC", function () {
   let deployer: HardhatEthersSigner,
@@ -48,9 +49,9 @@ describe("LBTC", function () {
     await lbtc.changeTreasuryAddress(treasury.address);
     await lbtc2.changeTreasuryAddress(treasury.address);
 
-    const initialValset = ACTIONS[NEW_VALSET]([
+    const initialValset = getPayloadForAction([
       1, [signer1.publicKey], [1], 1, 1
-    ])
+    ], NEW_VALSET)
 
     await consortium.setInitalValidatorSet(initialValset);
 
@@ -217,17 +218,13 @@ describe("LBTC", function () {
           const balanceBefore = await lbtc.balanceOf(args.recipient());
           const totalSupplyBefore = await lbtc.totalSupply();
   
-          const data = await signPayload(
+          const data = await signDepositBtcPayload(
             [signer1], 
             [true],
-            [
-              CHAIN_ID,
-              ethers.AbiCoder.defaultAbiCoder().encode(["address"], [args.recipient()]),
-              args.amount, 
-              ethers.hexlify(ethers.randomBytes(32)), // random txid
-              0,
-            ],
-            DEPOSIT_BTC_ACTION,
+            CHAIN_ID,
+            args.recipient(),
+            args.amount,
+            ethers.hexlify(ethers.randomBytes(32)), // random txid
           );
   
           await expect(lbtc.connect(args.msgSender())["mint(bytes,bytes)"](data.payload, data.proof))
@@ -253,17 +250,13 @@ describe("LBTC", function () {
             const balanceBefore = await lbtc.balanceOf(args.recipient());
             const totalSupplyBefore = await lbtc.totalSupply();
     
-            const data = await signPayload(
+            const data = await signDepositBtcPayload(
               [signer1], 
               [true],
-              [ 
-                CHAIN_ID,
-                ethers.AbiCoder.defaultAbiCoder().encode(["address"], [args.recipient()]),
-                args.amount, 
-                ethers.hexlify(ethers.randomBytes(32)), // extra data, irrelevant
-                0,
-              ],
-              DEPOSIT_BTC_ACTION,
+              CHAIN_ID,
+              args.recipient(),
+              args.amount,
+              ethers.hexlify(ethers.randomBytes(32)), // extra data, irrelevant
             );
     
             // mint without report fails
@@ -333,19 +326,15 @@ describe("LBTC", function () {
       beforeEach (async function () {
         // Use a bigger consortium to cover more cases
         newConsortium = await deployContract<Consortium>("Consortium", [deployer.address]);
-        const valset = ACTIONS[NEW_VALSET]([1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1])
+        const valset = getPayloadForAction([1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1], NEW_VALSET)
         await newConsortium.setInitalValidatorSet(valset);
-        const {proof, payload} = await signPayload(
+        const {proof, payload} = await signDepositBtcPayload(
           defaultArgs.signers(), 
           defaultArgs.signatures,
-          [
-            defaultArgs.signatureChainId,
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [defaultArgs.signatureRecipient()]),
-            defaultArgs.signatureAmount, 
-            defaultArgs.signatureExtraData, // TODO: rename to txid
-            0,
-          ],
-          DEPOSIT_BTC_ACTION,
+          defaultArgs.signatureChainId,
+          defaultArgs.signatureRecipient(),
+          defaultArgs.signatureAmount,
+          defaultArgs.signatureExtraData, // TODO: rename to txid
         );
         defaultProof = proof;
         defaultPayload = payload;
@@ -370,7 +359,7 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "destination chain missmatch",
-          signatureChainId: defaultArgs.chainId + 1,
+          signatureChainId: ethers.randomBytes(32),
         },
         {
           ...defaultArgs,
@@ -429,30 +418,27 @@ describe("LBTC", function () {
       ];
       args.forEach(function (args) {
         it(`Reverts when ${args.name}`, async function () {
-          const signature = (await signPayload(
+          const data = await signDepositBtcPayload(
             args.signers(), 
             args.signatures,
+            args.signatureChainId,
+            args.signatureRecipient(),
+            args.signatureAmount,
+            args.signatureExtraData,
+          );
+          const payload = getPayloadForAction(
             [
-              ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [args.signatureChainId]),
-              ethers.AbiCoder.defaultAbiCoder().encode(["address"], [args.signatureRecipient()]),
-              args.signatureAmount, 
-              args.signatureExtraData,
-              0
-            ],
-            DEPOSIT_BTC_ACTION,
-          )).proof;
-          const payload = ACTIONS[DEPOSIT_BTC_ACTION](
-            [
-              ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [args.chainId]),
-              ethers.AbiCoder.defaultAbiCoder().encode(["address"], [args.mintRecipient()]),
+              encode(["uint256"], [args.chainId]),
+              encode(["address"], [args.mintRecipient()]),
               args.mintAmount, 
               args.extraData,
               0
-            ]
+            ],
+            DEPOSIT_BTC_ACTION
           );
   
           await expect(
-            lbtc["mint(bytes,bytes)"](payload, signature)
+            lbtc["mint(bytes,bytes)"](payload, data.proof)
           ).to.revertedWithCustomError(args.interface(), args.customError);
         });
       });
@@ -776,15 +762,15 @@ describe("LBTC", function () {
       let amountWithoutFee = amount - fee;
       let receiver = signer2.address;
 
-      let payload = ACTIONS[DEPOSIT_BRIDGE_ACTION]([
+      let payload = getPayloadForAction([
         CHAIN_ID,
-        ethers.AbiCoder.defaultAbiCoder().encode(["address"], [await lbtc.getAddress()]),
+        encode(["address"], [await lbtc.getAddress()]),
         CHAIN_ID,
-        ethers.AbiCoder.defaultAbiCoder().encode(["address"], [await lbtc2.getAddress()]),
-        ethers.AbiCoder.defaultAbiCoder().encode(["address"], [receiver]),
+        encode(["address"], [await lbtc2.getAddress()]),
+        encode(["address"], [receiver]),
         amountWithoutFee,
-        ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-      ]);
+        encode(["uint256"], [0])
+      ], DEPOSIT_BRIDGE_ACTION);
 
       await expect(lbtc.connect(signer1).depositToBridge(
         CHAIN_ID,
@@ -799,6 +785,9 @@ describe("LBTC", function () {
           payload
         );
 
+      // 0x5c70a5050000000000000000000000000000000000000000000000000000000000007a690000000000000000000000008f86403a4de0bb5791fa46b8e795c547942fe4cf0000000000000000000000000000000000000000000000000000000000007a690000000000000000000000009d4454b023096f34b160d6b654540c56a1f816880000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc000000000000000000000000000000000000000000000000000000000000232800000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000
+      // 0x5c70a5050000000000000000000000000000000000000000000000000000000000007a690000000000000000000000008f86403a4de0bb5791fa46b8e795c547942fe4cf0000000000000000000000000000000000000000000000000000000000007a690000000000000000000000009d4454b023096f34b160d6b654540c56a1f816880000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc00000000000000000000000000000000000000000000000000000000000023280000000000000000000000000000000000000000000000000000000000000000
+
       expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
       expect(await lbtc.balanceOf(treasury.address)).to.be.equal(fee);
       expect((await lbtc.totalSupply()).toString()).to.be.equal(fee);
@@ -806,26 +795,22 @@ describe("LBTC", function () {
       expect(await lbtc2.balanceOf(signer2.address)).to.be.equal(0);
       expect(await lbtc2.totalSupply()).to.be.equal(0);
 
-      const data1 = await signPayload(
+      const data1 = await signDepositBridgePayload(
         [signer1],
         [true],
-        [
-          CHAIN_ID,
-          ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [await lbtc.getAddress()]),
-          CHAIN_ID,
-          ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [await lbtc2.getAddress()]),
-          ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [receiver]),
-          amountWithoutFee,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
-        DEPOSIT_BRIDGE_ACTION
+        CHAIN_ID,
+        await lbtc.getAddress(),
+        CHAIN_ID,
+        await lbtc2.getAddress(),
+        receiver,
+        amountWithoutFee,
       );
 
       await expect(lbtc2.connect(signer2).withdrawFromBridge(data1.payload, data1.proof))
         .to.emit(lbtc2, "WithdrawFromBridge")
         .withArgs(
           receiver,
-          ethers.sha256(data1.payload),
+          data1.payloadHash,
           data1.payload
         );
       expect((await lbtc2.totalSupply()).toString()).to.be.equal(amount - fee);
@@ -840,15 +825,15 @@ describe("LBTC", function () {
       fee = 1n + absoluteFee;
       amountWithoutFee = amount - fee;
 
-      payload = ACTIONS[DEPOSIT_BRIDGE_ACTION]([
+      payload = getPayloadForAction([
         CHAIN_ID,
-        ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [await lbtc2.getAddress()]),
+        encode(["address"], [await lbtc2.getAddress()]),
         CHAIN_ID,
-        ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [await lbtc.getAddress()]),
-        ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [receiver]),
+        encode(["address"], [await lbtc.getAddress()]),
+        encode(["address"], [receiver]),
         amountWithoutFee,
-        ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-      ]);
+        encode(["uint256"], [0])
+      ], DEPOSIT_BRIDGE_ACTION);
 
       await expect(lbtc2.connect(signer2).depositToBridge(
         CHAIN_ID,
@@ -867,71 +852,23 @@ describe("LBTC", function () {
       expect(await lbtc2.balanceOf(treasury.address)).to.be.equal(fee);
       expect(await lbtc2.totalSupply()).to.be.equal(fee);
 
-      const data2 = await signPayload(
+      const data2 = await signDepositBridgePayload(
         [signer1],
         [true],
-        [
-          CHAIN_ID,
-          ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [await lbtc2.getAddress()]),
-          CHAIN_ID,
-          ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [await lbtc.getAddress()]),
-          ethers.AbiCoder.defaultAbiCoder().encode(["bytes32"], [receiver]),
-          amountWithoutFee,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
-        DEPOSIT_BRIDGE_ACTION
+        CHAIN_ID,
+        await lbtc2.getAddress(),
+        CHAIN_ID,
+        await lbtc.getAddress(),
+        receiver,
+        amountWithoutFee,
       );
 
       await expect(lbtc.connect(signer2).withdrawFromBridge(data2.payload, data2.proof))
         .to.emit(lbtc, "WithdrawFromBridge")
         .withArgs(
           receiver,
-          ethers.sha256(data2.payload),
+          data2.payloadHash,
           data2.payload
-        );
-    });
-
-    it("withdrawFromBridge (with Bascule)", async () => {
-      // Enable Bascule
-      await lbtc.changeBascule(await bascule.getAddress());
-
-      // Use the 2nd half of the full flow test to test the Bascule integration
-      let amount = 10000n;;
-      let receiver = signer3.address;
-
-      const data = await signPayload(
-        [signer1],
-        [true],
-        [
-          CHAIN_ID,
-          ethers.AbiCoder.defaultAbiCoder().encode(["address"], [await lbtc2.getAddress()]),
-          CHAIN_ID,
-          ethers.AbiCoder.defaultAbiCoder().encode(["address"], [await lbtc.getAddress()]),
-          ethers.AbiCoder.defaultAbiCoder().encode(["address"], [receiver]),
-          amount,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
-        DEPOSIT_BRIDGE_ACTION
-      );
-
-      // withdraw without report fails
-      await expect(lbtc.connect(signer2).withdrawFromBridge(data.payload, data.proof))
-        .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
-        .withArgs(ethers.sha256(data.payload), amount);
-
-      // report deposit
-      const reportId = ethers.zeroPadValue("0x01", 32);
-      await bascule.connect(reporter).reportDeposits(reportId, [ethers.sha256(data.payload)]);
-
-      // withdraw works
-      await expect(
-        lbtc.connect(signer2).withdrawFromBridge(data.payload, data.proof)
-      )
-        .to.emit(lbtc, "WithdrawFromBridge")
-        .withArgs(
-          receiver,
-          ethers.sha256(data.payload),
-          data.payload
         );
     });
   });

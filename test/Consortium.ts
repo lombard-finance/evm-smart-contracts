@@ -7,7 +7,7 @@ import {
   getSignersWithPrivateKeys,
   getPayloadForAction,
   CHAIN_ID,
-  NEW_VALSET, ACTIONS, DEPOSIT_BRIDGE_ACTION
+  NEW_VALSET, ACTIONS, DEPOSIT_BRIDGE_ACTION, signDepositBridgePayload, encode, signNewValSetPayload
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Consortium } from "../typechain-types";
@@ -48,13 +48,13 @@ describe("Consortium", function () {
 
   describe("With Initial ValidatorSet", function () {
     beforeEach(async function () {
-      const initialValset = ACTIONS[NEW_VALSET]([
+      const initialValset = getPayloadForAction([
         10,
           [signer3.publicKey, signer1.publicKey, signer2.publicKey],
         [1, 1, 1],
         2,
         1
-      ])
+      ], NEW_VALSET)
 
       await lombard.setInitalValidatorSet(initialValset);
     })
@@ -71,17 +71,14 @@ describe("Consortium", function () {
     });
 
     it("should set the new consortium correctly", async function () {
-      const data = await signPayload(
+      const data = await signNewValSetPayload(
         [signer3, signer1, signer2],
         [true, true, false],
-        [
-          11,
-          [signer1.publicKey, signer2.publicKey],
-          [1, 2],
-          3,
-          1
-        ],
-        NEW_VALSET
+        11,
+        [signer1.publicKey, signer2.publicKey],
+        [1, 2],
+        3,
+        1
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.emit(lombard, "ValidatorSetUpdated")
@@ -94,93 +91,78 @@ describe("Consortium", function () {
     });
 
     it("should fail to set initial validator set", async function () {
-      const payload = ACTIONS[NEW_VALSET]([
+      const payload = getPayloadForAction([
         11, [signer1.publicKey], [1], 1, 1
-      ])
+      ], NEW_VALSET)
       await expect(lombard.setInitalValidatorSet(payload))
         .to.revertedWithCustomError(lombard, "ValSetAlreadySet");
     });
 
     it("should fail if epoch is not increasing", async function () {
-      const data = await signPayload(
+      const data = await signNewValSetPayload(
         [signer3, signer1, signer2],
         [true, true, false],
-        [
-          10,
-          [signer1.publicKey, signer2.publicKey],
-          [1, 1],
-          1,
-          1
-        ],
-        NEW_VALSET
+        10,
+        [signer1.publicKey, signer2.publicKey],
+        [1, 1],
+        1,
+        1
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "InvalidEpoch");
     });
 
     it("should fail if new consortium is not increasing", async function () {
-      const data = await signPayload(
+      const data = await signNewValSetPayload(
         [signer3, signer1, signer2],
         [true, true, false],
-        [
-          11,
-          [signer2.publicKey, signer1.publicKey],
-          [1, 1],
-          1,
-          1,
-        ],
-        NEW_VALSET
+        11,
+        [signer2.publicKey, signer1.publicKey],
+        [1, 1],
+        1,
+        1,
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "NotIncreasingValidatorSet");
     });
 
     it("should fail if treshold is zero", async function () {
-      const data = await signPayload(
+      const data = await signNewValSetPayload(
         [signer3, signer1, signer2],
         [true, true, false],
-        [
-          11,
-          [signer2.publicKey, signer1.publicKey],
-          [1, 1],
-          0,
-          1,
-        ],
-        NEW_VALSET
+        11,
+        [signer2.publicKey, signer1.publicKey],
+        [1, 1],
+        0,
+        1,
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
     });
 
     it("should fail if treshold is over the sum of weights", async function () {
-      const data = await signPayload(
+      const data = await signNewValSetPayload(
         [signer3, signer1, signer2],
         [true, true, false],
-        [
-          11,
-          [signer2.publicKey, signer1.publicKey],
-          [1, 1],
-          3,
-          1,
-        ],
-        NEW_VALSET
+        11,
+        [signer2.publicKey, signer1.publicKey],
+        [1, 1],
+        3,
+        1,
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "InvalidThreshold");
     });
 
     it("should fail if zero weights are used", async function () {
-      const data = await signPayload(
+      const data = await signNewValSetPayload(
         [signer3, signer1, signer2],
         [true, true, false],
-        [
-          11,
-          [signer2.publicKey, signer1.publicKey],
-          [1, 0],
-          3,
-          1,
-        ],
-        NEW_VALSET
+        11,
+        [signer2.publicKey, signer1.publicKey],
+        [1, 0],
+        3,
+        1,
       );
       await expect(lombard.setNextValidatorSet(data.payload, data.proof))
       .to.be.revertedWithCustomError(lombard, "ZeroWeight");
@@ -188,41 +170,34 @@ describe("Consortium", function () {
 
     describe("Signature verification", function () {
       it("should validate correct signatures", async function () {
-        const data = await signPayload(
+        const data = await signDepositBridgePayload(
           [signer3, signer1, signer2],
           [true, true, false],
-          [
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [1]),
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer1.address]), //any address
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [1]),
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer2.address]), //any address
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer3.address]), //any address
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint64"], [10]),
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-          ],
-          DEPOSIT_BRIDGE_ACTION
+          1n,
+          signer1.address,
+          1n,
+          signer2.address,
+          signer3.address,
+          10,
         );
 
-        await lombard.checkProof(ethers.sha256(data.payload), data.proof);
+        await lombard.checkProof(data.payloadHash, data.proof);
       });
 
       it("should revert on invalid signatures", async function () {
-        const data = await signPayload(
+
+        const data = await signDepositBridgePayload(
           [signer3, signer1, signer2],
           [true, true, false],
-          [
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [1]),
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer1.address]), //any address
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [1]),
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer2.address]), //any address
-            ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer3.address]), //any address
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint64"], [10]),
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-          ],
-          DEPOSIT_BRIDGE_ACTION
+          1n,
+          signer1.address,
+          1n,
+          signer2.address,
+          signer3.address,
+          10,
         );
 
-        const payload = ACTIONS[DEPOSIT_BRIDGE_ACTION]([
+        const payload = getPayloadForAction([
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [1]),
           ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer1.address]), //any address
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [2]), // // mismatching chainId
@@ -230,7 +205,8 @@ describe("Consortium", function () {
           ethers.AbiCoder.defaultAbiCoder().encode(["address"], [signer3.address]), //any address
           ethers.AbiCoder.defaultAbiCoder().encode(["uint64"], [10]),
           ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0]),
-          ]
+          ],
+          DEPOSIT_BRIDGE_ACTION
         );
 
         await expect(lombard.checkProof(ethers.sha256(payload), data.proof))

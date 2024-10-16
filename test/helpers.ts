@@ -6,7 +6,7 @@ import {string} from "hardhat/internal/core/params/argumentTypes";
 
 export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
-const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
+export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
 
 export const ERRORS_IFACE = {
   interface: ethers.Interface.from([
@@ -23,30 +23,87 @@ const ACTIONS_IFACE = ethers.Interface.from([
   "function payload(uint256,bytes[],uint256[],uint256,uint256) external",
 ])
 
+export function getPayloadForAction(data: any[], action: string) {
+  return ACTIONS_IFACE.encodeFunctionData(action, data);
+}
 
-export const DEPOSIT_BTC_ACTION = "DEPOSIT_BTC_ACTION";
-export const DEPOSIT_BRIDGE_ACTION = "DEPOSIT_BRIDGE_ACTION";
-export const NEW_VALSET = "NEW_VALSET";
+export const DEPOSIT_BTC_ACTION = "0xf2e73f7c";
+export const DEPOSIT_BRIDGE_ACTION = "0x5c70a505";
+export const NEW_VALSET = "0x4aab1d6f";
 
-export const ACTIONS: {
-  [key: string]: (data: any[]) => string
-} = {
-  DEPOSIT_BTC_ACTION: (data: any[]) => {
-    return ACTIONS_IFACE.encodeFunctionData("0xf2e73f7c", data)
-  },
-  DEPOSIT_BRIDGE_ACTION: (data: any[]) => {
-    return ACTIONS_IFACE.encodeFunctionData("0x5c70a505", data)
-  },
-  NEW_VALSET: (data: any[]) => {
-    return ACTIONS_IFACE.encodeFunctionData("0x4aab1d6f", data)
+export async function signDepositBridgePayload(
+  signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  fromChain: string | BigInt,
+  fromContract: string,
+  toChain: string | BigInt,
+  toContract: string,
+  recipient: string,
+  amount: number | BigInt,
+  nonce: BigInt | number = 0n,
+) {
+
+  let msg = getPayloadForAction([
+    typeof fromChain === 'string' && ethers.getBytes(fromChain).length < 32 ? fromChain : encode(["uint256"], [fromChain]),
+    encode(["address"], [fromContract]),
+    typeof toChain === 'string' && ethers.getBytes(toChain).length < 32 ? toChain : encode(["uint256"], [toChain]),
+    encode(["address"], [toContract]),
+    encode(["address"], [recipient]),
+    amount,
+    encode(["uint256"], [nonce])
+  ], DEPOSIT_BRIDGE_ACTION);
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signDepositBtcPayload(
+  signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  toChain: string | bigint | number | Uint8Array,
+  recipient: string,
+  amount: BigInt | number,
+  txid: string | Uint8Array,
+  vout: BigInt = 0n,
+) {
+
+  let toChainBytes = toChain;
+  if (typeof toChain === 'number' || typeof toChain === 'bigint') {
+    toChainBytes = encode(["uint256"], [toChain]);
   }
+
+  let msg = getPayloadForAction([
+    toChainBytes,
+    encode(["address"], [recipient]),
+    amount,
+    txid,
+    encode(["uint32"], [vout])
+  ], DEPOSIT_BTC_ACTION);
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signNewValSetPayload(
+  signers: HardhatEthersSigner[],
+  signatures: boolean[],
+  epoch: BigInt | number,
+  validators: string[],
+  weights: number[],
+  weightThreshold: number,
+  height: BigInt | number = 0n,
+) {
+
+  let msg = getPayloadForAction([
+    epoch,
+    validators,
+    weights,
+    weightThreshold,
+    height,
+  ], NEW_VALSET);
+  return signPayload(signers, signatures, msg);
 }
 
 export async function signPayload(
   signers: HardhatEthersSigner[],
   signatures: boolean[],
-  data: any[],
-  action: string
+  msg: string,
 ): Promise<{
   payload: string;
   payloadHash: string;
@@ -57,7 +114,6 @@ export async function signPayload(
     throw new Error("Signers & signatures must have the same length");
   }
 
-  const msg = ACTIONS[action](data);
   const hash = ethers.sha256(msg);
 
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
