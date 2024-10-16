@@ -2,16 +2,16 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
-  signPayload,
   deployContract,
   getSignersWithPrivateKeys,
-  getPayloadForAction,
   CHAIN_ID,
-  generatePermitSignature
+  generatePermitSignature, DEPOSIT_BTC_ACTION, DEPOSIT_BRIDGE_ACTION, NEW_VALSET,
+  encode, signDepositBridgePayload, getPayloadForAction, signDepositBtcPayload,
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTCMock, Bascule, LombardConsortium } from "../typechain-types";
+import { LBTCMock, Bascule, Consortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
+import {hexlify} from "ethers";
 
 describe("LBTC", function () {
   let deployer: HardhatEthersSigner,
@@ -25,7 +25,7 @@ describe("LBTC", function () {
   let lbtc: LBTCMock;
   let lbtc2: LBTCMock;
   let bascule: Bascule;
-  let consortium: LombardConsortium;
+  let consortium: Consortium;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
 
@@ -41,7 +41,7 @@ describe("LBTC", function () {
       reporter,
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
+    consortium = await deployContract<Consortium>("Consortium", [deployer.address]);
     lbtc = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
     lbtc2 = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
     bascule = await deployContract<Bascule>("Bascule", [admin.address, pauser.address, reporter.address, await lbtc.getAddress(), 100], false);
@@ -49,7 +49,11 @@ describe("LBTC", function () {
     await lbtc.changeTreasuryAddress(treasury.address);
     await lbtc2.changeTreasuryAddress(treasury.address);
 
-    await consortium.setInitalValidatorSet([signer1.publicKey], [1], 1, 1);
+    const initialValset = getPayloadForAction([
+      1, [signer1.publicKey], [1], 1, 1
+    ], NEW_VALSET)
+
+    await consortium.setInitalValidatorSet(initialValset);
 
     // mock minter for lbtc
     await lbtc.addMinter(deployer.address);
@@ -202,21 +206,13 @@ describe("LBTC", function () {
           const balanceBefore = await lbtc.balanceOf(args.recipient());
           const totalSupplyBefore = await lbtc.totalSupply();
   
-          const data = await signPayload(
+          const data = await signDepositBtcPayload(
             [signer1], 
             [true],
-            [
-              CHAIN_ID,
-              await lbtc.getAddress(),
-              args.recipient(), 
-              args.amount, 
-              ethers.hexlify(ethers.randomBytes(42)), // extra data, irrelevant
-            ],
             CHAIN_ID,
-            await lbtc.getAddress(),
-            await consortium.getAddress(),
-            1,
-            "mint",
+            args.recipient(),
+            args.amount,
+            ethers.hexlify(ethers.randomBytes(32)), // random txid
           );
   
           await expect(lbtc.connect(args.msgSender())["mint(bytes,bytes)"](data.payload, data.proof))
@@ -242,21 +238,13 @@ describe("LBTC", function () {
             const balanceBefore = await lbtc.balanceOf(args.recipient());
             const totalSupplyBefore = await lbtc.totalSupply();
     
-            const data = await signPayload(
+            const data = await signDepositBtcPayload(
               [signer1], 
               [true],
-              [ 
-                CHAIN_ID, 
-                await lbtc.getAddress(),
-                args.recipient(), 
-                args.amount, 
-                ethers.hexlify(ethers.randomBytes(12)), // extra data, irrelevant
-              ],
               CHAIN_ID,
-              await lbtc.getAddress(),
-              await consortium.getAddress(),
-              1,
-              "mint",
+              args.recipient(),
+              args.amount,
+              ethers.hexlify(ethers.randomBytes(32)), // extra data, irrelevant
             );
     
             // mint without report fails
@@ -271,7 +259,7 @@ describe("LBTC", function () {
             await expect(
               bascule
                 .connect(reporter)
-                .reportDeposits(reportId, [ethers.sha256(data.proof)])
+                .reportDeposits(reportId, [ethers.sha256(data.payload)])
             )
               .to.emit(bascule, "DepositsReported")
               .withArgs(reportId, 1);
@@ -296,8 +284,8 @@ describe("LBTC", function () {
     });
 
     describe("Negative cases", function () {
-      let newConsortium: LombardConsortium;
-      const defaultExtraData = ethers.hexlify(ethers.randomBytes(4));
+      let newConsortium: Consortium;
+      const defaultExtraData = ethers.hexlify(ethers.randomBytes(32));
       const defaultArgs = {
         signers: () => [signer1, signer2],
         signatures: [true, true],
@@ -325,23 +313,16 @@ describe("LBTC", function () {
       
       beforeEach (async function () {
         // Use a bigger consortium to cover more cases
-        newConsortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
-        await newConsortium.setInitalValidatorSet([signer1.publicKey, signer2.publicKey], [1, 1], 2, 1);
-        const {proof, payload} = await signPayload(
+        newConsortium = await deployContract<Consortium>("Consortium", [deployer.address]);
+        const valset = getPayloadForAction([1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1], NEW_VALSET)
+        await newConsortium.setInitalValidatorSet(valset);
+        const {proof, payload} = await signDepositBtcPayload(
           defaultArgs.signers(), 
           defaultArgs.signatures,
-          [
-            defaultArgs.signatureChainId,
-            await defaultArgs.signatureDestinationContract(),
-            defaultArgs.signatureRecipient(), 
-            defaultArgs.signatureAmount, 
-            defaultArgs.signatureExtraData,
-          ],
-          defaultArgs.executionChain,
-          await defaultArgs.caller(),
-          await defaultArgs.verifier(),
-          await defaultArgs.epoch,
-          "mint",
+          defaultArgs.signatureChainId,
+          defaultArgs.signatureRecipient(),
+          defaultArgs.signatureAmount,
+          defaultArgs.signatureExtraData, // TODO: rename to txid
         );
         defaultProof = proof;
         defaultPayload = payload;
@@ -366,7 +347,7 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "destination chain missmatch",
-          signatureChainId: defaultArgs.chainId + 1,
+          signatureChainId: ethers.randomBytes(32),
         },
         {
           ...defaultArgs,
@@ -379,12 +360,12 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "extra data signature mismatch",
-          signatureExtraData: ethers.randomBytes(5),
+          signatureExtraData: ethers.randomBytes(32),
         },
         {
           ...defaultArgs,
           name: "extra data mismatch",
-          extraData: ethers.randomBytes(5),
+          extraData: ethers.randomBytes(32),
         },
         {
           ...defaultArgs,
@@ -425,35 +406,27 @@ describe("LBTC", function () {
       ];
       args.forEach(function (args) {
         it(`Reverts when ${args.name}`, async function () {
-          const signature = (await signPayload(
+          const data = await signDepositBtcPayload(
             args.signers(), 
             args.signatures,
-            [
-              args.signatureChainId, 
-              await args.signatureDestinationContract(), 
-              args.signatureRecipient(), 
-              args.signatureAmount, 
-              args.signatureExtraData
-            ],
-            args.executionChain,
-            await args.caller(),
-            await args.verifier(),
-            await args.epoch,
-            "mint",
-          )).proof;
+            args.signatureChainId,
+            args.signatureRecipient(),
+            args.signatureAmount,
+            args.signatureExtraData,
+          );
           const payload = getPayloadForAction(
             [
-              args.chainId, 
-              await args.destinationContract(), 
-              args.mintRecipient(), 
+              encode(["uint256"], [args.chainId]),
+              encode(["address"], [args.mintRecipient()]),
               args.mintAmount, 
-              args.extraData
+              args.extraData,
+              0
             ],
-            "mint",
+            DEPOSIT_BTC_ACTION
           );
   
           await expect(
-            lbtc["mint(bytes,bytes)"](payload, signature)
+            lbtc["mint(bytes,bytes)"](payload, data.proof)
           ).to.revertedWithCustomError(args.interface(), args.customError);
         });
       });

@@ -11,7 +11,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {ILBTC} from "./ILBTC.sol";
 import { FeeUtils } from "../libs/FeeUtils.sol";
-import {LombardConsortium} from "../consortium/LombardConsortium.sol";
+import {Consortium} from "../consortium/Consortium.sol";
 import {Actions} from "../libs/Actions.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -21,8 +21,7 @@ import {Actions} from "../libs/Actions.sol";
 contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable, ERC20PermitUpgradeable {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        /// @custom:oz-renamed-from usedProofs
-        mapping(bytes32 => bool) __removed_usedProofs;
+        mapping(bytes32 => bool) usedProofs;
         string name;
         string symbol;
         bool isWithdrawalsEnabled;
@@ -136,6 +135,8 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         _mint(to, amount);
     }
 
+    /// @notice Mint LBTC using notary consortium proof
+    /// @param payload selector || ABI-encoded message
     function mint(
         bytes calldata payload,
         bytes calldata proof
@@ -143,19 +144,21 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         LBTCStorage storage $ = _getLBTCStorage();
 
         // payload validation
-        if (bytes4(payload) != Actions.MINT_ACTION) {
+        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.MintAction memory action = Actions.mint(payload[4:]);
+        Actions.DepositBtcAction memory action = Actions.depositBtc(payload[4:]);
 
         // check proof validity
         bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
-
-        bytes32 proofHash = sha256(proof);
+        if ($.usedProofs[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        Consortium($.consortium).checkProof(payloadHash, proof);
+        $.usedProofs[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, action.amount);
+        _confirmDeposit($, payloadHash, action.amount);
 
         // Actually mint
         _mint(action.recipient, action.amount);
@@ -163,7 +166,7 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit MintProofConsumed(action.recipient, payloadHash, payload);
     }
 
-    function withdraw(Actions.BurnAction memory action, bytes calldata payload, bytes calldata proof) external nonReentrant {
+    function withdraw(Actions.DepositBridgeAction memory action, bytes calldata payload, bytes calldata proof) external nonReentrant {        
         LBTCStorage storage $ = _getLBTCStorage();
         if(_msgSender() != $.bridge) {
             revert UnauthorizedAccount(_msgSender());
@@ -171,12 +174,11 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // proof validation
         bytes32 payloadHash = sha256(payload);
-        LombardConsortium($.consortium).checkProof(payloadHash, proof);
-
-        bytes32 proofHash = sha256(proof);
-
-        // Confirm deposit against Bascule
-        _confirmDeposit($, proofHash, action.amount);
+        if ($.usedProofs[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        $.usedProofs[payloadHash] = true;
+        Consortium($.consortium).checkProof(payloadHash, proof);
 
         // Actually mint
         _mint(action.recipient, action.amount);

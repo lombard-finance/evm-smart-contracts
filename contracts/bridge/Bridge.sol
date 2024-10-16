@@ -5,10 +5,8 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
-import {LombardConsortium} from "../consortium/LombardConsortium.sol";
 import {Actions} from "../libs/Actions.sol";
-import {IBascule} from "../bascule/interfaces/IBascule.sol";
+import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
 import {LBTC} from "../LBTC/LBTC.sol";
 
@@ -153,10 +151,10 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         BridgeStorage storage $ = _getBridgeStorage();
 
         // payload validation
-        if (bytes4(payload) != Actions.BURN_ACTION) {
+        if (bytes4(payload) != Actions.DEPOSIT_BRIDGE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.BurnAction memory action = Actions.burn(payload[4:]);
+        Actions.DepositBridgeAction memory action = Actions.depositBridge(payload[4:]);
 
         // extra checks
         if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
@@ -183,9 +181,7 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
             revert KnownDestination();
         }
         // do not allow 100% commission or higher values
-        if (relCommission >= MAX_COMMISSION) {
-            revert BadCommission();
-        }
+        FeeUtils.validateCommission(relCommission);
 
         BridgeStorage storage $ = _getBridgeStorage();
         $.destinations[toChain] = toContract;
@@ -269,22 +265,14 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      */
     function _deposit(bytes32 toChain, bytes32 toContract, bytes32 toAddress, uint64 amount) internal returns (uint256, bytes memory) {
         BridgeStorage storage $ = _getBridgeStorage();
+        
         // relative fee
-        uint256 fee;
-        {
-            uint16 relativeComs = $.depositRelativeCommission[toChain];
-            if (amount < relativeComs) {
-                revert AmountTooSmallToPayRelativeFee();
-            }
+        uint256 fee = FeeUtils.getRelativeFee(amount, getDepositRelativeCommission(toChain));
+        // absolute fee
+        fee += $.depositAbsoluteCommission[toChain];
 
-            fee = _calcRelativeFee(amount, relativeComs);
-
-            // absolute fee
-            fee += $.depositAbsoluteCommission[toChain];
-
-            if (fee >= amount) {
-                revert AmountLessThanCommission(fee);
-            }
+        if (fee >= amount) {
+            revert AmountLessThanCommission(fee);
         }
 
         address fromAddress = _msgSender();
@@ -298,22 +286,21 @@ contract Bridge is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
         // prepare burn payload
         bytes memory payload = abi.encodeWithSelector(
-            Actions.BURN_ACTION, 
+            Actions.DEPOSIT_BRIDGE_ACTION, 
             block.chainid, 
             address(this), 
             toChain, 
             toContract, 
             toAddress, 
             amountWithoutFee, 
-            abi.encode($.crossChainOperationsNonce++)
+            bytes32($.crossChainOperationsNonce++)
         );
 
-        bytes32 payloadHash = sha256(payload);
         $.adapter.deposit{
             value: $.adapter.getFee(toChain, toContract, toAddress, amountWithoutFee, payload)
         }(fromAddress, toChain, toContract, toAddress, amountWithoutFee, payload);
 
-        emit DepositToBridge(fromAddress, toAddress, payloadHash, payload);
+        emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
         return (amountWithoutFee, payload);
     }
 

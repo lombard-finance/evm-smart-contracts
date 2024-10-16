@@ -2,14 +2,14 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { 
   LBTCMock, 
   Bascule, 
-  LombardConsortium, 
+  Consortium, 
   Bridge, 
   DefaultAdapter, 
   TokenPoolAdapter,
   CCIPRouterMock,
 } from "../typechain-types";
 import { takeSnapshot, SnapshotRestorer } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { getSignersWithPrivateKeys, deployContract, CHAIN_ID, getPayloadForAction, signPayload } from "./helpers";
+import { getSignersWithPrivateKeys, deployContract, CHAIN_ID, getPayloadForAction, signPayload, NEW_VALSET, DEPOSIT_BRIDGE_ACTION, encode, signDepositBridgePayload } from "./helpers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { LBTCTokenPool } from "../typechain-types/contracts/bridge/adapters/TokenPool.sol";
@@ -25,7 +25,7 @@ describe("Bridge", function () {
     pauser: HardhatEthersSigner;
   let lbtcSource: LBTCMock;
   let lbtcDestination: LBTCMock;
-  let consortium: LombardConsortium;
+  let consortium: Consortium;
   let bascule: Bascule;
   let bridgeSource: Bridge;
   let bridgeDestination: Bridge;
@@ -47,8 +47,8 @@ describe("Bridge", function () {
     ] = await getSignersWithPrivateKeys();
 
     // for both chains
-    consortium = await deployContract<LombardConsortium>("LombardConsortium", [deployer.address]);
-    await consortium.setInitalValidatorSet([signer1.publicKey], [1], 1, 1);
+    consortium = await deployContract<Consortium>("Consortium", [deployer.address]);
+    await consortium.setInitalValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
     lbtcSource = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);
@@ -126,13 +126,13 @@ describe("Bridge", function () {
 
       let payload = getPayloadForAction([
         CHAIN_ID,
-        await bridgeSource.getAddress(),
+        encode(["address"], [await bridgeSource.getAddress()]),
         CHAIN_ID,
-        await bridgeDestination.getAddress(),
-        receiver,
+        encode(["address"], [await bridgeDestination.getAddress()]),
+        encode(["address"], [receiver]),
         amountWithoutFee,
         ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-      ], "burn");
+      ], DEPOSIT_BRIDGE_ACTION);
 
       await lbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), amount);
       await expect(bridgeSource.connect(signer1).deposit(
@@ -155,23 +155,15 @@ describe("Bridge", function () {
       expect(await lbtcDestination.balanceOf(signer2.address)).to.be.equal(0);
       expect(await lbtcDestination.totalSupply()).to.be.equal(0);
 
-      const data1 = await signPayload(
+      const data1 = await signDepositBridgePayload(
         [signer1],
         [true],
-        [
-          CHAIN_ID,
-          await bridgeSource.getAddress(),
-          CHAIN_ID,
-          await bridgeDestination.getAddress(),
-          receiver,
-          amountWithoutFee,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
         CHAIN_ID,
-        await lbtcDestination.getAddress(),
-        await consortium.getAddress(),
-        1,
-        "burn"
+        await bridgeSource.getAddress(),
+        CHAIN_ID,
+        await bridgeDestination.getAddress(),
+        receiver,
+        amountWithoutFee
       );
 
       await expect(bridgeDestination.connect(signer2).withdraw(data1.payload, data1.proof))
@@ -195,13 +187,13 @@ describe("Bridge", function () {
 
       payload = getPayloadForAction([
         CHAIN_ID,
-        await bridgeDestination.getAddress(),
+        encode(["address"], [await bridgeDestination.getAddress()]),
         CHAIN_ID,
-        await bridgeSource.getAddress(),
-        receiver,
+        encode(["address"], [await bridgeSource.getAddress()]),
+        encode(["address"], [receiver]),
         amountWithoutFee,
         ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-      ], "burn");
+      ], DEPOSIT_BRIDGE_ACTION);
 
       await lbtcDestination.connect(signer2).approve(await bridgeDestination.getAddress(), amount);
       await expect(bridgeDestination.connect(signer2).deposit(
@@ -221,23 +213,15 @@ describe("Bridge", function () {
       expect(await lbtcDestination.balanceOf(treasury.address)).to.be.equal(fee);
       expect(await lbtcDestination.totalSupply()).to.be.equal(fee);
 
-      const data2 = await signPayload(
+      const data2 = await signDepositBridgePayload(
         [signer1],
         [true],
-        [
           CHAIN_ID,
           await bridgeDestination.getAddress(),
           CHAIN_ID,
           await bridgeSource.getAddress(),
           receiver,
           amountWithoutFee,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
-        CHAIN_ID,
-        await lbtcSource.getAddress(),
-        await consortium.getAddress(),
-        1,
-        "burn"
       );
 
       await expect(bridgeSource.connect(signer2).withdraw(data2.payload, data2.proof))
@@ -246,54 +230,6 @@ describe("Bridge", function () {
           receiver,
           ethers.sha256(data2.payload),
           data2.payload
-        );
-    });
-
-    it("withdraw (with Bascule)", async () => {
-      // Enable Bascule
-      await lbtcSource.changeBascule(await bascule.getAddress());
-
-      // Use the 2nd half of the full flow test to test the Bascule integration
-      let amount = 10000n;;
-      let receiver = signer3.address;
-
-      const data = await signPayload(
-        [signer1],
-        [true],
-        [
-          CHAIN_ID,
-          await bridgeDestination.getAddress(),
-          CHAIN_ID,
-          await bridgeSource.getAddress(),
-          receiver,
-          amount,
-          ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-        ],
-        CHAIN_ID,
-        await lbtcSource.getAddress(),
-        await consortium.getAddress(),
-        1,
-        "burn"
-      );
-
-      // withdraw without report fails
-      await expect(bridgeSource.connect(signer2).withdraw(data.payload, data.proof))
-        .to.be.revertedWithCustomError(bascule, "WithdrawalFailedValidation")
-        .withArgs(ethers.sha256(data.proof), amount);
-
-      // report deposit
-      const reportId = ethers.zeroPadValue("0x01", 32);
-      await bascule.connect(reporter).reportDeposits(reportId, [ethers.sha256(data.proof)]);
-
-      // withdraw works
-      await expect(
-        bridgeSource.connect(signer2).withdraw(data.payload, data.proof)
-      )
-        .to.emit(lbtcSource, "WithdrawFromBridge")
-        .withArgs(
-          receiver,
-          ethers.sha256(data.payload),
-          data.payload
         );
     });
 
@@ -395,23 +331,15 @@ describe("Bridge", function () {
         let amountWithoutFee = amount - fee;
         let receiver = signer2.address;
 
-        let data = await signPayload(
+        let data = await signDepositBridgePayload(
           [signer1],  
           [true],
-          [
-            CHAIN_ID,
-            await bridgeSource.getAddress(),
-            CHAIN_ID,
-            await bridgeDestination.getAddress(),
-            receiver,
-            amountWithoutFee,
-            ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-          ], 
           CHAIN_ID,
-          await lbtcDestination.getAddress(),
-          await consortium.getAddress(),
-          1,
-          "burn"
+          await bridgeSource.getAddress(),
+          CHAIN_ID,
+          await bridgeDestination.getAddress(),
+          receiver,
+          amountWithoutFee,
         );
 
         routerSource.setOffchainData(data.payload, data.proof);
@@ -432,6 +360,4 @@ describe("Bridge", function () {
       })
     })
   });
-
-  
 })

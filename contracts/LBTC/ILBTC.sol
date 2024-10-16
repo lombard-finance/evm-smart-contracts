@@ -15,6 +15,8 @@ interface ILBTC {
     error UnauthorizedAccount(address account);
     error UnexpectedAction(bytes4 action);
     error UnknownOriginContract(uint256 fromChainId, address fromContract);
+    /// @dev Error thrown when signature payload is already used
+    error PayloadAlreadyUsed();
 
     event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
