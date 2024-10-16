@@ -424,9 +424,7 @@ contract LBTC is
         bytes calldata payload,
         bytes calldata proof
     ) external nonReentrant {
-        _notUsedPayload(payload);
         _withdraw(payload, proof);
-        _storePayload(payload);
     }
 
     function _withdraw(bytes calldata payload, bytes calldata proof) internal {
@@ -696,19 +694,7 @@ contract LBTC is
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
     }
-
-    function _notUsedPayload(bytes calldata payload) internal view {
-        LBTCStorage storage $ = _getLBTCStorage();
-        if($.usedPayloads[keccak256(payload)]) {
-            revert PayloadAlreadyUsed(); 
-        }
-    }
-
-    function _storePayload(bytes calldata payload) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
-        $.usedPayloads[keccak256(payload)] = true;
-    }
-
+    
     function _onlyMinter(address sender) internal view {
         if(!_getLBTCStorage().minters[sender]) {
             revert UnauthorizedAccount(sender);
