@@ -205,8 +205,6 @@ contract LBTC is
     /**
      * @notice Mint LBTC applying a commission to the amount
      * @dev Payload should be same as mint to avoid reusing them with and without fee
-     * @dev Payload used in proof should be abi.encode(mintPayload, userSignature) 
-     * to make sure the signature use is approved by consortium as well
      * @param mintPayload The message with the stake data
      * @param proof Signature of the consortium approving the mint
      * @param feePayload Contents of the fee approval signed by the user
