@@ -84,6 +84,10 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
     /// ACTIONS ///
 
     function deposit(bytes32 toChain, bytes32 toAddress, uint64 amount) external payable nonReentrant returns (uint256, bytes memory) {
+        if (toChain == bytes32(0)) {
+            revert ZeroChainId();
+        }
+        
         bytes32 toContract = getDestination(toChain);
 
         if (toContract == bytes32(0)) {
