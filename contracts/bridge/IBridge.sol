@@ -52,4 +52,7 @@ interface IBridge {
 
     /// @notice Emitted when the is a deposit in the bridge
     event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 indexed payloadHash, bytes payload);
+
+    /// @notice Emitted when a withdraw is made from the bridge
+    event WithdrawFromBridge(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
 }

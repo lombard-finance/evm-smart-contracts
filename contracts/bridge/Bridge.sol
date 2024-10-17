@@ -115,7 +115,10 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
             revert UnknownOriginContract(bytes32(action.fromChain), bytes32(uint256(uint160(action.fromContract))));
         }
 
-        $.lbtc.withdraw(action, payload, proof);
+        bytes32 payloadHash = sha256(payload);
+        $.lbtc.withdraw(action, payloadHash, proof);
+
+        emit WithdrawFromBridge(action.recipient, payloadHash, payload);
     }
 
     /// ONLY OWNER ///

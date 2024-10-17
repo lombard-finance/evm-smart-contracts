@@ -30,7 +30,5 @@ interface ILBTC {
     event MinterUpdated(address indexed minter, bool isMinter);
     event BridgeChanged(address indexed prevVal, address indexed newVal);
 
-    event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 indexed payloadHash, bytes payload);
-    event WithdrawFromBridge(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
     event MintProofConsumed(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
 }

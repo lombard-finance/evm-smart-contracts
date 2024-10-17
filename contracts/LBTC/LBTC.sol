@@ -166,14 +166,13 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
         emit MintProofConsumed(action.recipient, payloadHash, payload);
     }
 
-    function withdraw(Actions.DepositBridgeAction memory action, bytes calldata payload, bytes calldata proof) external nonReentrant {        
+    function withdraw(Actions.DepositBridgeAction memory action, bytes32 payloadHash, bytes calldata proof) external nonReentrant {        
         LBTCStorage storage $ = _getLBTCStorage();
         if(_msgSender() != $.bridge) {
             revert UnauthorizedAccount(_msgSender());
         }
 
         // proof validation
-        bytes32 payloadHash = sha256(payload);
         if ($.usedProofs[payloadHash]) {
             revert PayloadAlreadyUsed();
         }
@@ -182,8 +181,6 @@ contract LBTC is ILBTC, ERC20PausableUpgradeable, Ownable2StepUpgradeable, Reent
 
         // Actually mint
         _mint(action.recipient, action.amount);
-
-        emit WithdrawFromBridge(action.recipient, payloadHash, payload);
     }
 
     /**

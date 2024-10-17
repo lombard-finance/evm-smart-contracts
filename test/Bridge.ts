@@ -167,7 +167,7 @@ describe("Bridge", function () {
       );
 
       await expect(bridgeDestination.connect(signer2).withdraw(data1.payload, data1.proof))
-        .to.emit(lbtcDestination, "WithdrawFromBridge")
+        .to.emit(bridgeDestination, "WithdrawFromBridge")
         .withArgs(
           receiver,
           ethers.sha256(data1.payload),
@@ -225,7 +225,7 @@ describe("Bridge", function () {
       );
 
       await expect(bridgeSource.connect(signer2).withdraw(data2.payload, data2.proof))
-        .to.emit(lbtcSource, "WithdrawFromBridge")
+        .to.emit(bridgeSource, "WithdrawFromBridge")
         .withArgs(
           receiver,
           ethers.sha256(data2.payload),
