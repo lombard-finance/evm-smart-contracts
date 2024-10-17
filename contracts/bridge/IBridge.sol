@@ -45,7 +45,7 @@ interface IBridge {
     event BridgeDestinationAdded(bytes32 chain, bytes32 contractAddress);
 
     /// @notice Emitted when a bridge destination is removed.
-    event BridgeDestinationRemoved(bytes32 chain, bytes32 contractAddress);
+    event BridgeDestinationRemoved(bytes32 indexed chain, bytes32 indexed contractAddress);
 
     /// @notice Emitted when the adapter is changed.
     event AdapterChanged(address previousAdapter, address newAdapter);
