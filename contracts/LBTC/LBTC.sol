@@ -215,7 +215,7 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) public {
+    ) external {
         _onlyClaimer(_msgSender());
 
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
