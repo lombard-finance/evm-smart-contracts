@@ -23,11 +23,7 @@ interface ILBTC {
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
-    event BridgeDestinationAdded(bytes32 indexed toChain, bytes32 indexed toContract);
-    event BridgeDestinationRemoved(bytes32 indexed toChain, bytes32 indexed toContract);
     event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
-    event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed toChain);
-    event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed toChain);
     event BurnCommissionChanged(uint64 indexed prevValue, uint64 indexed newValue);
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);

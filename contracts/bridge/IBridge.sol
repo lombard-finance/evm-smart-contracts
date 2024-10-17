@@ -36,13 +36,13 @@ interface IBridge {
     error UnexpectedAction(bytes4 action);
 
     /// @notice Emitted when the deposit absolute commission is changed.
-    event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 chain);
+    event DepositAbsoluteCommissionChanged(uint64 newValue, bytes32 indexed chain);
 
     /// @notice Emitted when the deposit relative commission is changed.
-    event DepositRelativeCommissionChanged(uint16 newValue, bytes32 chain);
+    event DepositRelativeCommissionChanged(uint16 newValue, bytes32 indexed chain);
 
     /// @notice Emitted when a bridge destination is added.
-    event BridgeDestinationAdded(bytes32 chain, bytes32 contractAddress);
+    event BridgeDestinationAdded(bytes32 indexed chain, bytes32 indexed contractAddress);
 
     /// @notice Emitted when a bridge destination is removed.
     event BridgeDestinationRemoved(bytes32 indexed chain, bytes32 indexed contractAddress);
