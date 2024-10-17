@@ -51,15 +51,18 @@ contract LBTC is
         mapping(bytes32 => uint64) depositAbsoluteCommission; // absolute commission to charge on bridge deposit
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
-        // Bascule drawbridge used to confirm deposits before allowing withdrawals
+        /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
         address pauser;
 
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
 
-        // Increments with each cross chain operation and should be part of the payload
+        /// Increments with each cross chain operation and should be part of the payload
         uint256 crossChainOperationsNonce;
+
+        /// Current fee to apply if user signed a larger amount
+        uint256 currentFee;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -134,6 +137,18 @@ contract LBTC is
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
+    }
+
+    /**
+     * @notice Set the contract current fee for mint
+     * @param fee New fee value
+     * @dev zero allowed to disable fee
+     */
+    function setMintFee(uint256 fee) external onlyOwner {
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 oldFee = $.currentFee;
+        $.currentFee = fee;
+        emit FeeChanged(oldFee, fee);
     }
 
     /** 
@@ -220,6 +235,7 @@ contract LBTC is
 
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
+    
     /**
      * @notice Mint LBTC in batches proving stake actions happened
      * @param mintPayload The messages with the stake data
@@ -723,25 +739,34 @@ contract LBTC is
         if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
             revert UnexpectedAction(bytes4(feePayload));
         }
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload[4:], mintAction.amount);
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload[4:]);
 
-        // Fee validation
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-            Actions.FEE_APPROVAL_EIP712_ACTION,
-            block.chainid,
-            feeAction.fee,
-            feeAction.expiry
-        )));
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 fee = $.currentFee;
+        if(fee > feeAction.fee) fee = feeAction.fee;
 
-        if(!EIP1271SignatureUtils.checkSignature(mintAction.recipient, digest, userSignature)) {
-            revert InvalidUserSignature();
+        if(fee >= mintAction.amount) {
+            revert FeeGreaterThanAmount();
+        }
+
+        {
+            // Fee validation
+            bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+                Actions.FEE_APPROVAL_EIP712_ACTION,
+                block.chainid,
+                feeAction.fee,
+                feeAction.expiry
+            )));
+
+            if(!EIP1271SignatureUtils.checkSignature(mintAction.recipient, digest, userSignature)) {
+                revert InvalidUserSignature();
+            }
         }
 
         // modified payload to be signed
-        _validateAndMint(mintAction.recipient, feeAction.amount, mintAction.amount, mintPayload, proof);
+        _validateAndMint(mintAction.recipient, mintAction.amount - fee, mintAction.amount, mintPayload, proof);
         
         // mint fee to treasury
-        LBTCStorage storage $ = _getLBTCStorage();
         _mint($.treasury, feeAction.fee);
 
         emit FeeCharged(feeAction.fee, userSignature);

@@ -315,6 +315,9 @@ describe("LBTC", function () {
               fee,
               snapshotTimestamp + 100,
             );
+
+            // make sure current fee is not going to reduce the amount charged
+            await lbtc.setMintFee(fee);
     
             const approval = getPayloadForAction([fee, snapshotTimestamp + 100], "feeApproval");
             await expect(lbtc.mintWithFee(
@@ -369,6 +372,9 @@ describe("LBTC", function () {
       });
 
       it("should do batch mint with fee", async function () {
+        // set the maximum fee from args
+        await lbtc.setMintFee(args.reduce((x, y) => x.amount > y.amount? x : y).amount);
+
         const mintPromise = lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
 
         const transferPromises = mintWithFee[4].map(async (args) => 
@@ -650,6 +656,9 @@ describe("LBTC", function () {
         })
 
         it("should revert if fee is too much", async function () {
+          // make sure current fee is not going to reduce the amount charged
+          await lbtc.setMintFee(defaultArgs.mintAmount + 10n);
+
           await expect(lbtc.mintWithFee(
             defaultPayload,
             defaultProof,

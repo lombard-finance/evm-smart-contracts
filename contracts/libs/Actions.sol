@@ -29,7 +29,6 @@ library Actions {
     }
 
     struct FeeApprovalAction {
-        uint256 amount;
         uint256 fee;
         uint256 expiry;
     }
@@ -66,9 +65,6 @@ library Actions {
 
     /// @dev Error thrown when zero weight is provided
     error ZeroWeight();
-
-    /// @dev Error thrown when fee is greater than amount
-    error FeeGreaterThanAmount();
 
     /// @dev Error thrown when fee approval is expired
     error UserSignatureExpired(uint256 expiry);
@@ -243,21 +239,17 @@ library Actions {
      * @notice Returns decoded fee approval
      * @dev Payload should not contain the selector
      * @param payload Body of the fee approval payload
-     * @param originalAmount Value to apply the fee on
      */
-    function feeApproval(bytes memory payload, uint256 originalAmount) internal view returns (FeeApprovalAction memory){
+    function feeApproval(bytes memory payload) internal view returns (FeeApprovalAction memory){
         (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
 
         if(block.timestamp > expiry) {
             revert UserSignatureExpired(expiry);
         }
-        if(originalAmount <= fee) {
-            revert FeeGreaterThanAmount();
-        }
         if(fee == 0) {
             revert ZeroFee();
         }
 
-        return FeeApprovalAction(originalAmount - fee, fee, expiry);
+        return FeeApprovalAction(fee, expiry);
     }
 }

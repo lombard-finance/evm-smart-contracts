@@ -34,7 +34,9 @@ interface ILBTC {
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     event MinterUpdated(address indexed minter, bool isMinter);
     event ClaimerUpdated(address indexed claimer, bool isClaimer);
-    event FeeCharged(uint256 fee, bytes userSignature);
+    event FeeCharged(uint256 indexed fee, bytes userSignature);
+    event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    error FeeGreaterThanAmount();
 
     event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 indexed payloadHash, bytes payload);
     event WithdrawFromBridge(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
