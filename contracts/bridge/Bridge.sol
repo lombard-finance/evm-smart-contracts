@@ -111,7 +111,7 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
         Actions.DepositBridgeAction memory action = Actions.depositBridge(payload[4:]);
 
         // extra checks
-        if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract)))) {
+        if ($.destinations[bytes32(action.fromChain)] != bytes32(uint256(uint160(action.fromContract))) && action.fromContract != address(0)) {
             revert UnknownOriginContract(bytes32(action.fromChain), bytes32(uint256(uint160(action.fromContract))));
         }
 
@@ -148,11 +148,10 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
     }
 
     function removeDestination(bytes32 toChain) external onlyOwner {
+        _validDestination(toChain);
+
         BridgeStorage storage $ = _getBridgeStorage();
         bytes32 toContract = $.destinations[toChain];
-        if (toContract == bytes32(0)) {
-            revert NotValidDestination();
-        }
         delete $.destinations[toChain];
         delete $.depositRelativeCommission[toChain];
         delete $.depositAbsoluteCommission[toChain];
@@ -163,16 +162,18 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
     }
 
     function changeDepositAbsoluteCommission(uint64 newValue, bytes32 chain) external onlyOwner {
+        _validDestination(chain);
+
         BridgeStorage storage $ = _getBridgeStorage();
         $.depositAbsoluteCommission[chain] = newValue;
         emit DepositAbsoluteCommissionChanged(newValue, chain);
     }
 
     function changeDepositRelativeCommission(uint16 newValue, bytes32 chain) external onlyOwner {
-        // do not allow 100% commission
-        if (newValue >= MAX_COMMISSION) {
-            revert BadCommission();
-        }
+        _validDestination(chain);
+
+        FeeUtils.validateCommission(newValue);
+        
         BridgeStorage storage $ = _getBridgeStorage();
         $.depositRelativeCommission[chain] = newValue;
         emit DepositRelativeCommissionChanged(newValue, chain);
@@ -265,6 +266,13 @@ contract Bridge is IBridge, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable 
     function _getBridgeStorage() private pure returns (BridgeStorage storage $) {
         assembly {
             $.slot := BRIDGE_STORAGE_LOCATION
+        }
+    }
+
+    function _validDestination(bytes32 chain) internal view {
+        BridgeStorage storage $ = _getBridgeStorage();
+        if ($.destinations[chain] == bytes32(0)) {
+            revert NotValidDestination();
         }
     }
 }
