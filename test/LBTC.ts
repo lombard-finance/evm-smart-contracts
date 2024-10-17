@@ -243,6 +243,18 @@ describe("LBTC", function () {
       await expect(lbtc.connect(signer1).removeClaimer(signer1.address))
         .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
     });
+
+    it("should set mint fee", async function () {
+      await expect(lbtc.setMintFee(1234))
+        .to.emit(lbtc, "FeeChanged")
+        .withArgs(0, 1234);
+      expect(await lbtc.getMintFee()).to.be.equal(1234);
+    })
+
+    it("should fail to set mint fee if not owner", async function () {
+      await expect(lbtc.connect(signer1).setMintFee(1))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    })
   });
 
   describe("Mint", function () {
@@ -294,9 +306,14 @@ describe("LBTC", function () {
           mintWithoutFee[2].push([ethers.ZeroAddress, args.recipient().address, args.amount]);
         });
 
-        const fees = [1n, args.amount - 1n];
-        fees.forEach(async function (fee, j) {
-          it(`Mint ${args.name} with ${fee} satoshis fee`, async function () {
+        const fees = [
+          {max: args.amount, fee: args.amount - 1n},
+          {max: args.amount, fee: 1n},
+          {max: args.amount - 1n, fee: args.amount},
+          {max: 1n, fee: args.amount},
+        ];
+        fees.forEach(async function ({fee, max}, j) {
+          it(`Mint ${args.name} with ${fee} satoshis fee and max fee of ${max}`, async function () {
             const userBalanceBefore = await lbtc.balanceOf(args.recipient().address);
             const treasuryBalanceBefore = await lbtc.balanceOf(treasury.address);
             const totalSupplyBefore = await lbtc.totalSupply();
@@ -316,10 +333,12 @@ describe("LBTC", function () {
               snapshotTimestamp + 100,
             );
 
-            // make sure current fee is not going to reduce the amount charged
-            await lbtc.setMintFee(fee);
+            // set max fee
+            await lbtc.setMintFee(max);
     
             const approval = getPayloadForAction([fee, snapshotTimestamp + 100], "feeApproval");
+
+            const appliedFee = fee < max? fee : max;
             await expect(lbtc.mintWithFee(
               data.payload,
               data.proof,
@@ -327,26 +346,30 @@ describe("LBTC", function () {
               userSignature
             ))
               .to.emit(lbtc, "Transfer")
-              .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount - fee)
+              .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount - appliedFee)
               .to.emit(lbtc, "Transfer")
-              .withArgs(ethers.ZeroAddress, treasury.address, fee)
+              .withArgs(ethers.ZeroAddress, treasury.address, appliedFee)
               .to.emit(lbtc, "FeeCharged")
-              .withArgs(fee, userSignature);
+              .withArgs(appliedFee, userSignature);
     
             const userBalanceAfter = await lbtc.balanceOf(args.recipient().address);
             const treasuryBalanceAfter = await lbtc.balanceOf(treasury.address);
             const totalSupplyAfter = await lbtc.totalSupply();
     
-            expect(userBalanceAfter - userBalanceBefore).to.be.eq(args.amount - fee);
-            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.be.eq(fee);
+            expect(userBalanceAfter - userBalanceBefore).to.be.eq(args.amount - appliedFee);
+            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.be.eq(appliedFee);
             expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(args.amount);
 
-            mintWithFee[0].push(data.payload);
-            mintWithFee[1].push(data.proof);
-            mintWithFee[2].push(approval);
-            mintWithFee[3].push(userSignature);
-            mintWithFee[4].push([ethers.ZeroAddress, args.recipient().address, args.amount - fee]);
-            mintWithFee[4].push([ethers.ZeroAddress, treasury.address, fee]);
+            if (fee < max) {
+              // use cases where max fee is not relevant
+              // to later on test batMintWithFe
+              mintWithFee[0].push(data.payload);
+              mintWithFee[1].push(data.proof);
+              mintWithFee[2].push(approval);
+              mintWithFee[3].push(userSignature);
+              mintWithFee[4].push([ethers.ZeroAddress, args.recipient().address, args.amount - appliedFee]);
+              mintWithFee[4].push([ethers.ZeroAddress, treasury.address, appliedFee]);
+            }
           });
         })
       });
@@ -373,7 +396,7 @@ describe("LBTC", function () {
 
       it("should do batch mint with fee", async function () {
         // set the maximum fee from args
-        await lbtc.setMintFee(args.reduce((x, y) => x.amount > y.amount? x : y).amount);
+        await lbtc.setMintFee(args.reduce((x, y) => x.amount > y.amount? x : y).amount + 100n);
 
         const mintPromise = lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
 

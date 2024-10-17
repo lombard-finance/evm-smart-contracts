@@ -61,8 +61,8 @@ contract LBTC is
         /// Increments with each cross chain operation and should be part of the payload
         uint256 crossChainOperationsNonce;
 
-        /// Current fee to apply if user signed a larger amount
-        uint256 currentFee;
+        /// Maximum fee to apply on mints
+        uint256 maximumFee;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -146,9 +146,16 @@ contract LBTC is
      */
     function setMintFee(uint256 fee) external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
-        uint256 oldFee = $.currentFee;
-        $.currentFee = fee;
+        uint256 oldFee = $.maximumFee;
+        $.maximumFee = fee;
         emit FeeChanged(oldFee, fee);
+    }
+
+    /**
+     * @notice Reduce the current maximum mint fee
+     */
+    function getMintFee() external view returns (uint256) {
+        return _getLBTCStorage().maximumFee;
     }
 
     /** 
@@ -261,7 +268,7 @@ contract LBTC is
         }
     }
 
-    function _validateAndMint(address recipient, uint256 amountToMint, uint256 stakeAmount, bytes memory payload, bytes calldata proof) internal {
+    function _validateAndMint(address recipient, uint256 amountToMint, uint256 depositAmount, bytes memory payload, bytes calldata proof) internal {
         LBTCStorage storage $ = _getLBTCStorage();
     
         // check proof validity
@@ -273,7 +280,7 @@ contract LBTC is
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, payloadHash, stakeAmount);
+        _confirmDeposit($, payloadHash, depositAmount);
 
         // Actually mint
         _mint(recipient, amountToMint);
@@ -742,8 +749,10 @@ contract LBTC is
         Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(feePayload[4:]);
 
         LBTCStorage storage $ = _getLBTCStorage();
-        uint256 fee = $.currentFee;
-        if(fee > feeAction.fee) fee = feeAction.fee;
+        uint256 fee = $.maximumFee;
+        if(fee > feeAction.fee) {
+            fee = feeAction.fee;
+        }
 
         if(fee >= mintAction.amount) {
             revert FeeGreaterThanAmount();
@@ -767,9 +776,9 @@ contract LBTC is
         _validateAndMint(mintAction.recipient, mintAction.amount - fee, mintAction.amount, mintPayload, proof);
         
         // mint fee to treasury
-        _mint($.treasury, feeAction.fee);
+        _mint($.treasury, fee);
 
-        emit FeeCharged(feeAction.fee, userSignature);
+        emit FeeCharged(fee, userSignature);
     }
 
     /**
