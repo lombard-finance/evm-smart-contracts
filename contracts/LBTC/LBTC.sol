@@ -694,7 +694,7 @@ contract LBTC is
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
     }
-    
+
     function _onlyMinter(address sender) internal view {
         if(!_getLBTCStorage().minters[sender]) {
             revert UnauthorizedAccount(sender);
@@ -743,6 +743,8 @@ contract LBTC is
         // mint fee to treasury
         LBTCStorage storage $ = _getLBTCStorage();
         _mint($.treasury, feeAction.fee);
+
+        emit FeeCharged(feeAction.fee, userSignature);
     }
 
     /**

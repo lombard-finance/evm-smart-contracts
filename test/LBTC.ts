@@ -326,7 +326,9 @@ describe("LBTC", function () {
               .to.emit(lbtc, "Transfer")
               .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount - fee)
               .to.emit(lbtc, "Transfer")
-              .withArgs(ethers.ZeroAddress, treasury.address, fee);
+              .withArgs(ethers.ZeroAddress, treasury.address, fee)
+              .to.emit(lbtc, "FeeCharged")
+              .withArgs(fee, userSignature);
     
             const userBalanceAfter = await lbtc.balanceOf(args.recipient().address);
             const treasuryBalanceAfter = await lbtc.balanceOf(treasury.address);
