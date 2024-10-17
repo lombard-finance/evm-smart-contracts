@@ -51,5 +51,5 @@ interface IBridge {
     event AdapterChanged(address previousAdapter, address newAdapter);
 
     /// @notice Emitted when the is a deposit in the bridge
-    event DepositToBridge(address fromAddress, bytes32 toAddress, bytes32 payloadHash, bytes payload);
+    event DepositToBridge(address indexed fromAddress, bytes32 indexed toAddress, bytes32 indexed payloadHash, bytes payload);
 }
