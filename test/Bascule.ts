@@ -1,8 +1,8 @@
-import { expect } from "chai";
-import { ethers as hhEthers } from "hardhat";
-import { getRandomValues } from "crypto";
-import * as tc from "../typechain-types";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { expect } from 'chai';
+import { ethers as hhEthers } from 'hardhat';
+import { getRandomValues } from 'crypto';
+import * as tc from '../typechain-types';
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 let admin: HardhatEthersSigner;
 let pauser: HardhatEthersSigner;

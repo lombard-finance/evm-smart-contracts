@@ -1,11 +1,11 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import {BaseContract, BigNumberish, Signature} from 'ethers';
+import { BaseContract, BigNumberish, Signature } from 'ethers';
 
 type Signer = HardhatEthersSigner & {
-  publicKey: string;
-  privateKey: string;
-}
+    publicKey: string;
+    privateKey: string;
+};
 
 export const CHAIN_ID = ethers.zeroPadValue('0x7A69', 32);
 
@@ -109,10 +109,10 @@ export async function signNewValSetPayload(
 }
 
 export async function signPayload(
-  signers: HardhatEthersSigner[],
-  signatures: boolean[],
-  payload: string,
-  cutV: boolean = true,
+    signers: HardhatEthersSigner[],
+    signatures: boolean[],
+    payload: string,
+    cutV: boolean = true
 ): Promise<{
     payload: string;
     payloadHash: string;
@@ -128,16 +128,18 @@ export async function signPayload(
         signers.map(async (signer, index) => {
             if (!signatures[index]) return '0x';
 
-            const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
-    const signature = signingKey.sign(hash);
+            const signingKey = new ethers.SigningKey(
+                (signer as Signer).privateKey
+            );
+            const signature = signingKey.sign(hash);
 
-    const sig = rawSign(signer, hash);
-    if (cutV) {
-      return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
-    }
-    return signature.serialized;
+            const sig = rawSign(signer, hash);
+            if (cutV) {
+                return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
+            }
+            return signature.serialized;
         })
-);
+    );
 
     return {
         payload: payload,
@@ -227,14 +229,14 @@ export async function generatePermitSignature(
 }
 
 export function getUncomprPubkey(signer: HardhatEthersSigner) {
-  const raw = ethers.getBytes((signer as Signer).publicKey);
+    const raw = ethers.getBytes((signer as Signer).publicKey);
 
-  const unc = new Uint8Array(65);
-  // set uncompressed prefix
-  unc.set([4])
-  unc.set(raw, 1);
+    const unc = new Uint8Array(65);
+    // set uncompressed prefix
+    unc.set([4]);
+    unc.set(raw, 1);
 
-  return ethers.hexlify(unc);
+    return ethers.hexlify(unc);
 }
 
 export async function getFeeTypedMessage(

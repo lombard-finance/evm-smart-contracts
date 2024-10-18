@@ -1,29 +1,32 @@
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { 
-  LBTCMock, 
-  Bascule, 
-  Consortium, 
-  Bridge, 
-  DefaultAdapter, 
-  TokenPoolAdapter,
-  CCIPRouterMock,
-} from "../typechain-types";
-import { takeSnapshot, SnapshotRestorer } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import {
-  getSignersWithPrivateKeys,
-  deployContract,
-  CHAIN_ID,
-  getPayloadForAction,
-  signPayload,
-  NEW_VALSET,
-  DEPOSIT_BRIDGE_ACTION,
-  encode,
-  signDepositBridgePayload,
-  getUncomprPubkey
-} from "./helpers";
-import { ethers } from "hardhat";
-import { expect } from "chai";
-import { LBTCTokenPool } from "../typechain-types/contracts/bridge/adapters/TokenPool.sol";
+    LBTCMock,
+    Bascule,
+    Consortium,
+    Bridge,
+    DefaultAdapter,
+    TokenPoolAdapter,
+    CCIPRouterMock,
+} from '../typechain-types';
+import {
+    takeSnapshot,
+    SnapshotRestorer,
+} from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import {
+    getSignersWithPrivateKeys,
+    deployContract,
+    CHAIN_ID,
+    getPayloadForAction,
+    signPayload,
+    NEW_VALSET,
+    DEPOSIT_BRIDGE_ACTION,
+    encode,
+    signDepositBridgePayload,
+    getUncomprPubkey,
+} from './helpers';
+import { ethers } from 'hardhat';
+import { expect } from 'chai';
+import { LBTCTokenPool } from '../typechain-types/contracts/bridge/adapters/TokenPool.sol';
 
 describe('Bridge', function () {
     let deployer: HardhatEthersSigner,
@@ -62,7 +65,10 @@ describe('Bridge', function () {
             deployer.address,
         ]);
         await consortium.setInitalValidatorSet(
-            getPayloadForAction([1, [getUncomprPubkey(signer1)], [1], 1, 1], NEW_VALSET)
+            getPayloadForAction(
+                [1, [getUncomprPubkey(signer1)], [1], 1, 1],
+                NEW_VALSET
+            )
         );
 
         // chain 1

@@ -7,7 +7,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {Actions} from "../libs/Actions.sol";
 import {INotaryConsortium} from "./INotaryConsortium.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -184,18 +184,15 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
             // each signature preset R || S values
             // V is missed, because validators use Cosmos SDK keyring which is not signing in eth style
             if (signatures[i].length == 64) {
-
                 // split signature by R and S values
-                bytes memory sig =
-                        signatures[i]
-                    ;
+                bytes memory sig = signatures[i];
                 bytes32 r;
                 bytes32 s;
 
                 // load the first 32 bytes (r) and the second 32 bytes (s) from the sig
                 assembly {
-                    r := mload(add(sig, 0x20))  // first 32 bytes (offset 0x20)
-                    s := mload(add(sig, 0x40))  // next 32 bytes (offset 0x40)
+                    r := mload(add(sig, 0x20)) // first 32 bytes (offset 0x20)
+                    s := mload(add(sig, 0x40)) // next 32 bytes (offset 0x40)
                 }
 
                 if (r == bytes32(0) || s == bytes32(0)) {
@@ -204,7 +201,12 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                 }
 
                 // try recover with V = 27
-                (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(_payloadHash, 27, r, s);
+                (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
+                    _payloadHash,
+                    27,
+                    r,
+                    s
+                );
 
                 // revert if bad signature
                 if (err != ECDSA.RecoverError.NoError) {
@@ -213,7 +215,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
                 // if signer doesn't match try V = 28
                 if (signer != validators[i]) {
-                    (signer, err,) = ECDSA.tryRecover(_payloadHash, 28, r, s);
+                    (signer, err, ) = ECDSA.tryRecover(_payloadHash, 28, r, s);
                     if (err != ECDSA.RecoverError.NoError) {
                         revert SignatureVerificationFailed(i, err);
                     }
@@ -229,7 +231,9 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                 }
             }
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         if (weight < $.validatorSet[$.epoch].weightThreshold) {
             revert NotEnoughSignatures();

@@ -6,15 +6,15 @@ import {
     getSignersWithPrivateKeys,
     CHAIN_ID,
     getUncomprPubkey,
-  getFeeTypedMessage,
-  generatePermitSignature,
-  NEW_VALSET,
-  DEPOSIT_BTC_ACTION,
-  DEPOSIT_BRIDGE_ACTION,
-  encode,
-  signDepositBridgePayload,
-  getPayloadForAction,
-  signDepositBtcPayload,
+    getFeeTypedMessage,
+    generatePermitSignature,
+    NEW_VALSET,
+    DEPOSIT_BTC_ACTION,
+    DEPOSIT_BRIDGE_ACTION,
+    encode,
+    signDepositBridgePayload,
+    getPayloadForAction,
+    signDepositBtcPayload,
 } from './helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { LBTCMock, Bascule, Consortium } from '../typechain-types';
@@ -286,7 +286,7 @@ describe('LBTC', function () {
     describe('Mint', function () {
         let mintWithoutFee: [string[], string[], any[][]] = [[], [], []];
         let mintWithFee: [string[], string[], string[], string[], any[][]] = [
-[],
+            [],
             [],
             [],
             [],
@@ -307,11 +307,12 @@ describe('LBTC', function () {
                     recipient: () => signer3,
                     msgSender: () => signer2,
                 },
-      ];
+            ];
 
-      args.forEach(async function (args, i) {
-        it(`Mint ${args.name}`, async function () {
-          const balanceBefore = await lbtc.balanceOf(args.recipient().address
+            args.forEach(async function (args, i) {
+                it(`Mint ${args.name}`, async function () {
+                    const balanceBefore = await lbtc.balanceOf(
+                        args.recipient().address
                     );
                     const totalSupplyBefore = await lbtc.totalSupply();
 
@@ -584,171 +585,189 @@ describe('LBTC', function () {
             });
         });
 
-    describe("Negative cases", function () {
-      let newConsortium: Consortium;
-      const defaultExtraData = ethers.hexlify(ethers.randomBytes(32));
-      const defaultArgs = {
-        signers: () => [signer1, signer2],
-        signatures: [true, true],
-        threshold: 2,
-        mintRecipient: () => signer1,
-        signatureRecipient: () => signer1,
-        mintAmount: 100_000_000n,
-        signatureAmount: 100_000_000n,
-        destinationContract: () => lbtc.getAddress(),
-        signatureDestinationContract: () => lbtc.getAddress(),
-        chainId: CHAIN_ID,
-        signatureChainId: CHAIN_ID,
-        executionChain: CHAIN_ID,
-        caller: () => lbtc.getAddress(),
-        verifier: () => newConsortium.getAddress(),
-        epoch: 1,
-        extraData: defaultExtraData,
-        signatureExtraData: defaultExtraData,
-        interface: () => newConsortium,
-        customError: "WrongSignatureReceived",
-        params: () => []
-      }
-      let defaultProof: string;
-      let defaultPayload: string;
+        describe('Negative cases', function () {
+            let newConsortium: Consortium;
+            const defaultExtraData = ethers.hexlify(ethers.randomBytes(32));
+            const defaultArgs = {
+                signers: () => [signer1, signer2],
+                signatures: [true, true],
+                threshold: 2,
+                mintRecipient: () => signer1,
+                signatureRecipient: () => signer1,
+                mintAmount: 100_000_000n,
+                signatureAmount: 100_000_000n,
+                destinationContract: () => lbtc.getAddress(),
+                signatureDestinationContract: () => lbtc.getAddress(),
+                chainId: CHAIN_ID,
+                signatureChainId: CHAIN_ID,
+                executionChain: CHAIN_ID,
+                caller: () => lbtc.getAddress(),
+                verifier: () => newConsortium.getAddress(),
+                epoch: 1,
+                extraData: defaultExtraData,
+                signatureExtraData: defaultExtraData,
+                interface: () => newConsortium,
+                customError: 'WrongSignatureReceived',
+                params: () => [],
+            };
+            let defaultProof: string;
+            let defaultPayload: string;
 
-      beforeEach (async function () {
-        // Use a bigger consortium to cover more cases
-        newConsortium = await deployContract<Consortium>("Consortium", [deployer.address]);
-        const valset = getPayloadForAction([1, [getUncomprPubkey(signer1), getUncomprPubkey(signer2)], [1, 1], 2, 1], NEW_VALSET)
-        await newConsortium.setInitalValidatorSet(valset);
-        const data = await signDepositBtcPayload(
-          defaultArgs.signers(), 
-          defaultArgs.signatures,
-          defaultArgs.signatureChainId,
-          defaultArgs.signatureRecipient().address,
-          defaultArgs.signatureAmount,
-          defaultArgs.signatureExtraData, // TODO: rename to txid
-        );
-        defaultProof = data.proof;
-        defaultPayload = data.payload;
+            beforeEach(async function () {
+                // Use a bigger consortium to cover more cases
+                newConsortium = await deployContract<Consortium>('Consortium', [
+                    deployer.address,
+                ]);
+                const valset = getPayloadForAction(
+                    [
+                        1,
+                        [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
+                        [1, 1],
+                        2,
+                        1,
+                    ],
+                    NEW_VALSET
+                );
+                await newConsortium.setInitalValidatorSet(valset);
+                const data = await signDepositBtcPayload(
+                    defaultArgs.signers(),
+                    defaultArgs.signatures,
+                    defaultArgs.signatureChainId,
+                    defaultArgs.signatureRecipient().address,
+                    defaultArgs.signatureAmount,
+                    defaultArgs.signatureExtraData // TODO: rename to txid
+                );
+                defaultProof = data.proof;
+                defaultPayload = data.payload;
 
-        await lbtc.changeConsortium(await newConsortium.getAddress());
-      })
-      
-      const args = [
-        {
-          ...defaultArgs,
-          name: "not enough signatures",
-          signatures: [true, false],
-          customError: "NotEnoughSignatures",
-        },
-        {
-          ...defaultArgs,
-          name: "executed in wrong chain",
-          customError: "WrongChainId",
-          chainId: 1,
-          interface: () => lbtc
-        },
-        {
-          ...defaultArgs,
-          name: "destination chain missmatch",
-          signatureChainId: ethers.randomBytes(32),
-        },
-        {
-          ...defaultArgs,
-          name: "recipient is 0 address",
-          mintRecipient: () => { return {address: ethers.ZeroAddress}},
-          signatureRecipient: () => {return {address: ethers.ZeroAddress}},
-          customError: "ZeroAddress",
-          interface: () => lbtc
-        },
-        {
-          ...defaultArgs,
-          name: "extra data signature mismatch",
-          signatureExtraData: ethers.randomBytes(32),
-        },
-        {
-          ...defaultArgs,
-          name: "extra data mismatch",
-          extraData: ethers.randomBytes(32),
-        },
-        {
-          ...defaultArgs,
-          name: "amount is 0",
-          mintAmount: 0,
-          signatureAmount: 0,
-          customError: "ZeroAmount",
-          interface: () => lbtc
-        },
-        {
-          ...defaultArgs,
-          name: "Wrong signature recipient",
-          signatureRecipient: () => signer2,
-        },
-        {
-          ...defaultArgs,
-          name: "Wrong mint recipient",
-          mintRecipient: () => signer2,
-        },
-        {
-          ...defaultArgs,
-          name: "Wrong amount",
-          mintAmount: 1,
-        },
-        {
-          ...defaultArgs,
-          name: "unknown validator set",
-          signers: () => [signer1, deployer],
-          customError: "WrongSignatureReceived",
-        },
-        {
-          ...defaultArgs,
-          name: "wrong amount of signatures",
-          signers: () => [signer1],
-          signatures: [true],
-          customError: "LengthMismatch",
-        },
-      ];
-      args.forEach(function (args) {
-        it(`Reverts when ${args.name}`, async function () {
-          const data = await signDepositBtcPayload(
-            args.signers(), 
-            args.signatures,
-            args.signatureChainId,
-            args.signatureRecipient().address,
-            args.signatureAmount,
-            args.signatureExtraData,
-          );
-          const payload = getPayloadForAction(
-            [
-              encode(["uint256"], [args.chainId]),
-              encode(["address"], [args.mintRecipient().address]),
-              args.mintAmount, 
-              args.extraData,
-              0
-            ],
-            DEPOSIT_BTC_ACTION
-          );
-  
-          await expect(
-            lbtc["mint(bytes,bytes)"](payload, data.proof)
-          ).to.revertedWithCustomError(args.interface(), args.customError);
-        });
-      });
-  
-      it("Reverts when paused", async function () {
-        await lbtc.transferPauserRole(deployer.address);
-        await lbtc.pause();
-        
-        // try to use the same proof again
-        await expect(
-          lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
-        ).to.revertedWithCustomError(lbtc, "EnforcedPause");
-      });
-  
-      it("Reverts when payload is already used", async function () {
-        // use the payload
-        await lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof);
-        // try to use the same payload again
-        await expect(
-          lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
-        ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
+                await lbtc.changeConsortium(await newConsortium.getAddress());
+            });
+
+            const args = [
+                {
+                    ...defaultArgs,
+                    name: 'not enough signatures',
+                    signatures: [true, false],
+                    customError: 'NotEnoughSignatures',
+                },
+                {
+                    ...defaultArgs,
+                    name: 'executed in wrong chain',
+                    customError: 'WrongChainId',
+                    chainId: 1,
+                    interface: () => lbtc,
+                },
+                {
+                    ...defaultArgs,
+                    name: 'destination chain missmatch',
+                    signatureChainId: ethers.randomBytes(32),
+                },
+                {
+                    ...defaultArgs,
+                    name: 'recipient is 0 address',
+                    mintRecipient: () => {
+                        return { address: ethers.ZeroAddress };
+                    },
+                    signatureRecipient: () => {
+                        return { address: ethers.ZeroAddress };
+                    },
+                    customError: 'ZeroAddress',
+                    interface: () => lbtc,
+                },
+                {
+                    ...defaultArgs,
+                    name: 'extra data signature mismatch',
+                    signatureExtraData: ethers.randomBytes(32),
+                },
+                {
+                    ...defaultArgs,
+                    name: 'extra data mismatch',
+                    extraData: ethers.randomBytes(32),
+                },
+                {
+                    ...defaultArgs,
+                    name: 'amount is 0',
+                    mintAmount: 0,
+                    signatureAmount: 0,
+                    customError: 'ZeroAmount',
+                    interface: () => lbtc,
+                },
+                {
+                    ...defaultArgs,
+                    name: 'Wrong signature recipient',
+                    signatureRecipient: () => signer2,
+                },
+                {
+                    ...defaultArgs,
+                    name: 'Wrong mint recipient',
+                    mintRecipient: () => signer2,
+                },
+                {
+                    ...defaultArgs,
+                    name: 'Wrong amount',
+                    mintAmount: 1,
+                },
+                {
+                    ...defaultArgs,
+                    name: 'unknown validator set',
+                    signers: () => [signer1, deployer],
+                    customError: 'WrongSignatureReceived',
+                },
+                {
+                    ...defaultArgs,
+                    name: 'wrong amount of signatures',
+                    signers: () => [signer1],
+                    signatures: [true],
+                    customError: 'LengthMismatch',
+                },
+            ];
+            args.forEach(function (args) {
+                it(`Reverts when ${args.name}`, async function () {
+                    const data = await signDepositBtcPayload(
+                        args.signers(),
+                        args.signatures,
+                        args.signatureChainId,
+                        args.signatureRecipient().address,
+                        args.signatureAmount,
+                        args.signatureExtraData
+                    );
+                    const payload = getPayloadForAction(
+                        [
+                            encode(['uint256'], [args.chainId]),
+                            encode(['address'], [args.mintRecipient().address]),
+                            args.mintAmount,
+                            args.extraData,
+                            0,
+                        ],
+                        DEPOSIT_BTC_ACTION
+                    );
+
+                    await expect(
+                        lbtc['mint(bytes,bytes)'](payload, data.proof)
+                    ).to.revertedWithCustomError(
+                        args.interface(),
+                        args.customError
+                    );
+                });
+            });
+
+            it('Reverts when paused', async function () {
+                await lbtc.transferPauserRole(deployer.address);
+                await lbtc.pause();
+
+                // try to use the same proof again
+                await expect(
+                    lbtc['mint(bytes,bytes)'](defaultPayload, defaultProof)
+                ).to.revertedWithCustomError(lbtc, 'EnforcedPause');
+            });
+
+            it('Reverts when payload is already used', async function () {
+                // use the payload
+                await lbtc['mint(bytes,bytes)'](defaultPayload, defaultProof);
+                // try to use the same payload again
+                await expect(
+                    lbtc['mint(bytes,bytes)'](defaultPayload, defaultProof)
+                ).to.revertedWithCustomError(lbtc, 'PayloadAlreadyUsed');
 
                 await expect(
                     lbtc.mintWithFee(

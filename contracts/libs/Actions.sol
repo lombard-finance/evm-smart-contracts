@@ -223,12 +223,15 @@ library Actions {
 
         address[] memory validators = pubKeysToAddress(pubKeys);
 
-        return ValSetAction(epoch, validators, weights, weightThreshold, height);
+        return
+            ValSetAction(epoch, validators, weights, weightThreshold, height);
     }
 
-    function pubKeysToAddress(bytes[] memory _pubKeys) internal pure returns (address[] memory) {
+    function pubKeysToAddress(
+        bytes[] memory _pubKeys
+    ) internal pure returns (address[] memory) {
         address[] memory addresses = new address[](_pubKeys.length);
-        for(uint256 i; i < _pubKeys.length;) {
+        for (uint256 i; i < _pubKeys.length; ) {
             // each pubkey represented as uncompressed
 
             if (_pubKeys[i].length == 65) {
@@ -240,8 +243,8 @@ library Actions {
                 // use inline assembly for memory manipulation
                 assembly {
                     // calculate the start of the `result` and `data` in memory
-                    let resultData := add(result, 0x20)    // points to the first byte of the result
-                    let dataStart := add(data, 0x21)       // points to the second byte of data (skip 0x04)
+                    let resultData := add(result, 0x20) // points to the first byte of the result
+                    let dataStart := add(data, 0x21) // points to the second byte of data (skip 0x04)
 
                     // copy 64 bytes from input (excluding the first byte) to result
                     mstore(resultData, mload(dataStart)) // copy the first 32 bytes
@@ -253,7 +256,9 @@ library Actions {
                 revert InvalidPublicKey(_pubKeys[i]);
             }
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return addresses;
     }
