@@ -46,6 +46,8 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         __Consortium_init();
     }
 
+    /// ONLY OWNER FUNCTIONS ///
+
     /// @notice Sets the initial validator set from any epoch
     /// @param _initialValSet - The initial list of validators
     function setInitalValidatorSet(
@@ -62,12 +64,15 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         }
 
         _setValidatorSet(
+            $,
             action.validators,
             action.weights,
             action.weightThreshold,
             action.epoch
         );
     }
+
+    /// USER ACTIONS ///
 
     /// @notice Validates the provided signature against the given hash
     /// @param _payloadHash the hash of the data to be signed
@@ -77,19 +82,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         bytes calldata _proof
     ) public view {
         _checkProof(_payloadHash, _proof);
-    }
-
-    /// @notice Returns the validator for a given epoch
-    /// @param epoch the epoch to get the threshold for
-    function getValidatoSet(
-        uint256 epoch
-    ) external view returns (ValidatorSet memory) {
-        return _getConsortiumStorage().validatorSet[epoch];
-    }
-
-    /// @notice Returns the current epoch
-    function curEpoch() external view returns (uint256) {
-        return _getConsortiumStorage().epoch;
     }
 
     function setNextValidatorSet(
@@ -113,6 +105,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         if (action.epoch != $.epoch + 1) revert InvalidEpoch();
 
         _setValidatorSet(
+            $,
             action.validators,
             action.weights,
             action.weightThreshold,
@@ -120,28 +113,33 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         );
     }
 
+    /// GETTERS ///
+
+    /// @notice Returns the validator for a given epoch
+    /// @param epoch the epoch to get the threshold for
+    function getValidatoSet(
+        uint256 epoch
+    ) external view returns (ValidatorSet memory) {
+        return _getConsortiumStorage().validatorSet[epoch];
+    }
+
+    /// @notice Returns the current epoch
+    function curEpoch() external view returns (uint256) {
+        return _getConsortiumStorage().epoch;
+    }
+
+    /// PRIVATE FUNCTIONS ///
+
     /// @notice Internal initializer for the consortium
     function __Consortium_init() internal onlyInitializing {}
 
-    /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
-    function _getConsortiumStorage()
-        private
-        pure
-        returns (ConsortiumStorage storage $)
-    {
-        assembly {
-            $.slot := CONSORTIUM_STORAGE_LOCATION
-        }
-    }
-
     function _setValidatorSet(
+        ConsortiumStorage storage $,
         address[] memory _validators,
         uint256[] memory _weights,
         uint256 _threshold,
         uint256 _epoch
     ) internal {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-
         // do not allow to rewrite existing valset
         if ($.validatorSet[_epoch].weightThreshold != 0) {
             revert InvalidEpoch();
@@ -236,6 +234,17 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         }
         if (weight < $.validatorSet[$.epoch].weightThreshold) {
             revert NotEnoughSignatures();
+        }
+    }
+
+    /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
+    function _getConsortiumStorage()
+        private
+        pure
+        returns (ConsortiumStorage storage $)
+    {
+        assembly {
+            $.slot := CONSORTIUM_STORAGE_LOCATION
         }
     }
 }

@@ -44,36 +44,6 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         _disableInitializers();
     }
 
-    function __BTCBPMM_init(
-        address _lbtc,
-        address _btcb,
-        address admin,
-        uint256 _stakeLimit,
-        address withdrawAddress,
-        uint16 _relativeFee
-    ) internal onlyInitializing {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        FeeUtils.validateCommission(_relativeFee);
-
-        PMMStorage storage $ = _getPMMStorage();
-        $.stakeLimit = _stakeLimit;
-        $.withdrawAddress = withdrawAddress;
-
-        $.lbtc = ILBTC(_lbtc);
-        $.btcb = IERC20Metadata(_btcb);
-        $.relativeFee = _relativeFee;
-
-        uint256 lbtcDecimals = $.lbtc.decimals();
-        uint256 btcbDecimals = $.btcb.decimals();
-        if (lbtcDecimals <= btcbDecimals) {
-            $.divider = 10 ** (btcbDecimals - lbtcDecimals);
-            $.multiplier = 1;
-        } else {
-            $.multiplier = 10 ** (lbtcDecimals - btcbDecimals);
-            $.divider = 1;
-        }
-    }
-
     function initialize(
         address _lbtc,
         address _btcb,
@@ -93,6 +63,8 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
             _relativeFee
         );
     }
+
+    /// USER ACTIONS ///
 
     function swapBTCBToLBTC(uint256 amount) external whenNotPaused {
         PMMStorage storage $ = _getPMMStorage();
@@ -117,6 +89,8 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         lbtc.mint(_msgSender(), amountLBTC - fee);
         lbtc.mint(address(this), fee);
     }
+
+    /// ACCESS CONTROL FUNCTIONS ///
 
     function withdrawBTCB(
         uint256 amount
@@ -164,6 +138,8 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
         _unpause();
     }
 
+    /// GETTERS ///
+
     function stakeLimit() external view returns (uint256) {
         return _getPMMStorage().stakeLimit;
     }
@@ -180,6 +156,38 @@ contract BTCBPMM is PausableUpgradeable, AccessControlUpgradeable {
 
     function withdrawalAddress() external view returns (address) {
         return _getPMMStorage().withdrawAddress;
+    }
+
+    /// PRIVATE FUNCTIONS ///
+
+    function __BTCBPMM_init(
+        address _lbtc,
+        address _btcb,
+        address admin,
+        uint256 _stakeLimit,
+        address withdrawAddress,
+        uint16 _relativeFee
+    ) internal onlyInitializing {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        FeeUtils.validateCommission(_relativeFee);
+
+        PMMStorage storage $ = _getPMMStorage();
+        $.stakeLimit = _stakeLimit;
+        $.withdrawAddress = withdrawAddress;
+
+        $.lbtc = ILBTC(_lbtc);
+        $.btcb = IERC20Metadata(_btcb);
+        $.relativeFee = _relativeFee;
+
+        uint256 lbtcDecimals = $.lbtc.decimals();
+        uint256 btcbDecimals = $.btcb.decimals();
+        if (lbtcDecimals <= btcbDecimals) {
+            $.divider = 10 ** (btcbDecimals - lbtcDecimals);
+            $.multiplier = 1;
+        } else {
+            $.multiplier = 10 ** (lbtcDecimals - btcbDecimals);
+            $.divider = 1;
+        }
     }
 
     function _getPMMStorage() private pure returns (PMMStorage storage $) {

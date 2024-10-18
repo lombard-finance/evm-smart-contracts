@@ -134,19 +134,7 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
         _validateThreshold = 0; // validate all
     }
 
-    /**
-     * Pause deposit reporting and withdrawal validation.
-     */
-    function pause() public onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    /**
-     * Unpause deposit reporting and withdrawal validation.
-     */
-    function unpause() public onlyRole(PAUSER_ROLE) {
-        _unpause();
-    }
+    /// GETTERS ///
 
     /**
      * Returns the minimum threshold for validating withdrawals.
@@ -156,15 +144,13 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
     }
 
     /**
-     * Update the validate threshold.
-     * @param newThreshold New threshold.
-     *
-     * Emits {UpdateValidateThreshold}.
+     * Get maximum number of deposits that can be reported at once.
      */
-    function _updateValidateThreshold(uint256 newThreshold) internal {
-        emit UpdateValidateThreshold(_validateThreshold, newThreshold);
-        _validateThreshold = newThreshold;
+    function maxDeposits() public view returns (uint256) {
+        return _mMaxDeposits;
     }
+
+    /// ACCESS CONTROL FUNCTIONS ///
 
     /**
      * Update the threshold for checking validation withdrawals.
@@ -208,10 +194,17 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
     }
 
     /**
-     * Get maximum number of deposits that can be reported at once.
+     * Pause deposit reporting and withdrawal validation.
      */
-    function maxDeposits() public view returns (uint256) {
-        return _mMaxDeposits;
+    function pause() public onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /**
+     * Unpause deposit reporting and withdrawal validation.
+     */
+    function unpause() public onlyRole(PAUSER_ROLE) {
+        _unpause();
     }
 
     /**
@@ -297,5 +290,18 @@ contract Bascule is IBascule, Pausable, AccessControlDefaultAdminRules {
         // withdrawal is below the threshold, so we allow the withdrawal without
         // additional on-chain validation.
         emit WithdrawalNotValidated(depositID, withdrawalAmount);
+    }
+
+    /// PRIVATE FUNCTIONS ///
+
+    /**
+     * Update the validate threshold.
+     * @param newThreshold New threshold.
+     *
+     * Emits {UpdateValidateThreshold}.
+     */
+    function _updateValidateThreshold(uint256 newThreshold) internal {
+        emit UpdateValidateThreshold(_validateThreshold, newThreshold);
+        _validateThreshold = newThreshold;
     }
 }

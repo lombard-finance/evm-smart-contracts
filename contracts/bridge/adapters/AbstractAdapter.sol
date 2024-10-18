@@ -21,10 +21,14 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
         lbtc = LBTC(lbtc_);
     }
 
+    /// MODIFIERS ///
+
     modifier onlyBridge() {
         _onlyBridge();
         _;
     }
+
+    /// ONLY OWNER FUNCTIONS ///
 
     /**
      * @notice Change the bridge address
@@ -37,6 +41,8 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
         bridge = bridge_;
         emit BridgeChanged(oldBridge, bridge_);
     }
+
+    /// PRIVATE FUNCTIONS ///
 
     function _onlyBridge() internal view {
         if (msg.sender != bridge) {
