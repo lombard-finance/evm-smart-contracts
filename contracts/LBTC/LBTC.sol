@@ -28,7 +28,7 @@ contract LBTC is
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
-        /// @custom:oz-renamed-from usedPayloads
+        /// @custom:oz-renamed-from usedProofs
         mapping(bytes32 => bool) usedPayloads;
         string name;
         string symbol;
@@ -46,8 +46,8 @@ contract LBTC is
         /// @custom:oz-renamed-from globalNonce
         uint256 __removed_globalNonce;
         mapping(bytes32 => bytes32) __removed__destinations;
-        mapping(bytes32 => uint16) __removed__depositRelativeCommission; // relative to amount commission to charge on bridge deposit
-        mapping(bytes32 => uint64) __removed__depositAbsoluteCommission; // absolute commission to charge on bridge deposit
+        mapping(bytes32 => uint16) __removed__depositRelativeCommission;
+        mapping(bytes32 => uint64) __removed__depositAbsoluteCommission;
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
@@ -167,7 +167,7 @@ contract LBTC is
     }
 
     /**
-     * @notice Reduce the current maximum mint fee
+     * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
         return _getLBTCStorage().maximumFee;
