@@ -10,11 +10,10 @@ import {
     generatePermitSignature,
     NEW_VALSET,
     DEPOSIT_BTC_ACTION,
-    DEPOSIT_BRIDGE_ACTION,
     encode,
-    signDepositBridgePayload,
     getPayloadForAction,
     signDepositBtcPayload,
+    Signer,
 } from './helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { LBTCMock, Bascule, Consortium } from '../typechain-types';
@@ -22,9 +21,9 @@ import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/h
 
 describe('LBTC', function () {
     let deployer: HardhatEthersSigner,
-        signer1: HardhatEthersSigner,
-        signer2: HardhatEthersSigner,
-        signer3: HardhatEthersSigner,
+        signer1: Signer,
+        signer2: Signer,
+        signer3: Signer,
         treasury: HardhatEthersSigner,
         reporter: HardhatEthersSigner,
         admin: HardhatEthersSigner,
