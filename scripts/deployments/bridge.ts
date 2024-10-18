@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config';
-import { create3, DEFAULT_PROXY_FACTORY } from '../helpers';
+import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
+import { create3 } from '../helpers/create3Deployment';
 
 task('deploy-bridge', 'Deploys the Bridge contract via create3')
     .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
@@ -13,7 +14,7 @@ task('deploy-bridge', 'Deploys the Bridge contract via create3')
     .addParam('treasury', 'The address of the treasury')
     .addParam(
         'adapter',
-        'Address of the intial adapter to use or name of the adpater to deploy'
+        'Address of the initial adapter to use or name of the adapter to deploy'
     )
     .addOptionalParam(
         'router',
@@ -51,6 +52,6 @@ task('deploy-bridge', 'Deploys the Bridge contract via create3')
                 'AbstractAdapter',
                 adapter
             );
-            await adapterContract.changeBridge(await data.proxy.getAddress());
+            await adapterContract.changeBridge(data.proxy);
         }
     });

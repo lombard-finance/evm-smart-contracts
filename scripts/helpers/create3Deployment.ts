@@ -33,7 +33,6 @@ export async function create3(
     const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxy);
     console.log('Proxy admin:', proxyAdmin);
 
-    await verify(run, await factory.getAddress());
     await verify(run, await impl.getAddress());
     await verify(run, proxyAdmin, {
         contract:

@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config';
-import { create3, DEFAULT_PROXY_FACTORY } from '../helpers';
+import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
+import { create3 } from '../helpers/create3Deployment';
 
 /*
  * After deployment:
@@ -19,11 +20,12 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
         DEFAULT_PROXY_FACTORY
     )
     .setAction(async (taskArgs, hre, network) => {
+        const { ethers } = hre;
+
         const {
             ledgerNetwork,
             consortium,
             burnCommission,
-            testEnv,
             admin,
             proxyFactoryAddr,
         } = taskArgs;
@@ -38,5 +40,6 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
         );
 
         // reinitialize
-        await data.proxy.reinitialize();
+        const lbtc = await ethers.getContractAt('LBTC', data.proxy);
+        await lbtc.reinitialize();
     });
