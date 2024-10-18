@@ -29,9 +29,7 @@ contract TokenPoolAdapter is AbstractAdapter {
         gasLimit = 200_000;
     }
 
-    function setTokenPool(address tokenPool_) external onlyOwner {
-        tokenPool = tokenPool_;
-    }
+    /// USER ACTIONS ///
 
     function getFee(
         bytes32 _toChain,
@@ -76,6 +74,20 @@ contract TokenPoolAdapter is AbstractAdapter {
         ccipRouter.ccipSend(uint64(uint256(_toChain)), message);
     }
 
+    /// ONLY OWNER FUNCTIONS ///
+
+    function setTokenPool(address tokenPool_) external onlyOwner {
+        tokenPool = tokenPool_;
+    }
+
+    function setGasLimit(uint256 limit) external onlyOwner {
+        uint256 oldLimit = gasLimit;
+        gasLimit = limit;
+        emit GasLimitChanged(oldLimit, limit);
+    }
+
+    /// PRIVATE FUNCTIONS ///
+
     function _buildCCIPMessage(
         bytes32 _receiver,
         uint256 _amount
@@ -101,11 +113,5 @@ contract TokenPoolAdapter is AbstractAdapter {
                 ),
                 feeToken: address(0) // let's pay with native tokens
             });
-    }
-
-    function setGasLimit(uint256 limit) external onlyOwner {
-        uint256 oldLimit = gasLimit;
-        gasLimit = limit;
-        emit GasLimitChanged(oldLimit, limit);
     }
 }

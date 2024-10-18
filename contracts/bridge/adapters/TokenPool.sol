@@ -27,6 +27,8 @@ contract LBTCTokenPool is TokenPool {
         adapter = IPayloadStore(adapter_);
     }
 
+    /// TOKEN POOL LOGIC ///
+
     /// @notice Burn the token in the pool
     /// @dev The _validateLockOrBurn check is an essential security check
     function lockOrBurn(
@@ -94,6 +96,8 @@ contract LBTCTokenPool is TokenPool {
                 destinationAmount: releaseOrMintIn.amount
             });
     }
+
+    /// PRIVATE FUNCTIONS ///
 
     function _bridge() internal view returns (Bridge) {
         return Bridge(adapter.bridge());

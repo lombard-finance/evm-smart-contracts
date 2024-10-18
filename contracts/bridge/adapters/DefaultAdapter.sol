@@ -6,6 +6,8 @@ import {AbstractAdapter} from "./AbstractAdapter.sol";
 contract DefaultAdapter is AbstractAdapter {
     constructor(address lbtc_, address owner_) AbstractAdapter(lbtc_, owner_) {}
 
+    /// USER ACTIONS ///
+
     /**
      * @notice Returns fee associated to this adapter
      * @dev Fixed to 0 as there is not provider involved

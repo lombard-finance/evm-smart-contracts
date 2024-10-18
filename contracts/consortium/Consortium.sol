@@ -46,6 +46,8 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         __Consortium_init();
     }
 
+    /// ONLY OWNER FUNCTIONS ///
+
     /// @notice Sets the initial validator set from any epoch
     /// @param _initialValSet - The initial list of validators
     function setInitalValidatorSet(
@@ -69,6 +71,8 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         );
     }
 
+    /// USER ACTIONS ///
+
     /// @notice Validates the provided signature against the given hash
     /// @param _payloadHash the hash of the data to be signed
     /// @param _proof nonce, expiry and signatures to validate
@@ -77,19 +81,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         bytes calldata _proof
     ) public view {
         _checkProof(_payloadHash, _proof);
-    }
-
-    /// @notice Returns the validator for a given epoch
-    /// @param epoch the epoch to get the threshold for
-    function getValidatoSet(
-        uint256 epoch
-    ) external view returns (ValidatorSet memory) {
-        return _getConsortiumStorage().validatorSet[epoch];
-    }
-
-    /// @notice Returns the current epoch
-    function curEpoch() external view returns (uint256) {
-        return _getConsortiumStorage().epoch;
     }
 
     function setNextValidatorSet(
@@ -119,6 +110,23 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
             action.epoch
         );
     }
+
+    /// GETTERS ///
+
+    /// @notice Returns the validator for a given epoch
+    /// @param epoch the epoch to get the threshold for
+    function getValidatoSet(
+        uint256 epoch
+    ) external view returns (ValidatorSet memory) {
+        return _getConsortiumStorage().validatorSet[epoch];
+    }
+
+    /// @notice Returns the current epoch
+    function curEpoch() external view returns (uint256) {
+        return _getConsortiumStorage().epoch;
+    }
+
+    /// PRIVATE FUNCTIONS ///
 
     /// @notice Internal initializer for the consortium
     function __Consortium_init() internal onlyInitializing {}
