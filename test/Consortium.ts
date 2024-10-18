@@ -1,13 +1,14 @@
-import { config, ethers } from "hardhat";
+import { ethers } from "hardhat";
 import { expect } from "chai";
 import { takeSnapshot } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
   deployContract,
-  signPayload,
   getSignersWithPrivateKeys,
   getPayloadForAction,
-  CHAIN_ID,
-  NEW_VALSET, ACTIONS, DEPOSIT_BRIDGE_ACTION, signDepositBridgePayload, encode, signNewValSetPayload
+  NEW_VALSET, 
+  DEPOSIT_BRIDGE_ACTION, 
+  signDepositBridgePayload, 
+  signNewValSetPayload
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Consortium } from "../typechain-types";

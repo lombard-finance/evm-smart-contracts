@@ -18,6 +18,7 @@ export const ERRORS_IFACE = {
 };
 
 const ACTIONS_IFACE = ethers.Interface.from([
+  "function feeApproval(uint256,uint256)",
   "function payload(bytes32,bytes32,uint64,bytes32,uint32) external",
   "function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external",
   "function payload(uint256,bytes[],uint256[],uint256,uint256) external",
@@ -25,6 +26,16 @@ const ACTIONS_IFACE = ethers.Interface.from([
 
 export function getPayloadForAction(data: any[], action: string) {
   return ACTIONS_IFACE.encodeFunctionData(action, data);
+}
+
+export function rawSign(
+  signer: HardhatEthersSigner,
+  message: string
+): string {
+  const signingKey = new ethers.SigningKey(signer.privateKey);
+  const signature = signingKey.sign(message);
+  
+  return signature.serialized;
 }
 
 export const DEPOSIT_BTC_ACTION = "0xf2e73f7c";
@@ -103,7 +114,7 @@ export async function signNewValSetPayload(
 export async function signPayload(
   signers: HardhatEthersSigner[],
   signatures: boolean[],
-  msg: string,
+  payload: string,
 ): Promise<{
   payload: string;
   payloadHash: string;
@@ -114,19 +125,16 @@ export async function signPayload(
     throw new Error("Signers & signatures must have the same length");
   }
 
-  const hash = ethers.sha256(msg);
+  const hash = ethers.sha256(payload);
 
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
 
-    const signingKey = new ethers.SigningKey(signer.privateKey);
-    const signature = signingKey.sign(hash);
-    
-    return signature.serialized;
+    return rawSign(signer, hash);
   }));
   
   return {
-    payload: msg,
+    payload: payload,
     payloadHash: hash,
     proof: encode(["bytes[]"], [signaturesArray]),
   };
@@ -223,4 +231,31 @@ export async function generatePermitSignature(
   // Split the signature into v, r, s components
   const signatureObj = Signature.from(signature); 
   return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
+}
+
+export async function getFeeTypedMessage(
+  signer: HardhatEthersSigner,
+  verifyingContract: string,
+  fee: BigNumberish,
+  expiry: BigNumberish,
+  domainName: string = "Lombard Staked Bitcoin",
+  version: string = "1",
+  chainId: BigNumberish = Number(CHAIN_ID)
+) {
+  const domain = {
+      name: domainName,
+      version: version,
+      chainId: chainId,
+      verifyingContract: verifyingContract
+  };
+  const types = {
+      feeApproval: [
+          { name: "chainId", type: "uint256" },
+          { name: "fee", type: "uint256" },
+          { name: "expiry", type: "uint256" }
+      ]
+  };
+  const message = {chainId, fee, expiry};
+
+  return signer.signTypedData(domain, types, message);
 }

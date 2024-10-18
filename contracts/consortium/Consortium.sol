@@ -64,7 +64,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     /// @notice Validates the provided signature against the given hash
     /// @param _payloadHash the hash of the data to be signed
     /// @param _proof nonce, expiry and signatures to validate
-    function checkProof(bytes32 _payloadHash, bytes calldata _proof) public {
+    function checkProof(bytes32 _payloadHash, bytes calldata _proof) public view {
         _checkProof(_payloadHash, _proof);
     }
 
@@ -134,7 +134,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     /// @param _payloadHash data to be signed
     /// @param _proof encoding of (validators, weights, signatures)
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
-    function _checkProof(bytes32 _payloadHash, bytes memory _proof) internal {
+    function _checkProof(bytes32 _payloadHash, bytes memory _proof) internal view {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         if($.epoch == 0) {
             revert NoValidatorSet();
