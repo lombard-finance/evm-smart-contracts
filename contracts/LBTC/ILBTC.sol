@@ -19,13 +19,26 @@ interface ILBTC {
     error PayloadAlreadyUsed();
     error InvalidInputLength();
 
-    event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
-    event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
+    event PauserRoleTransferred(
+        address indexed previousPauser,
+        address indexed newPauser
+    );
+    event UnstakeRequest(
+        address indexed fromAddress,
+        bytes scriptPubKey,
+        uint256 amount
+    );
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
-    event TreasuryAddressChanged(address indexed prevValue, address indexed newValue);
-    event BurnCommissionChanged(uint64 indexed prevValue, uint64 indexed newValue);
+    event TreasuryAddressChanged(
+        address indexed prevValue,
+        address indexed newValue
+    );
+    event BurnCommissionChanged(
+        uint64 indexed prevValue,
+        uint64 indexed newValue
+    );
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     event MinterUpdated(address indexed minter, bool isMinter);
@@ -35,5 +48,9 @@ interface ILBTC {
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
     error FeeGreaterThanAmount();
 
-    event MintProofConsumed(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
+    event MintProofConsumed(
+        address indexed recipient,
+        bytes32 indexed payloadHash,
+        bytes payload
+    );
 }

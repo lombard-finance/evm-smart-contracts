@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Client } from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ERC20/IBurnMintERC20.sol";
-import { IPoolV1 } from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IPool.sol";
-import { Pool } from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
+import {IPoolV1} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IPool.sol";
+import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ITokenPool {
@@ -24,7 +24,10 @@ contract CCIPRouterMock {
         tokenPool = pool;
     }
 
-    function setOffchainData(bytes calldata payload, bytes calldata proof) external {
+    function setOffchainData(
+        bytes calldata payload,
+        bytes calldata proof
+    ) external {
         payloadAndProof = abi.encode(payload, proof);
     }
 
@@ -47,16 +50,23 @@ contract CCIPRouterMock {
         uint64 destinationChainSelector,
         Client.EVM2AnyMessage memory message
     ) external payable returns (bytes32) {
-        /// take the amount of assets from the sender and send it to 
+        /// take the amount of assets from the sender and send it to
         /// the token pool on the destination chain.
         /// @dev this mocks will use only the first token in the message
         /// which should be the only one included on it
-        require(message.tokenAmounts.length == 1, "Misused mock: only one token is supported");
+        require(
+            message.tokenAmounts.length == 1,
+            "Misused mock: only one token is supported"
+        );
 
         // transfer the assets from the sender to the token pool
         uint256 amount = message.tokenAmounts[0].amount;
-        IBurnMintERC20(message.tokenAmounts[0].token).transferFrom(msg.sender, tokenPool, amount);
-        
+        IBurnMintERC20(message.tokenAmounts[0].token).transferFrom(
+            msg.sender,
+            tokenPool,
+            amount
+        );
+
         /// call the source token pool
         Pool.LockOrBurnOutV1 memory out = IPoolV1(tokenPool).lockOrBurn(
             Pool.LockOrBurnInV1({
@@ -88,7 +98,7 @@ contract CCIPRouterMock {
     function receiveMessage(Pool.ReleaseOrMintInV1 memory data) external {
         data.localToken = address(ITokenPool(tokenPool).getToken());
         IPoolV1(tokenPool).releaseOrMint(data);
-    }   
+    }
 
     function getOnRamp(uint64) external view returns (address) {
         // let the be the onRamp contract as well
@@ -102,7 +112,7 @@ contract CCIPRouterMock {
 
     /// @dev IRMN functions
     function isCursed(bytes16) external pure returns (bool) {
-        /// never cursed 
+        /// never cursed
         return false;
     }
 }

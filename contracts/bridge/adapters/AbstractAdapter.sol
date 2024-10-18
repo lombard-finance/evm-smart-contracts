@@ -15,7 +15,7 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
     LBTC lbtc;
     address public override bridge;
 
-    constructor(address lbtc_,address owner_) Ownable(owner_) {
+    constructor(address lbtc_, address owner_) Ownable(owner_) {
         _notZero(lbtc_);
 
         lbtc = LBTC(lbtc_);
@@ -32,20 +32,20 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
      */
     function changeBridge(address bridge_) external onlyOwner {
         _notZero(bridge_);
-        
+
         address oldBridge = bridge;
         bridge = bridge_;
         emit BridgeChanged(oldBridge, bridge_);
     }
 
     function _onlyBridge() internal view {
-        if(msg.sender != bridge) {
+        if (msg.sender != bridge) {
             revert NotBridge();
         }
     }
 
     function _notZero(address addr) internal pure {
-        if(addr == address(0)) {
+        if (addr == address(0)) {
             revert ZeroAddress();
         }
     }

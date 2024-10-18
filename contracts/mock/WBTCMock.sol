@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /**
  * @title Mock implementation of WBTC token
@@ -29,7 +29,7 @@ contract WBTCMock is ERC20Upgradeable {
         _mint(to, amount);
     }
 
-    function decimals() public override view virtual returns (uint8) {
+    function decimals() public view virtual override returns (uint8) {
         return _decimals;
     }
 }
