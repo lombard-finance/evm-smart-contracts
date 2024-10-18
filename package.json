@@ -30,7 +30,7 @@
     "dotenv": "^16.4.5",
     "ethers": "^6.4.0",
     "hardhat": "^2.22.12",
-    "hardhat-gas-reporter": "^1.0.8",
+    "hardhat-gas-reporter": "^2.2.1",
     "prettier": "^3.3.3",
     "prettier-plugin-solidity": "^1.4.1",
     "secp256k1": "^5.0.0",
