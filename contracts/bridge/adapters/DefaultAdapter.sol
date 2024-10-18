@@ -10,7 +10,13 @@ contract DefaultAdapter is AbstractAdapter {
      * @notice Returns fee associated to this adapter
      * @dev Fixed to 0 as there is not provider involved
      */
-    function getFee(bytes32, bytes32, bytes32, uint256, bytes memory) external pure override returns (uint256) {
+    function getFee(
+        bytes32,
+        bytes32,
+        bytes32,
+        uint256,
+        bytes memory
+    ) external pure override returns (uint256) {
         return 0;
     }
 
@@ -19,7 +25,14 @@ contract DefaultAdapter is AbstractAdapter {
      * @dev Must handle the burn, assets deposited must be sent to this adapter in advance
      * @param _amount Amount of assets deposited after deducting fees
      */
-    function deposit(address,bytes32, bytes32, bytes32, uint256 _amount, bytes memory) external payable override onlyBridge {
+    function deposit(
+        address,
+        bytes32,
+        bytes32,
+        bytes32,
+        uint256 _amount,
+        bytes memory
+    ) external payable override onlyBridge {
         // burn received assets
         lbtc.burn(_amount);
     }

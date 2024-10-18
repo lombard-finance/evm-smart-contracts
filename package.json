@@ -4,7 +4,13 @@
   "main": "index.js",
   "author": "Lombrad Finance",
   "license": "MIT",
+  "scripts": {
+    "prettier:sol": "prettier --write --plugin=prettier-plugin-solidity './**/*.sol'",
+    "prettier:ts": "prettier --write './**/*.ts'",
+    "prettier:js": "prettier --write './**/*.js'"
+  },
   "devDependencies": {
+    "@chainlink/contracts-ccip": "^1.5.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-ignition": "^0.15.0",
@@ -25,13 +31,14 @@
     "ethers": "^6.4.0",
     "hardhat": "^2.22.12",
     "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^3.3.3",
+    "prettier-plugin-solidity": "^1.4.1",
     "secp256k1": "^5.0.0",
     "solidity-coverage": "^0.8.0",
     "solmate": "https://github.com/transmissions11/solmate",
     "ts-node": ">=8.0.0",
     "typechain": "^8.3.0",
     "typescript": ">=4.5.0",
-    "web3": "^1.10.0",
-    "@chainlink/contracts-ccip": "^1.5.0"
+    "web3": "^1.10.0"
   }
 }

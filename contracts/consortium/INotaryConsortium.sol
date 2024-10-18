@@ -18,7 +18,12 @@ interface INotaryConsortium {
     error UnexpectedAction(bytes4 action);
 
     /// @dev Event emitted when the validator set is updated
-    event ValidatorSetUpdated(uint256 indexed epoch, address[] validators, uint256[] weights, uint256 threshold);
+    event ValidatorSetUpdated(
+        uint256 indexed epoch,
+        address[] validators,
+        uint256[] weights,
+        uint256 threshold
+    );
 
     /// @dev Error thrown when validator set already set
     error ValSetAlreadySet();

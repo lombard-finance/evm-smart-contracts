@@ -19,9 +19,16 @@ library EIP1271SignatureUtils {
      * If the `signer` contains no code -- i.e. it is not (yet, at least) a contract address, then checks using standard ECDSA logic
      * Otherwise, passes on the signature to the signer to verify the signature and checks that it returns the `EIP1271_MAGICVALUE`.
      */
-    function checkSignature(address signer, bytes32 digest, bytes memory signature) internal view returns (bool) {
+    function checkSignature(
+        address signer,
+        bytes32 digest,
+        bytes memory signature
+    ) internal view returns (bool) {
         if (signer.code.length != 0) {
-            if (IERC1271(signer).isValidSignature(digest, signature) != EIP1271_MAGICVALUE) {
+            if (
+                IERC1271(signer).isValidSignature(digest, signature) !=
+                EIP1271_MAGICVALUE
+            ) {
                 return false;
             }
         } else {

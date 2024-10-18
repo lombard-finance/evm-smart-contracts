@@ -18,12 +18,20 @@ library OutputCodec {
 
     uint256 internal constant DATA_LENGTH = 32 * 5;
 
-    function decode(bytes calldata data) internal view returns (OutputWithPayload memory) {
+    function decode(
+        bytes calldata data
+    ) internal view returns (OutputWithPayload memory) {
         if (data.length != DATA_LENGTH) {
             revert WrongDataLength();
         }
 
-        (uint256 chainId, address to, uint64 amount, bytes32 txId, uint32 index) = abi.decode(data, (uint256, address, uint64, bytes32, uint32));
+        (
+            uint256 chainId,
+            address to,
+            uint64 amount,
+            bytes32 txId,
+            uint32 index
+        ) = abi.decode(data, (uint256, address, uint64, bytes32, uint32));
         if (chainId != block.chainid) {
             // chain id needs to match this chain
             revert WrongChainId();
@@ -40,4 +48,3 @@ library OutputCodec {
         return OutputWithPayload(chainId, to, amount, txId, index);
     }
 }
-

@@ -17,19 +17,33 @@ uint256 constant BASE_SPEND_COST = 49; // 32 (txid) + 4 (vout) + 1 (scriptSig si
 
 // Size of inputs spending different output types
 uint256 constant NON_WITNESS_INPUT_SIZE = 107; // Used for non-witness outputs (P2PKH, P2SH)
-uint256 constant WITNESS_INPUT_SIZE = 26;    // floor(107 / 4), used for witness outputs (P2WPKH, P2WSH, P2TR)
+uint256 constant WITNESS_INPUT_SIZE = 26; // floor(107 / 4), used for witness outputs (P2WPKH, P2WSH, P2TR)
 
 library BitcoinUtils {
-    function getOutputType(bytes calldata scriptPubkey) internal pure returns (OutputType) {
-        if (scriptPubkey.length == 22 && scriptPubkey[0] == OP_0 && scriptPubkey[1] == OP_DATA_20) {
+    function getOutputType(
+        bytes calldata scriptPubkey
+    ) internal pure returns (OutputType) {
+        if (
+            scriptPubkey.length == 22 &&
+            scriptPubkey[0] == OP_0 &&
+            scriptPubkey[1] == OP_DATA_20
+        ) {
             return OutputType.P2WPKH;
         }
 
-        if (scriptPubkey.length == 34 && scriptPubkey[0] == OP_1 && scriptPubkey[1] == OP_DATA_32) {
+        if (
+            scriptPubkey.length == 34 &&
+            scriptPubkey[0] == OP_1 &&
+            scriptPubkey[1] == OP_DATA_32
+        ) {
             return OutputType.P2TR;
         }
 
-        if (scriptPubkey.length == 34 && scriptPubkey[0] == OP_0 && scriptPubkey[1] == OP_DATA_32) {
+        if (
+            scriptPubkey.length == 34 &&
+            scriptPubkey[0] == OP_0 &&
+            scriptPubkey[1] == OP_DATA_32
+        ) {
             return OutputType.P2WSH;
         }
 
@@ -44,10 +58,18 @@ library BitcoinUtils {
     /// @param dustFeeRate The current dust fee rate (in satoshis per 1000 bytes)
     /// @return dustLimit The calculated dust limit in satoshis
     /// @custom:reference https://github.com/bitcoin/bitcoin/blob/43740f4971f45cd5499470b6a085b3ecd8b96d28/src/policy/policy.cpp#L54
-    function getDustLimitForOutput(OutputType outType, bytes calldata scriptPubkey, uint256 dustFeeRate) internal pure returns (uint256 dustLimit) {
+    function getDustLimitForOutput(
+        OutputType outType,
+        bytes calldata scriptPubkey,
+        uint256 dustFeeRate
+    ) internal pure returns (uint256 dustLimit) {
         uint256 spendCost = BASE_SPEND_COST;
 
-        if (outType == OutputType.P2TR || outType == OutputType.P2WPKH || outType == OutputType.P2WSH) {
+        if (
+            outType == OutputType.P2TR ||
+            outType == OutputType.P2WPKH ||
+            outType == OutputType.P2WSH
+        ) {
             // witness v0 and v1 has a cheaper payment formula
             spendCost += WITNESS_INPUT_SIZE;
         } else {

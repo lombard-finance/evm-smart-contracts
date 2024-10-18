@@ -5,7 +5,12 @@ import {CREATE3} from "solmate/src/utils/CREATE3.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract ProxyFactory {
-    function createTransparentProxy(address implementation, address admin, bytes memory data, bytes32 salt) public returns (address) {
+    function createTransparentProxy(
+        address implementation,
+        address admin,
+        bytes memory data,
+        bytes32 salt
+    ) public returns (address) {
         bytes memory bytecode = abi.encodePacked(
             type(TransparentUpgradeableProxy).creationCode,
             abi.encode(implementation, admin, data)
