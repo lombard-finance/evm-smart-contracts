@@ -5,7 +5,6 @@ import {
     deployContract,
     getSignersWithPrivateKeys,
     CHAIN_ID,
-    getUncomprPubkey,
     getFeeTypedMessage,
     generatePermitSignature,
     NEW_VALSET,
@@ -15,19 +14,18 @@ import {
     signDepositBtcPayload,
     Signer,
 } from './helpers';
-import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { LBTCMock, Bascule, Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('LBTC', function () {
-    let deployer: HardhatEthersSigner,
+    let deployer: Signer,
         signer1: Signer,
         signer2: Signer,
         signer3: Signer,
-        treasury: HardhatEthersSigner,
-        reporter: HardhatEthersSigner,
-        admin: HardhatEthersSigner,
-        pauser: HardhatEthersSigner;
+        treasury: Signer,
+        reporter: Signer,
+        admin: Signer,
+        pauser: Signer;
     let lbtc: LBTCMock;
     let lbtc2: LBTCMock;
     let bascule: Bascule;
@@ -76,7 +74,7 @@ describe('LBTC', function () {
         await lbtc2.changeTreasuryAddress(treasury.address);
 
         const initialValset = getPayloadForAction(
-            [1, [getUncomprPubkey(signer1)], [1], 1, 1],
+            [1, [signer1.publicKey], [1], 1, 1],
             NEW_VALSET
         );
 
@@ -105,7 +103,10 @@ describe('LBTC', function () {
     });
 
     describe('Setters and getters', function () {
-        // TODO: check treasury
+        it('treasury() is set', async function () {
+            expect(await lbtc.getTreasury()).to.equal(treasury.address);
+            expect(await lbtc2.getTreasury()).to.equal(treasury.address);
+        });
 
         it('owner() is deployer', async function () {
             expect(await lbtc.owner()).to.equal(deployer.address);
@@ -208,7 +209,7 @@ describe('LBTC', function () {
             expect(await lbtc.isMinter(signer1.address)).to.be.true;
             await lbtc
                 .connect(signer1)
-                [['mint(address,uint256)']](signer2.address, 100_000_000n);
+                ['mint(address,uint256)'](signer2.address, 100_000_000n);
             expect(await lbtc.balanceOf(signer2.address)).to.be.eq(
                 100_000_000n
             );
@@ -223,7 +224,7 @@ describe('LBTC', function () {
             await expect(
                 lbtc
                     .connect(signer1)
-                    [['mint(address,uint256)']](signer2.address, 100_000_000n)
+                    ['mint(address,uint256)'](signer2.address, 100_000_000n)
             )
                 .to.be.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
                 .withArgs(signer1.address);
@@ -586,7 +587,7 @@ describe('LBTC', function () {
 
         describe('Negative cases', function () {
             let newConsortium: Consortium;
-            const defaultExtraData = ethers.hexlify(ethers.randomBytes(32));
+            const defaultTxId = ethers.hexlify(ethers.randomBytes(32));
             const defaultArgs = {
                 signers: () => [signer1, signer2],
                 signatures: [true, true],
@@ -603,8 +604,8 @@ describe('LBTC', function () {
                 caller: () => lbtc.getAddress(),
                 verifier: () => newConsortium.getAddress(),
                 epoch: 1,
-                extraData: defaultExtraData,
-                signatureExtraData: defaultExtraData,
+                txId: defaultTxId,
+                signatureTxId: defaultTxId,
                 interface: () => newConsortium,
                 customError: 'WrongSignatureReceived',
                 params: () => [],
@@ -618,13 +619,7 @@ describe('LBTC', function () {
                     deployer.address,
                 ]);
                 const valset = getPayloadForAction(
-                    [
-                        1,
-                        [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
-                        [1, 1],
-                        2,
-                        1,
-                    ],
+                    [1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1],
                     NEW_VALSET
                 );
                 await newConsortium.setInitalValidatorSet(valset);
@@ -634,7 +629,7 @@ describe('LBTC', function () {
                     defaultArgs.signatureChainId,
                     defaultArgs.signatureRecipient().address,
                     defaultArgs.signatureAmount,
-                    defaultArgs.signatureExtraData // TODO: rename to txid
+                    defaultArgs.signatureTxId
                 );
                 defaultProof = data.proof;
                 defaultPayload = data.payload;
@@ -676,12 +671,12 @@ describe('LBTC', function () {
                 {
                     ...defaultArgs,
                     name: 'extra data signature mismatch',
-                    signatureExtraData: ethers.randomBytes(32),
+                    signatureTxId: ethers.randomBytes(32),
                 },
                 {
                     ...defaultArgs,
                     name: 'extra data mismatch',
-                    extraData: ethers.randomBytes(32),
+                    txId: ethers.randomBytes(32),
                 },
                 {
                     ...defaultArgs,
@@ -728,14 +723,14 @@ describe('LBTC', function () {
                         args.signatureChainId,
                         args.signatureRecipient().address,
                         args.signatureAmount,
-                        args.signatureExtraData
+                        args.signatureTxId
                     );
                     const payload = getPayloadForAction(
                         [
                             encode(['uint256'], [args.chainId]),
                             encode(['address'], [args.mintRecipient().address]),
                             args.mintAmount,
-                            args.extraData,
+                            args.txId,
                             0,
                         ],
                         DEPOSIT_BTC_ACTION
@@ -1328,7 +1323,7 @@ describe('LBTC', function () {
             });
 
             const params: [
-                () => Signer,
+                () => string,
                 () => string,
                 bigint,
                 () => number,

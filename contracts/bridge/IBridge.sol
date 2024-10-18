@@ -70,4 +70,7 @@ interface IBridge {
         bytes32 indexed payloadHash,
         bytes payload
     );
+
+    /// @notice Emitted when the treasury is changed.
+    event TreasuryChanged(address previousTreasury, address newTreasury);
 }

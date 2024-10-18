@@ -1,6 +1,7 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { BaseContract, BigNumberish, Contract, Signature } from 'ethers';
+import { BaseContract, BigNumberish, Signature } from 'ethers';
+import { ERC20PermitUpgradeable } from '../typechain-types';
 
 export type Signer = HardhatEthersSigner & {
     publicKey: string;
@@ -160,32 +161,29 @@ export async function deployContract<T extends BaseContract>(
 export async function getSignersWithPrivateKeys(
     phrase?: string
 ): Promise<Signer[]> {
-    const signers = (await ethers.getSigners()) as Signer[];
-    const mnemonic = ethers.Mnemonic.fromPhrase(
-        phrase || config.networks.hardhat.accounts.mnemonic
-    );
-    for (let i = 0; i < signers.length; i++) {
+    return (await ethers.getSigners()).map((signer, i) => {
+        const mnemonic = ethers.Mnemonic.fromPhrase(
+            phrase || config.networks.hardhat.accounts.mnemonic
+        );
         const wallet = ethers.HDNodeWallet.fromMnemonic(
             mnemonic,
             `m/44'/60'/0'/0/${i}`
         );
-        if (wallet.address === signers[i].address) {
-            signers[i].privateKey = wallet.privateKey;
-            signers[i].publicKey =
-                `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
-        }
-    }
-    return signers;
+        return Object.assign(signer, {
+            privateKey: wallet.privateKey,
+            publicKey: `0x04${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`,
+        });
+    });
 }
 
 export async function generatePermitSignature(
-    token: Contract,
+    token: ERC20PermitUpgradeable,
     owner: Signer,
     spender: string,
-    value: number,
-    deadline: number,
-    chainId: number,
-    nonce: number
+    value: BigNumberish,
+    deadline: BigNumberish,
+    chainId: BigNumberish,
+    nonce: BigNumberish
 ): Promise<{ v: number; r: string; s: string }> {
     const ownerAddress = await owner.getAddress();
 
@@ -221,17 +219,6 @@ export async function generatePermitSignature(
     // Split the signature into v, r, s components
     const signatureObj = Signature.from(signature);
     return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
-}
-
-export function getUncomprPubkey(signer: Signer) {
-    const raw = ethers.getBytes(signer.publicKey);
-
-    const unc = new Uint8Array(65);
-    // set uncompressed prefix
-    unc.set([4]);
-    unc.set(raw, 1);
-
-    return ethers.hexlify(unc);
 }
 
 export async function getFeeTypedMessage(
