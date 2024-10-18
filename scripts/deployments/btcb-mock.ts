@@ -1,5 +1,5 @@
 import { task } from "hardhat/config"; 
-import { verify } from "./helpers";
+import { verify } from "../helpers";
 
 task("deploy-btcb-mock", "Deploys the BTCB Mock contract")
   .setAction(async (taskArgs, hre) => {
