@@ -40,9 +40,6 @@ library Actions {
     /// @dev Error thrown when validator set size is invalid
     error InvalidValidatorSetSize();
 
-    /// @dev Error thrown when validator set is not increasing
-    error NotIncreasingValidatorSet();
-
     /// @dev Error thrown when zero validator is provided
     error ZeroValidator();
 
@@ -192,26 +189,36 @@ library Actions {
 
         address[] memory validators = pubKeysToAddress(pubKeys);
 
-        address curValidator = validators[0];
-        if(curValidator == address(0)) revert ZeroValidator();
-        for(uint256 i = 1; i < validators.length;) {
-            if(curValidator <= validators[i]) {
-                revert NotIncreasingValidatorSet();
-            }
-            curValidator = validators[i];
-            unchecked { ++i; }
-        }
-
         return ValSetAction(epoch, validators, weights, weightThreshold, height);
     }
 
     function pubKeysToAddress(bytes[] memory _pubKeys) internal pure returns (address[] memory) {
         address[] memory addresses = new address[](_pubKeys.length);
         for(uint256 i; i < _pubKeys.length;) {
-            if(_pubKeys[i].length != 64) {
+            // each pubkey represented as uncompressed
+
+            if (_pubKeys[i].length == 65) {
+                bytes memory data = _pubKeys[i];
+
+                // create a new array with length - 1 (excluding the first 0x04 byte)
+                bytes memory result = new bytes(data.length - 1);
+
+                // use inline assembly for memory manipulation
+                assembly {
+                    // calculate the start of the `result` and `data` in memory
+                    let resultData := add(result, 0x20)    // points to the first byte of the result
+                    let dataStart := add(data, 0x21)       // points to the second byte of data (skip 0x04)
+
+                    // copy 64 bytes from input (excluding the first byte) to result
+                    mstore(resultData, mload(dataStart)) // copy the first 32 bytes
+                    mstore(add(resultData, 0x20), mload(add(dataStart, 0x20))) // copy the next 32 bytes
+                }
+
+                addresses[i] = address(uint160(uint256(keccak256(result))));
+            } else {
                 revert InvalidPublicKey(_pubKeys[i]);
             }
-            addresses[i] = address(uint160(uint256(keccak256(_pubKeys[i]))));
+
             unchecked { ++i; }
         }
         return addresses;

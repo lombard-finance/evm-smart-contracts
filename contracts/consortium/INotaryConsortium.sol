@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 interface INotaryConsortium {
     /// @dev Error thrown when signature payload is already used
     error PayloadAlreadyUsed();
@@ -11,8 +13,11 @@ interface INotaryConsortium {
     /// @dev Error thrown when there are not enough signatures
     error NotEnoughSignatures();
 
+    /// @dev Error thrown when ECDSA signature verification fails
+    error SignatureVerificationFailed(uint256 sigIndex, ECDSA.RecoverError err);
+
     /// @dev Error thrown when signature verification fails
-    error SignatureVerificationFailed();
+    error WrongSignatureReceived(bytes sig);
 
     /// @dev Error thrown when unexpected action is used
     error UnexpectedAction(bytes4 action);
@@ -28,4 +33,7 @@ interface INotaryConsortium {
 
     /// @dev Error thrown when invalid epoch is provided
     error InvalidEpoch();
+
+    /// @dev Event emitted when the validator missed or submit wrong signature
+    event MissedSignature(address indexed validator, bytes32 indexed payloadHash, bytes32 r, bytes32 s);
 }
