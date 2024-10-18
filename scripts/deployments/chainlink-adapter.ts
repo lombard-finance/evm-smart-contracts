@@ -1,4 +1,5 @@
 import { task } from 'hardhat/config';
+import { sleep, verify } from '../helpers';
 
 /*
  * After deployment:
@@ -20,12 +21,17 @@ function chainlinkAdapterTask(taskName: string) {
             );
             console.log('Chainlink Adapter:', await adapter.getAddress());
 
+            await verify(hre.run, await adapter.getAddress(), {
+                constructorArguments: [router, lbtc, admin],
+            });
+
             if (bridge) {
                 const bridgeContract = await hre.ethers.getContractAt(
                     'Bridge',
                     bridge
                 );
                 await bridgeContract.changeAdapter(await adapter.getAddress());
+                await sleep(12_000);
                 await adapter.changeBridge(bridge);
             }
         });

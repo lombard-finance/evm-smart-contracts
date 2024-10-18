@@ -1,6 +1,6 @@
 import { task } from 'hardhat/config';
-import { create3, DEFAULT_PROXY_FACTORY } from '../helpers';
-import { ethers } from 'hardhat';
+import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
+import { create3 } from '../helpers/create3Deployment';
 
 /*
  * After deployment:

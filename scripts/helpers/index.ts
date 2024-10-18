@@ -1,7 +1,6 @@
 import { BigNumberish, ContractTransaction } from 'ethers';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
-export * from './constants';
-export * from './create3Deployment';
+import { DEFAULT_PROXY_FACTORY } from './constants';
 
 type TAddressesWithNetwork = {
     [k: string]: TAddresses;
