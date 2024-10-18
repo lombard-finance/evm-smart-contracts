@@ -64,6 +64,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         }
 
         _setValidatorSet(
+            $,
             action.validators,
             action.weights,
             action.weightThreshold,
@@ -104,6 +105,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         if (action.epoch != $.epoch + 1) revert InvalidEpoch();
 
         _setValidatorSet(
+            $,
             action.validators,
             action.weights,
             action.weightThreshold,
@@ -131,25 +133,13 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     /// @notice Internal initializer for the consortium
     function __Consortium_init() internal onlyInitializing {}
 
-    /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
-    function _getConsortiumStorage()
-        private
-        pure
-        returns (ConsortiumStorage storage $)
-    {
-        assembly {
-            $.slot := CONSORTIUM_STORAGE_LOCATION
-        }
-    }
-
     function _setValidatorSet(
+        ConsortiumStorage storage $,
         address[] memory _validators,
         uint256[] memory _weights,
         uint256 _threshold,
         uint256 _epoch
     ) internal {
-        ConsortiumStorage storage $ = _getConsortiumStorage();
-
         // do not allow to rewrite existing valset
         if ($.validatorSet[_epoch].weightThreshold != 0) {
             revert InvalidEpoch();
@@ -244,6 +234,17 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         }
         if (weight < $.validatorSet[$.epoch].weightThreshold) {
             revert NotEnoughSignatures();
+        }
+    }
+
+    /// @notice Retrieve the ConsortiumStorage struct from the specific storage slot
+    function _getConsortiumStorage()
+        private
+        pure
+        returns (ConsortiumStorage storage $)
+    {
+        assembly {
+            $.slot := CONSORTIUM_STORAGE_LOCATION
         }
     }
 }
