@@ -6,7 +6,7 @@ import {
   getSignersWithPrivateKeys,
   CHAIN_ID,
   generatePermitSignature, DEPOSIT_BTC_ACTION, DEPOSIT_BRIDGE_ACTION, NEW_VALSET,
-  encode, signDepositBridgePayload, getPayloadForAction, signDepositBtcPayload,
+  encode, signDepositBridgePayload, getPayloadForAction, signDepositBtcPayload, getUncomprPubkey,
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, Consortium } from "../typechain-types";
@@ -50,7 +50,7 @@ describe("LBTC", function () {
     await lbtc2.changeTreasuryAddress(treasury.address);
 
     const initialValset = getPayloadForAction([
-      1, [signer1.publicKey], [1], 1, 1
+      1, [getUncomprPubkey(signer1)], [1], 1, 1
     ], NEW_VALSET)
 
     await consortium.setInitalValidatorSet(initialValset);
@@ -317,7 +317,7 @@ describe("LBTC", function () {
         extraData: defaultExtraData,
         signatureExtraData: defaultExtraData,
         interface: () => newConsortium,
-        customError: "SignatureVerificationFailed",
+        customError: "WrongSignatureReceived",
         params: () => []
       }
       let defaultProof: string;
@@ -326,7 +326,7 @@ describe("LBTC", function () {
       beforeEach (async function () {
         // Use a bigger consortium to cover more cases
         newConsortium = await deployContract<Consortium>("Consortium", [deployer.address]);
-        const valset = getPayloadForAction([1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1], NEW_VALSET)
+        const valset = getPayloadForAction([1, [getUncomprPubkey(signer1), getUncomprPubkey(signer2)], [1, 1], 2, 1], NEW_VALSET)
         await newConsortium.setInitalValidatorSet(valset);
         const {proof, payload} = await signDepositBtcPayload(
           defaultArgs.signers(), 
@@ -406,7 +406,7 @@ describe("LBTC", function () {
           ...defaultArgs,
           name: "unknown validator set",
           signers: () => [signer1, deployer],
-          customError: "SignatureVerificationFailed",
+          customError: "WrongSignatureReceived",
         },
         {
           ...defaultArgs,

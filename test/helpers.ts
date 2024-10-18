@@ -125,7 +125,6 @@ export async function signPayload(
 
     const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
     const signature = signingKey.sign(hash);
-    console.log(signature.serialized);
     return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
   })))
   
