@@ -6,7 +6,7 @@ import { task } from "hardhat/config";
  * 2. Set bridge in adapter
  */
 function chainlinkAdapterTask(taskName: string) {
-  task(taskName, "Deploys the LombardConsortium contract via create3")
+  task(taskName, "Deploys the TokenPoolAdapter contract")
     .addParam("admin", "The address of the owner")
     .addParam("router", "The chainlink ccip router")
     .addParam("lbtc", "The address of the LBTC contract")

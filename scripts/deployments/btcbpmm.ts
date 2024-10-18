@@ -6,8 +6,7 @@ import { create3, DEFAULT_PROXY_FACTORY } from "../helpers";
  * 1. Grant pauser role
  * 2. Grant timelock role
  */
-
-task("deploy-btcbpmm", "Deploys the LombardConsortium contract via create3")
+task("deploy-btcbpmm", "Deploys the BTCBPMM contract via create3")
   .addParam("ledgerNetwork", "The network name of ledger", "mainnet")
   .addParam("admin", "The address of the owner")
   .addParam("proxyFactoryAddr", "The ProxyFactory address", DEFAULT_PROXY_FACTORY)

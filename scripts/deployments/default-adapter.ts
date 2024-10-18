@@ -6,7 +6,7 @@ import { task } from "hardhat/config";
  * 2. Set bridge in adapter
  */
 function defaultAdapterTask(taskName: string) {
-  task(taskName, "Deploys the LombardConsortium contract via create3")
+  task(taskName, "Deploys the DefaultAdapter contract")
     .addParam("admin", "The address of the owner")
     .addParam("lbtc", "The address of the LBTC contract")
     .addOptionalParam("bridge", "Bridge to set adapter on")
