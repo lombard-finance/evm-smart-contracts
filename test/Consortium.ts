@@ -5,7 +5,7 @@ import {
   deployContract,
   getSignersWithPrivateKeys,
   getPayloadForAction,
-  NEW_VALSET, DEPOSIT_BRIDGE_ACTION, signDepositBridgePayload, signNewValSetPayload, encode
+  NEW_VALSET, DEPOSIT_BRIDGE_ACTION, signDepositBridgePayload, signNewValSetPayload, encode, getUncomprPubkey
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Consortium } from "../typechain-types";
@@ -50,7 +50,7 @@ describe("Consortium", function () {
     beforeEach(async function () {
       const initialValset = getPayloadForAction([
         10,
-          [signer3.publicKey, signer1.publicKey, signer2.publicKey],
+          [getUncomprPubkey(signer3), getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
         [1, 1, 1],
         2,
         1
@@ -75,7 +75,7 @@ describe("Consortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         11,
-        [signer1.publicKey, signer2.publicKey],
+        [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
         [1, 2],
         3,
         1
@@ -92,7 +92,7 @@ describe("Consortium", function () {
 
     it("should fail to set initial validator set", async function () {
       const payload = getPayloadForAction([
-        11, [signer1.publicKey], [1], 1, 1
+        11, [getUncomprPubkey(signer1)], [1], 1, 1
       ], NEW_VALSET)
       await expect(lombard.setInitalValidatorSet(payload))
         .to.revertedWithCustomError(lombard, "ValSetAlreadySet");
@@ -103,7 +103,7 @@ describe("Consortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         10,
-        [signer1.publicKey, signer2.publicKey],
+        [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
         [1, 1],
         1,
         1
@@ -117,7 +117,7 @@ describe("Consortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         11,
-        [signer2.publicKey, signer1.publicKey],
+        [getUncomprPubkey(signer2), getUncomprPubkey(signer1)],
         [1, 1],
         0,
         1,
@@ -131,7 +131,7 @@ describe("Consortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         11,
-        [signer2.publicKey, signer1.publicKey],
+        [getUncomprPubkey(signer2), getUncomprPubkey(signer1)],
         [1, 1],
         3,
         1,
@@ -145,7 +145,7 @@ describe("Consortium", function () {
         [signer3, signer1, signer2],
         [true, true, false],
         11,
-        [signer2.publicKey, signer1.publicKey],
+        [getUncomprPubkey(signer2), getUncomprPubkey(signer1)],
         [1, 0],
         3,
         1,
@@ -196,7 +196,7 @@ describe("Consortium", function () {
         );
 
         await expect(lombard.checkProof(ethers.sha256(payload), data.proof))
-        .to.be.revertedWithCustomError(lombard, "SignatureVerificationFailed");
+        .to.be.revertedWithCustomError(lombard, "WrongSignatureReceived");
       });
     });
   });

@@ -1,8 +1,12 @@
 import hardhat, { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTC, WBTCMock, Bascule } from "../typechain-types";
-import { AddressLike, BaseContract, Contract, Signer, Signature, BigNumberish } from "ethers";
-import {string} from "hardhat/internal/core/params/argumentTypes";
+import {AddressLike, BaseContract, Contract, Signer, Signature} from "ethers";
+
+type Signer = HardhatEthersSigner & {
+  publicKey: string;
+  privateKey: string;
+}
 
 export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
@@ -116,14 +120,14 @@ export async function signPayload(
 
   const hash = ethers.sha256(msg);
 
-  const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
+  const signaturesArray = (await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
 
-    const signingKey = new ethers.SigningKey(signer.privateKey);
+    const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
     const signature = signingKey.sign(hash);
-    
-    return signature.serialized;
-  }));
+    console.log(signature.serialized);
+    return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
+  })))
   
   return {
     payload: msg,
@@ -153,8 +157,8 @@ export async function getSignersWithPrivateKeys(
       `m/44'/60'/0'/0/${i}`
     );
     if (wallet.address === signers[i].address) {
-      signers[i].privateKey = wallet.privateKey;
-      signers[i].publicKey = `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
+      (signers[i] as Signer).privateKey = wallet.privateKey;
+      (signers[i] as Signer).publicKey = `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
     }
   }
   return signers;
@@ -223,4 +227,15 @@ export async function generatePermitSignature(
   // Split the signature into v, r, s components
   const signatureObj = Signature.from(signature); 
   return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
+}
+
+export function getUncomprPubkey(signer: HardhatEthersSigner) {
+  const raw = ethers.getBytes((signer as Signer).publicKey);
+
+  const unc = new Uint8Array(65);
+  // set uncompressed prefix
+  unc.set([4])
+  unc.set(raw, 1);
+
+  return ethers.hexlify(unc);
 }
