@@ -12,7 +12,6 @@ task('deploy-ccip-token-pool', 'Deploys chainlink TokenPool contract')
     )
     .addParam('adapter', 'The address of the adapter')
     .addParam('rmn', 'The address of the RmnProxy')
-    .addParam('router', 'The address of the chainlink ccip router')
     .addVariadicPositionalParam(
         'allowlist',
         'The list of addresses allowed to bridge'
