@@ -5,9 +5,7 @@
   "author": "Lombrad Finance",
   "license": "MIT",
   "scripts": {
-    "prettier:sol": "prettier --write --plugin=prettier-plugin-solidity './**/*.sol'",
-    "prettier:ts": "prettier --write './**/*.ts'",
-    "prettier:js": "prettier --write './**/*.js'"
+    "prettier": "prettier --write './**/*.{sol,ts,js}'"
   },
   "devDependencies": {
     "@chainlink/contracts-ccip": "^1.5.0",
