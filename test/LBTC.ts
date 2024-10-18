@@ -15,19 +15,18 @@ import {
     signDepositBtcPayload,
     Signer,
 } from './helpers';
-import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { LBTCMock, Bascule, Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('LBTC', function () {
-    let deployer: HardhatEthersSigner,
+    let deployer: Signer,
         signer1: Signer,
         signer2: Signer,
         signer3: Signer,
-        treasury: HardhatEthersSigner,
-        reporter: HardhatEthersSigner,
-        admin: HardhatEthersSigner,
-        pauser: HardhatEthersSigner;
+        treasury: Signer,
+        reporter: Signer,
+        admin: Signer,
+        pauser: Signer;
     let lbtc: LBTCMock;
     let lbtc2: LBTCMock;
     let bascule: Bascule;
@@ -208,7 +207,7 @@ describe('LBTC', function () {
             expect(await lbtc.isMinter(signer1.address)).to.be.true;
             await lbtc
                 .connect(signer1)
-                [['mint(address,uint256)']](signer2.address, 100_000_000n);
+                ['mint(address,uint256)'](signer2.address, 100_000_000n);
             expect(await lbtc.balanceOf(signer2.address)).to.be.eq(
                 100_000_000n
             );
@@ -223,7 +222,7 @@ describe('LBTC', function () {
             await expect(
                 lbtc
                     .connect(signer1)
-                    [['mint(address,uint256)']](signer2.address, 100_000_000n)
+                    ['mint(address,uint256)'](signer2.address, 100_000_000n)
             )
                 .to.be.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
                 .withArgs(signer1.address);
@@ -1328,7 +1327,7 @@ describe('LBTC', function () {
             });
 
             const params: [
-                () => Signer,
+                () => string,
                 () => string,
                 bigint,
                 () => number,
