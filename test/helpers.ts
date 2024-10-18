@@ -1,6 +1,6 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { BaseContract, BigNumberish, Signature } from 'ethers';
+import { BaseContract, BigNumberish, Contract, Signature } from 'ethers';
 
 export type Signer = HardhatEthersSigner & {
     publicKey: string;
@@ -35,7 +35,7 @@ export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 
 export async function signDepositBridgePayload(
-    signers: HardhatEthersSigner[],
+    signers: Signer[],
     signatures: boolean[],
     fromChain: string | BigInt,
     fromContract: string,
@@ -93,7 +93,7 @@ export async function signDepositBtcPayload(
 }
 
 export async function signNewValSetPayload(
-    signers: HardhatEthersSigner[],
+    signers: Signer[],
     signatures: boolean[],
     epoch: BigInt | number,
     validators: string[],
@@ -128,14 +128,11 @@ export async function signPayload(
         signers.map(async (signer, index) => {
             if (!signatures[index]) return '0x';
 
-            const signingKey = new ethers.SigningKey(signer.privateKey);
-            const signature = signingKey.sign(hash);
-
             const sig = rawSign(signer, hash);
             if (cutV) {
-                return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
+                return sig.slice(0, 130); // remove V from each sig to follow real consortium
             }
-            return signature.serialized;
+            return sig;
         })
     );
 
@@ -182,7 +179,7 @@ export async function getSignersWithPrivateKeys(
 }
 
 export async function generatePermitSignature(
-    token: ethers.Contract,
+    token: Contract,
     owner: Signer,
     spender: string,
     value: number,
