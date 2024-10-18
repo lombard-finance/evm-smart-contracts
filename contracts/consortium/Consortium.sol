@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import { EIP1271SignatureUtils } from "../libs/EIP1271SignatureUtils.sol";
-import { Actions } from "../libs/Actions.sol";
-import { INotaryConsortium } from "./INotaryConsortium.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
+import {Actions} from "../libs/Actions.sol";
+import {INotaryConsortium} from "./INotaryConsortium.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
@@ -25,7 +25,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     struct ConsortiumStorage {
         /// @notice Current epoch
         uint256 epoch;
-
         /// @notice Store the Validator set for each epoch
         mapping(uint256 => ValidatorSet) validatorSet;
     }
@@ -41,7 +40,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     }
 
     /// @notice Initializes the consortium contract
-    /// @param _owner - The address of the initial owner 
+    /// @param _owner - The address of the initial owner
     function initialize(address _owner) external initializer {
         __Ownable_init(_owner);
         __Ownable2Step_init();
@@ -50,28 +49,42 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
     /// @notice Sets the initial validator set from any epoch
     /// @param _initialValSet - The initial list of validators
-    function setInitalValidatorSet(bytes calldata _initialValSet) external onlyOwner {
+    function setInitalValidatorSet(
+        bytes calldata _initialValSet
+    ) external onlyOwner {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
-        Actions.ValSetAction memory action = Actions.validateValSet(_initialValSet[4:]);
+        Actions.ValSetAction memory action = Actions.validateValSet(
+            _initialValSet[4:]
+        );
 
-        if($.epoch != 0) {
+        if ($.epoch != 0) {
             revert ValSetAlreadySet();
         }
 
-        _setValidatorSet(action.validators, action.weights, action.weightThreshold, action.epoch);
+        _setValidatorSet(
+            action.validators,
+            action.weights,
+            action.weightThreshold,
+            action.epoch
+        );
     }
 
     /// @notice Validates the provided signature against the given hash
     /// @param _payloadHash the hash of the data to be signed
     /// @param _proof nonce, expiry and signatures to validate
-    function checkProof(bytes32 _payloadHash, bytes calldata _proof) public view {
+    function checkProof(
+        bytes32 _payloadHash,
+        bytes calldata _proof
+    ) public view {
         _checkProof(_payloadHash, _proof);
     }
 
     /// @notice Returns the validator for a given epoch
     /// @param epoch the epoch to get the threshold for
-    function getValidatoSet(uint256 epoch) external view returns (ValidatorSet memory) {
+    function getValidatoSet(
+        uint256 epoch
+    ) external view returns (ValidatorSet memory) {
         return _getConsortiumStorage().validatorSet[epoch];
     }
 
@@ -80,13 +93,17 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         return _getConsortiumStorage().epoch;
     }
 
-    function setNextValidatorSet(bytes calldata payload, bytes calldata proof) external {
-
+    function setNextValidatorSet(
+        bytes calldata payload,
+        bytes calldata proof
+    ) external {
         // payload validation
         if (bytes4(payload) != Actions.NEW_VALSET) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.ValSetAction memory action = Actions.validateValSet(payload[4:]);
+        Actions.ValSetAction memory action = Actions.validateValSet(
+            payload[4:]
+        );
 
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
@@ -94,10 +111,14 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         bytes32 payloadHash = sha256(payload);
         this.checkProof(payloadHash, proof);
 
-        if(action.epoch != $.epoch + 1)
-            revert InvalidEpoch();
-        
-        _setValidatorSet(action.validators, action.weights, action.weightThreshold, action.epoch);
+        if (action.epoch != $.epoch + 1) revert InvalidEpoch();
+
+        _setValidatorSet(
+            action.validators,
+            action.weights,
+            action.weightThreshold,
+            action.epoch
+        );
     }
 
     /// @notice Internal initializer for the consortium
@@ -114,7 +135,12 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         }
     }
 
-    function _setValidatorSet(address[] memory _validators, uint256[] memory _weights, uint256 _threshold, uint256 _epoch) internal {
+    function _setValidatorSet(
+        address[] memory _validators,
+        uint256[] memory _weights,
+        uint256 _threshold,
+        uint256 _epoch
+    ) internal {
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         // do not allow to rewrite existing valset
@@ -135,29 +161,34 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     /// @param _payloadHash data to be signed
     /// @param _proof encoding of (validators, weights, signatures)
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
-    function _checkProof(bytes32 _payloadHash, bytes calldata _proof) internal view {
+    function _checkProof(
+        bytes32 _payloadHash,
+        bytes calldata _proof
+    ) internal view {
         ConsortiumStorage storage $ = _getConsortiumStorage();
-        if($.epoch == 0) {
+        if ($.epoch == 0) {
             revert NoValidatorSet();
         }
         // decode proof
         bytes[] memory signatures = abi.decode(_proof, (bytes[]));
-        
+
         address[] storage validators = $.validatorSet[$.epoch].validators;
         uint256 length = validators.length;
-        if(signatures.length != length) {
+        if (signatures.length != length) {
             revert LengthMismatch();
         }
 
         uint256 weight = 0;
         uint256[] storage weights = $.validatorSet[$.epoch].weights;
-        for(uint256 i; i < length;) {
+        for (uint256 i; i < length; ) {
             // each signature preset R || S values
             // V is missed, because validators use Cosmos SDK keyring which is not signing in eth style
             if (signatures[i].length == 64) {
 
                 // split signature by R and S values
-                bytes memory sig = signatures[i];
+                bytes memory sig =
+                        signatures[i]
+                    ;
                 bytes32 r;
                 bytes32 s;
 
@@ -193,7 +224,9 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                 }
                 // signature accepted
 
-                unchecked { weight += weights[i]; }
+                unchecked {
+                    weight += weights[i];
+                }
             }
 
             unchecked { ++i; }

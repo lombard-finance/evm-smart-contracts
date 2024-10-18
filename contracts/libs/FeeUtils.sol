@@ -8,19 +8,29 @@ library FeeUtils {
 
     error AmountTooSmallToPayRelativeFee();
     error BadCommission();
-    
-    function calcRelativeFee(uint256 amount, uint16 relativeComs) internal pure returns (uint256) {
-        return Math.mulDiv(amount, relativeComs, MAX_COMMISSION, Math.Rounding.Ceil);
+
+    function calcRelativeFee(
+        uint256 amount,
+        uint16 relativeComs
+    ) internal pure returns (uint256) {
+        return
+            Math.mulDiv(
+                amount,
+                relativeComs,
+                MAX_COMMISSION,
+                Math.Rounding.Ceil
+            );
     }
 
-    function getRelativeFee(uint256 amount, uint16 relativeComs) internal pure returns (uint256) {
-        if(amount < relativeComs) 
-            revert AmountTooSmallToPayRelativeFee();
+    function getRelativeFee(
+        uint256 amount,
+        uint16 relativeComs
+    ) internal pure returns (uint256) {
+        if (amount < relativeComs) revert AmountTooSmallToPayRelativeFee();
         return calcRelativeFee(amount, relativeComs);
     }
 
     function validateCommission(uint16 commission) internal pure {
-        if (commission >= MAX_COMMISSION)
-            revert BadCommission();
+        if (commission >= MAX_COMMISSION) revert BadCommission();
     }
 }

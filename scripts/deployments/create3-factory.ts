@@ -1,5 +1,5 @@
 import { task } from "hardhat/config";
-import { verify } from "./helpers";
+import { verify } from "../helpers";
 import * as readline from "node:readline";
 
 task("deploy-proxy-factory", "Deploys the ProxyFactory contract")

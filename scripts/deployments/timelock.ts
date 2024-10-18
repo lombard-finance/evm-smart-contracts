@@ -1,5 +1,5 @@
 import { ethers, network, run } from "hardhat";
-import { getAddresses, sleep } from "./helpers";
+import { getAddresses, sleep } from "../helpers";
 
 async function main() {
   const addresses = getAddresses(network.name);
