@@ -330,7 +330,7 @@ describe('Bascule', function () {
             }
         });
 
-        it('Should sanity check deposit IDs', async () => {            
+        it('Should sanity check deposit IDs', async () => {
             // Unique IDs for transactions
             const one = new Uint8Array(32).fill(1);
             const two = new Uint8Array(32).fill(2);
@@ -342,7 +342,13 @@ describe('Bascule', function () {
             await expect(
                 bascule
                     .connect(depositReporter)
-                    .reportDeposits(ethers.randomBytes(32), [one, two, three, four, five])
+                    .reportDeposits(ethers.randomBytes(32), [
+                        one,
+                        two,
+                        three,
+                        four,
+                        five,
+                    ])
             ).to.be.revertedWithCustomError(bascule, 'BadDepositReport');
 
             // No re-used unique IDs
@@ -452,7 +458,13 @@ describe('Bascule', function () {
             await expect(
                 bascule
                     .connect(depositReporter)
-                    .reportDeposits(ethers.randomBytes(32), [one, two, three, four, five])
+                    .reportDeposits(ethers.randomBytes(32), [
+                        one,
+                        two,
+                        three,
+                        four,
+                        five,
+                    ])
             ).to.be.revertedWithCustomError(bascule, 'BadDepositReport');
 
             // Get max number of deposits
@@ -707,7 +719,7 @@ describe('Bascule', function () {
                 : 1000;
 
             await bascule.setMaxDeposits(maxNr);
-            
+
             // Unique IDs for transactions
             const depositIDs = new Array(maxNr)
                 .fill(0)

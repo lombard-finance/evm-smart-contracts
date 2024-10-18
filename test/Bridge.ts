@@ -20,7 +20,7 @@ import {
     DEPOSIT_BRIDGE_ACTION,
     encode,
     signDepositBridgePayload,
-    Signer
+    Signer,
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
@@ -62,10 +62,7 @@ describe('Bridge', function () {
             deployer.address,
         ]);
         await consortium.setInitalValidatorSet(
-            getPayloadForAction(
-                [1, [signer1.publicKey], [1], 1, 1],
-                NEW_VALSET
-            )
+            getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET)
         );
 
         // chain 1

@@ -10,16 +10,13 @@ import {
     signDepositBridgePayload,
     signNewValSetPayload,
     encode,
-    Signer
+    Signer,
 } from './helpers';
 import { Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('Consortium', function () {
-    let deployer: Signer,
-        signer1: Signer,
-        signer2: Signer,
-        signer3: Signer;
+    let deployer: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
     let lombard: Consortium;
     let snapshot: SnapshotRestorer;
 
@@ -55,11 +52,7 @@ describe('Consortium', function () {
             const initialValset = getPayloadForAction(
                 [
                     10,
-                    [
-                        signer3.publicKey,
-                        signer1.publicKey,
-                        signer2.publicKey,
-                    ],
+                    [signer3.publicKey, signer1.publicKey, signer2.publicKey],
                     [1, 1, 1],
                     2,
                     1,

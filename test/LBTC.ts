@@ -103,12 +103,12 @@ describe('LBTC', function () {
     });
 
     describe('Setters and getters', function () {
-      it("treasury() is set", async function () {
-        expect(await lbtc.getTreasury()).to.equal(treasury.address);
-        expect(await lbtc2.getTreasury()).to.equal(treasury.address);
-      })  
-      
-      it('owner() is deployer', async function () {
+        it('treasury() is set', async function () {
+            expect(await lbtc.getTreasury()).to.equal(treasury.address);
+            expect(await lbtc2.getTreasury()).to.equal(treasury.address);
+        });
+
+        it('owner() is deployer', async function () {
             expect(await lbtc.owner()).to.equal(deployer.address);
         });
 
@@ -619,13 +619,7 @@ describe('LBTC', function () {
                     deployer.address,
                 ]);
                 const valset = getPayloadForAction(
-                    [
-                        1,
-                        [signer1.publicKey, signer2.publicKey],
-                        [1, 1],
-                        2,
-                        1,
-                    ],
+                    [1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1],
                     NEW_VALSET
                 );
                 await newConsortium.setInitalValidatorSet(valset);
