@@ -171,7 +171,7 @@ export async function getSignersWithPrivateKeys(
         );
         return Object.assign(signer, {
             privateKey: wallet.privateKey,
-            publicKey: `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`,
+            publicKey: `0x04${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`,
         });
     });
 }
@@ -219,17 +219,6 @@ export async function generatePermitSignature(
     // Split the signature into v, r, s components
     const signatureObj = Signature.from(signature);
     return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
-}
-
-export function getUncomprPubkey(signer: Signer) {
-    const raw = ethers.getBytes(signer.publicKey);
-
-    const unc = new Uint8Array(65);
-    // set uncompressed prefix
-    unc.set([4]);
-    unc.set(raw, 1);
-
-    return ethers.hexlify(unc);
 }
 
 export async function getFeeTypedMessage(

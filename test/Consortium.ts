@@ -10,17 +10,16 @@ import {
     signDepositBridgePayload,
     signNewValSetPayload,
     encode,
-    getUncomprPubkey,
+    Signer
 } from './helpers';
-import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('Consortium', function () {
-    let deployer: HardhatEthersSigner,
-        signer1: HardhatEthersSigner,
-        signer2: HardhatEthersSigner,
-        signer3: HardhatEthersSigner;
+    let deployer: Signer,
+        signer1: Signer,
+        signer2: Signer,
+        signer3: Signer;
     let lombard: Consortium;
     let snapshot: SnapshotRestorer;
 
@@ -57,9 +56,9 @@ describe('Consortium', function () {
                 [
                     10,
                     [
-                        getUncomprPubkey(signer3),
-                        getUncomprPubkey(signer1),
-                        getUncomprPubkey(signer2),
+                        signer3.publicKey,
+                        signer1.publicKey,
+                        signer2.publicKey,
                     ],
                     [1, 1, 1],
                     2,
@@ -91,7 +90,7 @@ describe('Consortium', function () {
                 [signer3, signer1, signer2],
                 [true, true, false],
                 11,
-                [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
+                [signer1.publicKey, signer2.publicKey],
                 [1, 2],
                 3,
                 1
@@ -111,7 +110,7 @@ describe('Consortium', function () {
 
         it('should fail to set initial validator set', async function () {
             const payload = getPayloadForAction(
-                [11, [getUncomprPubkey(signer1)], [1], 1, 1],
+                [11, [signer1.publicKey], [1], 1, 1],
                 NEW_VALSET
             );
             await expect(
@@ -124,7 +123,7 @@ describe('Consortium', function () {
                 [signer3, signer1, signer2],
                 [true, true, false],
                 10,
-                [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
+                [signer1.publicKey, signer2.publicKey],
                 [1, 1],
                 1,
                 1
@@ -139,7 +138,7 @@ describe('Consortium', function () {
                 [signer3, signer1, signer2],
                 [true, true, false],
                 11,
-                [getUncomprPubkey(signer2), getUncomprPubkey(signer1)],
+                [signer2.publicKey, signer1.publicKey],
                 [1, 1],
                 0,
                 1
@@ -154,7 +153,7 @@ describe('Consortium', function () {
                 [signer3, signer1, signer2],
                 [true, true, false],
                 11,
-                [getUncomprPubkey(signer2), getUncomprPubkey(signer1)],
+                [signer2.publicKey, signer1.publicKey],
                 [1, 1],
                 3,
                 1
@@ -169,7 +168,7 @@ describe('Consortium', function () {
                 [signer3, signer1, signer2],
                 [true, true, false],
                 11,
-                [getUncomprPubkey(signer2), getUncomprPubkey(signer1)],
+                [signer2.publicKey, signer1.publicKey],
                 [1, 0],
                 3,
                 1
@@ -264,7 +263,7 @@ describe('Consortium with real data', function () {
     ];
 
     let consortium: Consortium;
-    let deployer: HardhatEthersSigner;
+    let deployer: Signer;
 
     before(async function () {
         [deployer] = await getSignersWithPrivateKeys();

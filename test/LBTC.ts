@@ -5,7 +5,6 @@ import {
     deployContract,
     getSignersWithPrivateKeys,
     CHAIN_ID,
-    getUncomprPubkey,
     getFeeTypedMessage,
     generatePermitSignature,
     NEW_VALSET,
@@ -75,7 +74,7 @@ describe('LBTC', function () {
         await lbtc2.changeTreasuryAddress(treasury.address);
 
         const initialValset = getPayloadForAction(
-            [1, [getUncomprPubkey(signer1)], [1], 1, 1],
+            [1, [signer1.publicKey], [1], 1, 1],
             NEW_VALSET
         );
 
@@ -619,7 +618,7 @@ describe('LBTC', function () {
                 const valset = getPayloadForAction(
                     [
                         1,
-                        [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
+                        [signer1.publicKey, signer2.publicKey],
                         [1, 1],
                         2,
                         1,

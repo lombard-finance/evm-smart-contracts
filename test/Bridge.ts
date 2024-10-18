@@ -1,4 +1,3 @@
-import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import {
     LBTCMock,
     Bascule,
@@ -17,26 +16,25 @@ import {
     deployContract,
     CHAIN_ID,
     getPayloadForAction,
-    signPayload,
     NEW_VALSET,
     DEPOSIT_BRIDGE_ACTION,
     encode,
     signDepositBridgePayload,
-    getUncomprPubkey,
+    Signer
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { LBTCTokenPool } from '../typechain-types/contracts/bridge/adapters/TokenPool.sol';
 
 describe('Bridge', function () {
-    let deployer: HardhatEthersSigner,
-        signer1: HardhatEthersSigner,
-        signer2: HardhatEthersSigner,
-        signer3: HardhatEthersSigner,
-        treasury: HardhatEthersSigner,
-        reporter: HardhatEthersSigner,
-        admin: HardhatEthersSigner,
-        pauser: HardhatEthersSigner;
+    let deployer: Signer,
+        signer1: Signer,
+        signer2: Signer,
+        signer3: Signer,
+        treasury: Signer,
+        reporter: Signer,
+        admin: Signer,
+        pauser: Signer;
     let lbtcSource: LBTCMock;
     let lbtcDestination: LBTCMock;
     let consortium: Consortium;
@@ -46,7 +44,6 @@ describe('Bridge', function () {
     let adapterSource: DefaultAdapter;
     let adapterDestination: DefaultAdapter;
     let snapshot: SnapshotRestorer;
-    let snapshotTimestamp: number;
 
     before(async function () {
         [
@@ -66,7 +63,7 @@ describe('Bridge', function () {
         ]);
         await consortium.setInitalValidatorSet(
             getPayloadForAction(
-                [1, [getUncomprPubkey(signer1)], [1], 1, 1],
+                [1, [signer1.publicKey], [1], 1, 1],
                 NEW_VALSET
             )
         );
@@ -130,8 +127,6 @@ describe('Bridge', function () {
         await lbtcDestination.changeTreasuryAddress(treasury.address);
 
         snapshot = await takeSnapshot();
-        snapshotTimestamp = (await ethers.provider.getBlock('latest'))!
-            .timestamp;
     });
 
     afterEach(async function () {
