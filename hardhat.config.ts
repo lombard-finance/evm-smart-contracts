@@ -2,10 +2,24 @@ import { HardhatUserConfig, vars } from 'hardhat/config';
 import '@nomicfoundation/hardhat-toolbox';
 import '@openzeppelin/hardhat-upgrades';
 import '@nomicfoundation/hardhat-ethers';
+import 'hardhat-gas-reporter';
 
 import './scripts';
 
 const config: HardhatUserConfig = {
+    gasReporter: {
+        enabled: true,
+        currency: 'USD',
+        L1: 'ethereum',
+        coinmarketcap: vars.get('CMC_API_KEY', ''),
+        excludeContracts: [
+            'BTCBMock',
+            'CCIPRouterMock',
+            'LBTCMock',
+            'WBTCMock',
+        ],
+        L1Etherscan: vars.get('ETHERSCAN_API_KEY', ''),
+    },
     solidity: {
         compilers: [
             {
