@@ -11,9 +11,6 @@ interface IBridge {
     /// @notice Emitted when the destination is already known.
     error KnownDestination();
 
-    /// @notice Emitted when the commission is invalid.
-    error BadCommission();
-
     /// @notice Emitted when the zero contract hash is used.
     error ZeroContractHash();
 
@@ -22,9 +19,6 @@ interface IBridge {
 
     /// @notice Emitted when the destination is not valid.
     error NotValidDestination();
-
-    /// @notice Emitted when there is no enough value to pay relative fee
-    error AmountTooSmallToPayRelativeFee();
 
     /// @notice Emitted when amount is below commission
     error AmountLessThanCommission(uint256 commission);
