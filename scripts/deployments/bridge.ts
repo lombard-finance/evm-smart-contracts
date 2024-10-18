@@ -13,7 +13,7 @@ task('deploy-bridge', 'Deploys the Bridge contract via create3')
     .addParam('treasury', 'The address of the treasury')
     .addParam(
         'adapter',
-        'Address of the intial adapter to use or name of the adpater to deploy'
+        'Address of the initial adapter to use or name of the adapter to deploy'
     )
     .addOptionalParam(
         'router',

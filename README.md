@@ -55,8 +55,19 @@ Deploy proxy factory from zero nonce account
 yarn hardhat deploy-proxy-factory --network '$NETWORK'
 ```
 
+##### Core contracts
+Deploy consortium
 ```bash
-yarn hardhat deploy-consortium [params]
-yarn hardhat deploy-timelock [params]
-yarn hardhat deploy-lbtc [params]
+yarn hardhat deploy-consortium --network '$NETWORK'
 ```
+
+Deploy LBTC
+```bash
+yarn hardhat deploy-lbtc --consortium '$CONSORTIUM' --burn-commission 10000 --network '$NETWORK'
+```
+
+Configure smart-contracts:
+*TBD*
+
+###### Bridge
+
