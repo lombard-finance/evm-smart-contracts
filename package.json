@@ -5,8 +5,8 @@
   "author": "Lombrad Finance",
   "license": "MIT",
   "scripts": {
-    "prettier": "prettier --write './**/*.{sol,ts,js}'",
-    "prettier:check": "prettier --check './**/*.{sol,ts,js}'",
+    "format": "prettier --write './**/*.{sol,ts,js}'",
+    "format:check": "prettier --check './**/*.{sol,ts,js}'",
     "test": "hardhat test"
   },
   "devDependencies": {
