@@ -20,7 +20,6 @@ contract Bridge is
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Bridge
     struct BridgeStorage {
-        // TODO: Check if needed
         address treasury;
         LBTC lbtc;
         // Increments with each cross chain operation and should be part of the payload
@@ -235,8 +234,10 @@ contract Bridge is
     }
 
     function _changeTreasury(address treasury_) internal {
-        // TODO: Add events
-        _getBridgeStorage().treasury = treasury_;
+        BridgeStorage storage $ = _getBridgeStorage();
+        address previousTreasury = $.treasury;
+        $.treasury = treasury_;
+        emit TreasuryChanged(previousTreasury, treasury_);
     }
 
     function _changeAdapter(address newAdapter) internal {

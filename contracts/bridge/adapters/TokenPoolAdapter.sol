@@ -14,8 +14,11 @@ contract TokenPoolAdapter is AbstractAdapter {
     uint256 gasLimit;
     bytes32 public latestPayloadHashSent;
 
-    /// @notice Emmitted when msg.value is not enough to pay CCIP fee.
+    /// @notice Thrown when msg.value is not enough to pay CCIP fee.
     error NotEnoughToPayFee(uint256 fee);
+
+    /// @notice Emitted when gas limit is changed
+    event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
 
     constructor(
         address ccipRouter_,
@@ -23,7 +26,7 @@ contract TokenPoolAdapter is AbstractAdapter {
         address owner_
     ) AbstractAdapter(lbtc_, owner_) {
         ccipRouter = IRouterClient(ccipRouter_);
-        gasLimit = 200_000; // TODO: estimate
+        gasLimit = 200_000;
     }
 
     function setTokenPool(address tokenPool_) external onlyOwner {
@@ -98,5 +101,11 @@ contract TokenPoolAdapter is AbstractAdapter {
                 ),
                 feeToken: address(0) // let's pay with native tokens
             });
+    }
+
+    function setGasLimit(uint256 limit) external onlyOwner {
+        uint256 oldLimit = gasLimit;
+        gasLimit = limit;
+        emit GasLimitChanged(oldLimit, limit);
     }
 }

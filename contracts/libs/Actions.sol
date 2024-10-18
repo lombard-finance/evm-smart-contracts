@@ -103,7 +103,6 @@ library Actions {
     /// does not provide Byzantine fault tolerance. For a truly distributed and
     /// fault-tolerant system, a minimum of 4 validators would be recommended to tolerate
     /// at least one Byzantine fault.
-    /// @dev TODO: Review if needed
     uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
 
     /**

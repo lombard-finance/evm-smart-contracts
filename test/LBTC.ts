@@ -103,9 +103,12 @@ describe('LBTC', function () {
     });
 
     describe('Setters and getters', function () {
-        // TODO: check treasury
-
-        it('owner() is deployer', async function () {
+      it("treasury() is set", async function () {
+        expect(await lbtc.getTreasury()).to.equal(treasury.address);
+        expect(await lbtc2.getTreasury()).to.equal(treasury.address);
+      })  
+      
+      it('owner() is deployer', async function () {
             expect(await lbtc.owner()).to.equal(deployer.address);
         });
 
@@ -584,7 +587,7 @@ describe('LBTC', function () {
 
         describe('Negative cases', function () {
             let newConsortium: Consortium;
-            const defaultExtraData = ethers.hexlify(ethers.randomBytes(32));
+            const defaultTxId = ethers.hexlify(ethers.randomBytes(32));
             const defaultArgs = {
                 signers: () => [signer1, signer2],
                 signatures: [true, true],
@@ -601,8 +604,8 @@ describe('LBTC', function () {
                 caller: () => lbtc.getAddress(),
                 verifier: () => newConsortium.getAddress(),
                 epoch: 1,
-                extraData: defaultExtraData,
-                signatureExtraData: defaultExtraData,
+                txId: defaultTxId,
+                signatureTxId: defaultTxId,
                 interface: () => newConsortium,
                 customError: 'WrongSignatureReceived',
                 params: () => [],
@@ -632,7 +635,7 @@ describe('LBTC', function () {
                     defaultArgs.signatureChainId,
                     defaultArgs.signatureRecipient().address,
                     defaultArgs.signatureAmount,
-                    defaultArgs.signatureExtraData // TODO: rename to txid
+                    defaultArgs.signatureTxId
                 );
                 defaultProof = data.proof;
                 defaultPayload = data.payload;
@@ -674,12 +677,12 @@ describe('LBTC', function () {
                 {
                     ...defaultArgs,
                     name: 'extra data signature mismatch',
-                    signatureExtraData: ethers.randomBytes(32),
+                    signatureTxId: ethers.randomBytes(32),
                 },
                 {
                     ...defaultArgs,
                     name: 'extra data mismatch',
-                    extraData: ethers.randomBytes(32),
+                    txId: ethers.randomBytes(32),
                 },
                 {
                     ...defaultArgs,
@@ -726,14 +729,14 @@ describe('LBTC', function () {
                         args.signatureChainId,
                         args.signatureRecipient().address,
                         args.signatureAmount,
-                        args.signatureExtraData
+                        args.signatureTxId
                     );
                     const payload = getPayloadForAction(
                         [
                             encode(['uint256'], [args.chainId]),
                             encode(['address'], [args.mintRecipient().address]),
                             args.mintAmount,
-                            args.extraData,
+                            args.txId,
                             0,
                         ],
                         DEPOSIT_BTC_ACTION
