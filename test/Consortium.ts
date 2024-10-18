@@ -254,7 +254,7 @@ describe("Consortium with real data", function () {
       proof.set(rawSig.slice(rStart, rStart+rLength), 32-rLength)
       proof.set(rawSig.slice(sStart, sStart+sLength), 64-sLength);
 
-      ethSigs.push(hexlify(proof))
+      ethSigs.push(ethers.hexlify(proof))
     }
 
     const proof = encode(['bytes[]'], [ethSigs])

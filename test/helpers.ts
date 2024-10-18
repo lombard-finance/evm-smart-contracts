@@ -1,7 +1,6 @@
 import { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTC, WBTCMock, Bascule } from "../typechain-types";
-import {AddressLike, BaseContract, Contract, Signer, Signature} from "ethers";
+import {BaseContract, BigNumberish, Signature} from "ethers";
 
 type Signer = HardhatEthersSigner & {
   publicKey: string;
@@ -27,7 +26,7 @@ export function rawSign(
   signer: HardhatEthersSigner,
   message: string
 ): string {
-  const signingKey = new ethers.SigningKey(signer.privateKey);
+  const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
   const signature = signingKey.sign(message);
 
   return signature.serialized;
@@ -125,7 +124,7 @@ export async function signPayload(
   const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
 
-    const signingKey = new ethers.SigningKey(signer.privateKey);
+    const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
     const signature = signingKey.sign(hash);
 
     const sig = rawSign(signer, hash);
@@ -171,7 +170,7 @@ export async function getSignersWithPrivateKeys(
 }
 
 export async function generatePermitSignature(
-  token: Contract, 
+  token: ethers.Contract,
   owner: Signer, 
   spender: string,
   value: number, 

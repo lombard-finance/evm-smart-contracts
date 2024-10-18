@@ -14,7 +14,7 @@ interface INotaryConsortium {
     error NotEnoughSignatures();
 
     /// @dev Error thrown when ECDSA signature verification fails
-    error SignatureVerificationFailed(uint256 sigIndex, ECDSA.RecoverError err);
+    error SignatureVerificationFailed(uint256 sigIndx, ECDSA.RecoverError err);
 
     /// @dev Error thrown when signature verification fails
     error WrongSignatureReceived(bytes sig);
@@ -33,7 +33,4 @@ interface INotaryConsortium {
 
     /// @dev Error thrown when invalid epoch is provided
     error InvalidEpoch();
-
-    /// @dev Event emitted when the validator missed or submit wrong signature
-    event MissedSignature(address indexed validator, bytes32 indexed payloadHash, bytes32 r, bytes32 s);
 }

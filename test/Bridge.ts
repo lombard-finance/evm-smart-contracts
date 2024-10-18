@@ -9,7 +9,18 @@ import {
   CCIPRouterMock,
 } from "../typechain-types";
 import { takeSnapshot, SnapshotRestorer } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { getSignersWithPrivateKeys, deployContract, CHAIN_ID, getPayloadForAction, signPayload, NEW_VALSET, DEPOSIT_BRIDGE_ACTION, encode, signDepositBridgePayload } from "./helpers";
+import {
+  getSignersWithPrivateKeys,
+  deployContract,
+  CHAIN_ID,
+  getPayloadForAction,
+  signPayload,
+  NEW_VALSET,
+  DEPOSIT_BRIDGE_ACTION,
+  encode,
+  signDepositBridgePayload,
+  getUncomprPubkey
+} from "./helpers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { LBTCTokenPool } from "../typechain-types/contracts/bridge/adapters/TokenPool.sol";
@@ -48,7 +59,7 @@ describe("Bridge", function () {
 
     // for both chains
     consortium = await deployContract<Consortium>("Consortium", [deployer.address]);
-    await consortium.setInitalValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
+    await consortium.setInitalValidatorSet(getPayloadForAction([1, [getUncomprPubkey(signer1)], [1], 1, 1], NEW_VALSET));
 
     // chain 1
     lbtcSource = await deployContract<LBTCMock>("LBTCMock", [await consortium.getAddress(), 100, deployer.address]);

@@ -135,7 +135,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     /// @param _payloadHash data to be signed
     /// @param _proof encoding of (validators, weights, signatures)
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
-    function _checkProof(bytes32 _payloadHash, bytes memory _proof) internal view {
+    function _checkProof(bytes32 _payloadHash, bytes calldata _proof) internal view {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         if($.epoch == 0) {
             revert NoValidatorSet();
@@ -169,7 +169,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
                 if (r == bytes32(0) || s == bytes32(0)) {
                     // either R or S missed
-                    emit MissedSignature(validators[i], _payloadHash, r, s);
                     continue;
                 }
 
@@ -195,8 +194,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                 // signature accepted
 
                 unchecked { weight += weights[i]; }
-            } else {
-                emit MissedSignature(validators[i], _payloadHash, bytes32(0), bytes32(0));
             }
 
             unchecked { ++i; }
