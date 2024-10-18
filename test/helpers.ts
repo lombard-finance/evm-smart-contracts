@@ -1,21 +1,10 @@
-import hardhat, { config, ethers, upgrades } from "hardhat";
+import { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { LBTC, WBTCMock, Bascule } from "../typechain-types";
-import { AddressLike, BaseContract, Contract, Signer, Signature, BigNumberish } from "ethers";
-import {string} from "hardhat/internal/core/params/argumentTypes";
+import { BaseContract, Contract, Signer, Signature } from "ethers";
 
 export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
 export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
-
-export const ERRORS_IFACE = {
-  interface: ethers.Interface.from([
-    "error WrongChainId()",
-    "error ZeroAddress()",
-    "error ZeroTxId()",
-    "error ZeroAmount()",
-  ]),
-};
 
 const ACTIONS_IFACE = ethers.Interface.from([
   "function feeApproval(uint256,uint256)",
@@ -100,7 +89,6 @@ export async function signNewValSetPayload(
   weightThreshold: number,
   height: BigInt | number = 0n,
 ) {
-
   let msg = getPayloadForAction([
     epoch,
     validators,
@@ -166,30 +154,6 @@ export async function getSignersWithPrivateKeys(
     }
   }
   return signers;
-}
-
-
-export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  const LBTC = await ethers.getContractFactory("LBTC");
-  const lbtc = (await upgrades.deployProxy(LBTC, [
-    consortium.address,
-    burnCommission
-  ])) as unknown as LBTC;
-  await lbtc.waitForDeployment();
-
-  const WBTC = await ethers.getContractFactory("WBTCMock");
-  const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
-  await wbtc.waitForDeployment();
-
-  return { lbtc, wbtc };
-}
-
-export async function deployBascule(reporter: HardhatEthersSigner, lbtc: AddressLike): Promise<Bascule> {
-  const Bascule = await ethers.getContractFactory("Bascule");
-  const [admin, pauser, maxDeposits] = [ reporter.address, reporter.address, 100 ];
-  const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
-  await bascule.waitForDeployment();
-  return bascule;
 }
 
 export async function generatePermitSignature(
