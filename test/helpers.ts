@@ -1,6 +1,11 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { BaseContract, Contract, Signer, Signature } from 'ethers';
+import { BaseContract, BigNumberish, Signature } from 'ethers';
+
+type Signer = HardhatEthersSigner & {
+    publicKey: string;
+    privateKey: string;
+};
 
 export const CHAIN_ID = ethers.zeroPadValue('0x7A69', 32);
 
@@ -19,7 +24,7 @@ export function getPayloadForAction(data: any[], action: string) {
 }
 
 export function rawSign(signer: HardhatEthersSigner, message: string): string {
-    const signingKey = new ethers.SigningKey(signer.privateKey);
+    const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
     const signature = signingKey.sign(message);
 
     return signature.serialized;
@@ -106,7 +111,8 @@ export async function signNewValSetPayload(
 export async function signPayload(
     signers: HardhatEthersSigner[],
     signatures: boolean[],
-    payload: string
+    payload: string,
+    cutV: boolean = true
 ): Promise<{
     payload: string;
     payloadHash: string;
@@ -122,7 +128,16 @@ export async function signPayload(
         signers.map(async (signer, index) => {
             if (!signatures[index]) return '0x';
 
-            return rawSign(signer, hash);
+            const signingKey = new ethers.SigningKey(
+                (signer as Signer).privateKey
+            );
+            const signature = signingKey.sign(hash);
+
+            const sig = rawSign(signer, hash);
+            if (cutV) {
+                return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
+            }
+            return signature.serialized;
         })
     );
 
@@ -160,8 +175,8 @@ export async function getSignersWithPrivateKeys(
             `m/44'/60'/0'/0/${i}`
         );
         if (wallet.address === signers[i].address) {
-            signers[i].privateKey = wallet.privateKey;
-            signers[i].publicKey =
+            (signers[i] as Signer).privateKey = wallet.privateKey;
+            (signers[i] as Signer).publicKey =
                 `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
         }
     }
@@ -169,7 +184,7 @@ export async function getSignersWithPrivateKeys(
 }
 
 export async function generatePermitSignature(
-    token: Contract,
+    token: ethers.Contract,
     owner: Signer,
     spender: string,
     value: number,
@@ -211,6 +226,17 @@ export async function generatePermitSignature(
     // Split the signature into v, r, s components
     const signatureObj = Signature.from(signature);
     return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
+}
+
+export function getUncomprPubkey(signer: HardhatEthersSigner) {
+    const raw = ethers.getBytes((signer as Signer).publicKey);
+
+    const unc = new Uint8Array(65);
+    // set uncompressed prefix
+    unc.set([4]);
+    unc.set(raw, 1);
+
+    return ethers.hexlify(unc);
 }
 
 export async function getFeeTypedMessage(

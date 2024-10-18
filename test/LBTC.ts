@@ -5,6 +5,7 @@ import {
     deployContract,
     getSignersWithPrivateKeys,
     CHAIN_ID,
+    getUncomprPubkey,
     getFeeTypedMessage,
     generatePermitSignature,
     NEW_VALSET,
@@ -76,7 +77,7 @@ describe('LBTC', function () {
         await lbtc2.changeTreasuryAddress(treasury.address);
 
         const initialValset = getPayloadForAction(
-            [1, [signer1.publicKey], [1], 1, 1],
+            [1, [getUncomprPubkey(signer1)], [1], 1, 1],
             NEW_VALSET
         );
 
@@ -606,7 +607,7 @@ describe('LBTC', function () {
                 extraData: defaultExtraData,
                 signatureExtraData: defaultExtraData,
                 interface: () => newConsortium,
-                customError: 'SignatureVerificationFailed',
+                customError: 'WrongSignatureReceived',
                 params: () => [],
             };
             let defaultProof: string;
@@ -618,7 +619,13 @@ describe('LBTC', function () {
                     deployer.address,
                 ]);
                 const valset = getPayloadForAction(
-                    [1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1],
+                    [
+                        1,
+                        [getUncomprPubkey(signer1), getUncomprPubkey(signer2)],
+                        [1, 1],
+                        2,
+                        1,
+                    ],
                     NEW_VALSET
                 );
                 await newConsortium.setInitalValidatorSet(valset);
@@ -704,7 +711,7 @@ describe('LBTC', function () {
                     ...defaultArgs,
                     name: 'unknown validator set',
                     signers: () => [signer1, deployer],
-                    customError: 'SignatureVerificationFailed',
+                    customError: 'WrongSignatureReceived',
                 },
                 {
                     ...defaultArgs,

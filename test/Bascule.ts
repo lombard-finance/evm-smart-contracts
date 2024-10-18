@@ -3,7 +3,6 @@ import { ethers as hhEthers } from 'hardhat';
 import { getRandomValues } from 'crypto';
 import * as tc from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { hexlify } from 'ethers';
 
 let admin: HardhatEthersSigner;
 let pauser: HardhatEthersSigner;
@@ -824,7 +823,7 @@ describe('Bascule', function () {
             ).wait();
             let events = await bascule.queryFilter(filter);
             expect(events.length).to.equal(1);
-            expect(events[0].args[0]).to.equal(hexlify(reportId));
+            expect(events[0].args[0]).to.equal(hhEthers.hexlify(reportId));
             expect(events[0].args[1]).to.equal(2n);
 
             // report 3 deposits with the same reportId (avoid doing this, but it's okay in testing)
@@ -835,9 +834,9 @@ describe('Bascule', function () {
             ).wait();
             events = await bascule.queryFilter(filter);
             expect(events.length).to.equal(2);
-            expect(events[0].args[0]).to.equal(hexlify(reportId));
+            expect(events[0].args[0]).to.equal(hhEthers.hexlify(reportId));
             expect(events[0].args[1]).to.equal(2n);
-            expect(events[1].args[0]).to.equal(hexlify(reportId));
+            expect(events[1].args[0]).to.equal(hhEthers.hexlify(reportId));
             expect(events[1].args[1]).to.equal(3n);
         });
     });

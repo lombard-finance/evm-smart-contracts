@@ -7,6 +7,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {Actions} from "../libs/Actions.sol";
 import {INotaryConsortium} from "./INotaryConsortium.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
@@ -162,7 +163,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
     function _checkProof(
         bytes32 _payloadHash,
-        bytes memory _proof
+        bytes calldata _proof
     ) internal view {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         if ($.epoch == 0) {
@@ -180,20 +181,56 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         uint256 weight = 0;
         uint256[] storage weights = $.validatorSet[$.epoch].weights;
         for (uint256 i; i < length; ) {
-            if (signatures[i].length != 0) {
-                if (
-                    !EIP1271SignatureUtils.checkSignature(
-                        validators[i],
-                        _payloadHash,
-                        signatures[i]
-                    )
-                ) {
-                    revert SignatureVerificationFailed();
+            // each signature preset R || S values
+            // V is missed, because validators use Cosmos SDK keyring which is not signing in eth style
+            if (signatures[i].length == 64) {
+                // split signature by R and S values
+                bytes memory sig = signatures[i];
+                bytes32 r;
+                bytes32 s;
+
+                // load the first 32 bytes (r) and the second 32 bytes (s) from the sig
+                assembly {
+                    r := mload(add(sig, 0x20)) // first 32 bytes (offset 0x20)
+                    s := mload(add(sig, 0x40)) // next 32 bytes (offset 0x40)
                 }
+
+                if (r == bytes32(0) || s == bytes32(0)) {
+                    // either R or S missed
+                    continue;
+                }
+
+                // try recover with V = 27
+                (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
+                    _payloadHash,
+                    27,
+                    r,
+                    s
+                );
+
+                // revert if bad signature
+                if (err != ECDSA.RecoverError.NoError) {
+                    revert SignatureVerificationFailed(i, err);
+                }
+
+                // if signer doesn't match try V = 28
+                if (signer != validators[i]) {
+                    (signer, err, ) = ECDSA.tryRecover(_payloadHash, 28, r, s);
+                    if (err != ECDSA.RecoverError.NoError) {
+                        revert SignatureVerificationFailed(i, err);
+                    }
+
+                    if (signer != validators[i]) {
+                        revert WrongSignatureReceived(signatures[i]);
+                    }
+                }
+                // signature accepted
+
                 unchecked {
                     weight += weights[i];
                 }
             }
+
             unchecked {
                 ++i;
             }
