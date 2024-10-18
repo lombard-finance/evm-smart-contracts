@@ -28,6 +28,11 @@ library Actions {
         uint256 height;
     }
 
+    struct FeeApprovalAction {
+        uint256 fee;
+        uint256 expiry;
+    }
+
     /// @dev Error thrown when invalid public key is provided
     error InvalidPublicKey(bytes pubKey);
 
@@ -61,6 +66,19 @@ library Actions {
     /// @dev Error thrown when zero weight is provided
     error ZeroWeight();
 
+    /// @dev Error thrown when fee approval is expired
+    error UserSignatureExpired(uint256 expiry);
+
+    /// @dev Error thrown when amount is below fee
+    error NotEnoughAmountToUseApproval();
+
+    /// @dev Error thrown when zero fee is used
+    error ZeroFee();
+
+    // bytes4(keccak256("feeApproval(uint256,uint256)"))
+    bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
+    // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
+    bytes32 internal constant FEE_APPROVAL_EIP712_ACTION = 0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
     bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
     // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
@@ -215,5 +233,23 @@ library Actions {
             unchecked { ++i; }
         }
         return addresses;
+    }
+
+    /**
+     * @notice Returns decoded fee approval
+     * @dev Payload should not contain the selector
+     * @param payload Body of the fee approval payload
+     */
+    function feeApproval(bytes memory payload) internal view returns (FeeApprovalAction memory){
+        (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
+
+        if(block.timestamp > expiry) {
+            revert UserSignatureExpired(expiry);
+        }
+        if(fee == 0) {
+            revert ZeroFee();
+        }
+
+        return FeeApprovalAction(fee, expiry);
     }
 }

@@ -15,8 +15,9 @@ interface ILBTC {
     error UnauthorizedAccount(address account);
     error UnexpectedAction(bytes4 action);
     error UnknownOriginContract(uint256 fromChainId, address fromContract);
-    /// @dev Error thrown when signature payload is already used
+    error InvalidUserSignature();
     error PayloadAlreadyUsed();
+    error InvalidInputLength();
 
     event PauserRoleTransferred(address indexed previousPauser, address indexed newPauser);
     event UnstakeRequest(address indexed fromAddress, bytes scriptPubKey, uint256 amount);
@@ -29,6 +30,10 @@ interface ILBTC {
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     event MinterUpdated(address indexed minter, bool isMinter);
     event BridgeChanged(address indexed prevVal, address indexed newVal);
+    event ClaimerUpdated(address indexed claimer, bool isClaimer);
+    event FeeCharged(uint256 indexed fee, bytes userSignature);
+    event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    error FeeGreaterThanAmount();
 
     event MintProofConsumed(address indexed recipient, bytes32 indexed payloadHash, bytes payload);
 }

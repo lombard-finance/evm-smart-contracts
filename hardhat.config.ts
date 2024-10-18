@@ -35,6 +35,20 @@ const config: HardhatUserConfig = {
       gasMultiplier: 1.5,
       timeout: 180_000,
     },
+    sepolia: {
+      loggingEnabled: true,
+      url: vars.get("SEPOLIA_RPC", "https://ethereum-sepolia-rpc.publicnode.com"),
+      chainId: 11155111,
+      accounts: [
+        vars.get(
+          "TESTNET_DEPLOYER_SK",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ),
+      ],
+      gas: 8_000_000,
+      gasMultiplier: 1.1,
+      timeout: 180_000,
+    },
     bscTestnet: {
       loggingEnabled: true,
       url: vars.get(
@@ -246,51 +260,22 @@ const config: HardhatUserConfig = {
     ],
     apiKey: {
       // testnets
-      holesky: vars.get(
-        "ETHERSCAN_API_KEY",
-        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
-      ),
-      bscTestnet: vars.get(
-        "BSCSCAN_API_KEY",
-        "UI7BPX1FHRXIUBSW95UPW6MYIPKM696HV6"
-      ),
-      scroll_testnet: vars.get(
-        "SCROLLSCAN_API_KEY",
-        "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
-      ),
-      zircuit_testnet: vars.get(
-        "ZIRCUIT_API_KEY",
-        "006A14771D1AF73D736D10F008030F9079"
-      ),
+      holesky: vars.get("ETHERSCAN_API_KEY", ""),
+      sepolia: vars.get("ETHERSCAN_API_KEY", ""),
+      bscTestnet: vars.get("BSCSCAN_API_KEY", ""),
+      scroll_testnet: vars.get("SCROLLSCAN_API_KEY", ""),
+      zircuit_testnet: vars.get("ZIRCUIT_API_KEY", ""),
+      mantle_testnet: vars.get("MANTLE_API_KEY", ""),
+      linea_testnet: vars.get("LINEA_API_KEY", ""),
+      okx_testnet: vars.get("OKX_API_KEY", ""),
 
-      mantle_testnet: vars.get(
-        "MANTLE_API_KEY",
-        "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"
-      ),
-      linea_testnet: vars.get(
-        "LINEA_API_KEY",
-        "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
-      ),
-      okx_testnet: vars.get(
-        "OKX_API_KEY",
-        "f2245a5a-1f4c-47fa-b006-31d98eefc7a4"
-      ),
       // mainnets
-      mainnet: vars.get(
-        "ETHERSCAN_API_KEY",
-        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
-      ),
-      bsc: vars.get("BSCSCAN_API_KEY", "UI7BPX1FHRXIUBSW95UPW6MYIPKM696HV6"),
-      scroll: vars.get(
-        "SCROLLSCAN_API_KEY",
-        "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
-      ),
-      zircuit: vars.get(
-        "ZIRCUIT_API_KEY",
-        "006A14771D1AF73D736D10F008030F9079"
-      ),
-      linea: vars.get("LINEA_API_KEY", "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"),
-      mantle: vars.get("MANTLE_API_KEY", "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"),
+      mainnet: vars.get("ETHERSCAN_API_KEY", ""),
+      bsc: vars.get("BSCSCAN_API_KEY", ""),
+      scroll: vars.get("SCROLLSCAN_API_KEY", ""),
+      zircuit: vars.get("ZIRCUIT_API_KEY", ""),
+      linea: vars.get("LINEA_API_KEY", ""),
+      mantle: vars.get("MANTLE_API_KEY", ""),
     },
   },
   sourcify: {

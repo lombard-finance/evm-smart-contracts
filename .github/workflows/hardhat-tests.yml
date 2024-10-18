@@ -2,9 +2,9 @@ name: Hardhat Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, bft]
   pull_request:
-    branches: [main]
+    branches: [main, bft]
 
 jobs:
   test:
