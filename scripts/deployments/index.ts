@@ -6,3 +6,4 @@ export * from './create3-factory';
 export * from './lbtc';
 export * from './token-pool';
 export * from './default-adapter';
+export * from './chainlink-adapter';
