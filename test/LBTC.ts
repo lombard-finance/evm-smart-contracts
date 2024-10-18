@@ -5,13 +5,20 @@ import {
   deployContract,
   getSignersWithPrivateKeys,
   CHAIN_ID,
-  generatePermitSignature, DEPOSIT_BTC_ACTION, DEPOSIT_BRIDGE_ACTION, NEW_VALSET,
-  encode, signDepositBridgePayload, getPayloadForAction, signDepositBtcPayload, getUncomprPubkey,
+  getUncomprPubkey,
+  getFeeTypedMessage,
+  generatePermitSignature,
+  NEW_VALSET,
+  DEPOSIT_BTC_ACTION,
+  DEPOSIT_BRIDGE_ACTION,
+  encode,
+  signDepositBridgePayload,
+  getPayloadForAction,
+  signDepositBtcPayload
 } from "./helpers";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTCMock, Bascule, Consortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import {hexlify} from "ethers";
 
 describe("LBTC", function () {
   let deployer: HardhatEthersSigner,
@@ -59,6 +66,14 @@ describe("LBTC", function () {
     await lbtc.addMinter(deployer.address);
     await lbtc2.addMinter(deployer.address);
 
+    // set deployer as claimer for lbtc
+    await lbtc.addClaimer(deployer.address);
+    await lbtc2.addClaimer(deployer.address);
+
+    // Initialize the permit module
+    await lbtc.reinitialize();
+    await lbtc2.reinitialize();
+
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock("latest"))!.timestamp;
   });
@@ -73,18 +88,6 @@ describe("LBTC", function () {
 
     it("owner() is deployer", async function () {
       expect(await lbtc.owner()).to.equal(deployer.address);
-    });
-
-    it("getDepositRelativeCommission", async function () {
-      expect(
-        await lbtc.getDepositRelativeCommission(ethers.zeroPadValue("0x", 32))
-      ).to.equal(0);
-    });
-
-    it("getDepositAbsoluteCommission", async function () {
-      expect(
-        await lbtc.getDepositAbsoluteCommission(ethers.zeroPadValue("0x", 32))
-      ).to.equal(0);
     });
 
     it("consortium() set at initialization", async function () {
@@ -194,51 +197,206 @@ describe("LBTC", function () {
         .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount")
         .withArgs(signer1.address);
     });
+
+    it("should fail to add minter if not owner", async function () {
+      await expect(lbtc.connect(signer1).addMinter(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("should fail to remove minter if not owner", async function () {
+      await expect(lbtc.connect(signer1).removeMinter(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("addClaimer should be callable by owner", async function () {
+      await expect(lbtc.addClaimer(signer1.address))
+        .to.emit(lbtc, "ClaimerUpdated")
+        .withArgs(signer1.address, true);
+      expect(await lbtc.isClaimer(signer1.address)).to.be.true;
+    });
+
+    it("removeClaimer should be callable by owner", async function () {
+      await lbtc.addClaimer(signer1.address);
+      await expect(lbtc.removeClaimer(signer1.address))
+        .to.emit(lbtc, "ClaimerUpdated")
+        .withArgs(signer1.address, false);
+      expect(await lbtc.isClaimer(signer1.address)).to.be.false;
+    });
+
+    it("should fail to add claimer if not owner", async function () {
+      await expect(lbtc.connect(signer1).addClaimer(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("should fail to remove claimer if not owner", async function () {
+      await expect(lbtc.connect(signer1).removeClaimer(signer1.address))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    });
+
+    it("should set mint fee", async function () {
+      await expect(lbtc.setMintFee(1234))
+        .to.emit(lbtc, "FeeChanged")
+        .withArgs(0, 1234);
+      expect(await lbtc.getMintFee()).to.be.equal(1234);
+    })
+
+    it("should fail to set mint fee if not owner", async function () {
+      await expect(lbtc.connect(signer1).setMintFee(1))
+        .to.revertedWithCustomError(lbtc, "OwnableUnauthorizedAccount");
+    })
   });
 
   describe("Mint", function () {
+    let mintWithoutFee: [string[], string[], any[][]] = [[], [], []];
+    let mintWithFee: [string[], string[], string[], string[], any[][]] = [[], [], [], [], []];
+
     describe("Positive cases", function () {
       const args = [
         {
           name: "1 BTC",
           amount: 100_000_000n,
-          recipient: () => signer2.address,
+          recipient: () => signer2,
           msgSender: () => signer1,
         },
         {
-          name: "1 satoshi",
-          amount: 1n,
-          recipient: () => signer3.address,
+          name: "3 satoshi",
+          amount: 3n,
+          recipient: () => signer3,
           msgSender: () => signer2,
         }
       ];
       
-      args.forEach(async function (args) {        
+      args.forEach(async function (args, i) {
         it(`Mint ${args.name}`, async function () {
-          const balanceBefore = await lbtc.balanceOf(args.recipient());
+          const balanceBefore = await lbtc.balanceOf(args.recipient().address);
           const totalSupplyBefore = await lbtc.totalSupply();
   
           const data = await signDepositBtcPayload(
             [signer1], 
             [true],
             CHAIN_ID,
-            args.recipient(),
+            args.recipient().address,
             args.amount,
-            ethers.hexlify(ethers.randomBytes(32)), // random txid
+            encode(["uint256"], [i + 1]), // txid
           );
   
           await expect(lbtc.connect(args.msgSender())["mint(bytes,bytes)"](data.payload, data.proof))
             .to.emit(lbtc, "Transfer")
-            .withArgs(ethers.ZeroAddress, args.recipient(), args.amount);
+            .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount);
   
-          const balanceAfter = await lbtc.balanceOf(args.recipient());
+          const balanceAfter = await lbtc.balanceOf(args.recipient().address);
           const totalSupplyAfter = await lbtc.totalSupply();
   
           expect(balanceAfter - balanceBefore).to.be.eq(args.amount);
           expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(args.amount);
+
+          mintWithoutFee[0].push(data.payload);
+          mintWithoutFee[1].push(data.proof);
+          mintWithoutFee[2].push([ethers.ZeroAddress, args.recipient().address, args.amount]);
         });
+
+        const fees = [
+          {max: args.amount, fee: args.amount - 1n},
+          {max: args.amount, fee: 1n},
+          {max: args.amount - 1n, fee: args.amount},
+          {max: 1n, fee: args.amount},
+        ];
+        fees.forEach(async function ({fee, max}, j) {
+          it(`Mint ${args.name} with ${fee} satoshis fee and max fee of ${max}`, async function () {
+            const userBalanceBefore = await lbtc.balanceOf(args.recipient().address);
+            const treasuryBalanceBefore = await lbtc.balanceOf(treasury.address);
+            const totalSupplyBefore = await lbtc.totalSupply();
+
+            const data = await signDepositBtcPayload(
+              [signer1],
+              [true],
+              CHAIN_ID,
+              args.recipient().address,
+              args.amount,
+              encode(["uint256"], [i * 2 + j]), // // txid
+            );
+            const userSignature = await getFeeTypedMessage(
+              args.recipient(),
+              await lbtc.getAddress(),
+              fee,
+              snapshotTimestamp + 100,
+            );
+
+            // set max fee
+            await lbtc.setMintFee(max);
+
+            const approval = getPayloadForAction([fee, snapshotTimestamp + 100], "feeApproval");
+
+            const appliedFee = fee < max? fee : max;
+            await expect(lbtc.mintWithFee(
+              data.payload,
+              data.proof,
+              approval,
+              userSignature
+            ))
+              .to.emit(lbtc, "Transfer")
+              .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount - appliedFee)
+              .to.emit(lbtc, "Transfer")
+              .withArgs(ethers.ZeroAddress, treasury.address, appliedFee)
+              .to.emit(lbtc, "FeeCharged")
+              .withArgs(appliedFee, userSignature);
+
+            const userBalanceAfter = await lbtc.balanceOf(args.recipient().address);
+            const treasuryBalanceAfter = await lbtc.balanceOf(treasury.address);
+            const totalSupplyAfter = await lbtc.totalSupply();
+
+            expect(userBalanceAfter - userBalanceBefore).to.be.eq(args.amount - appliedFee);
+            expect(treasuryBalanceAfter - treasuryBalanceBefore).to.be.eq(appliedFee);
+            expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(args.amount);
+
+            if (fee < max) {
+              // use cases where max fee is not relevant
+              // to later on test batMintWithFe
+              mintWithFee[0].push(data.payload);
+              mintWithFee[1].push(data.proof);
+              mintWithFee[2].push(approval);
+              mintWithFee[3].push(userSignature);
+              mintWithFee[4].push([ethers.ZeroAddress, args.recipient().address, args.amount - appliedFee]);
+              mintWithFee[4].push([ethers.ZeroAddress, treasury.address, appliedFee]);
+            }
+          });
+        })
       });
-  
+
+      it("should do permissioned batch mint", async function () {
+        await expect(lbtc["batchMint(address[],uint256[])"](
+          [signer1.address, signer2.address],
+          [1, 2]
+        ))
+          .to.emit(lbtc, "Transfer").withArgs(ethers.ZeroAddress, signer1.address, 1)
+          .to.emit(lbtc, "Transfer").withArgs(ethers.ZeroAddress, signer2.address, 2);
+      });
+
+      it("should do batch mint for free", async function () {
+        const mintPromise = lbtc["batchMint(bytes[],bytes[])"](mintWithoutFee[0], mintWithoutFee[1]);
+
+        const transferPromises = mintWithoutFee[2].map(async (args) =>
+            expect(mintPromise).to.emit(lbtc, "Transfer").withArgs(...args)
+        );
+
+        await mintPromise;
+        await Promise.all(transferPromises);
+      });
+
+      it("should do batch mint with fee", async function () {
+        // set the maximum fee from args
+        await lbtc.setMintFee(args.reduce((x, y) => x.amount > y.amount? x : y).amount + 100n);
+
+        const mintPromise = lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
+
+        const transferPromises = mintWithFee[4].map(async (args) =>
+            expect(mintPromise).to.emit(lbtc, "Transfer").withArgs(...args)
+        );
+
+        await mintPromise;
+        await Promise.all(transferPromises);
+      });
+
       describe("With bascule", function () {
         beforeEach(async function () {
           // set bascule
@@ -247,14 +405,14 @@ describe("LBTC", function () {
   
         args.forEach(function (args) {
           it(`Mint ${args.name}`, async function () {
-            const balanceBefore = await lbtc.balanceOf(args.recipient());
+            const balanceBefore = await lbtc.balanceOf(args.recipient().address);
             const totalSupplyBefore = await lbtc.totalSupply();
     
             const data = await signDepositBtcPayload(
               [signer1], 
               [true],
               CHAIN_ID,
-              args.recipient(),
+              args.recipient().address,
               args.amount,
               ethers.hexlify(ethers.randomBytes(32)), // extra data, irrelevant
             );
@@ -283,9 +441,9 @@ describe("LBTC", function () {
                 ["mint(bytes,bytes)"](data.payload, data.proof)
             )
               .to.emit(lbtc, "Transfer")
-              .withArgs(ethers.ZeroAddress, args.recipient(), args.amount);
+              .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount);
     
-            const balanceAfter = await lbtc.balanceOf(args.recipient());
+            const balanceAfter = await lbtc.balanceOf(args.recipient().address);
             const totalSupplyAfter = await lbtc.totalSupply();
     
             expect(balanceAfter - balanceBefore).to.be.eq(args.amount);
@@ -302,8 +460,8 @@ describe("LBTC", function () {
         signers: () => [signer1, signer2],
         signatures: [true, true],
         threshold: 2,
-        mintRecipient: () => signer1.address,
-        signatureRecipient: () => signer1.address,
+        mintRecipient: () => signer1,
+        signatureRecipient: () => signer1,
         mintAmount: 100_000_000n,
         signatureAmount: 100_000_000n,
         destinationContract: () => lbtc.getAddress(),
@@ -328,16 +486,16 @@ describe("LBTC", function () {
         newConsortium = await deployContract<Consortium>("Consortium", [deployer.address]);
         const valset = getPayloadForAction([1, [getUncomprPubkey(signer1), getUncomprPubkey(signer2)], [1, 1], 2, 1], NEW_VALSET)
         await newConsortium.setInitalValidatorSet(valset);
-        const {proof, payload} = await signDepositBtcPayload(
+        const data = await signDepositBtcPayload(
           defaultArgs.signers(), 
           defaultArgs.signatures,
           defaultArgs.signatureChainId,
-          defaultArgs.signatureRecipient(),
+          defaultArgs.signatureRecipient().address,
           defaultArgs.signatureAmount,
           defaultArgs.signatureExtraData, // TODO: rename to txid
         );
-        defaultProof = proof;
-        defaultPayload = payload;
+        defaultProof = data.proof;
+        defaultPayload = data.payload;
 
         await lbtc.changeConsortium(await newConsortium.getAddress());
       })
@@ -364,8 +522,8 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "recipient is 0 address",
-          mintRecipient: () => ethers.ZeroAddress,
-          signatureRecipient: () => ethers.ZeroAddress,
+          mintRecipient: () => { return {address: ethers.ZeroAddress}},
+          signatureRecipient: () => {return {address: ethers.ZeroAddress}},
           customError: "ZeroAddress",
           interface: () => lbtc
         },
@@ -390,12 +548,12 @@ describe("LBTC", function () {
         {
           ...defaultArgs,
           name: "Wrong signature recipient",
-          signatureRecipient: () => signer2.address,
+          signatureRecipient: () => signer2,
         },
         {
           ...defaultArgs,
           name: "Wrong mint recipient",
-          mintRecipient: () => signer2.address,
+          mintRecipient: () => signer2,
         },
         {
           ...defaultArgs,
@@ -422,14 +580,14 @@ describe("LBTC", function () {
             args.signers(), 
             args.signatures,
             args.signatureChainId,
-            args.signatureRecipient(),
+            args.signatureRecipient().address,
             args.signatureAmount,
             args.signatureExtraData,
           );
           const payload = getPayloadForAction(
             [
               encode(["uint256"], [args.chainId]),
-              encode(["address"], [args.mintRecipient()]),
+              encode(["address"], [args.mintRecipient().address]),
               args.mintAmount, 
               args.extraData,
               0
@@ -459,8 +617,168 @@ describe("LBTC", function () {
         // try to use the same payload again
         await expect(
           lbtc["mint(bytes,bytes)"](defaultPayload, defaultProof)
-        ).to.revertedWithCustomError(consortium, "PayloadAlreadyUsed");
+        ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
+
+        await expect(
+          lbtc.mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              snapshotTimestamp + 100
+            )
+          )
+        ).to.revertedWithCustomError(lbtc, "PayloadAlreadyUsed");
       });
+
+      describe("With fee", function () {
+        it("should revert if expired", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              snapshotTimestamp // it is already passed as some txns had happen
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "UserSignatureExpired")
+            .withArgs(snapshotTimestamp);
+        })
+
+        it("should revert if not claimer", async function () {
+          await expect(lbtc.connect(signer1).mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              1,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "UnauthorizedAccount")
+            .withArgs(signer1);
+        })
+
+        it("should revert if fee is too much", async function () {
+          // make sure current fee is not going to reduce the amount charged
+          await lbtc.setMintFee(defaultArgs.mintAmount + 10n);
+
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([defaultArgs.mintAmount, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              defaultArgs.mintAmount,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "FeeGreaterThanAmount");
+        })
+
+        it("should revert if signature is not from receiver", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              deployer,
+              await lbtc.getAddress(),
+              1,
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "InvalidUserSignature");
+        })
+
+        it("should revert if fee signature doesn't match fee payload", async function () {
+          await expect(lbtc.mintWithFee(
+            defaultPayload,
+            defaultProof,
+            getPayloadForAction([1, snapshotTimestamp + 100], "feeApproval"),
+            await getFeeTypedMessage(
+              defaultArgs.mintRecipient(),
+              await lbtc.getAddress(),
+              2, // wrong fee
+              snapshotTimestamp + 100
+            )
+          ))
+            .to.revertedWithCustomError(lbtc, "InvalidUserSignature");
+        })
+
+        describe("With batch", function () {
+          it("should fail to batch if something is wrong with the data", async function () {
+            const proofs = [...mintWithFee[1]];
+            proofs[proofs.length - 1] = "0x";
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3]))
+              .to.be.reverted;
+          });
+
+          it("should fail to batch if not claimer", async function () {
+            const proofs = [...mintWithFee[1]];
+            proofs[proofs.length - 1] = "0x";
+            await expect(lbtc.connect(signer1).batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount").withArgs(signer1.address);
+          });
+
+          it("should fail to batch if parameters length missmatch", async function () {
+            let pop = (arg: string[]) => {
+              const data = [...arg];
+              data.pop();
+              return data;
+            }
+            await expect(lbtc.batchMintWithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3]))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+            await expect(lbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3])))
+              .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+          });
+        });
+      })
+
+      it("should fail to batch mint for free if something is wrong in a mint", async function () {
+        const proofs = [...mintWithoutFee[1]];
+        proofs[proofs.length - 1] = "0x";
+
+        await expect(lbtc["batchMint(bytes[],bytes[])"](mintWithoutFee[0], proofs))
+          .to.be.reverted;
+      });
+
+      it("should fail to batch mint for free if parameters size missmatch", async function () {
+        const payloads = [...mintWithoutFee[0]];
+        const proofs = [...mintWithoutFee[1]];
+        payloads.pop()
+        proofs.pop()
+
+        await expect(lbtc["batchMint(bytes[],bytes[])"](mintWithoutFee[0], proofs))
+          .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+        await expect(lbtc["batchMint(bytes[],bytes[])"](payloads, mintWithoutFee[1]))
+          .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+      });
+    });
+
+    it("should fail to do permissioned batch mint if parameters size missmatch", async function () {
+      await expect(lbtc["batchMint(address[],uint256[])"]([signer1.address],[1, 2]))
+        .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+      await expect(lbtc["batchMint(address[],uint256[])"]([signer1.address, signer2.address],[1]))
+        .to.be.revertedWithCustomError(lbtc, "InvalidInputLength");
+    });
+
+    it("should fail to do permissioned batch mint if no minter", async function () {
+      await expect(lbtc.connect(signer1)["batchMint(address[],uint256[])"]([signer1.address, signer1.address],[1, 2]))
+        .to.be.revertedWithCustomError(lbtc, "UnauthorizedAccount").withArgs(signer1.address);
     });
   });
   
@@ -657,9 +975,6 @@ describe("LBTC", function () {
     });
 
     beforeEach(async function () {
-      // Initialize the permit module
-      await lbtc.reinitialize();      
-
       // Mint some tokens
       await lbtc["mint(address,uint256)"](signer1.address, 100_000_000n);
     });
@@ -730,143 +1045,6 @@ describe("LBTC", function () {
           .to.be.revertedWithCustomError(lbtc, "ERC2612InvalidSigner");
         });
       });
-    });
-  });
-
-  describe("Bridge", function () {
-    const absoluteFee = 100n;
-
-    beforeEach(async function () {
-      await lbtc.mintTo(
-        signer1.address,
-        10000n
-      );
-      await lbtc.addDestination(
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc2.getAddress(), 32),
-        1000,
-        0
-      );
-      await lbtc2.addDestination(
-        CHAIN_ID,
-        ethers.zeroPadValue(await lbtc.getAddress(), 32),
-        1,
-        absoluteFee
-      );
-    });
-
-    it("full flow", async () => {
-      let amount = 10000n;
-      let fee = amount / 10n;
-
-      let amountWithoutFee = amount - fee;
-      let receiver = signer2.address;
-
-      let payload = getPayloadForAction([
-        CHAIN_ID,
-        encode(["address"], [await lbtc.getAddress()]),
-        CHAIN_ID,
-        encode(["address"], [await lbtc2.getAddress()]),
-        encode(["address"], [receiver]),
-        amountWithoutFee,
-        encode(["uint256"], [0])
-      ], DEPOSIT_BRIDGE_ACTION);
-
-      await expect(lbtc.connect(signer1).depositToBridge(
-        CHAIN_ID,
-        ethers.zeroPadValue(receiver, 32),
-        amount
-      ))
-        .to.emit(lbtc, "DepositToBridge")
-        .withArgs(
-          signer1.address,
-          ethers.zeroPadValue(receiver, 32),
-          ethers.sha256(payload),
-          payload
-        );
-
-      expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
-      expect(await lbtc.balanceOf(treasury.address)).to.be.equal(fee);
-      expect((await lbtc.totalSupply()).toString()).to.be.equal(fee);
-      
-      expect(await lbtc2.balanceOf(signer2.address)).to.be.equal(0);
-      expect(await lbtc2.totalSupply()).to.be.equal(0);
-
-      const data1 = await signDepositBridgePayload(
-        [signer1],
-        [true],
-        CHAIN_ID,
-        await lbtc.getAddress(),
-        CHAIN_ID,
-        await lbtc2.getAddress(),
-        receiver,
-        amountWithoutFee,
-      );
-
-      await expect(lbtc2.connect(signer2).withdrawFromBridge(data1.payload, data1.proof))
-        .to.emit(lbtc2, "WithdrawFromBridge")
-        .withArgs(
-          receiver,
-          data1.payloadHash,
-          data1.payload
-        );
-      expect((await lbtc2.totalSupply()).toString()).to.be.equal(amount - fee);
-      expect((await lbtc2.balanceOf(signer2.address)).toString()).to.be.equal(
-        amountWithoutFee
-      );
-
-      // bridge back
-
-      amount = amountWithoutFee;
-
-      fee = 1n + absoluteFee;
-      amountWithoutFee = amount - fee;
-
-      payload = getPayloadForAction([
-        CHAIN_ID,
-        encode(["address"], [await lbtc2.getAddress()]),
-        CHAIN_ID,
-        encode(["address"], [await lbtc.getAddress()]),
-        encode(["address"], [receiver]),
-        amountWithoutFee,
-        encode(["uint256"], [0])
-      ], DEPOSIT_BRIDGE_ACTION);
-
-      await expect(lbtc2.connect(signer2).depositToBridge(
-        CHAIN_ID,
-        ethers.zeroPadValue(receiver, 32),
-        amount
-      ))
-        .to.emit(lbtc2, "DepositToBridge")
-        .withArgs(
-          signer2.address,
-          ethers.zeroPadValue(receiver, 32),
-          ethers.sha256(payload),
-          payload
-        );
-
-      expect(await lbtc2.balanceOf(signer2.address)).to.be.equal(0);
-      expect(await lbtc2.balanceOf(treasury.address)).to.be.equal(fee);
-      expect(await lbtc2.totalSupply()).to.be.equal(fee);
-
-      const data2 = await signDepositBridgePayload(
-        [signer1],
-        [true],
-        CHAIN_ID,
-        await lbtc2.getAddress(),
-        CHAIN_ID,
-        await lbtc.getAddress(),
-        receiver,
-        amountWithoutFee,
-      );
-
-      await expect(lbtc.connect(signer2).withdrawFromBridge(data2.payload, data2.proof))
-        .to.emit(lbtc, "WithdrawFromBridge")
-        .withArgs(
-          receiver,
-          data2.payloadHash,
-          data2.payload
-        );
     });
   });
 });

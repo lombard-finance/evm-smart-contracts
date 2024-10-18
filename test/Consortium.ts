@@ -10,8 +10,6 @@ import {
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Consortium } from "../typechain-types";
 import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot";
-import {before} from "mocha";
-import {hexlify} from "ethers";
 
 describe("Consortium", function () {
   let deployer: HardhatEthersSigner,

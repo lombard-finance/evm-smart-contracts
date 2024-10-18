@@ -1,4 +1,4 @@
-import hardhat, { config, ethers, upgrades } from "hardhat";
+import { config, ethers, upgrades } from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { LBTC, WBTCMock, Bascule } from "../typechain-types";
 import {AddressLike, BaseContract, Contract, Signer, Signature} from "ethers";
@@ -12,16 +12,8 @@ export const CHAIN_ID = ethers.zeroPadValue("0x7A69", 32);
 
 export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
 
-export const ERRORS_IFACE = {
-  interface: ethers.Interface.from([
-    "error WrongChainId()",
-    "error ZeroAddress()",
-    "error ZeroTxId()",
-    "error ZeroAmount()",
-  ]),
-};
-
 const ACTIONS_IFACE = ethers.Interface.from([
+  "function feeApproval(uint256,uint256)",
   "function payload(bytes32,bytes32,uint64,bytes32,uint32) external",
   "function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external",
   "function payload(uint256,bytes[],uint256[],uint256,uint256) external",
@@ -29,6 +21,16 @@ const ACTIONS_IFACE = ethers.Interface.from([
 
 export function getPayloadForAction(data: any[], action: string) {
   return ACTIONS_IFACE.encodeFunctionData(action, data);
+}
+
+export function rawSign(
+  signer: HardhatEthersSigner,
+  message: string
+): string {
+  const signingKey = new ethers.SigningKey(signer.privateKey);
+  const signature = signingKey.sign(message);
+
+  return signature.serialized;
 }
 
 export const DEPOSIT_BTC_ACTION = "0xf2e73f7c";
@@ -93,7 +95,6 @@ export async function signNewValSetPayload(
   weightThreshold: number,
   height: BigInt | number = 0n,
 ) {
-
   let msg = getPayloadForAction([
     epoch,
     validators,
@@ -107,7 +108,8 @@ export async function signNewValSetPayload(
 export async function signPayload(
   signers: HardhatEthersSigner[],
   signatures: boolean[],
-  msg: string,
+  payload: string,
+  cutV: boolean = true,
 ): Promise<{
   payload: string;
   payloadHash: string;
@@ -118,18 +120,23 @@ export async function signPayload(
     throw new Error("Signers & signatures must have the same length");
   }
 
-  const hash = ethers.sha256(msg);
+  const hash = ethers.sha256(payload);
 
-  const signaturesArray = (await Promise.all(signers.map(async(signer, index) => {
+  const signaturesArray = await Promise.all(signers.map(async(signer, index) => {
     if (!signatures[index]) return "0x";
 
-    const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
+    const signingKey = new ethers.SigningKey(signer.privateKey);
     const signature = signingKey.sign(hash);
-    return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
-  })))
-  
+
+    const sig = rawSign(signer, hash);
+    if (cutV) {
+      return signature.serialized.slice(0, 130); // remove V from each sig to follow real consortium
+    }
+    return signature.serialized;
+  }));
+
   return {
-    payload: msg,
+    payload: payload,
     payloadHash: hash,
     proof: encode(["bytes[]"], [signaturesArray]),
   };
@@ -161,30 +168,6 @@ export async function getSignersWithPrivateKeys(
     }
   }
   return signers;
-}
-
-
-export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
-  const LBTC = await ethers.getContractFactory("LBTC");
-  const lbtc = (await upgrades.deployProxy(LBTC, [
-    consortium.address,
-    burnCommission
-  ])) as unknown as LBTC;
-  await lbtc.waitForDeployment();
-
-  const WBTC = await ethers.getContractFactory("WBTCMock");
-  const wbtc = (await upgrades.deployProxy(WBTC, [])) as unknown as WBTCMock;
-  await wbtc.waitForDeployment();
-
-  return { lbtc, wbtc };
-}
-
-export async function deployBascule(reporter: HardhatEthersSigner, lbtc: AddressLike): Promise<Bascule> {
-  const Bascule = await ethers.getContractFactory("Bascule");
-  const [admin, pauser, maxDeposits] = [ reporter.address, reporter.address, 100 ];
-  const bascule = await Bascule.deploy(admin, pauser, reporter, lbtc, maxDeposits);
-  await bascule.waitForDeployment();
-  return bascule;
 }
 
 export async function generatePermitSignature(
@@ -237,4 +220,31 @@ export function getUncomprPubkey(signer: HardhatEthersSigner) {
   unc.set(raw, 1);
 
   return ethers.hexlify(unc);
+}
+
+export async function getFeeTypedMessage(
+  signer: HardhatEthersSigner,
+  verifyingContract: string,
+  fee: BigNumberish,
+  expiry: BigNumberish,
+  domainName: string = "Lombard Staked Bitcoin",
+  version: string = "1",
+  chainId: BigNumberish = Number(CHAIN_ID)
+) {
+  const domain = {
+      name: domainName,
+      version: version,
+      chainId: chainId,
+      verifyingContract: verifyingContract
+  };
+  const types = {
+      feeApproval: [
+          { name: "chainId", type: "uint256" },
+          { name: "fee", type: "uint256" },
+          { name: "expiry", type: "uint256" }
+      ]
+  };
+  const message = {chainId, fee, expiry};
+
+  return signer.signTypedData(domain, types, message);
 }
