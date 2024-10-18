@@ -2,7 +2,7 @@ import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BaseContract, BigNumberish, Signature } from 'ethers';
 
-type Signer = HardhatEthersSigner & {
+export type Signer = HardhatEthersSigner & {
     publicKey: string;
     privateKey: string;
 };
@@ -23,8 +23,8 @@ export function getPayloadForAction(data: any[], action: string) {
     return ACTIONS_IFACE.encodeFunctionData(action, data);
 }
 
-export function rawSign(signer: HardhatEthersSigner, message: string): string {
-    const signingKey = new ethers.SigningKey((signer as Signer).privateKey);
+export function rawSign(signer: Signer, message: string): string {
+    const signingKey = new ethers.SigningKey(signer.privateKey);
     const signature = signingKey.sign(message);
 
     return signature.serialized;
@@ -66,7 +66,7 @@ export async function signDepositBridgePayload(
 }
 
 export async function signDepositBtcPayload(
-    signers: HardhatEthersSigner[],
+    signers: Signer[],
     signatures: boolean[],
     toChain: string | bigint | number | Uint8Array,
     recipient: string,
@@ -109,7 +109,7 @@ export async function signNewValSetPayload(
 }
 
 export async function signPayload(
-    signers: HardhatEthersSigner[],
+    signers: Signer[],
     signatures: boolean[],
     payload: string,
     cutV: boolean = true
@@ -128,9 +128,7 @@ export async function signPayload(
         signers.map(async (signer, index) => {
             if (!signatures[index]) return '0x';
 
-            const signingKey = new ethers.SigningKey(
-                (signer as Signer).privateKey
-            );
+            const signingKey = new ethers.SigningKey(signer.privateKey);
             const signature = signingKey.sign(hash);
 
             const sig = rawSign(signer, hash);
@@ -164,8 +162,8 @@ export async function deployContract<T extends BaseContract>(
 
 export async function getSignersWithPrivateKeys(
     phrase?: string
-): Promise<HardhatEthersSigner[]> {
-    const signers = await ethers.getSigners();
+): Promise<Signer[]> {
+    const signers = (await ethers.getSigners()) as Signer[];
     const mnemonic = ethers.Mnemonic.fromPhrase(
         phrase || config.networks.hardhat.accounts.mnemonic
     );
@@ -175,8 +173,8 @@ export async function getSignersWithPrivateKeys(
             `m/44'/60'/0'/0/${i}`
         );
         if (wallet.address === signers[i].address) {
-            (signers[i] as Signer).privateKey = wallet.privateKey;
-            (signers[i] as Signer).publicKey =
+            signers[i].privateKey = wallet.privateKey;
+            signers[i].publicKey =
                 `0x${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`;
         }
     }
@@ -228,8 +226,8 @@ export async function generatePermitSignature(
     return { v: signatureObj.v, r: signatureObj.r, s: signatureObj.s };
 }
 
-export function getUncomprPubkey(signer: HardhatEthersSigner) {
-    const raw = ethers.getBytes((signer as Signer).publicKey);
+export function getUncomprPubkey(signer: Signer) {
+    const raw = ethers.getBytes(signer.publicKey);
 
     const unc = new Uint8Array(65);
     // set uncompressed prefix
