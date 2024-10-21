@@ -30,9 +30,6 @@ contract PoR is AccessControlUpgradeable {
     /// @notice Error thrown when the address already exists.
     error AddressAlreadyExists(string addressStr);
 
-    /// @notice Error thrown when the range is invalid.
-    error InvalidRange();
-
     /// @notice Error thrown when the address does not exist.
     error AddressDoesNotExist(string addressStr);
 
@@ -175,7 +172,7 @@ contract PoR is AccessControlUpgradeable {
             _end = $.addressStr.length - 1;
         }
         if(_start > _end) {
-            revert InvalidRange();
+            return (new string[](0), new string[](0), new bytes[](0));
         }   
 
         string[] memory addresses = new string[](_end - _start + 1);
