@@ -44,18 +44,19 @@ yarn hardhat compile
 ```bash
 yarn hardhat test
 ```
-#### Deploy
+
+### Deployment
 Compile contracts before deployment
 ```bash
 yarn hardhat compile
 ```
-##### Proxy factory
+#### Proxy factory
 Deploy proxy factory from zero nonce account
 ```bash
 yarn hardhat deploy-proxy-factory --network '$NETWORK'
 ```
 
-##### Core contracts
+#### Core contracts
 Deploy consortium
 ```bash
 yarn hardhat deploy-consortium --network '$NETWORK'
@@ -69,7 +70,7 @@ yarn hardhat deploy-lbtc --consortium '$CONSORTIUM' --burn-commission 10000 --ne
 Configure smart-contracts:
 *TBD*
 
-###### Bridge
+##### Bridge
 Deploy adapter (e.g. Chain Link)
 [Find router](https://docs.chain.link/ccip/supported-networks)
 ```bash
@@ -83,6 +84,6 @@ Deploy token pool
 ```bash
 yarn hardhat deploy-ccip-token-pool --router '$ROUTER_ADDR' --lbtc '$LBTC_ADDR' --adapter '$ADAPTER_ADDR' --rmn '$RMN_ADDR' --network '$NETWORK'
 ```
-
-
-**TBD..**
+Configure smart-contracts:
+1. Add destinations using `addDestinations` of **Bridge** smart-contract.
+2. *TBD*
