@@ -1,4 +1,5 @@
 import { task } from 'hardhat/config';
+import { sleep, verify } from '../helpers';
 
 /*
  * After deployment:
@@ -14,12 +15,13 @@ task('deploy-ccip-token-pool', 'Deploys chainlink TokenPool contract')
     .addParam('rmn', 'The address of the RmnProxy')
     .addVariadicPositionalParam(
         'allowlist',
-        'The list of addresses allowed to bridge'
+        'The list of addresses allowed to bridge',
+        []
     )
     .setAction(async (taskArgs, hre) => {
         const { lbtc, rmn, router, adapter, allowlist } = taskArgs;
 
-        const pool = await hre.ethers.deployContract('TokenPool', [
+        const pool = await hre.ethers.deployContract('LBTCTokenPool', [
             adapter,
             lbtc,
             allowlist,
@@ -27,4 +29,8 @@ task('deploy-ccip-token-pool', 'Deploys chainlink TokenPool contract')
             router,
         ]);
         console.log('TokenPool:', await pool.getAddress());
+
+        await verify(hre.run, await pool.getAddress(), {
+            constructorArguments: [adapter, lbtc, allowlist, rmn, router],
+        });
     });

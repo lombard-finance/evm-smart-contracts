@@ -7,6 +7,8 @@ import { create3 } from '../helpers/create3Deployment';
  * 1. Set treasury address
  * 2. Set minters (e.g. BTCBPMM)
  * 3. Set pauser
+ * 4. Set mint fee
+ * 5. Set claimers
  */
 
 task('deploy-lbtc', 'Deploys the LBTC contract')
