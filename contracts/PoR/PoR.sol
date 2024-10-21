@@ -78,7 +78,7 @@ contract PoR is AccessControlUpgradeable {
         PORStorage storage $ = _getPORStorage(); // Access the storage
 
         uint256 length = $.addressStr.length;
-        for (uint256 i; i < length;) {
+        for (uint256 i; i < _addresses.length;) {
             string calldata _address = _addresses[i];
             uint256 index = $.addressIndex[_address]; // Get the index of the address
             if(index != 0) {
