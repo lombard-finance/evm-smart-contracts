@@ -14,12 +14,13 @@ task('deploy-ccip-token-pool', 'Deploys chainlink TokenPool contract')
     .addParam('rmn', 'The address of the RmnProxy')
     .addVariadicPositionalParam(
         'allowlist',
-        'The list of addresses allowed to bridge'
+        'The list of addresses allowed to bridge',
+        []
     )
     .setAction(async (taskArgs, hre) => {
         const { lbtc, rmn, router, adapter, allowlist } = taskArgs;
 
-        const pool = await hre.ethers.deployContract('TokenPool', [
+        const pool = await hre.ethers.deployContract('LBTCTokenPool', [
             adapter,
             lbtc,
             allowlist,
