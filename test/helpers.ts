@@ -118,11 +118,12 @@ export function enrichWithPrivateKeys(
   return signers;
 }
 
-export async function init(consortium: HardhatEthersSigner, burnCommission: number) {
+export async function init(consortium: HardhatEthersSigner, burnCommission: number, owner: string) {
   const LBTC = await ethers.getContractFactory("LBTC");
   const lbtc = (await upgrades.deployProxy(LBTC, [
     consortium.address,
-    burnCommission
+    burnCommission,
+    owner
   ])) as unknown as LBTC;
   await lbtc.waitForDeployment();
 

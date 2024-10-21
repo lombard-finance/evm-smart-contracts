@@ -44,11 +44,11 @@ describe("LBTC", function () {
       pauser,
     ] = enrichWithPrivateKeys(await ethers.getSigners());
     const burnCommission = 1000;
-    const result = await init(consortium, burnCommission);
+    const result = await init(consortium, burnCommission, deployer.address);
     lbtc = result.lbtc;
     wbtc = result.wbtc;
 
-    const result2 = await init(consortium, burnCommission);
+    const result2 = await init(consortium, burnCommission, deployer.address);
     lbtc2 = result2.lbtc;
 
     await lbtc.changeTreasuryAddress(treasury);
