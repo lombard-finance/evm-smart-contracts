@@ -133,6 +133,12 @@ contract PoR is AccessControlUpgradeable {
 
     /// GETTERS ///
 
+    /// @notice Returns the number of addresses in the Proof of Reserve (PoR).
+    /// @return Number of addresses.
+    function getPoRAddressListLength() external view returns (uint256) {
+        return _getPORStorage().addressStr.length;
+    }
+
     /// @notice Returns data for a given set of addresses.
     /// @dev Default/empty data is returned for non-existing addresses.
     /// @param _addresses Array of addresses to get data for.
@@ -162,7 +168,7 @@ contract PoR is AccessControlUpgradeable {
     /// @return addresses Array of addresses.
     /// @return messagesOrPaths Array of messages or derivation paths.
     /// @return signatures Array of signatures.
-    function getPoRAddressSignatureMessages(uint256 _start, uint256 _end) public view returns (string[] memory, string[] memory, bytes[] memory) {
+    function getPoRAddressSignatureMessages(uint256 _start, uint256 _end) external view returns (string[] memory, string[] memory, bytes[] memory) {
         PORStorage storage $ = _getPORStorage();
 
         if(_end >= $.addressStr.length) {
@@ -191,7 +197,8 @@ contract PoR is AccessControlUpgradeable {
     /// @return messagesOrPaths Array of messages or derivation paths.
     /// @return signatures Array of signatures.
     function getPoRAddressSignatureMessages() external view returns (string[] memory, string[] memory, bytes[] memory) {
-        return getPoRAddressSignatureMessages(0, type(uint256).max); // avoid extra storage access
+        PORStorage storage $ = _getPORStorage();
+        return ($.addressStr, $.messageOrPath, $.signature);
     }
 
     /// @notice Function to get the storage reference
