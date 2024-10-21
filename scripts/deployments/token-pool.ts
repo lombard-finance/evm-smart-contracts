@@ -30,8 +30,6 @@ task('deploy-ccip-token-pool', 'Deploys chainlink TokenPool contract')
         ]);
         console.log('TokenPool:', await pool.getAddress());
 
-        await sleep(12_000);
-
         await verify(hre.run, await pool.getAddress(), {
             constructorArguments: [adapter, lbtc, allowlist, rmn, router],
         });

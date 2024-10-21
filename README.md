@@ -86,4 +86,6 @@ yarn hardhat deploy-ccip-token-pool --router '$ROUTER_ADDR' --lbtc '$LBTC_ADDR' 
 ```
 Configure smart-contracts:
 1. Add destinations using `addDestinations` of **Bridge** smart-contract.
-2. *TBD*
+2. *Claim the ownership of the token pool / register it in Chainlink*
+3. *Connect token pools from different chains with addChainUpdates*
+4. *TBD*
