@@ -79,5 +79,10 @@ Deploy bridge
 ```bash
 yarn hardhat deploy-bridge --lbtc '$LBTC_ADDR' --treasury '$TREASURY_ADDR'  --adapter '$ADAPTER_ADDR' --set-bridge --network '$NETWORK'
 ```
+Deploy token pool
+```bash
+yarn hardhat deploy-ccip-token-pool --router '$ROUTER_ADDR' --lbtc '$LBTC_ADDR' --adapter '$ADAPTER_ADDR' --rmn '$RMN_ADDR' --network '$NETWORK'
+```
+
 
 **TBD..**
