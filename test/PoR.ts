@@ -30,6 +30,7 @@ describe("PoR", function () {
         it("should add addresses correctly", async function () {
             await por.connect(operator).addAddresses(
                 ["0xAddress1", "0xAddress2"],
+                ["a", "b"],
                 ["Message1", "Message2"],
                 [ethers.keccak256("0x01"), ethers.keccak256("0x02")]
             );
@@ -43,6 +44,7 @@ describe("PoR", function () {
             await expect(
                 por.connect(operator).addAddresses(
                     ["0xAddress1"],
+                    ["a"],
                     ["Message1", "Message2"],
                     [ethers.keccak256("0x01")]
                 )
@@ -52,6 +54,7 @@ describe("PoR", function () {
         it("should revert if address already exists", async function () {
             await por.connect(operator).addAddresses(
                 ["0xAddress1"],
+                ["a"],
                 ["Message1"],
                 [ethers.keccak256("0x01")]
             );
@@ -59,6 +62,7 @@ describe("PoR", function () {
             await expect(
                 por.connect(operator).addAddresses(
                     ["0xAddress1"],
+                    ["b"],
                     ["Message2"],
                     [ethers.keccak256("0x02")]
                 )
@@ -69,6 +73,7 @@ describe("PoR", function () {
             await expect(
                 por.connect(owner).addAddresses(
                     ["0xAddress1"],
+                    ["b"],
                     ["Message1"],
                     [ethers.keccak256("0x01")]
                 )
@@ -81,6 +86,7 @@ describe("PoR", function () {
         beforeEach(async () => {
             await por.connect(operator).addAddresses(
                 ["0xAddress1", "0xAddress2"],
+                ["a", "b"],
                 ["Message1", "Message2"],
                 [ethers.keccak256("0x01"), ethers.keccak256("0x02")]
             );
@@ -112,6 +118,7 @@ describe("PoR", function () {
         beforeEach(async () => {
             await por.connect(operator).addAddresses(
                 ["0xAddress1"],
+                ["a"],
                 ["Message1"],
                 [ethers.keccak256("0x01")]
             );
@@ -149,6 +156,7 @@ describe("PoR", function () {
         beforeEach(async () => {
             await por.connect(operator).addAddresses(
                 ["0xAddress1", "0xAddress2", "0xAddress3"],
+                ["a", "b", "c"],
                 ["Message1", "Message2", "Message3"],
                 [ethers.keccak256("0x01"), ethers.keccak256("0x02"), ethers.keccak256("0x03")]
             );
@@ -167,17 +175,19 @@ describe("PoR", function () {
         });
 
         it("should return proper values in a range", async function () {
-            const [addresses, messages, signatures] = await por.getPoRAddressSignatureMessages(1, 2);
+            const [addresses, rootPkIds, messages, signatures] = await por.getPoRAddressSignatureMessages(1, 2);
             expect(addresses).to.deep.equal(["0xAddress2", "0xAddress3"]);
+            expect(rootPkIds).to.deep.equal(["b", "c"]);
             expect(messages).to.deep.equal(["Message2", "Message3"]);
             expect(signatures).to.deep.equal([ethers.keccak256("0x02"), ethers.keccak256("0x03")]);
         });
 
         it("should return all values if no range is provided", async function () {
-            const [addresses, messages, signatures] = await por.getPoRAddressSignatureMessages();
-            expect(addresses).to.deep.equal(["0xAddress1", "0xAddress2", "0xAddress3"]);
-            expect(messages).to.deep.equal(["Message1", "Message2", "Message3"]);
-            expect(signatures).to.deep.equal([ethers.keccak256("0x01"), ethers.keccak256("0x02"), ethers.keccak256("0x03")]);
+            const data = await por.getPoRAddressSignatureMessages();
+            expect(data.map((d: any) => d.addressStr)).to.deep.equal(["0xAddress1", "0xAddress2", "0xAddress3"]);
+            expect(data.map((d: any) => d.rootPkId)).to.deep.equal(["a", "b", "c"]);
+            expect(data.map((d: any) => d.messageOrDerivationData)).to.deep.equal(["Message1", "Message2", "Message3"]);
+            expect(data.map((d: any) => d.signature)).to.deep.equal([ethers.keccak256("0x01"), ethers.keccak256("0x02"), ethers.keccak256("0x03")]);
         });
 
         it("should return empty arrays if start is greater than end", async function () {
@@ -194,6 +204,7 @@ describe("PoR", function () {
             //add one more address
             await por.connect(operator).addAddresses(
                 ["0xAddress4"],
+                ["d"],
                 ["Message4"],
                 [ethers.keccak256("0x04")]
             );
