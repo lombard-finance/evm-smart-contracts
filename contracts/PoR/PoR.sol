@@ -2,8 +2,8 @@
 pragma solidity 0.8.24;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-
-contract PoR is AccessControlUpgradeable {
+import {IPoR} from "./IPoR.sol";
+contract PoR is AccessControlUpgradeable, IPoR {
     struct AddressData {
         string addressStr;
         string rootPkId;
@@ -36,36 +36,6 @@ contract PoR is AccessControlUpgradeable {
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    /// @notice Error thrown when the lengths of the arrays do not match.
-    error ArrayLengthMismatch();
-
-    /// @notice Error thrown when the address already exists.
-    error AddressAlreadyExists(string addressStr);
-
-    /// @notice Error thrown when the address does not exist.
-    error AddressDoesNotExist(string addressStr);
-
-    /// @notice Error thrown when the message or signature is invalid.
-    error InvalidMessageSignature(string addressStr, string messageOrPath, bytes signature);
-
-    /// @notice Error thrown when the root pubkey is invalid.
-    error InvalidRootPubkey();
-
-    /// @notice Error thrown when the root pubkey id is invalid.
-    error InvalidRootPubkeyId(string id);
-
-    /// @notice Error thrown when the root pubkey already exists.
-    error RootPubkeyAlreadyExists(string pubkey);
-
-    /// @notice Error thrown when the id already exists.
-    error IdAlreadyExists(string id);
-
-    /// @notice Error thrown when the root pubkey does not exist.
-    error RootPubkeyDoesNotExist(string pubkey);
-
-    /// @notice Error thrown when the root pubkey cannot be deleted.
-    error RootPubkeyCannotBeDeleted();
-
     function initialize(address _owner) public initializer {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
@@ -97,6 +67,8 @@ contract PoR is AccessControlUpgradeable {
         $.pubkeyToIndex[_pubkey] = $.rootPubkeyData.length;
     }
 
+    /// @notice Deletes a root pubkey from the Proof of Reserve (PoR).
+    /// @param _pubkey Root pubkey to delete.
     function deleteRootPubkey(string calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
         PORStorage storage $ = _getPORStorage();
         uint256 index = $.pubkeyToIndex[_pubkey];
