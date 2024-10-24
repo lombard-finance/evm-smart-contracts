@@ -10,13 +10,20 @@ contract PoR is AccessControlUpgradeable {
         string messageOrDerivationData;
         bytes signature;
     }
+    struct RootPubkeyData {
+        string id;
+        string pubkey;
+        /// @notice Number of derived from this root pubkey.
+        uint256 derivedAddressesCount;
+    }
     /// @custom:storage-location erc7201:lombardfinance.storage.PoR
-
     struct PORStorage {
-        /// @notice Mapping from id to pubkey.
-        mapping(string => string) idsToPubkey;
-        /// @notice Mapping from pubkey to id.
-        mapping(string => string) pubkeysToId;
+        /// @notice Data associated to each root pubkey.
+        RootPubkeyData[] rootPubkeyData;
+        /// @notice Mapping from id to index in rootPubkeyData.
+        mapping(string => uint256) idToPubkeyIndex;
+        /// @notice Mapping from pubkey to index in rootPubkeyData.
+        mapping(string => uint256) pubkeyToIndex;
         /// @notice Data associated to each address.
         AddressData[] addressData;
         /// @notice Mapping to track index of each address.
@@ -41,12 +48,73 @@ contract PoR is AccessControlUpgradeable {
     /// @notice Error thrown when the message or signature is invalid.
     error InvalidMessageSignature(string addressStr, string messageOrPath, bytes signature);
 
+    /// @notice Error thrown when the root pubkey is invalid.
+    error InvalidRootPubkey();
+
+    /// @notice Error thrown when the root pubkey id is invalid.
+    error InvalidRootPubkeyId(string id);
+
+    /// @notice Error thrown when the root pubkey already exists.
+    error RootPubkeyAlreadyExists(string pubkey);
+
+    /// @notice Error thrown when the id already exists.
+    error IdAlreadyExists(string id);
+
+    /// @notice Error thrown when the root pubkey does not exist.
+    error RootPubkeyDoesNotExist(string pubkey);
+
+    /// @notice Error thrown when the root pubkey cannot be deleted.
+    error RootPubkeyCannotBeDeleted();
+
     function initialize(address _owner) public initializer {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     }
 
     /// ACCESS CONTROL FUNCTIONS ///
+
+    /// @notice Adds a root pubkey to the Proof of Reserve (PoR).
+    /// @param _rootPkId Root pubkey id.
+    /// @param _pubkey Root pubkey.
+    function addRootPubkey(string calldata _rootPkId, string calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (bytes(_rootPkId).length == 0 || bytes(_pubkey).length == 0) {
+            revert InvalidRootPubkey();
+        }
+        PORStorage storage $ = _getPORStorage();
+        if ($.pubkeyToIndex[_pubkey] != 0) {
+            revert RootPubkeyAlreadyExists(_pubkey);
+        }
+        if ($.idToPubkeyIndex[_rootPkId] != 0) {
+            revert IdAlreadyExists(_rootPkId);
+        }
+        $.rootPubkeyData.push(RootPubkeyData({
+            id: _rootPkId,
+            pubkey: _pubkey,
+            derivedAddressesCount: 0
+        }));
+        //
+        $.idToPubkeyIndex[_rootPkId] = $.rootPubkeyData.length;
+        $.pubkeyToIndex[_pubkey] = $.rootPubkeyData.length;
+    }
+
+    function deleteRootPubkey(string calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        PORStorage storage $ = _getPORStorage();
+        uint256 index = $.pubkeyToIndex[_pubkey];
+        if (index == 0) {
+            revert RootPubkeyDoesNotExist(_pubkey);
+        }
+        if($.rootPubkeyData[index - 1].derivedAddressesCount != 0) {
+            revert RootPubkeyCannotBeDeleted();
+        }
+        RootPubkeyData storage rootPubkeyData = $.rootPubkeyData[index - 1];
+        delete $.pubkeyToIndex[_pubkey];
+        delete $.idToPubkeyIndex[rootPubkeyData.id];
+        // swap with last pk
+        rootPubkeyData = $.rootPubkeyData[$.rootPubkeyData.length - 1];
+        $.rootPubkeyData.pop();
+        $.pubkeyToIndex[rootPubkeyData.pubkey] = index;
+        $.idToPubkeyIndex[rootPubkeyData.id] = index;
+    }
 
     /// @notice Adds multiple entries to the arrays.
     /// @param _addresses Array of addresses in string format.
@@ -75,6 +143,10 @@ contract PoR is AccessControlUpgradeable {
             if ($.addressIndex[_addresses[i]] != 0) {
                 revert AddressAlreadyExists(_addresses[i]);
             }
+            uint256 rootPubkeyIndex = $.idToPubkeyIndex[_rootPkIds[i]];
+            if (bytes(_rootPkIds[i]).length != 0 && rootPubkeyIndex == 0) {
+                revert InvalidRootPubkeyId(_rootPkIds[i]);
+            }
             // Store data
             $.addressData.push(AddressData({
                 addressStr: _addresses[i],
@@ -83,6 +155,9 @@ contract PoR is AccessControlUpgradeable {
                 signature: _signatures[i]
             }));
             $.addressIndex[_addresses[i]] = $.addressData.length; // Store the index + 1
+            if (rootPubkeyIndex != 0) {
+                $.rootPubkeyData[rootPubkeyIndex - 1].derivedAddressesCount++;
+            }
         }
     }
 
