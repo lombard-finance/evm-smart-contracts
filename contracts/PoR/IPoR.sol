@@ -18,16 +18,13 @@ interface IPoR {
     error InvalidRootPubkey();
 
     /// @notice Error thrown when the root pubkey id is invalid.
-    error InvalidRootPubkeyId(string id);
+    error InvalidRootPubkeyId(bytes32 id);
 
     /// @notice Error thrown when the root pubkey already exists.
-    error RootPubkeyAlreadyExists(string pubkey);
-
-    /// @notice Error thrown when the id already exists.
-    error IdAlreadyExists(string id);
+    error RootPubkeyAlreadyExists(bytes pubkey);
 
     /// @notice Error thrown when the root pubkey does not exist.
-    error RootPubkeyDoesNotExist(string pubkey);
+    error RootPubkeyDoesNotExist(bytes pubkey);
 
     /// @notice Error thrown when the root pubkey cannot be deleted.
     error RootPubkeyCannotBeDeleted();

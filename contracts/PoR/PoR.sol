@@ -6,24 +6,20 @@ import {IPoR} from "./IPoR.sol";
 contract PoR is AccessControlUpgradeable, IPoR {
     struct AddressData {
         string addressStr;
-        string rootPkId;
+        bytes32 rootPkId;
         string messageOrDerivationData;
         bytes signature;
     }
     struct RootPubkeyData {
-        string id;
-        string pubkey;
+        bytes pubkey;
         /// @notice Number of derived from this root pubkey.
         uint256 derivedAddressesCount;
     }
     /// @custom:storage-location erc7201:lombardfinance.storage.PoR
     struct PORStorage {
-        /// @notice Data associated to each root pubkey.
-        RootPubkeyData[] rootPubkeyData;
         /// @notice Mapping from id to index in rootPubkeyData.
-        mapping(string => uint256) idToPubkeyIndex;
-        /// @notice Mapping from pubkey to index in rootPubkeyData.
-        mapping(string => uint256) pubkeyToIndex;
+        /// @dev id is keccak256 of the pubkey
+        mapping(bytes32 => RootPubkeyData) idToPubkeyData;
         /// @notice Data associated to each address.
         AddressData[] addressData;
         /// @notice Mapping to track index of each address.
@@ -44,48 +40,36 @@ contract PoR is AccessControlUpgradeable, IPoR {
     /// ACCESS CONTROL FUNCTIONS ///
 
     /// @notice Adds a root pubkey to the Proof of Reserve (PoR).
-    /// @param _rootPkId Root pubkey id.
     /// @param _pubkey Root pubkey.
-    function addRootPubkey(string calldata _rootPkId, string calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (bytes(_rootPkId).length == 0 || bytes(_pubkey).length == 0) {
+    function addRootPubkey(bytes calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_pubkey.length != 65) {
             revert InvalidRootPubkey();
         }
-        PORStorage storage $ = _getPORStorage();
-        if ($.pubkeyToIndex[_pubkey] != 0) {
+        PORStorage storage $ = _getPORStorage(); 
+        bytes32 rootPkId = keccak256(_pubkey);
+        RootPubkeyData storage rootPubkeyData = $.idToPubkeyData[rootPkId];
+        if ($.idToPubkeyData[rootPkId].pubkey.length != 0) {
             revert RootPubkeyAlreadyExists(_pubkey);
         }
-        if ($.idToPubkeyIndex[_rootPkId] != 0) {
-            revert IdAlreadyExists(_rootPkId);
-        }
-        $.rootPubkeyData.push(RootPubkeyData({
-            id: _rootPkId,
+        $.idToPubkeyData[rootPkId] = RootPubkeyData({
             pubkey: _pubkey,
             derivedAddressesCount: 0
-        }));
-        //
-        $.idToPubkeyIndex[_rootPkId] = $.rootPubkeyData.length;
-        $.pubkeyToIndex[_pubkey] = $.rootPubkeyData.length;
+        });
     }
 
     /// @notice Deletes a root pubkey from the Proof of Reserve (PoR).
     /// @param _pubkey Root pubkey to delete.
-    function deleteRootPubkey(string calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function deleteRootPubkey(bytes calldata _pubkey) external onlyRole(DEFAULT_ADMIN_ROLE) {
         PORStorage storage $ = _getPORStorage();
-        uint256 index = $.pubkeyToIndex[_pubkey];
-        if (index == 0) {
+        bytes32 rootPkId = keccak256(_pubkey);
+        RootPubkeyData storage rootPubkeyData = $.idToPubkeyData[rootPkId];
+        if (rootPubkeyData.pubkey.length == 0) {
             revert RootPubkeyDoesNotExist(_pubkey);
         }
-        if($.rootPubkeyData[index - 1].derivedAddressesCount != 0) {
+        if(rootPubkeyData.derivedAddressesCount != 0) {
             revert RootPubkeyCannotBeDeleted();
         }
-        RootPubkeyData storage rootPubkeyData = $.rootPubkeyData[index - 1];
-        delete $.pubkeyToIndex[_pubkey];
-        delete $.idToPubkeyIndex[rootPubkeyData.id];
-        // swap with last pk
-        rootPubkeyData = $.rootPubkeyData[$.rootPubkeyData.length - 1];
-        $.rootPubkeyData.pop();
-        $.pubkeyToIndex[rootPubkeyData.pubkey] = index;
-        $.idToPubkeyIndex[rootPubkeyData.id] = index;
+        delete $.idToPubkeyData[rootPkId];
     }
 
     /// @notice Adds multiple entries to the arrays.
@@ -93,11 +77,11 @@ contract PoR is AccessControlUpgradeable, IPoR {
     /// @param _rootPkIds Array of root pubkey ids.
     /// @param _messagesOrDerivationData Array of messages to sign or derivation paths.
     /// @param _signatures Array of signed messages.
-    /// @dev _rootPkIds should be empty("") if the address corresponds to a root pubkey.
+    /// @dev _rootPkIds should be bytes32(0) if the address is not derived from a root pubkey.
     /// @dev _signatures should be empty if _rootPkIds is not empty as there is no message to sign.
     function addAddresses(
         string[] calldata _addresses,
-        string[] calldata _rootPkIds,
+        bytes32[] calldata _rootPkIds,
         string[] calldata _messagesOrDerivationData,
         bytes[] calldata _signatures
     ) external onlyRole(OPERATOR_ROLE) {
@@ -115,8 +99,8 @@ contract PoR is AccessControlUpgradeable, IPoR {
             if ($.addressIndex[_addresses[i]] != 0) {
                 revert AddressAlreadyExists(_addresses[i]);
             }
-            uint256 rootPubkeyIndex = $.idToPubkeyIndex[_rootPkIds[i]];
-            if (bytes(_rootPkIds[i]).length != 0 && rootPubkeyIndex == 0) {
+            bool derived = _rootPkIds[i] != bytes32(0);
+            if (derived && $.idToPubkeyData[_rootPkIds[i]].pubkey.length == 0) {
                 revert InvalidRootPubkeyId(_rootPkIds[i]);
             }
             // Store data
@@ -127,8 +111,8 @@ contract PoR is AccessControlUpgradeable, IPoR {
                 signature: _signatures[i]
             }));
             $.addressIndex[_addresses[i]] = $.addressData.length; // Store the index + 1
-            if (rootPubkeyIndex != 0) {
-                $.rootPubkeyData[rootPubkeyIndex - 1].derivedAddressesCount++;
+            if (derived) {
+                $.idToPubkeyData[_rootPkIds[i]].derivedAddressesCount++;
             }
         }
     }
@@ -144,6 +128,10 @@ contract PoR is AccessControlUpgradeable, IPoR {
             string calldata _address = _addresses[i];
             uint256 index = $.addressIndex[_address]; // Get the index of the address
             if (index != 0) {
+                bytes32 rootPkId = $.addressData[index - 1].rootPkId;
+                if(rootPkId != bytes32(0)) {
+                    $.idToPubkeyData[rootPkId].derivedAddressesCount--;
+                }
                 if (index != length) {
                     // Remove the address, message, and signature
                     $.addressData[index - 1] = $.addressData[length - 1];
@@ -208,15 +196,17 @@ contract PoR is AccessControlUpgradeable, IPoR {
     /// @notice Returns data for a given set of addresses.
     /// @dev Default/empty data is returned for non-existing addresses.
     /// @param _addresses Array of addresses to get data for.
+    /// @return rootPkIds Array of root pubkey ids.
     /// @return messagesOrPaths Array of messages or derivation paths.
     /// @return signatures Array of signatures.
     function getPoRSignatureMessages(string[] calldata _addresses)
         external
         view
-        returns (string[] memory, bytes[] memory)
+        returns (bytes32[] memory, string[] memory, bytes[] memory)
     {
         PORStorage storage $ = _getPORStorage();
 
+        bytes32[] memory rootPkIds = new bytes32[](_addresses.length);
         string[] memory messagesOrPaths = new string[](_addresses.length);
         bytes[] memory signatures = new bytes[](_addresses.length);
 
@@ -224,6 +214,7 @@ contract PoR is AccessControlUpgradeable, IPoR {
             uint256 index = $.addressIndex[_addresses[i]];
             if (index != 0) {
                 AddressData storage addressData = $.addressData[index - 1];
+                rootPkIds[i] = addressData.rootPkId;
                 messagesOrPaths[i] = addressData.messageOrDerivationData;
                 signatures[i] = addressData.signature;
             }
@@ -232,7 +223,7 @@ contract PoR is AccessControlUpgradeable, IPoR {
             }
         }
 
-        return (messagesOrPaths, signatures);
+        return (rootPkIds, messagesOrPaths, signatures);
     }
 
     /// @notice Returns addresses and data  in a range.
@@ -245,7 +236,7 @@ contract PoR is AccessControlUpgradeable, IPoR {
     function getPoRAddressSignatureMessages(uint256 _start, uint256 _end)
         external
         view
-        returns (string[] memory, string[] memory, string[] memory, bytes[] memory)
+        returns (string[] memory, bytes32[] memory, string[] memory, bytes[] memory)
     {
         PORStorage storage $ = _getPORStorage();
 
@@ -253,11 +244,11 @@ contract PoR is AccessControlUpgradeable, IPoR {
             _end = $.addressData.length - 1;
         }
         if (_start > _end) {
-            return (new string[](0), new string[](0), new string[](0), new bytes[](0));
+            return (new string[](0), new bytes32[](0), new string[](0), new bytes[](0));
         }
 
         string[] memory addresses = new string[](_end - _start + 1);
-        string[] memory rootPkIds = new string[](_end - _start + 1);
+        bytes32[] memory rootPkIds = new bytes32[](_end - _start + 1);
         string[] memory messagesOrPaths = new string[](_end - _start + 1);
         bytes[] memory signatures = new bytes[](_end - _start + 1);
 
@@ -292,5 +283,11 @@ contract PoR is AccessControlUpgradeable, IPoR {
         assembly {
             $.slot := POR_STORAGE_LOCATION
         }
+    }
+
+    /// @notice Returns public key for a given id
+    /// @param _id Root pubkey id.
+    function getRootPubkey(bytes32 _id) external view returns (bytes memory) {
+        return _getPORStorage().idToPubkeyData[_id].pubkey;
     }
 }
