@@ -28,7 +28,7 @@ describe("ProxyFactory", () => {
 
     it("should create a proxy", async () => {
         const salt = ethers.keccak256("0x1234");
-        let data = lbtcImplementation.interface.encodeFunctionData("initialize", [deployer.address, 0]);
+        let data = lbtcImplementation.interface.encodeFunctionData("initialize", [deployer.address, 0, deployer.address]);
 
         const proxyAddress = await proxyFactory.getDeployed(salt);
 
