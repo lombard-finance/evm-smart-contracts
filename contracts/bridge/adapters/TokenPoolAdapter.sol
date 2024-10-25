@@ -14,9 +14,6 @@ contract TokenPoolAdapter is AbstractAdapter {
     uint256 gasLimit;
     bytes32 public latestPayloadHashSent;
 
-    /// @notice Thrown when msg.value is not enough to pay CCIP fee.
-    error NotEnoughToPayFee(uint256 fee);
-
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
 

@@ -779,6 +779,16 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
+"@layerzerolabs/lz-evm-oapp-v2@^3.0.7":
+  version "3.0.7"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/lz-evm-oapp-v2/-/lz-evm-oapp-v2-3.0.7.tgz#f249110ec722b725b89c0c20f57bd8deeaf94a67"
+  integrity sha512-U7SAe5+iII7v4bF1biYD/70h5CTAhyb/pROShHVMrO53wwKGDbmPDbB/2Pq6yMTpYm04mbZud0mNbdPkLHbjdA==
+
+"@layerzerolabs/lz-evm-protocol-v2@^3.0.7":
+  version "3.0.7"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/lz-evm-protocol-v2/-/lz-evm-protocol-v2-3.0.7.tgz#ff37b3a5d9a851f24ea04fed40c45c9efa2cd387"
+  integrity sha512-mmDjM70N//7TK951RCZA6BRw+AD9vSaBscRCD1KQ/AofXm0LZIPmKv63wgS/zd6yAXDX2kGD8DDoW++q2Ffmpg==
+
 "@manypkg/find-root@^1.1.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@manypkg/find-root/-/find-root-1.1.0.tgz#a62d8ed1cd7e7d4c11d9d52a8397460b5d4ad29f"
