@@ -47,7 +47,6 @@ contract PoR is AccessControlUpgradeable, IPoR {
         }
         PORStorage storage $ = _getPORStorage(); 
         bytes32 rootPkId = keccak256(_pubkey);
-        RootPubkeyData storage rootPubkeyData = $.idToPubkeyData[rootPkId];
         if ($.idToPubkeyData[rootPkId].pubkey.length != 0) {
             revert RootPubkeyAlreadyExists(_pubkey);
         }
