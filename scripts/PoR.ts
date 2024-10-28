@@ -1,6 +1,6 @@
-import { task } from "hardhat/config"; 
-import {verify, getProxyFactoryAt, getProxySalt} from "./helpers";
-import {DEFAULT_PROXY_FACTORY} from "./helpers/constants";
+import { task } from "hardhat/config";
+import { verify, getProxyFactoryAt, getProxySalt } from "./helpers";
+import { DEFAULT_PROXY_FACTORY } from "./helpers/constants";
 
 /*
  * After deployment:
@@ -11,10 +11,14 @@ import {DEFAULT_PROXY_FACTORY} from "./helpers/constants";
 task("deploy-por", "Deploys the PoR contract via create3")
   .addParam("ledgerNetwork", "The network name of ledger", "mainnet")
   .addParam("admin", "The address of the owner")
-  .addParam("proxyFactoryAddr", "The ProxyFactory address", DEFAULT_PROXY_FACTORY)
+  .addParam(
+    "proxyFactoryAddr",
+    "The ProxyFactory address",
+    DEFAULT_PROXY_FACTORY,
+  )
   .setAction(async (taskArgs, hre) => {
     // TODO: update to use helpers when bft branch gets merged
-  
+
     const { ledgerNetwork, admin, proxyFactoryAddr } = taskArgs;
     const { ethers, run, upgrades } = hre;
 
@@ -26,7 +30,12 @@ task("deploy-por", "Deploys the PoR contract via create3")
 
     const data = porImpl.interface.encodeFunctionData("initialize", [admin]);
 
-    const tx = await factory.createTransparentProxy(await porImpl.getAddress(), admin, data, saltHash);
+    const tx = await factory.createTransparentProxy(
+      await porImpl.getAddress(),
+      admin,
+      data,
+      saltHash,
+    );
     await tx.wait();
 
     const proxy = await factory.getDeployed(saltHash);
@@ -35,14 +44,15 @@ task("deploy-por", "Deploys the PoR contract via create3")
     const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxy);
     console.log("Proxy admin:", proxyAdmin);
 
-    await verify(run, await factory.getAddress());
     await verify(run, await porImpl.getAddress());
     await verify(run, proxyAdmin, {
-      contract: "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin",
+      contract:
+        "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin",
       constructorArguments: [admin],
     });
     await verify(run, proxy, {
-      contract: "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
+      contract:
+        "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
       constructorArguments: [await porImpl.getAddress(), admin, data],
     });
   });
