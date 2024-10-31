@@ -779,6 +779,11 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
+"@layerzerolabs/lz-evm-messagelib-v2@^3.0.9":
+  version "3.0.9"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/lz-evm-messagelib-v2/-/lz-evm-messagelib-v2-3.0.9.tgz#a68b996b4c3c2de24dbcda6f31cef7203849896e"
+  integrity sha512-nIFsuLbqkRAAj1AcUtOElSDeC9SZetcnNVzVgYuY7tV9uGrL5HT3k0RYXb/mGgd7co2fG8/Oi2ZQJLLPeASZzQ==
+
 "@layerzerolabs/lz-evm-oapp-v2@^3.0.7":
   version "3.0.7"
   resolved "https://registry.yarnpkg.com/@layerzerolabs/lz-evm-oapp-v2/-/lz-evm-oapp-v2-3.0.7.tgz#f249110ec722b725b89c0c20f57bd8deeaf94a67"
@@ -802,6 +807,18 @@
     "@ethersproject/solidity" "^5.7.0"
     bs58 "^5.0.0"
     tiny-invariant "^1.3.1"
+
+"@layerzerolabs/oapp-evm@^0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/oapp-evm/-/oapp-evm-0.0.4.tgz#af86216842c7da5a270eeff04a6b16320f113f7b"
+  integrity sha512-h0papPd9mQAPsWoQuzZk3dIcLWLrJ8tnDNPg7Hn8aa+v7HPY1lo6Zmyn3t7RmzfKnvrjnjKWDTbX2zgesu4hYg==
+  dependencies:
+    ethers "^5.7.2"
+
+"@layerzerolabs/oft-evm@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/oft-evm/-/oft-evm-0.1.0.tgz#3c47dd99674c568bd1e34b73e5a05c3e09966fc1"
+  integrity sha512-8LiotgJjbQN+wexOtpUPh2vgYDgec2ac0ypKKbBIE2kt1DWAxvKxI8nGuE6RRjBnvvMS3qNGmJQFxzwcOKHq+g==
 
 "@layerzerolabs/test-devtools-evm-hardhat@^0.3.0":
   version "0.3.0"
@@ -3041,6 +3058,10 @@ dotenv@^8.1.0:
   resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-8.6.0.tgz#061af664d19f7f4d8fc6e4ff9b584ce237adcb8b"
   integrity sha512-IrPdXQsk2BbzvCBGBOTmmSH5SodmqZNt4ERAZDmW4CT+tL8VtvinqywuANaFu4bOMWki16nqf0e4oC0QIaDr/g==
 
+"ds-test@github:dapphub/ds-test":
+  version "1.0.0"
+  resolved "https://codeload.github.com/dapphub/ds-test/tar.gz/e282159d5170298eb2455a6c05280ab5a73a4ef0"
+
 eastasianwidth@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/eastasianwidth/-/eastasianwidth-0.2.0.tgz#696ce2ec0aa0e6ea93a397ffcf24aa7840c827cb"
@@ -3723,6 +3744,11 @@ forever-agent@~0.6.1:
   version "0.6.1"
   resolved "https://registry.npmjs.org/forever-agent/-/forever-agent-0.6.1.tgz"
   integrity sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==
+
+forge-std@^1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/forge-std/-/forge-std-1.1.2.tgz#f4a0eda103538d56f9c563f3cd1fa2fd01bd9378"
+  integrity sha512-Wfb0iAS9PcfjMKtGpWQw9mXzJxrWD62kJCUqqLcyuI0+VRtJ3j20XembjF3kS20qELYdXft1vD/SPFVWVKMFOw==
 
 form-data-encoder@1.7.1:
   version "1.7.1"
@@ -6341,6 +6367,14 @@ solidity-ast@^0.4.51:
   integrity sha512-HgmsA/Gfklm/M8GFbCX/J1qkVH0spXHgALCNZ8fA8x5X+MFdn/8CP2gr5OVyXjXw6RZTPC/Sxl2RUDQOXyNMeA==
   dependencies:
     array.prototype.findlast "^1.2.2"
+
+solidity-bytes-utils@^0.8.2:
+  version "0.8.2"
+  resolved "https://registry.yarnpkg.com/solidity-bytes-utils/-/solidity-bytes-utils-0.8.2.tgz#763d6a02fd093e93b3a97b742e97d540e66c29bd"
+  integrity sha512-cqXPYAV2auhpdKSTPuqji0CwpSceZDu95CzqSM/9tDJ2MoMaMsdHTpOIWtVw31BIqqGPNmIChCswzbw0tHaMTw==
+  dependencies:
+    ds-test "github:dapphub/ds-test"
+    forge-std "^1.1.2"
 
 solidity-coverage@^0.8.0:
   version "0.8.12"

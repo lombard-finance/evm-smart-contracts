@@ -13,13 +13,12 @@ import {
     signDepositBridgePayload,
     Signer,
 } from './helpers';
-import { ethers } from 'hardhat';
+import { ethers, deployments } from 'hardhat';
 import { expect } from 'chai';
 
-import { BaseContract, ContractFactory } from 'ethers';
-import { EndpointV2MockArtifact } from './artifacts/EndpointV2MockArtifact';
+import { BaseContract } from 'ethers';
 
-describe('LZAdapter', function () {
+describe('Bridge', function () {
     let deployer: Signer,
         signer1: Signer,
         signer2: Signer,
@@ -83,7 +82,10 @@ describe('LZAdapter', function () {
             deployer.address,
         ]);
 
-        const EndpointV2Mock = new ContractFactory(
+        // deploy LayerZero endpoint
+        const EndpointV2MockArtifact =
+            await deployments.getArtifact('EndpointV2Mock');
+        const EndpointV2Mock = new ethers.ContractFactory(
             EndpointV2MockArtifact.abi,
             EndpointV2MockArtifact.bytecode,
             deployer
