@@ -38,4 +38,9 @@ interface INotaryConsortium {
 
     /// @dev Error thrown when invalid epoch is provided
     error InvalidEpoch();
+
+    function checkProof(
+        bytes32 _payloadHash,
+        bytes calldata _proof
+    ) external view;
 }

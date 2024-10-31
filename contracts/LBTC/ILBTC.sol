@@ -53,4 +53,7 @@ interface ILBTC {
         bytes32 indexed payloadHash,
         bytes payload
     );
+
+    function burn(address from, uint256 amount) external;
+    function mint(address to, uint256 amount) external;
 }

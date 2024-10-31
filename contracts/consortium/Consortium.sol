@@ -80,7 +80,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     function checkProof(
         bytes32 _payloadHash,
         bytes calldata _proof
-    ) public view {
+    ) public override view {
         _checkProof(_payloadHash, _proof);
     }
 

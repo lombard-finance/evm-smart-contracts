@@ -20,12 +20,14 @@ contract RateLimitedOFTAdapter is OFTAdapter, RateLimiter {
     constructor(
         address _token,
         address _lzEndpoint,
-        address _delegate, 
+        address _delegate,
         address _owner
     ) OFTAdapter(_token, _lzEndpoint, _delegate) Ownable(_owner) {}
 
     /// ONLY OWNER FUNCTIONS ///
-    function setRateLimits(RateLimitConfig[] memory _rateLimitConfigs) external onlyOwner {
+    function setRateLimits(
+        RateLimitConfig[] memory _rateLimitConfigs
+    ) external onlyOwner {
         super._setRateLimits(_rateLimitConfigs);
     }
 
@@ -37,16 +39,21 @@ contract RateLimitedOFTAdapter is OFTAdapter, RateLimiter {
     function _buildMsgAndOptions(
         SendParam calldata _sendParam,
         uint256 _amountLD
-    ) internal view override returns (bytes memory message, bytes memory options) {
+    )
+        internal
+        view
+        override
+        returns (bytes memory message, bytes memory options)
+    {
         (message, options) = super._buildMsgAndOptions(_sendParam, _amountLD);
         // @dev Add the payload to the message
         message = abi.encodePacked(message, _sendParam.oftCmd);
-        if(_sendParam.oftCmd.length != PAYLOAD_LENGTH) {
+        if (_sendParam.oftCmd.length != PAYLOAD_LENGTH) {
             revert InvalidPayloadLength(_sendParam.oftCmd);
         }
         return (message, options);
     }
-    
+
     /**
      * @dev emits the payload
      */
@@ -59,8 +66,14 @@ contract RateLimitedOFTAdapter is OFTAdapter, RateLimiter {
     ) internal virtual override {
         // strip payload from message
         uint256 oftMessageLength = _message.length - PAYLOAD_LENGTH;
-        super._lzReceive(_origin, _guid, _message[:oftMessageLength], _executor, _extraData);
- 
+        super._lzReceive(
+            _origin,
+            _guid,
+            _message[:oftMessageLength],
+            _executor,
+            _extraData
+        );
+
         // emit the payload
         emit PayloadProcessed(_message[oftMessageLength:]);
     }

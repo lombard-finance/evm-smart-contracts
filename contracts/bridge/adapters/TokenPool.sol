@@ -5,7 +5,7 @@ import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool
 import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ERC20/IBurnMintERC20.sol";
 import {IAdapter} from "./IAdapter.sol";
-import {Bridge} from "../Bridge.sol";
+import {IBridge} from "../IBridge.sol";
 
 interface IPayloadStore is IAdapter {
     function latestPayloadHashSent() external returns (bytes32);
@@ -83,7 +83,7 @@ contract LBTCTokenPool is TokenPool {
             revert MalformedProof();
         }
 
-        _bridge().withdraw(payload, proof);
+        //        _bridge().withdraw(payload, proof);
 
         emit Minted(
             msg.sender,
@@ -99,7 +99,7 @@ contract LBTCTokenPool is TokenPool {
 
     /// PRIVATE FUNCTIONS ///
 
-    function _bridge() internal view returns (Bridge) {
-        return Bridge(adapter.bridge());
+    function _bridge() internal view returns (IBridge) {
+        return adapter.bridge();
     }
 }

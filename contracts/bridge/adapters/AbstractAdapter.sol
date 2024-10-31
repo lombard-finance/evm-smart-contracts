@@ -2,23 +2,28 @@
 pragma solidity 0.8.24;
 
 import {IAdapter} from "./IAdapter.sol";
-import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {LBTC} from "../../LBTC/LBTC.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IBridge, ILBTC} from "../IBridge.sol";
 
-abstract contract AbstractAdapter is IAdapter, Ownable2Step {
+/**
+ * @title Abstract bridge adapter
+ * @author Lombard.finance
+ * @notice Implements basic communication with Bridge contract.
+ * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
+ */
+abstract contract AbstractAdapter is IAdapter, Ownable {
     error ZeroAddress();
 
     error NotBridge();
 
-    event BridgeChanged(address indexed oldBridge, address indexed newBridge);
+    event BridgeChanged(IBridge indexed oldBridge, IBridge indexed newBridge);
 
-    LBTC lbtc;
-    address public override bridge;
+    IBridge public override bridge;
 
-    constructor(address lbtc_, address owner_) Ownable(owner_) {
-        _notZero(lbtc_);
+    constructor(address owner_) Ownable(owner_) {}
 
-        lbtc = LBTC(lbtc_);
+    function lbtc() public view returns (ILBTC) {
+        return bridge.lbtc();
     }
 
     /// MODIFIERS ///
@@ -34,10 +39,10 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
      * @notice Change the bridge address
      * @param bridge_ New bridge address
      */
-    function changeBridge(address bridge_) external onlyOwner {
-        _notZero(bridge_);
+    function changeBridge(IBridge bridge_) external onlyOwner {
+        _notZero(address(bridge_));
 
-        address oldBridge = bridge;
+        IBridge oldBridge = bridge;
         bridge = bridge_;
         emit BridgeChanged(oldBridge, bridge_);
     }
@@ -45,7 +50,7 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
     /// PRIVATE FUNCTIONS ///
 
     function _onlyBridge() internal view {
-        if (msg.sender != bridge) {
+        if (_msgSender() != address(bridge)) {
             revert NotBridge();
         }
     }
@@ -55,4 +60,36 @@ abstract contract AbstractAdapter is IAdapter, Ownable2Step {
             revert ZeroAddress();
         }
     }
+
+    /**
+     * @dev Called when data is received.
+     */
+    function _receive(
+        bytes32 fromChain,
+        bytes32 fromContract,
+        bytes calldata payload
+    ) internal {
+        bridge.receivePayload(fromChain, fromContract, payload);
+    }
+
+    /**
+     * @notice Sends a payload from the source to destination chain.
+     * @param _toChain Destination chain's.
+     * @param _payload The payload to send.
+     * @param _refundAddress Address where refund fee
+     */
+    function _deposit(
+        bytes32 _toChain,
+        bytes memory _payload,
+        address _refundAddress
+    ) internal virtual;
+
+    function deposit(
+        address _fromAddress,
+        bytes32 _toChain,
+        bytes32 _toContract,
+        bytes32 _toAddress,
+        uint256 _amount,
+        bytes memory _payload
+    ) external payable virtual override {}
 }

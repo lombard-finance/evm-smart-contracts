@@ -17,11 +17,7 @@ contract TokenPoolAdapter is AbstractAdapter {
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
 
-    constructor(
-        address ccipRouter_,
-        address lbtc_,
-        address owner_
-    ) AbstractAdapter(lbtc_, owner_) {
+    constructor(address ccipRouter_, address owner_) AbstractAdapter(owner_) {
         ccipRouter = IRouterClient(ccipRouter_);
         gasLimit = 200_000;
     }
@@ -67,7 +63,7 @@ contract TokenPoolAdapter is AbstractAdapter {
 
         latestPayloadHashSent = sha256(_message);
 
-        lbtc.approve(address(ccipRouter), _amount);
+        //        bridge.lbtc.approve(address(ccipRouter), _amount);
         ccipRouter.ccipSend(uint64(uint256(_toChain)), message);
     }
 
@@ -93,7 +89,7 @@ contract TokenPoolAdapter is AbstractAdapter {
         Client.EVMTokenAmount[]
             memory tokenAmounts = new Client.EVMTokenAmount[](1);
         tokenAmounts[0] = Client.EVMTokenAmount({
-            token: address(lbtc),
+            token: address(bridge.lbtc()),
             amount: _amount
         });
 
@@ -111,4 +107,10 @@ contract TokenPoolAdapter is AbstractAdapter {
                 feeToken: address(0) // let's pay with native tokens
             });
     }
+
+    function _deposit(
+        bytes32 _toChain,
+        bytes memory _payload,
+        address _refundAddress
+    ) internal override {}
 }
