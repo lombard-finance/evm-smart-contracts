@@ -24,9 +24,7 @@ describe('Bridge', function () {
         signer2: Signer,
         signer3: Signer,
         treasury: Signer,
-        reporter: Signer,
-        admin: Signer,
-        pauser: Signer;
+        admin: Signer;
     let lbtc: LBTCMock;
     let consortium: Consortium;
     let snapshot: SnapshotRestorer;
@@ -47,16 +45,8 @@ describe('Bridge', function () {
             [(await ethers.provider.getNetwork()).chainId]
         );
 
-        [
-            deployer,
-            signer1,
-            signer2,
-            signer3,
-            treasury,
-            admin,
-            pauser,
-            reporter,
-        ] = await getSignersWithPrivateKeys();
+        [deployer, signer1, signer2, signer3, treasury, admin] =
+            await getSignersWithPrivateKeys();
 
         // for both chains
         consortium = await deployContract<Consortium>('ConsortiumMock', [
