@@ -48,5 +48,8 @@
   },
   "resolutions": {
     "@openzeppelin/contracts": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=18.16.0"
   }
 }

@@ -161,7 +161,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     function _checkProof(
         bytes32 _payloadHash,
         bytes calldata _proof
-    ) internal view {
+    ) internal virtual view {
         ConsortiumStorage storage $ = _getConsortiumStorage();
         if ($.epoch == 0) {
             revert NoValidatorSet();

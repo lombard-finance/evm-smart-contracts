@@ -423,6 +423,15 @@ contract Bridge is
         _changeAdapter(chain, newAdapter);
     }
 
+    function setConsortium(INotaryConsortium newVal) external {
+        BridgeStorage storage $ = _getBridgeStorage();
+
+        $.consortium = newVal;
+
+        // TODO: emit event
+    }
+
+
     /// PRIVATE FUNCTIONS ///
 
     function __Bridge_init(

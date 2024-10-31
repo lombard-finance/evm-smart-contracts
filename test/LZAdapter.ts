@@ -8,25 +8,18 @@ import {
     deployContract,
     CHAIN_ID,
     getPayloadForAction,
-    NEW_VALSET,
     DEPOSIT_BRIDGE_ACTION,
     encode,
     signDepositBridgePayload,
     Signer,
 } from './helpers';
-import { ethers, deployments } from 'hardhat';
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { Options } from '@layerzerolabs/lz-v2-utilities';
 
-const aa = require('@layerzerolabs/test-devtools-evm-hardhat/artifacts/contracts/mocks/EndpointV2Mock.sol/EndpointV2Mock.json');
+import { BaseContract, ContractFactory } from 'ethers';
+import { EndpointV2MockArtifact } from './artifacts/EndpointV2MockArtifact';
 
-console.log(aa);
-
-Options.length;
-
-import { BaseContract } from 'ethers';
-
-describe('Bridge', function () {
+describe('LZAdapter', function () {
     let deployer: Signer,
         signer1: Signer,
         signer2: Signer,
@@ -67,7 +60,7 @@ describe('Bridge', function () {
         ] = await getSignersWithPrivateKeys();
 
         // for both chains
-        consortium = await deployContract<Consortium>('Consortium', [
+        consortium = await deployContract<Consortium>('ConsortiumMock', [
             deployer.address,
         ]);
 
@@ -80,20 +73,17 @@ describe('Bridge', function () {
         // Bridge
         aBridge = await deployContract<Bridge>('Bridge', [
             await lbtc.getAddress(),
-            deployer.address,
+            treasury.address,
             deployer.address,
         ]);
 
         bBridge = await deployContract<Bridge>('Bridge', [
             await lbtc.getAddress(),
-            deployer.address,
+            treasury.address,
             deployer.address,
         ]);
 
-        // deploy LayerZero endpoint
-        const EndpointV2MockArtifact =
-            await deployments.getArtifact('EndpointV2Mock');
-        const EndpointV2Mock = new ethers.ContractFactory(
+        const EndpointV2Mock = new ContractFactory(
             EndpointV2MockArtifact.abi,
             EndpointV2MockArtifact.bytecode,
             deployer
@@ -134,20 +124,27 @@ describe('Bridge', function () {
 
         await aBridge.addDestination(
             chainId,
-            await bBridge.getAddress(),
+            encode(['address'], [await bBridge.getAddress()]),
             1,
             1,
-            await aAdapter.getAddress()
-        );
-        await bBridge.addDestination(
-            chainId,
-            await aBridge.getAddress(),
-            2,
-            2,
-            await bAdapter.getAddress()
+            await aAdapter.getAddress(),
+            true
         );
 
-        ethers.getContractAtFromArtifact;
+        await bBridge.addDestination(
+            chainId,
+            encode(['address'], [await aBridge.getAddress()]),
+            2,
+            2,
+            await bAdapter.getAddress(),
+            true
+        );
+
+        await lbtc.addMinter(await aBridge.getAddress());
+        await lbtc.addMinter(await bBridge.getAddress());
+
+        await aBridge.setConsortium(await consortium.getAddress());
+        await bBridge.setConsortium(await consortium.getAddress());
 
         snapshot = await takeSnapshot();
     });
@@ -167,33 +164,32 @@ describe('Bridge', function () {
 
         it('getDepositRelativeCommission', async function () {
             expect(
-                await aBridge.getDepositRelativeCommission(
-                    ethers.zeroPadValue('0x', 32)
-                )
+                await aBridge.getDepositRelativeCommission(chainId)
             ).to.equal(1);
         });
 
         it('getDepositAbsoluteCommission', async function () {
             expect(
-                await aBridge.getDepositAbsoluteCommission(
-                    ethers.zeroPadValue('0x', 32)
-                )
+                await aBridge.getDepositAbsoluteCommission(chainId)
             ).to.equal(1);
         });
     });
 
-    describe('Actions/Flows', function () {
+    describe('Bridge using auth from consortium', function () {
         const absoluteFee = 100n;
-        const AMOUNT = 10000n;
+        const AMOUNT = 1_0000_0000n; // 1 LBTC
 
         beforeEach(async function () {
             await lbtc.mintTo(signer1.address, AMOUNT);
         });
 
         it('should bridge from A to B', async () => {
-            let fee = AMOUNT / 10n;
+            const absFee = await aBridge.getDepositAbsoluteCommission(chainId);
+            const relFee = await aBridge.getDepositRelativeCommission(chainId);
 
-            let amountWithoutFee = AMOUNT - fee;
+            let amountWithoutFee =
+                AMOUNT - (AMOUNT * relFee) / 100_00n - absFee;
+
             let receiver = signer2.address;
 
             let payload = getPayloadForAction(
@@ -209,9 +205,10 @@ describe('Bridge', function () {
                 DEPOSIT_BRIDGE_ACTION
             );
 
-            // await lbtc
-            //     .connect(signer1)
-            //     .approve(await bridgeSource.getAddress(), amount);
+            await lbtc
+                .connect(signer1)
+                .approve(await aBridge.getAddress(), AMOUNT);
+
             await expect(
                 aBridge
                     .connect(signer1)
@@ -223,14 +220,16 @@ describe('Bridge', function () {
                     ethers.zeroPadValue(receiver, 32),
                     ethers.sha256(payload),
                     payload
-                );
+                )
+                .and.emit(bAdapter, 'LZMessageReceived');
 
             expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
-            expect(await lbtc.balanceOf(treasury.address)).to.be.equal(fee);
-            expect((await lbtc.totalSupply()).toString()).to.be.equal(fee);
-
-            // expect(await lbtc.balanceOf(signer2.address)).to.be.equal(0);
-            // expect(await lbtc.totalSupply()).to.be.equal(0);
+            expect(await lbtc.balanceOf(treasury.address)).to.be.equal(
+                AMOUNT - amountWithoutFee
+            );
+            expect((await lbtc.totalSupply()).toString()).to.be.equal(
+                AMOUNT - amountWithoutFee
+            );
 
             // TODO: sign payload from event or `payload`
             const data1 = await signDepositBridgePayload(
@@ -248,7 +247,7 @@ describe('Bridge', function () {
 
             await expect(bBridge.authNotary(data1.payload, data1.proof))
                 .to.emit(bBridge, 'PayloadNotarized')
-                .withArgs(receiver, data1.payloadHash, data1.payload);
+                .withArgs(receiver, data1.payloadHash);
 
             await expect(bBridge.connect(signer2).withdraw(data1.payload))
                 .to.emit(bBridge, 'WithdrawFromBridge')
@@ -266,9 +265,6 @@ describe('Bridge', function () {
 
             const amount = amountWithoutFee;
 
-            fee = 1n + absoluteFee;
-            amountWithoutFee = amount - fee;
-
             payload = getPayloadForAction(
                 [
                     chainId,
@@ -282,9 +278,9 @@ describe('Bridge', function () {
                 DEPOSIT_BRIDGE_ACTION
             );
 
-            // await lbtc
-            //     .connect(signer2)
-            //     .approve(await bridgeDestination.getAddress(), amount);
+            await lbtc
+                .connect(signer2)
+                .approve(await bBridge.getAddress(), amount);
             await expect(
                 bBridge
                     .connect(signer2)
@@ -299,8 +295,10 @@ describe('Bridge', function () {
                 );
 
             expect(await lbtc.balanceOf(signer2.address)).to.be.equal(0);
-            expect(await lbtc.balanceOf(treasury.address)).to.be.equal(fee);
-            expect(await lbtc.totalSupply()).to.be.equal(fee);
+            expect(await lbtc.balanceOf(treasury.address)).to.be.equal(
+                amountWithoutFee
+            );
+            expect(await lbtc.totalSupply()).to.be.equal(AMOUNT);
 
             const data2 = await signDepositBridgePayload(
                 [signer1],
@@ -315,7 +313,7 @@ describe('Bridge', function () {
 
             await expect(aBridge.authNotary(data2.payload, data2.proof))
                 .to.emit(aBridge, 'PayloadNotarized')
-                .withArgs(receiver, data2.payloadHash, 2);
+                .withArgs(receiver, data2.payloadHash);
 
             await expect(aBridge.connect(signer2).withdraw(data2.payload))
                 .to.emit(aBridge, 'WithdrawFromBridge')

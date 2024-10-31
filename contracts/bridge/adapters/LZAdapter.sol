@@ -87,6 +87,8 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
             MessagingFee(msg.value, 0),
             payable(_refundAddress)
         );
+
+        // TODO: add LZ event about send
     }
 
     /**
