@@ -8,7 +8,6 @@ import {
     deployContract,
     CHAIN_ID,
     getPayloadForAction,
-    NEW_VALSET,
     DEPOSIT_BRIDGE_ACTION,
     encode,
     signDepositBridgePayload,
@@ -16,13 +15,6 @@ import {
 } from './helpers';
 import { ethers, deployments } from 'hardhat';
 import { expect } from 'chai';
-import { Options } from '@layerzerolabs/lz-v2-utilities';
-
-const aa = require('@layerzerolabs/test-devtools-evm-hardhat/artifacts/contracts/mocks/EndpointV2Mock.sol/EndpointV2Mock.json');
-
-console.log(aa);
-
-Options.length;
 
 import { BaseContract } from 'ethers';
 

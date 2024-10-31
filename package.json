@@ -48,5 +48,11 @@
   },
   "resolutions": {
     "@openzeppelin/contracts": "^5.0.2"
+  },
+  "dependencies": {
+    "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.9",
+    "@layerzerolabs/oapp-evm": "^0.0.4",
+    "@layerzerolabs/oft-evm": "^0.1.0",
+    "solidity-bytes-utils": "^0.8.2"
   }
 }
