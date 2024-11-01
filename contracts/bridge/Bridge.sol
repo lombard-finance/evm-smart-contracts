@@ -9,8 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Actions} from "../libs/Actions.sol";
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
-import {IBridge, ILBTC} from "./IBridge.sol";
-import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
 
 contract Bridge is
     IBridge,
@@ -41,7 +40,6 @@ contract Bridge is
         uint256 crossChainOperationsNonce;
         mapping(bytes32 => DestinationConfig) destinations;
         mapping(bytes32 => Deposit) deposits;
-
         INotaryConsortium consortium;
     }
 
@@ -103,6 +101,10 @@ contract Bridge is
      */
     function getAdapter(bytes32 toChain) external view returns (IAdapter) {
         return _getBridgeStorage().destinations[toChain].adapter;
+    }
+
+    function consortium() external view override returns (INotaryConsortium) {
+        return _getBridgeStorage().consortium;
     }
 
     /// ACTIONS ///
@@ -231,7 +233,6 @@ contract Bridge is
             payload[4:]
         );
 
-
         // extra checks
         if (
             destConf.bridgeContract !=
@@ -252,17 +253,13 @@ contract Bridge is
         deposit.adapterReceived = true;
         deposit.payload = payload;
 
-        emit PayloadReceived(
-            action.recipient,
-            payloadHash,
-            _msgSender()
-        );
+        emit PayloadReceived(action.recipient, payloadHash, _msgSender());
     }
 
-    function authNotary(bytes calldata payload, bytes calldata proof) external nonReentrant {
-
-
-
+    function authNotary(
+        bytes calldata payload,
+        bytes calldata proof
+    ) external nonReentrant {
         // payload validation
         if (bytes4(payload) != Actions.DEPOSIT_BRIDGE_ACTION) {
             revert UnexpectedAction(bytes4(payload));
@@ -272,7 +269,6 @@ contract Bridge is
         );
 
         // TODO: verify action
-
 
         bytes32 payloadHash = sha256(payload);
         BridgeStorage storage $ = _getBridgeStorage();
@@ -305,13 +301,17 @@ contract Bridge is
             payload[4:]
         );
 
-        DestinationConfig memory destConf = $.destinations[bytes32(action.fromChain)];
+        DestinationConfig memory destConf = $.destinations[
+            bytes32(action.fromChain)
+        ];
 
         bytes32 payloadHash = sha256(payload);
         Deposit storage deposit = $.deposits[payloadHash];
 
         // validate required auth received
-        if (address(destConf.adapter) != address(0) && !deposit.adapterReceived) {
+        if (
+            address(destConf.adapter) != address(0) && !deposit.adapterReceived
+        ) {
             revert AdapterNotConfirmed();
         }
 
@@ -423,14 +423,11 @@ contract Bridge is
         _changeAdapter(chain, newAdapter);
     }
 
-    function setConsortium(INotaryConsortium newVal) external {
+    function changeConsortium(INotaryConsortium newVal) external onlyOwner {
         BridgeStorage storage $ = _getBridgeStorage();
-
+        emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
-
-        // TODO: emit event
     }
-
 
     /// PRIVATE FUNCTIONS ///
 

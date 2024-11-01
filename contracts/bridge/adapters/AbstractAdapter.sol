@@ -20,7 +20,9 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
 
     IBridge public override bridge;
 
-    constructor(address owner_) Ownable(owner_) {}
+    constructor(address owner_, IBridge bridge_) Ownable(owner_) {
+        bridge = bridge_;
+    }
 
     function lbtc() public view returns (ILBTC) {
         return bridge.lbtc();

@@ -6,29 +6,45 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
     .addParam('contract', 'The address of destination bridge smart-contract')
     .addParam('relCommission', 'The relative commission for bridge', '1')
     .addParam('absCommission', 'The absolute commission for bridge', '10')
+    .addParam(
+        'adapter',
+        'The address of adapter',
+        '0x0000000000000000000000000000000000000000'
+    )
+    .addFlag('requireConsortium', 'Use if consortium required for destination')
     .setAction(async (taskArgs, hre, network) => {
-        const { ethers } = hre;
-
-        const { target, chainId, contract, relCommission, absCommission } =
-            taskArgs;
+        const {
+            target,
+            chainId,
+            contract,
+            relCommission,
+            absCommission,
+            adapter,
+            requireConsortium,
+        } = taskArgs;
 
         const toChainId = chainId.includes('0x')
             ? chainId
-            : ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [chainId]);
+            : hre.ethers.AbiCoder.defaultAbiCoder().encode(
+                  ['uint256'],
+                  [chainId]
+              );
 
         const toContract =
             contract.length != 42
                 ? contract
-                : ethers.AbiCoder.defaultAbiCoder().encode(
+                : hre.ethers.AbiCoder.defaultAbiCoder().encode(
                       ['address'],
                       [contract]
                   );
 
-        const bridge = await ethers.getContractAt('Bridge', target);
+        const bridge = await hre.ethers.getContractAt('Bridge', target);
         await bridge.addDestination(
             toChainId,
             toContract,
             relCommission,
-            absCommission
+            absCommission,
+            adapter,
+            requireConsortium
         );
     });

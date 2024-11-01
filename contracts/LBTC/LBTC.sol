@@ -468,8 +468,6 @@ contract LBTC is
             revert UnauthorizedAccount(_msgSender());
         }
 
-
-
         // Actually mint
         _mint(action.recipient, action.amount);
     }

@@ -3,8 +3,9 @@ pragma solidity 0.8.24;
 
 import {ILBTC} from "../LBTC/ILBTC.sol";
 import "./adapters/IAdapter.sol";
+import {IConsortiumConsumer, INotaryConsortium} from "../interfaces/IConsortiumConsumer.sol";
 
-interface IBridge {
+interface IBridge is IConsortiumConsumer {
     /// @notice Emitted when the destination is unknown.
     error UnknownDestination();
 

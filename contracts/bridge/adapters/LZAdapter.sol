@@ -3,9 +3,10 @@ pragma solidity 0.8.24;
 
 import {AbstractAdapter} from "./AbstractAdapter.sol";
 import {OAppReceiver} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppReceiver.sol";
-import {OAppSender} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppSender.sol";
+import {OAppSender, MessagingReceipt} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppSender.sol";
 import {OAppCore} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppCore.sol";
 import {MessagingFee, Origin} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+import {IBridge} from "../IBridge.sol";
 
 /**
  * @title LayerZero bridge adapter
@@ -24,6 +25,11 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
         uint64 indexed nonce,
         address indexed executor
     );
+    event LZMessageSent(
+        bytes32 indexed guid,
+        uint64 indexed nonce,
+        uint256 fee
+    );
     event LZEIDSet(bytes32 indexed chain, uint32 indexed eid);
 
     bool internal constant PAY_IN_LZ_TOKEN = false;
@@ -34,8 +40,9 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
     // @param _endpoint Endpoint from https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
     constructor(
         address _owner,
-        address _endpoint
-    ) AbstractAdapter(_owner) OAppCore(_endpoint, _owner) {}
+        address _endpoint,
+        IBridge _bridge
+    ) AbstractAdapter(_owner, _bridge) OAppCore(_endpoint, _owner) {}
 
     function oAppVersion()
         public
@@ -79,7 +86,7 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
         uint32 _dstEid = getEID[_toChain];
         bytes memory _options;
 
-        _lzSend(
+        MessagingReceipt memory receipt = _lzSend(
             _dstEid,
             _payload,
             _options,
@@ -88,7 +95,7 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
             payable(_refundAddress)
         );
 
-        // TODO: add LZ event about send
+        emit LZMessageSent(receipt.guid, receipt.nonce, receipt.fee.nativeFee);
     }
 
     /**
