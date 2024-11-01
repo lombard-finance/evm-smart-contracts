@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {AbstractAdapter} from "./AbstractAdapter.sol";
-import {OApp, MessagingFee, Origin} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+import {AbstractAdapter, IBridge} from "./AbstractAdapter.sol";
+import {OApp, MessagingFee, Origin, MessagingReceipt} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
 import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
 
 /**
@@ -29,17 +29,24 @@ contract LZAdapter is AbstractAdapter, OApp {
         uint256 fee
     );
     event LZEIDSet(bytes32 indexed chain, uint32 indexed eid);
+    event ExecutionGasLimitSet(uint128 indexed prevVal, uint128 indexed newVal);
 
     bool internal constant PAY_IN_LZ_TOKEN = false;
 
     mapping(bytes32 => uint32) public getEID;
     mapping(uint32 => bytes32) public getChain;
+    uint128 public getExecutionGasLimit;
 
     // @param _endpoint Endpoint from https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
     constructor(
         address _owner,
-        address _endpoint
-    ) AbstractAdapter(_owner) OApp(_endpoint, _owner) {}
+        IBridge _bridge,
+        address _endpoint,
+        uint128 _executionGasLimit
+    ) AbstractAdapter(_owner, _bridge) OApp(_endpoint, _owner) {
+        getExecutionGasLimit = _executionGasLimit;
+        emit ExecutionGasLimitSet(0, _executionGasLimit);
+    }
 
     function getFee(
         bytes32 _toChain,
@@ -48,11 +55,14 @@ contract LZAdapter is AbstractAdapter, OApp {
         uint256,
         bytes memory _payload
     ) external view override returns (uint256) {
-        bytes memory options;
+        bytes memory _options = OptionsBuilder
+            .newOptions()
+            .addExecutorLzReceiveOption(getExecutionGasLimit, 0);
+
         MessagingFee memory fee = _quote(
             getEID[_toChain],
             _payload,
-            options,
+            _options,
             PAY_IN_LZ_TOKEN
         );
         return fee.nativeFee;
@@ -72,7 +82,7 @@ contract LZAdapter is AbstractAdapter, OApp {
         uint32 _dstEid = getEID[_toChain];
         bytes memory _options = OptionsBuilder
             .newOptions()
-            .addExecutorLzReceiveOption(100000, 0);
+            .addExecutorLzReceiveOption(getExecutionGasLimit, 0);
 
         MessagingReceipt memory receipt = _lzSend(
             _dstEid,
@@ -129,5 +139,10 @@ contract LZAdapter is AbstractAdapter, OApp {
         getEID[chain] = eid;
         getChain[eid] = chain;
         emit LZEIDSet(chain, eid);
+    }
+
+    function setExecutionGasLimit(uint128 newVal) external onlyOwner {
+        emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);
+        getExecutionGasLimit = newVal;
     }
 }

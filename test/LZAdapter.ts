@@ -90,13 +90,23 @@ describe('Bridge', function () {
 
         aAdapter = await deployContract<LZAdapter>(
             'LZAdapter',
-            [deployer.address, await aLZEndpoint.getAddress()],
+            [
+                deployer.address,
+                await aBridge.getAddress(),
+                await aLZEndpoint.getAddress(),
+                100_000,
+            ],
             false
         );
 
         bAdapter = await deployContract<LZAdapter>(
             'LZAdapter',
-            [deployer.address, await bLZEndpoint.getAddress()],
+            [
+                deployer.address,
+                bBridge.getAddress(),
+                await bLZEndpoint.getAddress(),
+                100_000,
+            ],
             false
         );
 
@@ -145,8 +155,8 @@ describe('Bridge', function () {
         await lbtc.addMinter(await aBridge.getAddress());
         await lbtc.addMinter(await bBridge.getAddress());
 
-        await aBridge.setConsortium(await consortium.getAddress());
-        await bBridge.setConsortium(await consortium.getAddress());
+        await aBridge.changeConsortium(await consortium.getAddress());
+        await bBridge.changeConsortium(await consortium.getAddress());
 
         snapshot = await takeSnapshot();
     });
