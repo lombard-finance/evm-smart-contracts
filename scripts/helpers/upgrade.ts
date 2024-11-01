@@ -1,5 +1,5 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { verify, getProxyFactoryAt, getProxySalt } from './index';
+import { verify, getProxyFactoryAt, getProxySalt, sleep } from './index';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 import { string } from 'hardhat/internal/core/params/argumentTypes';
 
@@ -13,6 +13,8 @@ export async function upgradeProxy(
 
     const impl = await ethers.deployContract(contract);
     await impl.waitForDeployment();
+
+    await sleep(12_000); // wait to exclude nonce race
 
     const proxyAdmin = await ethers.getContractAt(
         'IProxyAdmin',

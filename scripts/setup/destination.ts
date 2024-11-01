@@ -39,6 +39,7 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
                   );
 
         const bridge = await hre.ethers.getContractAt('Bridge', target);
+
         await bridge.addDestination(
             toChainId,
             toContract,

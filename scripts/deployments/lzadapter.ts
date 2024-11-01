@@ -10,10 +10,15 @@ task('deploy-lzadapter', 'Deploys the LZAdapter contract')
     .addParam('admin', 'The address of the owner')
     .addParam('lzEndpoint', 'The LayerZero endpoint')
     .addParam('bridge', 'Bridge to set adapter on')
+    .addParam(
+        'gasLimit',
+        'Execution gas limit on destination chain',
+        100_000n.toString()
+    )
     .setAction(async (taskArgs, hre) => {
-        const { admin, bridge, lzEndpoint } = taskArgs;
+        const { admin, bridge, lzEndpoint, gasLimit } = taskArgs;
 
-        const args = [admin, lzEndpoint, bridge];
+        const args = [admin, bridge, lzEndpoint, gasLimit];
 
         const adapter = await hre.ethers.deployContract('LZAdapter', args);
         console.log(`LZAdapter: ${await adapter.getAddress()}`);
