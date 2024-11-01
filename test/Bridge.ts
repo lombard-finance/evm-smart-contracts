@@ -321,197 +321,194 @@ describe('Bridge', function () {
                 );
         });
 
-        // describe('With Chainlink Adapter', function () {
-        //     let routerSource: CCIPRouterMock;
-        //     let routerDestination: CCIPRouterMock;
-        //     let chainlinkAdapterSource: TokenPoolAdapter;
-        //     let chainlinkAdapterDestination: TokenPoolAdapter;
-        //     let tokenPoolSource: LBTCTokenPool;
-        //     let tokenPoolDestination: LBTCTokenPool;
+        describe('With Chainlink Adapter', function () {
+            let routerSource: CCIPRouterMock;
+            let routerDestination: CCIPRouterMock;
+            let chainlinkAdapterSource: TokenPoolAdapter;
+            let chainlinkAdapterDestination: TokenPoolAdapter;
+            let tokenPoolSource: LBTCTokenPool;
+            let tokenPoolDestination: LBTCTokenPool;
 
-        //     beforeEach(async function () {
-        //         /// configure source
-        //         routerSource = await deployContract<CCIPRouterMock>(
-        //             'CCIPRouterMock',
-        //             [],
-        //             false
-        //         );
-        //         chainlinkAdapterSource = await deployContract<TokenPoolAdapter>(
-        //             'TokenPoolAdapter',
-        //             [
-        //                 await routerSource.getAddress(),
-        //                 await lbtcSource.getAddress(),
-        //                 deployer.address,
-        //             ],
-        //             false
-        //         );
-        //         tokenPoolSource = await deployContract<LBTCTokenPool>(
-        //             'LBTCTokenPool',
-        //             [
-        //                 await chainlinkAdapterSource.getAddress(),
-        //                 await lbtcSource.getAddress(),
-        //                 [], // no allowlist
-        //                 await routerSource.getAddress(), // will do work of rmn as well
-        //                 await routerSource.getAddress(),
-        //             ],
-        //             false
-        //         );
-        //         await chainlinkAdapterSource.setTokenPool(
-        //             await tokenPoolSource.getAddress()
-        //         );
-        //         await chainlinkAdapterSource.changeBridge(
-        //             await bridgeSource.getAddress()
-        //         );
+            beforeEach(async function () {
+                /// configure source
+                routerSource = await deployContract<CCIPRouterMock>(
+                    'CCIPRouterMock',
+                    [],
+                    false
+                );
+                chainlinkAdapterSource = await deployContract<TokenPoolAdapter>(
+                    'TokenPoolAdapter',
+                    [await routerSource.getAddress(), deployer.address],
+                    false
+                );
+                tokenPoolSource = await deployContract<LBTCTokenPool>(
+                    'LBTCTokenPool',
+                    [
+                        await chainlinkAdapterSource.getAddress(),
+                        await lbtcSource.getAddress(),
+                        [], // no allowlist
+                        await routerSource.getAddress(), // will do work of rmn as well
+                        await routerSource.getAddress(),
+                    ],
+                    false
+                );
+                await chainlinkAdapterSource.setTokenPool(
+                    await tokenPoolSource.getAddress()
+                );
+                await chainlinkAdapterSource.changeBridge(
+                    await bridgeSource.getAddress()
+                );
 
-        //         /// configure destination
-        //         routerDestination = await deployContract<CCIPRouterMock>(
-        //             'CCIPRouterMock',
-        //             [],
-        //             false
-        //         );
-        //         chainlinkAdapterDestination =
-        //             await deployContract<TokenPoolAdapter>(
-        //                 'TokenPoolAdapter',
-        //                 [
-        //                     await routerDestination.getAddress(),
-        //                     await lbtcDestination.getAddress(),
-        //                     deployer.address,
-        //                 ],
-        //                 false
-        //             );
-        //         tokenPoolDestination = await deployContract<LBTCTokenPool>(
-        //             'LBTCTokenPool',
-        //             [
-        //                 await chainlinkAdapterDestination.getAddress(),
-        //                 await lbtcDestination.getAddress(),
-        //                 [], // no allowlist
-        //                 await routerDestination.getAddress(), // will do work of rmn as well
-        //                 await routerDestination.getAddress(),
-        //             ],
-        //             false
-        //         );
-        //         await chainlinkAdapterDestination.setTokenPool(
-        //             await tokenPoolDestination.getAddress()
-        //         );
-        //         await chainlinkAdapterDestination.changeBridge(
-        //             await bridgeDestination.getAddress()
-        //         );
+                /// configure destination
+                routerDestination = await deployContract<CCIPRouterMock>(
+                    'CCIPRouterMock',
+                    [],
+                    false
+                );
+                chainlinkAdapterDestination =
+                    await deployContract<TokenPoolAdapter>(
+                        'TokenPoolAdapter',
+                        [
+                            await routerDestination.getAddress(),
+                            deployer.address,
+                        ],
+                        false
+                    );
+                tokenPoolDestination = await deployContract<LBTCTokenPool>(
+                    'LBTCTokenPool',
+                    [
+                        await chainlinkAdapterDestination.getAddress(),
+                        await lbtcDestination.getAddress(),
+                        [], // no allowlist
+                        await routerDestination.getAddress(), // will do work of rmn as well
+                        await routerDestination.getAddress(),
+                    ],
+                    false
+                );
+                await chainlinkAdapterDestination.setTokenPool(
+                    await tokenPoolDestination.getAddress()
+                );
+                await chainlinkAdapterDestination.changeBridge(
+                    await bridgeDestination.getAddress()
+                );
 
-        //         /// configure bridges
-        //         await bridgeSource.changeAdapter(
-        //             await chainlinkAdapterSource.getAddress()
-        //         );
-        //         await bridgeDestination.changeAdapter(
-        //             await chainlinkAdapterDestination.getAddress()
-        //         );
+                /// configure bridges
+                await bridgeSource.changeAdapter(
+                    CHAIN_ID,
+                    await chainlinkAdapterSource.getAddress()
+                );
+                await bridgeDestination.changeAdapter(
+                    CHAIN_ID,
+                    await chainlinkAdapterDestination.getAddress()
+                );
 
-        //         /// configure router
-        //         await routerSource.setTokenPool(
-        //             await tokenPoolSource.getAddress()
-        //         );
-        //         await routerDestination.setTokenPool(
-        //             await tokenPoolDestination.getAddress()
-        //         );
-        //         await routerSource.setDestinationRouter(
-        //             await routerDestination.getAddress()
-        //         );
-        //         await routerDestination.setDestinationRouter(
-        //             await routerSource.getAddress()
-        //         );
+                /// configure router
+                await routerSource.setTokenPool(
+                    await tokenPoolSource.getAddress()
+                );
+                await routerDestination.setTokenPool(
+                    await tokenPoolDestination.getAddress()
+                );
+                await routerSource.setDestinationRouter(
+                    await routerDestination.getAddress()
+                );
+                await routerDestination.setDestinationRouter(
+                    await routerSource.getAddress()
+                );
 
-        //         /// set token pools
-        //         await tokenPoolSource.applyChainUpdates([
-        //             {
-        //                 remoteChainSelector: CHAIN_ID,
-        //                 allowed: true,
-        //                 remotePoolAddress:
-        //                     await tokenPoolDestination.getAddress(),
-        //                 remoteTokenAddress: await lbtcDestination.getAddress(),
-        //                 inboundRateLimiterConfig: {
-        //                     isEnabled: false,
-        //                     rate: 0,
-        //                     capacity: 0,
-        //                 },
-        //                 outboundRateLimiterConfig: {
-        //                     isEnabled: false,
-        //                     rate: 0,
-        //                     capacity: 0,
-        //                 },
-        //             },
-        //         ]);
+                /// set token pools
+                await tokenPoolSource.applyChainUpdates([
+                    {
+                        remoteChainSelector: CHAIN_ID,
+                        allowed: true,
+                        remotePoolAddress:
+                            await tokenPoolDestination.getAddress(),
+                        remoteTokenAddress: await lbtcDestination.getAddress(),
+                        inboundRateLimiterConfig: {
+                            isEnabled: false,
+                            rate: 0,
+                            capacity: 0,
+                        },
+                        outboundRateLimiterConfig: {
+                            isEnabled: false,
+                            rate: 0,
+                            capacity: 0,
+                        },
+                    },
+                ]);
 
-        //         await tokenPoolDestination.applyChainUpdates([
-        //             {
-        //                 remoteChainSelector: CHAIN_ID,
-        //                 allowed: true,
-        //                 remotePoolAddress: await tokenPoolSource.getAddress(),
-        //                 remoteTokenAddress: await lbtcSource.getAddress(),
-        //                 inboundRateLimiterConfig: {
-        //                     isEnabled: false,
-        //                     rate: 0,
-        //                     capacity: 0,
-        //                 },
-        //                 outboundRateLimiterConfig: {
-        //                     isEnabled: false,
-        //                     rate: 0,
-        //                     capacity: 0,
-        //                 },
-        //             },
-        //         ]);
+                await tokenPoolDestination.applyChainUpdates([
+                    {
+                        remoteChainSelector: CHAIN_ID,
+                        allowed: true,
+                        remotePoolAddress: await tokenPoolSource.getAddress(),
+                        remoteTokenAddress: await lbtcSource.getAddress(),
+                        inboundRateLimiterConfig: {
+                            isEnabled: false,
+                            rate: 0,
+                            capacity: 0,
+                        },
+                        outboundRateLimiterConfig: {
+                            isEnabled: false,
+                            rate: 0,
+                            capacity: 0,
+                        },
+                    },
+                ]);
 
-        //         await tokenPoolSource.setRemotePool(
-        //             CHAIN_ID,
-        //             ethers.zeroPadValue(
-        //                 await tokenPoolDestination.getAddress(),
-        //                 32
-        //             )
-        //         );
-        //         await tokenPoolDestination.setRemotePool(
-        //             CHAIN_ID,
-        //             ethers.zeroPadValue(await tokenPoolSource.getAddress(), 32)
-        //         );
-        //     });
+                await tokenPoolSource.setRemotePool(
+                    CHAIN_ID,
+                    ethers.zeroPadValue(
+                        await tokenPoolDestination.getAddress(),
+                        32
+                    )
+                );
+                await tokenPoolDestination.setRemotePool(
+                    CHAIN_ID,
+                    ethers.zeroPadValue(await tokenPoolSource.getAddress(), 32)
+                );
+            });
 
-        //     it('should route message', async function () {
-        //         let amount = 10000n;
-        //         let fee = amount / 10n;
+            it('should route message', async function () {
+                let amount = 10000n;
+                let fee = amount / 10n;
 
-        //         let amountWithoutFee = amount - fee;
-        //         let receiver = signer2.address;
+                let amountWithoutFee = amount - fee;
+                let receiver = signer2.address;
 
-        //         let data = await signDepositBridgePayload(
-        //             [signer1],
-        //             [true],
-        //             CHAIN_ID,
-        //             await bridgeSource.getAddress(),
-        //             CHAIN_ID,
-        //             await bridgeDestination.getAddress(),
-        //             receiver,
-        //             amountWithoutFee
-        //         );
+                let data = await signDepositBridgePayload(
+                    [signer1],
+                    [true],
+                    CHAIN_ID,
+                    await bridgeSource.getAddress(),
+                    CHAIN_ID,
+                    await bridgeDestination.getAddress(),
+                    receiver,
+                    amountWithoutFee
+                );
 
-        //         routerSource.setOffchainData(data.payload, data.proof);
+                routerSource.setOffchainData(data.payload, data.proof);
 
-        //         await lbtcSource
-        //             .connect(signer1)
-        //             .approve(await bridgeSource.getAddress(), amount);
-        //         await expect(
-        //             bridgeSource
-        //                 .connect(signer1)
-        //                 .deposit(
-        //                     CHAIN_ID,
-        //                     ethers.zeroPadValue(receiver, 32),
-        //                     amount
-        //                 )
-        //         )
-        //             .to.emit(bridgeSource, 'DepositToBridge')
-        //             .withArgs(
-        //                 signer1.address,
-        //                 ethers.zeroPadValue(receiver, 32),
-        //                 ethers.sha256(data.payload),
-        //                 data.payload
-        //             );
-        //     });
-        // });
+                await lbtcSource
+                    .connect(signer1)
+                    .approve(await bridgeSource.getAddress(), amount);
+                await expect(
+                    bridgeSource
+                        .connect(signer1)
+                        .deposit(
+                            CHAIN_ID,
+                            ethers.zeroPadValue(receiver, 32),
+                            amount
+                        )
+                )
+                    .to.emit(bridgeSource, 'DepositToBridge')
+                    .withArgs(
+                        signer1.address,
+                        ethers.zeroPadValue(receiver, 32),
+                        ethers.sha256(data.payload),
+                        data.payload
+                    );
+            });
+        });
     });
 });

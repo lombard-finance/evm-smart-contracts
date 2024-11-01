@@ -4,15 +4,11 @@ pragma solidity 0.8.24;
 import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
 import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ERC20/IBurnMintERC20.sol";
-import {IAdapter} from "./IAdapter.sol";
+import {TokenPoolAdapter} from "./TokenPoolAdapter.sol";
 import {IBridge} from "../IBridge.sol";
 
-interface IPayloadStore is IAdapter {
-    function latestPayloadHashSent() external returns (bytes32);
-}
-
 contract LBTCTokenPool is TokenPool {
-    IPayloadStore adapter;
+    TokenPoolAdapter adapter;
 
     /// @notice Error emitted when the proof is malformed
     error MalformedProof();
@@ -24,7 +20,7 @@ contract LBTCTokenPool is TokenPool {
         address rmnProxy,
         address router
     ) TokenPool(token, allowlist, rmnProxy, router) {
-        adapter = IPayloadStore(adapter_);
+        adapter = TokenPoolAdapter(adapter_);
     }
 
     /// TOKEN POOL LOGIC ///
@@ -40,17 +36,16 @@ contract LBTCTokenPool is TokenPool {
         bytes32 payloadHash;
         if (lockOrBurnIn.originalSender == address(adapter)) {
             payloadHash = adapter.latestPayloadHashSent();
-            // fee was deducted already in the bridge, tokens can be burned
-            IBurnMintERC20(address(i_token)).burn(lockOrBurnIn.amount);
             burnedAmount = lockOrBurnIn.amount;
         } else {
             // deposit assets, they will be burned in the proccess
-            (uint256 amountWithoutFee, bytes memory payload) = _bridge()
-                .deposit(
-                    bytes32(uint256(lockOrBurnIn.remoteChainSelector)),
-                    bytes32(lockOrBurnIn.receiver),
-                    uint64(lockOrBurnIn.amount)
-                );
+            IBridge bridge = _bridge();
+            i_token.approve(address(bridge), lockOrBurnIn.amount);
+            (uint256 amountWithoutFee, bytes memory payload) = bridge.deposit(
+                bytes32(uint256(lockOrBurnIn.remoteChainSelector)),
+                bytes32(lockOrBurnIn.receiver),
+                uint64(lockOrBurnIn.amount)
+            );
             payloadHash = sha256(payload);
             burnedAmount = amountWithoutFee;
         }
@@ -83,7 +78,13 @@ contract LBTCTokenPool is TokenPool {
             revert MalformedProof();
         }
 
-        //        _bridge().withdraw(payload, proof);
+        adapter.receivePayload(
+            bytes32(uint256(releaseOrMintIn.remoteChainSelector)),
+            payload
+        );
+        IBridge bridge = _bridge();
+        bridge.authNotary(payload, proof);
+        bridge.withdraw(payload);
 
         emit Minted(
             msg.sender,

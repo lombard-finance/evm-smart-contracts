@@ -394,18 +394,14 @@ contract Bridge is
         uint64 amountWithoutFee = amount - uint64(fee);
 
         address fromAddress = _msgSender();
-        // charge LBTC
-        {
-            ILBTC _lbtc = lbtc();
-            // charge Lombard fees
-            SafeERC20.safeTransferFrom(
-                IERC20(address(_lbtc)),
-                fromAddress,
-                $.treasury,
-                fee
-            );
-            _lbtc.burn(fromAddress, amountWithoutFee);
-        }
+
+        // charge Lombard fees
+        SafeERC20.safeTransferFrom(
+            IERC20(address(lbtc())),
+            fromAddress,
+            $.treasury,
+            fee
+        );
 
         // prepare bridge deposit payload
         bytes memory payload = abi.encodeWithSelector(
@@ -420,6 +416,14 @@ contract Bridge is
         );
 
         if (address(config.adapter) != address(0)) {
+            // transfer assets to adapter
+            SafeERC20.safeTransferFrom(
+                IERC20(address(lbtc())),
+                fromAddress,
+                address(config.adapter),
+                amountWithoutFee
+            );
+            // let adapter handle the deposit
             config.adapter.deposit{value: msg.value}(
                 fromAddress,
                 toChain,
@@ -428,6 +432,9 @@ contract Bridge is
                 amountWithoutFee,
                 payload
             );
+        } else {
+            // burn assets
+            lbtc().burn(fromAddress, amountWithoutFee);
         }
 
         emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
