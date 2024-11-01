@@ -45,6 +45,8 @@ describe('LBTC', function () {
             reporter,
         ] = await getSignersWithPrivateKeys();
 
+    const result2 = await init(consortium, burnCommission, deployer.address);
+    lbtc2 = result2.lbtc;
         consortium = await deployContract<Consortium>('Consortium', [
             deployer.address,
         ]);
