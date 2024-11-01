@@ -1,7 +1,9 @@
 import { task } from 'hardhat/config';
 import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
 import { create3 } from '../helpers/create3Deployment';
-import { verify } from '../helpers';
+import { getAddresses, verify } from '../helpers';
+import hardhat, { ethers, run, upgrades } from 'hardhat';
+import { upgradeProxy } from '../helpers/upgrade';
 
 /*
  * After deployment:
