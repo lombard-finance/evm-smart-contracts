@@ -79,7 +79,7 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
         bytes32 _toChain,
         bytes memory _payload,
         address _refundAddress
-    ) internal virtual;
+    ) internal virtual {}
 
     function deposit(
         address _fromAddress,

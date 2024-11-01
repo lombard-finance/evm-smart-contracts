@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import {IAdapter} from "./IAdapter.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {LBTC} from "../../LBTC/LBTC.sol";
+import {LBTC, IERC20} from "../../LBTC/LBTC.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {AbstractAdapter} from "./AbstractAdapter.sol";
@@ -17,6 +17,9 @@ contract TokenPoolAdapter is AbstractAdapter {
 
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
+
+    /// @notice Thrown when the sender is unauthorized
+    error Unauthorized();
 
     constructor(
         address ccipRouter_,
@@ -68,8 +71,18 @@ contract TokenPoolAdapter is AbstractAdapter {
 
         latestPayloadHashSent = sha256(_message);
 
-        //        bridge.lbtc.approve(address(ccipRouter), _amount);
+        IERC20(address(bridge.lbtc())).approve(address(ccipRouter), _amount);
         ccipRouter.ccipSend(uint64(uint256(_toChain)), message);
+    }
+
+    function receivePayload(
+        bytes32 fromChain,
+        bytes calldata payload
+    ) external {
+        if (_msgSender() != address(tokenPool)) {
+            revert Unauthorized();
+        }
+        _receive(fromChain, payload);
     }
 
     /// ONLY OWNER FUNCTIONS ///
@@ -112,10 +125,4 @@ contract TokenPoolAdapter is AbstractAdapter {
                 feeToken: address(0) // let's pay with native tokens
             });
     }
-
-    function _deposit(
-        bytes32 _toChain,
-        bytes memory _payload,
-        address _refundAddress
-    ) internal override {}
 }

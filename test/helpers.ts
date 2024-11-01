@@ -8,10 +8,10 @@ export type Signer = HardhatEthersSigner & {
     privateKey: string;
 };
 
-export const CHAIN_ID = ethers.zeroPadValue('0x7A69', 32);
-
 export const encode = (types: string[], values: any[]) =>
     ethers.AbiCoder.defaultAbiCoder().encode(types, values);
+
+export const CHAIN_ID: string = encode(['uint256'], [31337]);
 
 const ACTIONS_IFACE = ethers.Interface.from([
     'function feeApproval(uint256,uint256)',

@@ -196,7 +196,7 @@ describe('Bridge', function () {
         });
 
         it('should bridge from A to B', async () => {
-            const decuctFee = async (
+            const deductFee = async (
                 amount: bigint,
                 bridge: Bridge
             ): Promise<bigint> => {
@@ -209,7 +209,7 @@ describe('Bridge', function () {
             };
 
             let amount = AMOUNT;
-            let amountWithoutFee = await decuctFee(amount, aBridge);
+            let amountWithoutFee = await deductFee(amount, aBridge);
             let receiver = signer2.address;
             let payload = getPayloadForAction(
                 [
@@ -298,7 +298,7 @@ describe('Bridge', function () {
 
             const lastAmountWithoutFee = amountWithoutFee;
             amount = amountWithoutFee;
-            amountWithoutFee = await decuctFee(amount, bBridge);
+            amountWithoutFee = await deductFee(amount, bBridge);
             receiver = signer1.address;
 
             payload = getPayloadForAction(

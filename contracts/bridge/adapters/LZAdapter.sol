@@ -68,6 +68,18 @@ contract LZAdapter is AbstractAdapter, OApp {
         return fee.nativeFee;
     }
 
+    function deposit(
+        address _fromAddress,
+        bytes32 _toChain,
+        bytes32,
+        bytes32,
+        uint256 amount,
+        bytes memory _payload
+    ) external payable virtual override {
+        bridge.lbtc().burn(amount);
+        _deposit(_toChain, _payload, _fromAddress);
+    }
+
     /**
      * @notice Sends a payload from the source to destination chain.
      * @param _toChain Destination chain's.
