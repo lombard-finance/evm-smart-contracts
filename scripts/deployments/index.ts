@@ -7,3 +7,5 @@ export * from './lbtc';
 export * from './token-pool';
 export * from './default-adapter';
 export * from './chainlink-adapter';
+export * from './lzadapter';
+export * from './upgrade';

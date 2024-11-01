@@ -9,8 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Actions} from "../libs/Actions.sol";
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
-import {IBridge, ILBTC} from "./IBridge.sol";
-import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
 
 contract Bridge is
     IBridge,
@@ -102,6 +101,10 @@ contract Bridge is
      */
     function getAdapter(bytes32 toChain) external view returns (IAdapter) {
         return _getBridgeStorage().destinations[toChain].adapter;
+    }
+
+    function consortium() external view override returns (INotaryConsortium) {
+        return _getBridgeStorage().consortium;
     }
 
     /// ACTIONS ///
@@ -352,12 +355,10 @@ contract Bridge is
         _changeAdapter(chain, newAdapter);
     }
 
-    function setConsortium(INotaryConsortium newVal) external {
+    function changeConsortium(INotaryConsortium newVal) external onlyOwner {
         BridgeStorage storage $ = _getBridgeStorage();
-
+        emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
-
-        // TODO: emit event
     }
 
     /// PRIVATE FUNCTIONS ///

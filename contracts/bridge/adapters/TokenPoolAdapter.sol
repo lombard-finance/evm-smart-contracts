@@ -7,6 +7,7 @@ import {LBTC, IERC20} from "../../LBTC/LBTC.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {AbstractAdapter} from "./AbstractAdapter.sol";
+import {IBridge} from "../IBridge.sol";
 
 contract TokenPoolAdapter is AbstractAdapter {
     IRouterClient ccipRouter;
@@ -20,7 +21,11 @@ contract TokenPoolAdapter is AbstractAdapter {
     /// @notice Thrown when the sender is unauthorized
     error Unauthorized();
 
-    constructor(address ccipRouter_, address owner_) AbstractAdapter(owner_) {
+    constructor(
+        address ccipRouter_,
+        address owner_,
+        IBridge bridge_
+    ) AbstractAdapter(owner_, bridge_) {
         ccipRouter = IRouterClient(ccipRouter_);
         gasLimit = 200_000;
     }
