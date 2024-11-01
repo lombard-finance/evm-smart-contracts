@@ -13,6 +13,7 @@ import {
     getPayloadForAction,
     signDepositBtcPayload,
     Signer,
+    init,
 } from './helpers';
 import { LBTCMock, Bascule, Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -29,7 +30,6 @@ describe('LBTC', function () {
     let lbtc: LBTCMock;
     let lbtc2: LBTCMock;
     let bascule: Bascule;
-    let consortium: Consortium;
     let snapshot: SnapshotRestorer;
     let snapshotTimestamp: number;
 
@@ -45,21 +45,14 @@ describe('LBTC', function () {
             reporter,
         ] = await getSignersWithPrivateKeys();
 
-    const result2 = await init(consortium, burnCommission, deployer.address);
-    lbtc2 = result2.lbtc;
-        consortium = await deployContract<Consortium>('Consortium', [
-            deployer.address,
-        ]);
-        lbtc = await deployContract<LBTCMock>('LBTCMock', [
-            await consortium.getAddress(),
-            100,
-            deployer.address,
-        ]);
-        lbtc2 = await deployContract<LBTCMock>('LBTCMock', [
-            await consortium.getAddress(),
-            100,
-            deployer.address,
-        ]);
+        const burnCommission = 1000;
+
+        const result = await init(burnCommission, deployer.address);
+        lbtc = result.lbtc;
+
+        const result2 = await init(burnCommission, deployer.address);
+        lbtc2 = result2.lbtc;
+
         bascule = await deployContract<Bascule>(
             'Bascule',
             [
@@ -74,13 +67,6 @@ describe('LBTC', function () {
 
         await lbtc.changeTreasuryAddress(treasury.address);
         await lbtc2.changeTreasuryAddress(treasury.address);
-
-        const initialValset = getPayloadForAction(
-            [1, [signer1.publicKey], [1], 1, 1],
-            NEW_VALSET
-        );
-
-        await consortium.setInitalValidatorSet(initialValset);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);
@@ -112,12 +98,6 @@ describe('LBTC', function () {
 
         it('owner() is deployer', async function () {
             expect(await lbtc.owner()).to.equal(deployer.address);
-        });
-
-        it('consortium() set at initialization', async function () {
-            expect(await lbtc.consortium()).to.equal(
-                await consortium.getAddress()
-            );
         });
 
         it('decimals()', async function () {
