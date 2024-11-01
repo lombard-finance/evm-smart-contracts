@@ -102,11 +102,7 @@ interface IBridge {
     event TreasuryChanged(address previousTreasury, address newTreasury);
 
     function lbtc() external view returns (ILBTC);
-    function receivePayload(
-        bytes32 fromChain,
-        bytes32 fromContract,
-        bytes calldata payload
-    ) external;
+    function receivePayload(bytes32 fromChain, bytes calldata payload) external;
     function deposit(
         bytes32 toChain,
         bytes32 toAddress,

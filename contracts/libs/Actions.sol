@@ -158,9 +158,6 @@ library Actions {
         if (toChain != block.chainid) {
             revert WrongChainId();
         }
-        if (toContract != address(this)) {
-            revert WrongContract();
-        }
         if (recipient == address(0)) {
             revert ZeroAddress();
         }
