@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config';
-import { create3, DEFAULT_PROXY_FACTORY } from '../helpers';
+import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
+import { create3 } from '../helpers/create3Deployment';
 
 task('deploy-consortium', 'Deploys the Consortium contract via create3')
     .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')

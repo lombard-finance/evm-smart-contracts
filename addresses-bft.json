@@ -17,5 +17,9 @@
   },
   "baseSepolia": {
     "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+    "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+    "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+    "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+    "Bridge": ""
   }
 }
