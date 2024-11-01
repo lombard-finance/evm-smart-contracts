@@ -21,7 +21,7 @@ task('deploy-bridge', 'Deploys the Bridge contract via create3')
         let { ledgerNetwork, lbtc, admin, proxyFactoryAddr, treasury } =
             taskArgs;
 
-        const data = await create3(
+        await create3(
             'Bridge',
             [lbtc, treasury, admin],
             proxyFactoryAddr,
@@ -29,6 +29,4 @@ task('deploy-bridge', 'Deploys the Bridge contract via create3')
             admin,
             hre
         );
-
-        console.log(data);
     });
