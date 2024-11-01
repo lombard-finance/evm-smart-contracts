@@ -2,11 +2,8 @@
 pragma solidity 0.8.24;
 
 import {AbstractAdapter} from "./AbstractAdapter.sol";
-import {OAppReceiver} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppReceiver.sol";
-import {OAppSender, MessagingReceipt} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppSender.sol";
-import {OAppCore} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppCore.sol";
-import {MessagingFee, Origin} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
-import {IBridge} from "../IBridge.sol";
+import {OApp, MessagingFee, Origin} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
 
 /**
  * @title LayerZero bridge adapter
@@ -14,12 +11,13 @@ import {IBridge} from "../IBridge.sol";
  * @notice LZAdapter implements Omnichain Application (OApp) in order to communicate
  * with LayerZero protocol to send and receive bridge payloads.
  */
-contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
+contract LZAdapter is AbstractAdapter, OApp {
+    using OptionsBuilder for bytes;
     error LZZeroChain();
     error LZZeroEID();
     error AttemptToOverrideEID();
     error AttemptToOverrideChain();
-
+    error UnknownOriginContract(bytes32);
     event LZMessageReceived(
         bytes32 indexed guid,
         uint64 indexed nonce,
@@ -40,20 +38,8 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
     // @param _endpoint Endpoint from https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
     constructor(
         address _owner,
-        address _endpoint,
-        IBridge _bridge
-    ) AbstractAdapter(_owner, _bridge) OAppCore(_endpoint, _owner) {}
-
-    function oAppVersion()
-        public
-        view
-        virtual
-        override(OAppReceiver, OAppSender)
-        returns (uint64 senderVersion, uint64 receiverVersion)
-    {
-        senderVersion = OAppSender.SENDER_VERSION;
-        receiverVersion = OAppReceiver.RECEIVER_VERSION;
-    }
+        address _endpoint
+    ) AbstractAdapter(_owner) OApp(_endpoint, _owner) {}
 
     function getFee(
         bytes32 _toChain,
@@ -84,7 +70,9 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
         address _refundAddress
     ) internal override {
         uint32 _dstEid = getEID[_toChain];
-        bytes memory _options;
+        bytes memory _options = OptionsBuilder
+            .newOptions()
+            .addExecutorLzReceiveOption(100000, 0);
 
         MessagingReceipt memory receipt = _lzSend(
             _dstEid,
@@ -113,8 +101,11 @@ contract LZAdapter is AbstractAdapter, OAppReceiver, OAppSender {
         bytes calldata // Any extra data or options to trigger on receipt.
     ) internal override {
         bytes32 fromChain = getChain[_origin.srcEid];
+        if (_getPeerOrRevert(_origin.srcEid) != _origin.sender) {
+            revert UnknownOriginContract(_origin.sender);
+        }
         emit LZMessageReceived(_guid, _origin.nonce, executor);
-        _receive(fromChain, _origin.sender, payload);
+        _receive(fromChain, payload);
     }
 
     /**

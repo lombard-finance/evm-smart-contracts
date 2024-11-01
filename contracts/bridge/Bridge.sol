@@ -142,71 +142,8 @@ contract Bridge is
         return _deposit(destConfig, toChain, toAddress, amount);
     }
 
-    function _deposit(
-        DestinationConfig memory config,
-        bytes32 toChain,
-        bytes32 toAddress,
-        uint64 amount
-    ) internal returns (uint256, bytes memory) {
-        BridgeStorage storage $ = _getBridgeStorage();
-
-        // relative fee
-        uint256 fee = FeeUtils.getRelativeFee(
-            amount,
-            getDepositRelativeCommission(toChain)
-        );
-        // absolute fee
-        fee += config.absoluteCommission;
-
-        if (fee >= amount) {
-            revert AmountLessThanCommission(fee);
-        }
-        uint64 amountWithoutFee = amount - uint64(fee);
-
-        address fromAddress = _msgSender();
-        // charge LBTC
-        {
-            ILBTC _lbtc = lbtc();
-            // charge Lombard fees
-            SafeERC20.safeTransferFrom(
-                IERC20(address(_lbtc)),
-                fromAddress,
-                $.treasury,
-                fee
-            );
-            _lbtc.burn(fromAddress, amountWithoutFee);
-        }
-
-        // prepare bridge deposit payload
-        bytes memory payload = abi.encodeWithSelector(
-            Actions.DEPOSIT_BRIDGE_ACTION,
-            block.chainid,
-            address(this),
-            toChain,
-            config.bridgeContract,
-            toAddress,
-            amountWithoutFee,
-            bytes32($.crossChainOperationsNonce++)
-        );
-
-        if (address(config.adapter) != address(0)) {
-            config.adapter.deposit{value: msg.value}(
-                fromAddress,
-                toChain,
-                config.bridgeContract,
-                toAddress,
-                amountWithoutFee,
-                payload
-            );
-        }
-
-        emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
-        return (amountWithoutFee, payload);
-    }
-
     function receivePayload(
         bytes32 fromChain,
-        bytes32 fromContract,
         bytes calldata payload
     ) external override {
         // validate inputs
@@ -218,11 +155,6 @@ contract Bridge is
         // it also prevent to use method if adapter not set
         if (_msgSender() != address(destConf.adapter)) {
             revert UnknownAdapter(_msgSender());
-        }
-
-        if (destConf.bridgeContract != fromContract) {
-            // TODO: maybe reduntant
-            revert NotValidDestination();
         }
 
         // payload validation
@@ -244,14 +176,14 @@ contract Bridge is
             );
         }
 
+        BridgeStorage storage $ = _getBridgeStorage();
         bytes32 payloadHash = sha256(payload);
-        Deposit storage deposit = _getBridgeStorage().deposits[payloadHash];
 
-        if (deposit.withdrawn) {
+        if ($.deposits[payloadHash].withdrawn) {
             revert PayloadAlreadyUsed(payloadHash);
         }
-        deposit.adapterReceived = true;
-        deposit.payload = payload;
+
+        $.deposits[payloadHash].adapterReceived = true;
 
         emit PayloadReceived(action.recipient, payloadHash, _msgSender());
     }
@@ -273,14 +205,13 @@ contract Bridge is
         bytes32 payloadHash = sha256(payload);
         BridgeStorage storage $ = _getBridgeStorage();
 
-        Deposit storage deposit = $.deposits[payloadHash];
+        Deposit storage depositData = $.deposits[payloadHash];
         // proof validation
-        if (deposit.withdrawn) {
+        if (depositData.withdrawn) {
             revert PayloadAlreadyUsed(payloadHash);
         }
 
-        deposit.payload = payload;
-        deposit.notarized = true;
+        depositData.notarized = true;
 
         $.consortium.checkProof(payloadHash, proof);
 
@@ -306,25 +237,26 @@ contract Bridge is
         ];
 
         bytes32 payloadHash = sha256(payload);
-        Deposit storage deposit = $.deposits[payloadHash];
+        Deposit storage depositData = $.deposits[payloadHash];
 
         // validate required auth received
         if (
-            address(destConf.adapter) != address(0) && !deposit.adapterReceived
+            address(destConf.adapter) != address(0) &&
+            !depositData.adapterReceived
         ) {
             revert AdapterNotConfirmed();
         }
 
-        if (destConf.requireConsortium && !deposit.notarized) {
+        if (destConf.requireConsortium && !depositData.notarized) {
             revert ConsortiumNotConfirmed();
         }
 
         // proof validation
-        if (deposit.withdrawn) {
+        if (depositData.withdrawn) {
             revert PayloadAlreadyUsed(payloadHash);
         }
 
-        deposit.withdrawn = true;
+        depositData.withdrawn = true;
 
         lbtc().mint(action.recipient, action.amount);
 
@@ -439,6 +371,68 @@ contract Bridge is
 
         BridgeStorage storage $ = _getBridgeStorage();
         $.lbtc = lbtc_;
+    }
+
+    function _deposit(
+        DestinationConfig memory config,
+        bytes32 toChain,
+        bytes32 toAddress,
+        uint64 amount
+    ) internal returns (uint256, bytes memory) {
+        BridgeStorage storage $ = _getBridgeStorage();
+
+        // relative fee
+        uint256 fee = FeeUtils.getRelativeFee(
+            amount,
+            getDepositRelativeCommission(toChain)
+        );
+        // absolute fee
+        fee += config.absoluteCommission;
+
+        if (fee >= amount) {
+            revert AmountLessThanCommission(fee);
+        }
+        uint64 amountWithoutFee = amount - uint64(fee);
+
+        address fromAddress = _msgSender();
+        // charge LBTC
+        {
+            ILBTC _lbtc = lbtc();
+            // charge Lombard fees
+            SafeERC20.safeTransferFrom(
+                IERC20(address(_lbtc)),
+                fromAddress,
+                $.treasury,
+                fee
+            );
+            _lbtc.burn(fromAddress, amountWithoutFee);
+        }
+
+        // prepare bridge deposit payload
+        bytes memory payload = abi.encodeWithSelector(
+            Actions.DEPOSIT_BRIDGE_ACTION,
+            block.chainid,
+            address(this),
+            toChain,
+            config.bridgeContract,
+            toAddress,
+            amountWithoutFee,
+            bytes32($.crossChainOperationsNonce++)
+        );
+
+        if (address(config.adapter) != address(0)) {
+            config.adapter.deposit{value: msg.value}(
+                fromAddress,
+                toChain,
+                config.bridgeContract,
+                toAddress,
+                amountWithoutFee,
+                payload
+            );
+        }
+
+        emit DepositToBridge(fromAddress, toAddress, sha256(payload), payload);
+        return (amountWithoutFee, payload);
     }
 
     function _changeTreasury(address treasury_) internal {

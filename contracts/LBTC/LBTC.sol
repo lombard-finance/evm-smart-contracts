@@ -460,8 +460,8 @@ contract LBTC is
     // TODO: remove
     function withdraw(
         Actions.DepositBridgeAction memory action,
-        bytes32 payloadHash,
-        bytes calldata proof
+        bytes32,
+        bytes calldata
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
         if (_msgSender() != $.bridge) {

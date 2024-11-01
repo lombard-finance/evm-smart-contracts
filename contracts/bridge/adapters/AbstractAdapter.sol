@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 import {IAdapter} from "./IAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge, ILBTC} from "../IBridge.sol";
-
 /**
  * @title Abstract bridge adapter
  * @author Lombard.finance
@@ -66,12 +65,8 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
     /**
      * @dev Called when data is received.
      */
-    function _receive(
-        bytes32 fromChain,
-        bytes32 fromContract,
-        bytes calldata payload
-    ) internal {
-        bridge.receivePayload(fromChain, fromContract, payload);
+    function _receive(bytes32 fromChain, bytes calldata payload) internal {
+        bridge.receivePayload(fromChain, payload);
     }
 
     /**
@@ -89,9 +84,11 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
     function deposit(
         address _fromAddress,
         bytes32 _toChain,
-        bytes32 _toContract,
-        bytes32 _toAddress,
-        uint256 _amount,
+        bytes32 /* _toContract */,
+        bytes32 /* _toAddress */,
+        uint256 /* _amount */,
         bytes memory _payload
-    ) external payable virtual override {}
+    ) external payable virtual override {
+        _deposit(_toChain, _payload, _fromAddress);
+    }
 }
