@@ -44,8 +44,7 @@ contract LZAdapter is AbstractAdapter, OApp {
         address _endpoint,
         uint128 _executionGasLimit
     ) AbstractAdapter(_owner, _bridge) OApp(_endpoint, _owner) {
-        getExecutionGasLimit = _executionGasLimit;
-        emit ExecutionGasLimitSet(0, _executionGasLimit);
+        _setExecutionGasLimit(_executionGasLimit);
     }
 
     function getFee(
@@ -154,6 +153,10 @@ contract LZAdapter is AbstractAdapter, OApp {
     }
 
     function setExecutionGasLimit(uint128 newVal) external onlyOwner {
+        _setExecutionGasLimit(newVal);
+    }
+
+    function _setExecutionGasLimit(uint128 newVal) internal {
         emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);
         getExecutionGasLimit = newVal;
     }
