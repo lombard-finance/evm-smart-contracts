@@ -107,8 +107,8 @@ describe('Bridge', function () {
         await lbtcSource.addMinter(await bridgeSource.getAddress());
         await lbtcDestination.addMinter(await bridgeDestination.getAddress());
 
-        await bridgeSource.setConsortium(await consortium.getAddress());
-        await bridgeDestination.setConsortium(await consortium.getAddress());
+        await bridgeSource.changeConsortium(await consortium.getAddress());
+        await bridgeDestination.changeConsortium(await consortium.getAddress());
 
         snapshot = await takeSnapshot();
     });
@@ -338,7 +338,11 @@ describe('Bridge', function () {
                 );
                 chainlinkAdapterSource = await deployContract<TokenPoolAdapter>(
                     'TokenPoolAdapter',
-                    [await routerSource.getAddress(), deployer.address],
+                    [
+                        await routerSource.getAddress(),
+                        deployer.address,
+                        await bridgeSource.getAddress(),
+                    ],
                     false
                 );
                 tokenPoolSource = await deployContract<LBTCTokenPool>(
@@ -371,6 +375,7 @@ describe('Bridge', function () {
                         [
                             await routerDestination.getAddress(),
                             deployer.address,
+                            await bridgeDestination.getAddress(),
                         ],
                         false
                     );
