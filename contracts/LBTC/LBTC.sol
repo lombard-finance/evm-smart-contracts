@@ -333,7 +333,7 @@ contract LBTC is
      * @param amount The amount of LBTC to mint
      * @dev Only callable by whitelisted minters
      */
-    function mint(address to, uint256 amount) external {
+    function mint(address to, uint256 amount) external override {
         _onlyMinter(_msgSender());
 
         _mint(to, amount);
@@ -457,22 +457,16 @@ contract LBTC is
         }
     }
 
+    // TODO: remove
     function withdraw(
         Actions.DepositBridgeAction memory action,
-        bytes32 payloadHash,
-        bytes calldata proof
+        bytes32,
+        bytes calldata
     ) external nonReentrant {
         LBTCStorage storage $ = _getLBTCStorage();
         if (_msgSender() != $.bridge) {
             revert UnauthorizedAccount(_msgSender());
         }
-
-        // proof validation
-        if ($.usedPayloads[payloadHash]) {
-            revert PayloadAlreadyUsed();
-        }
-        $.usedPayloads[payloadHash] = true;
-        Consortium($.consortium).checkProof(payloadHash, proof);
 
         // Actually mint
         _mint(action.recipient, action.amount);
@@ -527,6 +521,17 @@ contract LBTC is
      */
     function burn(uint256 amount) external {
         _burn(_msgSender(), amount);
+    }
+
+    /**
+     * @dev Allows minters to burn LBTC
+     *
+     * @param amount Amount of LBTC to burn
+     */
+    function burn(address from, uint256 amount) external override {
+        _onlyMinter(_msgSender());
+
+        _burn(from, amount);
     }
 
     /// PRIVATE FUNCTIONS ///

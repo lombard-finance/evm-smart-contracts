@@ -4,20 +4,27 @@ import { sleep, verify } from '../helpers';
 /*
  * After deployment:
  * 1. Set adapter in bridge
- * 2. Set bridge in adapter
+ * 2. Accept ownership
+ * 3. Configure Token pool
  */
 function chainlinkAdapterTask(taskName: string) {
     task(taskName, 'Deploys the TokenPoolAdapter contract')
-        .addParam('admin', 'The address of the owner')
+        .addOptionalParam('admin', 'The address of the owner')
         .addParam('router', 'The chainlink ccip router')
         .addParam('lbtc', 'The address of the LBTC contract')
-        .addOptionalParam('bridge', 'Bridge to set adapter on')
+        .addParam('bridge', 'Bridge to set adapter on')
+        .addParam('rmn', 'The address of the RmnProxy')
+        .addVariadicPositionalParam(
+            'allowlist',
+            'The list of addresses allowed to bridge',
+            []
+        )
         .setAction(async (taskArgs, hre) => {
-            const { lbtc, admin, bridge, router } = taskArgs;
+            const { lbtc, admin, bridge, router, rmn, allowlist } = taskArgs;
 
             const adapter = await hre.ethers.deployContract(
                 'TokenPoolAdapter',
-                [router, lbtc, admin]
+                [router, lbtc, rmn, allowlist, bridge]
             );
             console.log('Chainlink Adapter:', await adapter.getAddress());
 
@@ -25,18 +32,13 @@ function chainlinkAdapterTask(taskName: string) {
                 constructorArguments: [router, lbtc, admin],
             });
 
-            if (bridge) {
-                const bridgeContract = await hre.ethers.getContractAt(
-                    'Bridge',
-                    bridge
-                );
-                await bridgeContract.changeAdapter(await adapter.getAddress());
-                await sleep(12_000);
-                await adapter.changeBridge(bridge);
+            if (admin) {
+                await adapter.transferOwnership(admin);
             }
         });
 }
 
 chainlinkAdapterTask('deploy-chainlink-adapter');
 chainlinkAdapterTask('deploy-token-pool-adapter');
+chainlinkAdapterTask('deploy-token-pool');
 chainlinkAdapterTask('deploy:TokenPoolAdapter');

@@ -3,9 +3,9 @@ import {
     Bascule,
     Consortium,
     Bridge,
-    DefaultAdapter,
     TokenPoolAdapter,
     CCIPRouterMock,
+    TokenPool,
 } from '../typechain-types';
 import {
     takeSnapshot,
@@ -41,8 +41,6 @@ describe('Bridge', function () {
     let bascule: Bascule;
     let bridgeSource: Bridge;
     let bridgeDestination: Bridge;
-    let adapterSource: DefaultAdapter;
-    let adapterDestination: DefaultAdapter;
     let snapshot: SnapshotRestorer;
 
     before(async function () {
@@ -71,15 +69,9 @@ describe('Bridge', function () {
             100,
             deployer.address,
         ]);
-        adapterSource = await deployContract<DefaultAdapter>(
-            'DefaultAdapter',
-            [await lbtcSource.getAddress(), deployer.address],
-            false
-        );
         bridgeSource = await deployContract<Bridge>('Bridge', [
             await lbtcSource.getAddress(),
             treasury.address,
-            await adapterSource.getAddress(),
             deployer.address,
         ]);
         bascule = await deployContract<Bascule>(
@@ -93,7 +85,6 @@ describe('Bridge', function () {
             ],
             false
         );
-        await adapterSource.changeBridge(await bridgeSource.getAddress());
         await lbtcSource.changeBridge(await bridgeSource.getAddress());
 
         // chain 2
@@ -102,26 +93,23 @@ describe('Bridge', function () {
             100,
             deployer.address,
         ]);
-        adapterDestination = await deployContract<DefaultAdapter>(
-            'DefaultAdapter',
-            [await lbtcDestination.getAddress(), deployer.address],
-            false
-        );
         bridgeDestination = await deployContract<Bridge>('Bridge', [
             await lbtcDestination.getAddress(),
             treasury.address,
-            await adapterDestination.getAddress(),
             deployer.address,
         ]);
-        await adapterDestination.changeBridge(
-            await bridgeDestination.getAddress()
-        );
         await lbtcDestination.changeBridge(
             await bridgeDestination.getAddress()
         );
 
         await lbtcSource.changeTreasuryAddress(treasury.address);
         await lbtcDestination.changeTreasuryAddress(treasury.address);
+
+        await lbtcSource.addMinter(await bridgeSource.getAddress());
+        await lbtcDestination.addMinter(await bridgeDestination.getAddress());
+
+        await bridgeSource.changeConsortium(await consortium.getAddress());
+        await bridgeDestination.changeConsortium(await consortium.getAddress());
 
         snapshot = await takeSnapshot();
     });
@@ -159,15 +147,19 @@ describe('Bridge', function () {
             await lbtcSource.mintTo(signer1.address, 10000n);
             await bridgeSource.addDestination(
                 CHAIN_ID,
-                ethers.zeroPadValue(await bridgeDestination.getAddress(), 32),
-                1000,
-                0
+                encode(['address'], [await bridgeDestination.getAddress()]),
+                1000, // 10%
+                0,
+                ethers.ZeroAddress,
+                true
             );
             await bridgeDestination.addDestination(
                 CHAIN_ID,
-                ethers.zeroPadValue(await bridgeSource.getAddress(), 32),
-                1,
-                absoluteFee
+                encode(['address'], [await bridgeSource.getAddress()]),
+                0, // 0%
+                absoluteFee,
+                ethers.ZeroAddress,
+                true
             );
         });
 
@@ -197,16 +189,12 @@ describe('Bridge', function () {
             await expect(
                 bridgeSource
                     .connect(signer1)
-                    .deposit(
-                        CHAIN_ID,
-                        ethers.zeroPadValue(receiver, 32),
-                        amount
-                    )
+                    .deposit(CHAIN_ID, encode(['address'], [receiver]), amount)
             )
                 .to.emit(bridgeSource, 'DepositToBridge')
                 .withArgs(
                     signer1.address,
-                    ethers.zeroPadValue(receiver, 32),
+                    encode(['address'], [receiver]),
                     ethers.sha256(payload),
                     payload
                 );
@@ -238,14 +226,22 @@ describe('Bridge', function () {
             await expect(
                 bridgeDestination
                     .connect(signer2)
-                    .withdraw(data1.payload, data1.proof)
+                    .authNotary(data1.payload, data1.proof)
+            )
+                .to.emit(bridgeDestination, 'PayloadNotarized')
+                .withArgs(receiver, ethers.sha256(data1.payload));
+
+            await expect(
+                bridgeDestination.connect(signer2).withdraw(data1.payload)
             )
                 .to.emit(bridgeDestination, 'WithdrawFromBridge')
                 .withArgs(
                     receiver,
                     ethers.sha256(data1.payload),
-                    data1.payload
+                    data1.payload,
+                    amountWithoutFee
                 );
+
             expect(
                 (await lbtcDestination.totalSupply()).toString()
             ).to.be.equal(amount - fee);
@@ -256,9 +252,9 @@ describe('Bridge', function () {
             // bridge back
 
             amount = amountWithoutFee;
-
-            fee = 1n + absoluteFee;
+            fee = absoluteFee;
             amountWithoutFee = amount - fee;
+            receiver = signer1.address;
 
             payload = getPayloadForAction(
                 [
@@ -279,16 +275,12 @@ describe('Bridge', function () {
             await expect(
                 bridgeDestination
                     .connect(signer2)
-                    .deposit(
-                        CHAIN_ID,
-                        ethers.zeroPadValue(receiver, 32),
-                        amount
-                    )
+                    .deposit(CHAIN_ID, encode(['address'], [receiver]), amount)
             )
                 .to.emit(bridgeDestination, 'DepositToBridge')
                 .withArgs(
                     signer2.address,
-                    ethers.zeroPadValue(receiver, 32),
+                    encode(['address'], [receiver]),
                     ethers.sha256(payload),
                     payload
                 );
@@ -315,13 +307,18 @@ describe('Bridge', function () {
             await expect(
                 bridgeSource
                     .connect(signer2)
-                    .withdraw(data2.payload, data2.proof)
+                    .authNotary(data2.payload, data2.proof)
             )
+                .to.emit(bridgeSource, 'PayloadNotarized')
+                .withArgs(receiver, ethers.sha256(data2.payload));
+
+            await expect(bridgeSource.connect(signer2).withdraw(data2.payload))
                 .to.emit(bridgeSource, 'WithdrawFromBridge')
                 .withArgs(
                     receiver,
                     ethers.sha256(data2.payload),
-                    data2.payload
+                    data2.payload,
+                    amountWithoutFee
                 );
         });
 
@@ -330,8 +327,8 @@ describe('Bridge', function () {
             let routerDestination: CCIPRouterMock;
             let chainlinkAdapterSource: TokenPoolAdapter;
             let chainlinkAdapterDestination: TokenPoolAdapter;
-            let tokenPoolSource: LBTCTokenPool;
-            let tokenPoolDestination: LBTCTokenPool;
+            let tokenPoolSource: TokenPool;
+            let tokenPoolDestination: TokenPool;
 
             beforeEach(async function () {
                 /// configure source
@@ -345,24 +342,14 @@ describe('Bridge', function () {
                     [
                         await routerSource.getAddress(),
                         await lbtcSource.getAddress(),
-                        deployer.address,
-                    ],
-                    false
-                );
-                tokenPoolSource = await deployContract<LBTCTokenPool>(
-                    'LBTCTokenPool',
-                    [
-                        await chainlinkAdapterSource.getAddress(),
-                        await lbtcSource.getAddress(),
                         [], // no allowlist
                         await routerSource.getAddress(), // will do work of rmn as well
-                        await routerSource.getAddress(),
+                        await bridgeSource.getAddress(),
                     ],
                     false
                 );
-                await chainlinkAdapterSource.setTokenPool(
-                    await tokenPoolSource.getAddress()
-                );
+                tokenPoolSource = chainlinkAdapterSource;
+
                 await chainlinkAdapterSource.changeBridge(
                     await bridgeSource.getAddress()
                 );
@@ -379,33 +366,25 @@ describe('Bridge', function () {
                         [
                             await routerDestination.getAddress(),
                             await lbtcDestination.getAddress(),
-                            deployer.address,
+                            [], // no allowlist
+                            await routerDestination.getAddress(), // will do work of rmn as well
+                            await bridgeDestination.getAddress(),
                         ],
                         false
                     );
-                tokenPoolDestination = await deployContract<LBTCTokenPool>(
-                    'LBTCTokenPool',
-                    [
-                        await chainlinkAdapterDestination.getAddress(),
-                        await lbtcDestination.getAddress(),
-                        [], // no allowlist
-                        await routerDestination.getAddress(), // will do work of rmn as well
-                        await routerDestination.getAddress(),
-                    ],
-                    false
-                );
-                await chainlinkAdapterDestination.setTokenPool(
-                    await tokenPoolDestination.getAddress()
-                );
+                tokenPoolDestination = chainlinkAdapterDestination;
+
                 await chainlinkAdapterDestination.changeBridge(
                     await bridgeDestination.getAddress()
                 );
 
                 /// configure bridges
                 await bridgeSource.changeAdapter(
+                    CHAIN_ID,
                     await chainlinkAdapterSource.getAddress()
                 );
                 await bridgeDestination.changeAdapter(
+                    CHAIN_ID,
                     await chainlinkAdapterDestination.getAddress()
                 );
 

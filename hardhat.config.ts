@@ -3,6 +3,7 @@ import '@nomicfoundation/hardhat-toolbox';
 import '@openzeppelin/hardhat-upgrades';
 import '@nomicfoundation/hardhat-ethers';
 import 'hardhat-gas-reporter';
+import 'hardhat-deploy';
 
 import './scripts';
 

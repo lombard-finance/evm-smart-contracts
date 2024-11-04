@@ -16,7 +16,7 @@ library Actions {
         uint256 toChain;
         address toContract;
         address recipient;
-        uint256 amount;
+        uint64 amount;
         bytes32 uniqueActionData;
     }
 
@@ -148,18 +148,15 @@ library Actions {
             uint256 toChain,
             address toContract,
             address recipient,
-            uint256 amount,
+            uint64 amount,
             bytes32 uniqueActionData
         ) = abi.decode(
                 payload,
-                (uint256, address, uint256, address, address, uint256, bytes32)
+                (uint256, address, uint256, address, address, uint64, bytes32)
             );
 
         if (toChain != block.chainid) {
             revert WrongChainId();
-        }
-        if (toContract != address(this)) {
-            revert WrongContract();
         }
         if (recipient == address(0)) {
             revert ZeroAddress();
