@@ -159,6 +159,19 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+      baseSepolia: {
+        loggingEnabled: true,
+        url: vars.get("BASE_SEPOLIA_RPC", "https://rpc.ankr.com/base_sepolia"),
+        chainId: 84532,
+        accounts: [
+          vars.get(
+            "TESTNET_DEPLOYER_SK",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ),
+        ],
+        timeout: 90_000,
+        gas: 8_000_000,
+      },
 
         // mainnets
         mainnet: {
@@ -214,6 +227,19 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+      base: {
+        loggingEnabled: true,
+        url: vars.get("BASE_RPC", "https://rpc.ankr.com/base"),
+        chainId: 8453,
+        accounts: [
+          vars.get(
+            "DEPLOYER_SK",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ),
+        ],
+        timeout: 90_000,
+        gas: 8_000_000,
+      },
     },
     etherscan: {
         customChains: [
@@ -302,6 +328,7 @@ const config: HardhatUserConfig = {
             zircuit: vars.get('ZIRCUIT_API_KEY', ''),
             linea: vars.get('LINEA_API_KEY', ''),
             mantle: vars.get('MANTLE_API_KEY', ''),
+            baseSepolia: vars.get("BASE_API_KEY", ""),
         },
     },
     sourcify: {

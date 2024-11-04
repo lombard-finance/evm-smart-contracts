@@ -1,7 +1,11 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BaseContract, BigNumberish, Signature } from 'ethers';
-import { ERC20PermitUpgradeable } from '../typechain-types';
+import {
+    Consortium,
+    ERC20PermitUpgradeable,
+    LBTCMock,
+} from '../typechain-types';
 
 export type Signer = HardhatEthersSigner & {
     publicKey: string;
@@ -174,6 +178,20 @@ export async function getSignersWithPrivateKeys(
             publicKey: `0x04${ethers.SigningKey.computePublicKey(wallet.publicKey, false).slice(4)}`,
         });
     });
+}
+
+export async function init(burnCommission: number, owner: string) {
+    const consortium = await deployContract<Consortium>('ConsortiumMock', [
+        owner,
+    ]);
+
+    const lbtc = await deployContract<LBTCMock>('LBTCMock', [
+        await consortium.getAddress(),
+        burnCommission,
+        owner,
+    ]);
+
+    return { lbtc, consortium };
 }
 
 export async function generatePermitSignature(

@@ -6,5 +6,6 @@ export * from './create3-factory';
 export * from './lbtc';
 export * from './default-adapter';
 export * from './chainlink-adapter';
+export * from './PoR';
 export * from './lzadapter';
 export * from './upgrade';
