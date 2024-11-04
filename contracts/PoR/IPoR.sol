@@ -12,7 +12,11 @@ interface IPoR {
     error AddressDoesNotExist(string addressStr);
 
     /// @notice Error thrown when the message or signature is invalid.
-    error InvalidMessageSignature(string addressStr, string messageOrPath, bytes signature);
+    error InvalidMessageSignature(
+        string addressStr,
+        string messageOrPath,
+        bytes signature
+    );
 
     /// @notice Error thrown when the root pubkey is invalid.
     error InvalidRootPubkey();
