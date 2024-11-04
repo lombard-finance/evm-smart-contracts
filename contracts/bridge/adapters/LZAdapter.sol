@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {AbstractAdapter, IBridge} from "./AbstractAdapter.sol";
 import {OApp, MessagingFee, Origin, MessagingReceipt} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
 import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title LayerZero bridge adapter
@@ -43,7 +44,7 @@ contract LZAdapter is AbstractAdapter, OApp {
         IBridge _bridge,
         address _endpoint,
         uint128 _executionGasLimit
-    ) AbstractAdapter(_owner, _bridge) OApp(_endpoint, _owner) {
+    ) AbstractAdapter(_bridge) OApp(_endpoint, _owner) Ownable(_owner) {
         _setExecutionGasLimit(_executionGasLimit);
     }
 
@@ -160,4 +161,6 @@ contract LZAdapter is AbstractAdapter, OApp {
         emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);
         getExecutionGasLimit = newVal;
     }
+
+    function _onlyOwner() internal view override onlyOwner {}
 }

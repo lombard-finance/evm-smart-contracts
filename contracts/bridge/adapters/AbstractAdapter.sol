@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {IAdapter} from "./IAdapter.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IBridge, ILBTC} from "../IBridge.sol";
 /**
  * @title Abstract bridge adapter
@@ -10,7 +10,7 @@ import {IBridge, ILBTC} from "../IBridge.sol";
  * @notice Implements basic communication with Bridge contract.
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
  */
-abstract contract AbstractAdapter is IAdapter, Ownable {
+abstract contract AbstractAdapter is IAdapter, Context {
     error ZeroAddress();
 
     error NotBridge();
@@ -19,7 +19,7 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
 
     IBridge public override bridge;
 
-    constructor(address owner_, IBridge bridge_) Ownable(owner_) {
+    constructor(IBridge bridge_) {
         bridge = bridge_;
     }
 
@@ -40,7 +40,8 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
      * @notice Change the bridge address
      * @param bridge_ New bridge address
      */
-    function changeBridge(IBridge bridge_) external onlyOwner {
+    function changeBridge(IBridge bridge_) external {
+        _onlyOwner();
         _notZero(address(bridge_));
 
         IBridge oldBridge = bridge;
@@ -49,6 +50,8 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
     }
 
     /// PRIVATE FUNCTIONS ///
+
+    function _onlyOwner() internal view virtual;
 
     function _onlyBridge() internal view {
         if (_msgSender() != address(bridge)) {
@@ -65,7 +68,7 @@ abstract contract AbstractAdapter is IAdapter, Ownable {
     /**
      * @dev Called when data is received.
      */
-    function _receive(bytes32 fromChain, bytes calldata payload) internal {
+    function _receive(bytes32 fromChain, bytes memory payload) internal {
         bridge.receivePayload(fromChain, payload);
     }
 

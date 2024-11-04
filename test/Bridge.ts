@@ -5,6 +5,7 @@ import {
     Bridge,
     TokenPoolAdapter,
     CCIPRouterMock,
+    TokenPool,
 } from '../typechain-types';
 import {
     takeSnapshot,
@@ -326,8 +327,8 @@ describe('Bridge', function () {
             let routerDestination: CCIPRouterMock;
             let chainlinkAdapterSource: TokenPoolAdapter;
             let chainlinkAdapterDestination: TokenPoolAdapter;
-            let tokenPoolSource: LBTCTokenPool;
-            let tokenPoolDestination: LBTCTokenPool;
+            let tokenPoolSource: TokenPool;
+            let tokenPoolDestination: TokenPool;
 
             beforeEach(async function () {
                 /// configure source
@@ -340,25 +341,15 @@ describe('Bridge', function () {
                     'TokenPoolAdapter',
                     [
                         await routerSource.getAddress(),
-                        deployer.address,
+                        await lbtcSource.getAddress(),
+                        [], // no allowlist
+                        await routerSource.getAddress(), // will do work of rmn as well
                         await bridgeSource.getAddress(),
                     ],
                     false
                 );
-                tokenPoolSource = await deployContract<LBTCTokenPool>(
-                    'LBTCTokenPool',
-                    [
-                        await chainlinkAdapterSource.getAddress(),
-                        await lbtcSource.getAddress(),
-                        [], // no allowlist
-                        await routerSource.getAddress(), // will do work of rmn as well
-                        await routerSource.getAddress(),
-                    ],
-                    false
-                );
-                await chainlinkAdapterSource.setTokenPool(
-                    await tokenPoolSource.getAddress()
-                );
+                tokenPoolSource = chainlinkAdapterSource;
+
                 await chainlinkAdapterSource.changeBridge(
                     await bridgeSource.getAddress()
                 );
@@ -374,25 +365,15 @@ describe('Bridge', function () {
                         'TokenPoolAdapter',
                         [
                             await routerDestination.getAddress(),
-                            deployer.address,
+                            await lbtcDestination.getAddress(),
+                            [], // no allowlist
+                            await routerDestination.getAddress(), // will do work of rmn as well
                             await bridgeDestination.getAddress(),
                         ],
                         false
                     );
-                tokenPoolDestination = await deployContract<LBTCTokenPool>(
-                    'LBTCTokenPool',
-                    [
-                        await chainlinkAdapterDestination.getAddress(),
-                        await lbtcDestination.getAddress(),
-                        [], // no allowlist
-                        await routerDestination.getAddress(), // will do work of rmn as well
-                        await routerDestination.getAddress(),
-                    ],
-                    false
-                );
-                await chainlinkAdapterDestination.setTokenPool(
-                    await tokenPoolDestination.getAddress()
-                );
+                tokenPoolDestination = chainlinkAdapterDestination;
+
                 await chainlinkAdapterDestination.changeBridge(
                     await bridgeDestination.getAddress()
                 );

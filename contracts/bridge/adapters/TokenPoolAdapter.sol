@@ -1,32 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IAdapter} from "./IAdapter.sol";
-import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {LBTC, IERC20} from "../../LBTC/LBTC.sol";
+import {IERC20} from "../../LBTC/LBTC.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {AbstractAdapter} from "./AbstractAdapter.sol";
 import {IBridge} from "../IBridge.sol";
+import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
+import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ERC20/IBurnMintERC20.sol";
+import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
 
-contract TokenPoolAdapter is AbstractAdapter {
-    IRouterClient ccipRouter;
-    address tokenPool;
+contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     uint256 gasLimit;
-    bytes32 public latestPayloadHashSent;
+    bytes32 latestPayloadHashSent;
 
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
 
-    /// @notice Thrown when the sender is unauthorized
-    error Unauthorized();
+    /// @notice Error emitted when the proof is malformed
+    error MalformedProof();
 
+    /// @notice msg.sender gets the ownership of the contract given
+    /// token pool implementation
     constructor(
         address ccipRouter_,
-        address owner_,
+        IBurnMintERC20 token_,
+        address[] memory allowlist_,
+        address rmnProxy_,
         IBridge bridge_
-    ) AbstractAdapter(owner_, bridge_) {
-        ccipRouter = IRouterClient(ccipRouter_);
+    )
+        AbstractAdapter(bridge_)
+        TokenPool(token_, allowlist_, rmnProxy_, ccipRouter_)
+    {
         gasLimit = 200_000;
     }
 
@@ -40,7 +45,7 @@ contract TokenPoolAdapter is AbstractAdapter {
         bytes memory
     ) external view returns (uint256) {
         return
-            ccipRouter.getFee(
+            IRouterClient(address(s_router)).getFee(
                 uint64(uint256(_toChain)),
                 _buildCCIPMessage(_toAddress, _amount)
             );
@@ -54,7 +59,7 @@ contract TokenPoolAdapter is AbstractAdapter {
         uint256 _amount,
         bytes memory _message
     ) external payable override {
-        if (fromAddress == tokenPool) {
+        if (fromAddress == address(this)) {
             return;
         }
 
@@ -63,7 +68,10 @@ contract TokenPoolAdapter is AbstractAdapter {
             _amount
         );
 
-        uint256 fee = ccipRouter.getFee(uint64(uint256(_toChain)), message);
+        uint256 fee = IRouterClient(address(s_router)).getFee(
+            uint64(uint256(_toChain)),
+            message
+        );
 
         if (msg.value < fee) {
             revert NotEnoughToPayFee(fee);
@@ -71,30 +79,92 @@ contract TokenPoolAdapter is AbstractAdapter {
 
         latestPayloadHashSent = sha256(_message);
 
-        IERC20(address(bridge.lbtc())).approve(address(ccipRouter), _amount);
-        ccipRouter.ccipSend(uint64(uint256(_toChain)), message);
-    }
-
-    function receivePayload(
-        bytes32 fromChain,
-        bytes calldata payload
-    ) external {
-        if (_msgSender() != address(tokenPool)) {
-            revert Unauthorized();
-        }
-        _receive(fromChain, payload);
+        IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
+        IRouterClient(address(s_router)).ccipSend(
+            uint64(uint256(_toChain)),
+            message
+        );
     }
 
     /// ONLY OWNER FUNCTIONS ///
-
-    function setTokenPool(address tokenPool_) external onlyOwner {
-        tokenPool = tokenPool_;
-    }
 
     function setGasLimit(uint256 limit) external onlyOwner {
         uint256 oldLimit = gasLimit;
         gasLimit = limit;
         emit GasLimitChanged(oldLimit, limit);
+    }
+
+    /// TOKEN POOL LOGIC ///
+
+    /// @notice Burn the token in the pool
+    /// @dev The _validateLockOrBurn check is an essential security check
+    function lockOrBurn(
+        Pool.LockOrBurnInV1 calldata lockOrBurnIn
+    ) external virtual override returns (Pool.LockOrBurnOutV1 memory) {
+        _validateLockOrBurn(lockOrBurnIn);
+
+        uint256 burnedAmount;
+        bytes32 payloadHash;
+        if (lockOrBurnIn.originalSender == address(this)) {
+            payloadHash = latestPayloadHashSent;
+            burnedAmount = lockOrBurnIn.amount;
+        } else {
+            // deposit assets, they will be burned in the proccess
+            i_token.approve(address(bridge), lockOrBurnIn.amount);
+            (uint256 amountWithoutFee, bytes memory payload) = bridge.deposit(
+                bytes32(uint256(lockOrBurnIn.remoteChainSelector)),
+                bytes32(lockOrBurnIn.receiver),
+                uint64(lockOrBurnIn.amount)
+            );
+            payloadHash = sha256(payload);
+            burnedAmount = amountWithoutFee;
+        }
+
+        emit Burned(lockOrBurnIn.originalSender, burnedAmount);
+
+        return
+            Pool.LockOrBurnOutV1({
+                destTokenAddress: getRemoteToken(
+                    lockOrBurnIn.remoteChainSelector
+                ),
+                destPoolData: abi.encodePacked(payloadHash)
+            });
+    }
+
+    /// @notice Mint tokens from the pool to the recipient
+    /// @dev The _validateReleaseOrMint check is an essential security check
+    function releaseOrMint(
+        Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
+    ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
+        _validateReleaseOrMint(releaseOrMintIn);
+
+        bytes32 payloadHash = bytes32(releaseOrMintIn.sourcePoolData);
+        (bytes memory payload, bytes memory proof) = abi.decode(
+            releaseOrMintIn.offchainTokenData,
+            (bytes, bytes)
+        );
+
+        if (sha256(payload) != payloadHash) {
+            revert MalformedProof();
+        }
+
+        _receive(
+            bytes32(uint256(releaseOrMintIn.remoteChainSelector)),
+            payload
+        );
+        bridge.authNotary(payload, proof);
+        bridge.withdraw(payload);
+
+        emit Minted(
+            msg.sender,
+            releaseOrMintIn.receiver,
+            releaseOrMintIn.amount
+        );
+
+        return
+            Pool.ReleaseOrMintOutV1({
+                destinationAmount: releaseOrMintIn.amount
+            });
     }
 
     /// PRIVATE FUNCTIONS ///
@@ -125,4 +195,6 @@ contract TokenPoolAdapter is AbstractAdapter {
                 feeToken: address(0) // let's pay with native tokens
             });
     }
+
+    function _onlyOwner() internal view override onlyOwner {}
 }
