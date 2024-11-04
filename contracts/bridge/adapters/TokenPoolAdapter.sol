@@ -56,12 +56,15 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         bytes32,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory
+        bytes memory _payload
     ) external view returns (uint256) {
+        if (offchain) {
+            _payload = "";
+        }
         return
             IRouterClient(address(s_router)).getFee(
                 getRemoteChainSelector[_toChain],
-                _buildCCIPMessage(_toAddress, _amount)
+                _buildCCIPMessage(_toAddress, _amount, _payload)
             );
     }
 
@@ -71,27 +74,33 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         bytes32,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory _message
+        bytes memory _payload
     ) external payable override {
         if (fromAddress == address(this)) {
             return;
         }
 
+        if (offchain) {
+            _payload = "";
+        }
+
         Client.EVM2AnyMessage memory message = _buildCCIPMessage(
             _toAddress,
-            _amount
+            _amount,
+            _payload
         );
 
         uint256 fee = IRouterClient(address(s_router)).getFee(
             getRemoteChainSelector[_toChain],
-            message
+            message,
+            _payload
         );
 
         if (msg.value < fee) {
             revert NotEnoughToPayFee(fee);
         }
 
-        latestPayloadHashSent = sha256(_message);
+        latestPayloadHashSent = sha256(_payload);
 
         IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
         IRouterClient(address(s_router)).ccipSend(
@@ -186,7 +195,8 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
     function _buildCCIPMessage(
         bytes32 _receiver,
-        uint256 _amount
+        uint256 _amount,
+        bytes memory payload
     ) private view returns (Client.EVM2AnyMessage memory) {
         // Set the token amounts
         Client.EVMTokenAmount[]
@@ -199,7 +209,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encodePacked(_receiver),
-                data: "", // No data
+                data: payload,
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
