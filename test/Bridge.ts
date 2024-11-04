@@ -584,13 +584,13 @@ describe('Bridge', function () {
         });
 
         describe('With LayerZero Adapter', function () {
-            let aAdapter: LZAdapter;
-            let bAdapter: LZAdapter;
-            let aLZEndpoint: EndpointV2Mock;
-            let bLZEndpoint: EndpointV2Mock;
+            let lzAdapterSource: LZAdapter;
+            let lzAdapterDestination: LZAdapter;
+            let lzEndpointSource: EndpointV2Mock;
+            let lzEndpointDestination: EndpointV2Mock;
             let chainId: string;
-            const aEid = 1;
-            const bEid = 2;
+            const eidSource = 1;
+            const eidDestination = 2;
 
             beforeEach(async function () {
                 chainId = encode(
@@ -599,51 +599,54 @@ describe('Bridge', function () {
                 );
 
                 // deploy LayerZero endpoint
-                aLZEndpoint = await deployContract<EndpointV2Mock>(
+                lzEndpointSource = await deployContract<EndpointV2Mock>(
                     'EndpointV2Mock',
-                    [aEid],
+                    [eidSource],
                     false
                 );
-                bLZEndpoint = await deployContract<EndpointV2Mock>(
+                lzEndpointDestination = await deployContract<EndpointV2Mock>(
                     'EndpointV2Mock',
-                    [bEid],
+                    [eidDestination],
                     false
                 );
 
-                aAdapter = await deployContract<LZAdapter>(
+                lzAdapterSource = await deployContract<LZAdapter>(
                     'LZAdapter',
                     [
                         deployer.address,
                         await bridgeSource.getAddress(),
-                        await aLZEndpoint.getAddress(),
+                        await lzEndpointSource.getAddress(),
                         100_000,
                     ],
                     false
                 );
 
-                bAdapter = await deployContract<LZAdapter>(
+                lzAdapterDestination = await deployContract<LZAdapter>(
                     'LZAdapter',
                     [
                         deployer.address,
                         await bridgeDestination.getAddress(),
-                        await bLZEndpoint.getAddress(),
+                        await lzEndpointDestination.getAddress(),
                         100_000,
                     ],
                     false
                 );
 
                 // configuration
-                await aAdapter.setPeer(
-                    bEid,
-                    encode(['address'], [await bAdapter.getAddress()])
+                await lzAdapterSource.setPeer(
+                    eidDestination,
+                    encode(
+                        ['address'],
+                        [await lzAdapterDestination.getAddress()]
+                    )
                 );
-                await aAdapter.setEid(chainId, bEid);
+                await lzAdapterSource.setEid(chainId, eidDestination);
 
-                await bAdapter.setPeer(
-                    aEid,
-                    encode(['address'], [await aAdapter.getAddress()])
+                await lzAdapterDestination.setPeer(
+                    eidSource,
+                    encode(['address'], [await lzAdapterSource.getAddress()])
                 );
-                await bAdapter.setEid(chainId, aEid);
+                await lzAdapterDestination.setEid(chainId, eidSource);
 
                 await bridgeSource.changeDepositRelativeCommission(1, chainId);
                 await bridgeSource.changeDepositAbsoluteCommission(1, chainId);
@@ -657,42 +660,48 @@ describe('Bridge', function () {
                     chainId
                 );
 
-                await aLZEndpoint.setDestLzEndpoint(
-                    await bAdapter.getAddress(),
-                    await bLZEndpoint.getAddress()
+                await lzEndpointSource.setDestLzEndpoint(
+                    await lzAdapterDestination.getAddress(),
+                    await lzEndpointDestination.getAddress()
                 );
-                await bLZEndpoint.setDestLzEndpoint(
-                    await aAdapter.getAddress(),
-                    await aLZEndpoint.getAddress()
+                await lzEndpointDestination.setDestLzEndpoint(
+                    await lzAdapterSource.getAddress(),
+                    await lzEndpointSource.getAddress()
                 );
 
-                await aAdapter.changeBridge(await bridgeSource.getAddress());
-                await bAdapter.changeBridge(
+                await lzAdapterSource.changeBridge(
+                    await bridgeSource.getAddress()
+                );
+                await lzAdapterDestination.changeBridge(
                     await bridgeDestination.getAddress()
                 );
 
                 await bridgeSource.changeAdapter(
                     chainId,
-                    await aAdapter.getAddress()
+                    await lzAdapterSource.getAddress()
                 );
                 await bridgeDestination.changeAdapter(
                     chainId,
-                    await bAdapter.getAddress()
+                    await lzAdapterDestination.getAddress()
                 );
             });
 
             describe('Setters and Getters', () => {
                 it('should return chain by eid', async function () {
-                    expect(await aAdapter.getChain(bEid)).to.eq(chainId);
+                    expect(
+                        await lzAdapterSource.getChain(eidDestination)
+                    ).to.eq(chainId);
                 });
 
                 it('should return eid by chain', async function () {
-                    expect(await aAdapter.getEID(chainId)).to.eq(bEid);
+                    expect(await lzAdapterSource.getEID(chainId)).to.eq(
+                        eidDestination
+                    );
                 });
             });
 
             describe('Bridge using auth from consortium', function () {
-                it('should bridge from A to B', async () => {
+                it('should bridge from Source to Destination', async () => {
                     const deductFee = async (
                         amount: bigint,
                         bridge: Bridge
@@ -766,7 +775,7 @@ describe('Bridge', function () {
                             ethers.sha256(payload),
                             payload
                         )
-                        .and.emit(bAdapter, 'LZMessageReceived');
+                        .and.emit(lzAdapterDestination, 'LZMessageReceived');
 
                     expect(
                         await lbtcSource.balanceOf(signer1.address)
@@ -880,7 +889,7 @@ describe('Bridge', function () {
                             ethers.sha256(payload),
                             payload
                         )
-                        .and.emit(aAdapter, 'LZMessageReceived');
+                        .and.emit(lzAdapterSource, 'LZMessageReceived');
 
                     expect(
                         await lbtcDestination.balanceOf(signer2.address)
