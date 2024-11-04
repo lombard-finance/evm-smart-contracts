@@ -355,6 +355,77 @@ describe('Bridge', function () {
                 );
             });
 
+            it('should fail to deposit if aggregated deposit exceeds rate limit', async function () {
+                await lbtcSource.mintTo(signer1.address, 1);
+
+                // set rate limit for a non empty window
+                await bridgeSource.setRateLimits(
+                    [
+                        {
+                            chainId: CHAIN_ID,
+                            limit: AMOUNT,
+                            window: 1000000000n, // big window so there is no decay
+                        },
+                    ],
+                    []
+                );
+                await lbtcSource
+                    .connect(signer1)
+                    .approve(await bridgeSource.getAddress(), AMOUNT + 1n);
+                await bridgeSource
+                    .connect(signer1)
+                    .deposit(
+                        CHAIN_ID,
+                        encode(['address'], [signer2.address]),
+                        AMOUNT / 2n
+                    );
+                await expect(
+                    bridgeSource
+                        .connect(signer1)
+                        .deposit(
+                            CHAIN_ID,
+                            encode(['address'], [signer2.address]),
+                            AMOUNT + 1n - AMOUNT / 2n
+                        )
+                ).to.be.revertedWithCustomError(
+                    bridgeSource,
+                    'RateLimitExceeded'
+                );
+            });
+
+            it('should allow more deposits over time', async function () {
+                await lbtcSource.mintTo(signer1.address, AMOUNT);
+
+                // set rate limit for a non empty window
+                await bridgeSource.setRateLimits(
+                    [
+                        {
+                            chainId: CHAIN_ID,
+                            limit: AMOUNT,
+                            window: 1, // every second limits get reset
+                        },
+                    ],
+                    []
+                );
+                await lbtcSource
+                    .connect(signer1)
+                    .approve(await bridgeSource.getAddress(), AMOUNT * 2n);
+                await bridgeSource
+                    .connect(signer1)
+                    .deposit(
+                        CHAIN_ID,
+                        encode(['address'], [signer2.address]),
+                        AMOUNT
+                    );
+                await bridgeSource
+                    .connect(signer1)
+                    .deposit(
+                        CHAIN_ID,
+                        encode(['address'], [signer2.address]),
+                        AMOUNT
+                    );
+            });
+
             it('should fail to withdraw if rate limit is exceeded', async function () {
                 await lbtcSource
                     .connect(signer1)
