@@ -11,8 +11,20 @@ import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ER
 import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
 
 contract TokenPoolAdapter is AbstractAdapter, TokenPool {
-    uint256 gasLimit;
-    bytes32 latestPayloadHashSent;
+
+    error CLZeroChain();
+    error CLZeroChanSelector();
+    error CLAttemptToOverrideChainSelector();
+    error CLAttemptToOverrideChain();
+
+    event CLChainSelectorSet(bytes32, uint64);
+
+    bytes32 public latestPayloadHashSent;
+
+    mapping(bytes32 => uint64) public getRemoteChainSelector;
+    mapping(uint64 => bytes32) public getChain;
+    uint128 public getExecutionGasLimit;
+    bool public offchain;
 
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
@@ -24,15 +36,17 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     /// token pool implementation
     constructor(
         address ccipRouter_,
-        IBurnMintERC20 token_,
         address[] memory allowlist_,
         address rmnProxy_,
-        IBridge bridge_
+        IBridge bridge_,
+        bool offchain_,
+        uint128 executionGasLimit_
     )
         AbstractAdapter(bridge_)
-        TokenPool(token_, allowlist_, rmnProxy_, ccipRouter_)
+        TokenPool(IBurnMintERC20(address(bridge_.lbtc())), allowlist_, rmnProxy_, ccipRouter_)
     {
-        gasLimit = 200_000;
+        _setExecutionGasLimit(executionGasLimit_);
+        offchain = offchain_;
     }
 
     /// USER ACTIONS ///
@@ -46,7 +60,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     ) external view returns (uint256) {
         return
             IRouterClient(address(s_router)).getFee(
-                uint64(uint256(_toChain)),
+                getRemoteChainSelector[_toChain],
                 _buildCCIPMessage(_toAddress, _amount)
             );
     }
@@ -69,7 +83,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         );
 
         uint256 fee = IRouterClient(address(s_router)).getFee(
-            uint64(uint256(_toChain)),
+            getRemoteChainSelector[_toChain],
             message
         );
 
@@ -81,17 +95,15 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
         IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
         IRouterClient(address(s_router)).ccipSend(
-            uint64(uint256(_toChain)),
+            getRemoteChainSelector[_toChain],
             message
         );
     }
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function setGasLimit(uint256 limit) external onlyOwner {
-        uint256 oldLimit = gasLimit;
-        gasLimit = limit;
-        emit GasLimitChanged(oldLimit, limit);
+    function setExecutionGasLimit(uint128 newVal) external onlyOwner {
+        _setExecutionGasLimit(newVal);
     }
 
     /// TOKEN POOL LOGIC ///
@@ -138,18 +150,21 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
         _validateReleaseOrMint(releaseOrMintIn);
 
-        bytes32 payloadHash = bytes32(releaseOrMintIn.sourcePoolData);
-        (bytes memory payload, bytes memory proof) = abi.decode(
-            releaseOrMintIn.offchainTokenData,
-            (bytes, bytes)
-        );
 
-        if (sha256(payload) != payloadHash) {
-            revert MalformedProof();
+        bytes memory payload;
+        bytes memory proof;
+
+        if (offchain) {
+            (payload, proof) = abi.decode(
+                releaseOrMintIn.offchainTokenData,
+                (bytes, bytes)
+            );
+        } else {
+            payload = releaseOrMintIn.sourcePoolData;
         }
 
         _receive(
-            bytes32(uint256(releaseOrMintIn.remoteChainSelector)),
+            getChain[releaseOrMintIn.remoteChainSelector],
             payload
         );
         bridge.authNotary(payload, proof);
@@ -188,7 +203,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
-                        gasLimit: gasLimit,
+                        gasLimit: getExecutionGasLimit,
                         allowOutOfOrderExecution: true
                     })
                 ),
@@ -197,4 +212,32 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     }
 
     function _onlyOwner() internal view override onlyOwner {}
+
+    function _setExecutionGasLimit(uint128 newVal) internal {
+        emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);
+        getExecutionGasLimit = newVal;
+    }
+
+    /**
+     * @notice Allows owner set chain selector for chain id
+     * @param chain ABI encoded chain id
+     * @param chainSelector Chain selector of chain id (https://docs.chain.link/ccip/directory/testnet/chain/)
+     */
+    function setRemoteChainSelector(bytes32 chain, uint64 chainSelector) external onlyOwner {
+        if (chain == bytes32(0)) {
+            revert CLZeroChain();
+        }
+        if (chainSelector == 0) {
+            revert CLZeroChain();
+        }
+        if (getRemoteChainSelector[chain] != 0) {
+            revert CLAttemptToOverrideChainSelector();
+        }
+        if (getChain[chainSelector] != bytes32(0)) {
+            revert CLAttemptToOverrideChain();
+        }
+        getRemoteChainSelector[chain] = chainSelector;
+        getChain[chainSelector] = chain;
+        emit CLChainSelectorSet(chain, chainSelector);
+    }
 }

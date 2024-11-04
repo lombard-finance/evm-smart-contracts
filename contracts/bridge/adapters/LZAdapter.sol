@@ -30,7 +30,6 @@ contract LZAdapter is AbstractAdapter, OApp {
         uint256 fee
     );
     event LZEIDSet(bytes32 indexed chain, uint32 indexed eid);
-    event ExecutionGasLimitSet(uint128 indexed prevVal, uint128 indexed newVal);
 
     bool internal constant PAY_IN_LZ_TOKEN = false;
 

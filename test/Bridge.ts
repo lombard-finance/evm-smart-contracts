@@ -341,7 +341,6 @@ describe('Bridge', function () {
                     'TokenPoolAdapter',
                     [
                         await routerSource.getAddress(),
-                        await lbtcSource.getAddress(),
                         [], // no allowlist
                         await routerSource.getAddress(), // will do work of rmn as well
                         await bridgeSource.getAddress(),
@@ -365,7 +364,6 @@ describe('Bridge', function () {
                         'TokenPoolAdapter',
                         [
                             await routerDestination.getAddress(),
-                            await lbtcDestination.getAddress(),
                             [], // no allowlist
                             await routerDestination.getAddress(), // will do work of rmn as well
                             await bridgeDestination.getAddress(),
