@@ -19,6 +19,13 @@ contract CCIPRouterMock {
     bytes payloadAndProof;
     /// @dev fee to charge
     uint256 fee;
+    uint64 public destinationChainSelector;
+    uint64 public sourceChainSelector;
+
+    constructor(uint64 sourceChainSelector_, uint64 destinationChainSelector_) {
+        destinationChainSelector = destinationChainSelector_;
+        sourceChainSelector = sourceChainSelector_;
+    }
 
     function setTokenPool(address pool) external {
         tokenPool = pool;
@@ -47,7 +54,7 @@ contract CCIPRouterMock {
     }
 
     function ccipSend(
-        uint64 destinationChainSelector,
+        uint64 destinationChainSelector_,
         Client.EVM2AnyMessage memory message
     ) external payable returns (bytes32) {
         /// take the amount of assets from the sender and send it to
@@ -71,7 +78,7 @@ contract CCIPRouterMock {
         Pool.LockOrBurnOutV1 memory out = IPoolV1(tokenPool).lockOrBurn(
             Pool.LockOrBurnInV1({
                 receiver: message.receiver,
-                remoteChainSelector: destinationChainSelector,
+                remoteChainSelector: destinationChainSelector_,
                 originalSender: msg.sender,
                 amount: amount,
                 localToken: message.tokenAmounts[0].token
@@ -81,7 +88,7 @@ contract CCIPRouterMock {
         CCIPRouterMock(destinationRouter).receiveMessage(
             Pool.ReleaseOrMintInV1({
                 originalSender: abi.encode(msg.sender),
-                remoteChainSelector: uint64(block.chainid),
+                remoteChainSelector: sourceChainSelector,
                 receiver: abi.decode(message.receiver, (address)),
                 amount: amount,
                 localToken: address(0), // to be filled by destination router
@@ -92,7 +99,7 @@ contract CCIPRouterMock {
         );
 
         /// identifier for it
-        return keccak256(abi.encode(destinationChainSelector, message));
+        return keccak256(abi.encode(destinationChainSelector_, message));
     }
 
     function receiveMessage(Pool.ReleaseOrMintInV1 memory data) external {

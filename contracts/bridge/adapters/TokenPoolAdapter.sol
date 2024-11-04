@@ -11,7 +11,6 @@ import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ER
 import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
 
 contract TokenPoolAdapter is AbstractAdapter, TokenPool {
-
     error CLZeroChain();
     error CLZeroChanSelector();
     error CLAttemptToOverrideChainSelector();
@@ -19,7 +18,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
     event CLChainSelectorSet(bytes32, uint64);
 
-    bytes32 public latestPayloadHashSent;
+    bytes public latestPayloadSent;
 
     mapping(bytes32 => uint64) public getRemoteChainSelector;
     mapping(uint64 => bytes32) public getChain;
@@ -43,7 +42,12 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         uint128 executionGasLimit_
     )
         AbstractAdapter(bridge_)
-        TokenPool(IBurnMintERC20(address(bridge_.lbtc())), allowlist_, rmnProxy_, ccipRouter_)
+        TokenPool(
+            IBurnMintERC20(address(bridge_.lbtc())),
+            allowlist_,
+            rmnProxy_,
+            ccipRouter_
+        )
     {
         _setExecutionGasLimit(executionGasLimit_);
         offchain = offchain_;
@@ -92,15 +96,14 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
         uint256 fee = IRouterClient(address(s_router)).getFee(
             getRemoteChainSelector[_toChain],
-            message,
-            _payload
+            message
         );
 
         if (msg.value < fee) {
             revert NotEnoughToPayFee(fee);
         }
 
-        latestPayloadHashSent = sha256(_payload);
+        latestPayloadSent = _payload;
 
         IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
         IRouterClient(address(s_router)).ccipSend(
@@ -125,19 +128,20 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         _validateLockOrBurn(lockOrBurnIn);
 
         uint256 burnedAmount;
-        bytes32 payloadHash;
+        bytes memory payload;
+
         if (lockOrBurnIn.originalSender == address(this)) {
-            payloadHash = latestPayloadHashSent;
+            payload = latestPayloadSent;
             burnedAmount = lockOrBurnIn.amount;
         } else {
             // deposit assets, they will be burned in the proccess
             i_token.approve(address(bridge), lockOrBurnIn.amount);
-            (uint256 amountWithoutFee, bytes memory payload) = bridge.deposit(
-                bytes32(uint256(lockOrBurnIn.remoteChainSelector)),
+            uint256 amountWithoutFee;
+            (amountWithoutFee, payload) = bridge.deposit(
+                getChain[lockOrBurnIn.remoteChainSelector],
                 bytes32(lockOrBurnIn.receiver),
                 uint64(lockOrBurnIn.amount)
             );
-            payloadHash = sha256(payload);
             burnedAmount = amountWithoutFee;
         }
 
@@ -148,7 +152,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
                 destTokenAddress: getRemoteToken(
                     lockOrBurnIn.remoteChainSelector
                 ),
-                destPoolData: abi.encodePacked(payloadHash)
+                destPoolData: payload
             });
     }
 
@@ -158,7 +162,6 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
     ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
         _validateReleaseOrMint(releaseOrMintIn);
-
 
         bytes memory payload;
         bytes memory proof;
@@ -172,10 +175,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
             payload = releaseOrMintIn.sourcePoolData;
         }
 
-        _receive(
-            getChain[releaseOrMintIn.remoteChainSelector],
-            payload
-        );
+        _receive(getChain[releaseOrMintIn.remoteChainSelector], payload);
         bridge.authNotary(payload, proof);
         bridge.withdraw(payload);
 
@@ -233,7 +233,10 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
      * @param chain ABI encoded chain id
      * @param chainSelector Chain selector of chain id (https://docs.chain.link/ccip/directory/testnet/chain/)
      */
-    function setRemoteChainSelector(bytes32 chain, uint64 chainSelector) external onlyOwner {
+    function setRemoteChainSelector(
+        bytes32 chain,
+        uint64 chainSelector
+    ) external onlyOwner {
         if (chain == bytes32(0)) {
             revert CLZeroChain();
         }
