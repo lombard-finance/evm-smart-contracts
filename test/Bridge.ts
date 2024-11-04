@@ -119,7 +119,7 @@ describe('Bridge', function () {
         // set rate limits
         const oo = {
             chainId: CHAIN_ID,
-            limit: 1_0000_0001n,
+            limit: 1_0000_0000n, // 1 LBTC
             window: 0,
         };
         await bridgeSource.setRateLimits([oo], [oo]);
@@ -335,6 +335,77 @@ describe('Bridge', function () {
                     data2.payload,
                     amountWithoutFee
                 );
+        });
+
+        describe('With failing rate limits', function () {
+            it('should fail to deposit if rate limit is exceeded', async function () {
+                await lbtcSource.mintTo(signer1.address, 1);
+
+                await expect(
+                    bridgeSource
+                        .connect(signer1)
+                        .deposit(
+                            CHAIN_ID,
+                            encode(['address'], [signer2.address]),
+                            AMOUNT + 1n
+                        )
+                ).to.be.revertedWithCustomError(
+                    bridgeSource,
+                    'RateLimitExceeded'
+                );
+            });
+
+            it('should fail to withdraw if rate limit is exceeded', async function () {
+                await lbtcSource
+                    .connect(signer1)
+                    .approve(await bridgeSource.getAddress(), AMOUNT);
+                await bridgeSource
+                    .connect(signer1)
+                    .deposit(
+                        CHAIN_ID,
+                        encode(['address'], [signer2.address]),
+                        AMOUNT
+                    );
+
+                const amountWithoutFee = AMOUNT - AMOUNT / 10n;
+
+                const data = await signDepositBridgePayload(
+                    [signer1],
+                    [true],
+                    CHAIN_ID,
+                    await bridgeSource.getAddress(),
+                    CHAIN_ID,
+                    await bridgeDestination.getAddress(),
+                    signer2.address,
+                    amountWithoutFee
+                );
+
+                await expect(
+                    bridgeDestination
+                        .connect(signer2)
+                        .authNotary(data.payload, data.proof)
+                )
+                    .to.emit(bridgeDestination, 'PayloadNotarized')
+                    .withArgs(signer2.address, ethers.sha256(data.payload));
+
+                await bridgeDestination.setRateLimits(
+                    [],
+                    [
+                        {
+                            chainId: CHAIN_ID,
+                            limit: amountWithoutFee - 1n,
+                            window: 0,
+                        },
+                    ]
+                );
+
+                await expect(
+                    bridgeDestination.connect(signer2).withdraw(data.payload)
+                ).to.be.revertedWithCustomError(
+                    bridgeDestination,
+                    'RateLimitExceeded'
+                );
+            });
         });
 
         describe('With Chainlink Adapter', function () {
