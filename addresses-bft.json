@@ -6,7 +6,7 @@
     "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
     "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc",
     "LZAdapter": "0x9a696c18aE6208d6124eaa75a7896C31992626f5",
-    "TokenPoolAdapter": "0x87F383Ac6E5dA9166bBeA75f4B0edC00BE89d291"
+    "TokenPoolAdapter": "0xb90ab07766da943dD3d0CfeF392744c22cFcC508"
   },
   "linea_testnet": {
     "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
@@ -22,6 +22,6 @@
     "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
     "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
     "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc",
-    "TokenPoolAdapter": "0xdd48f288874c7226603cCC98cab0661b3bd5721A"
+    "TokenPoolAdapter": "0x71162dCC16b321F9F2e321695e70d5774739f45C"
   }
 }
