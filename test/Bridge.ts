@@ -24,7 +24,9 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { LBTCTokenPool } from '../typechain-types/contracts/bridge/adapters/TokenPool.sol';
+
+const aChainSelector = 1;
+const bChainSelector = 2;
 
 describe('Bridge', function () {
     let deployer: Signer,
@@ -334,19 +336,24 @@ describe('Bridge', function () {
                 /// configure source
                 routerSource = await deployContract<CCIPRouterMock>(
                     'CCIPRouterMock',
-                    [],
+                    [aChainSelector, bChainSelector],
                     false
                 );
                 chainlinkAdapterSource = await deployContract<TokenPoolAdapter>(
                     'TokenPoolAdapter',
                     [
                         await routerSource.getAddress(),
-                        await lbtcSource.getAddress(),
                         [], // no allowlist
                         await routerSource.getAddress(), // will do work of rmn as well
                         await bridgeSource.getAddress(),
+                        true,
+                        300_000,
                     ],
                     false
+                );
+                await chainlinkAdapterSource.setRemoteChainSelector(
+                    CHAIN_ID,
+                    bChainSelector
                 );
                 tokenPoolSource = chainlinkAdapterSource;
 
@@ -357,7 +364,7 @@ describe('Bridge', function () {
                 /// configure destination
                 routerDestination = await deployContract<CCIPRouterMock>(
                     'CCIPRouterMock',
-                    [],
+                    [bChainSelector, aChainSelector],
                     false
                 );
                 chainlinkAdapterDestination =
@@ -365,13 +372,18 @@ describe('Bridge', function () {
                         'TokenPoolAdapter',
                         [
                             await routerDestination.getAddress(),
-                            await lbtcDestination.getAddress(),
                             [], // no allowlist
                             await routerDestination.getAddress(), // will do work of rmn as well
                             await bridgeDestination.getAddress(),
+                            true,
+                            300_000,
                         ],
                         false
                     );
+                await chainlinkAdapterDestination.setRemoteChainSelector(
+                    CHAIN_ID,
+                    aChainSelector
+                );
                 tokenPoolDestination = chainlinkAdapterDestination;
 
                 await chainlinkAdapterDestination.changeBridge(
@@ -405,7 +417,7 @@ describe('Bridge', function () {
                 /// set token pools
                 await tokenPoolSource.applyChainUpdates([
                     {
-                        remoteChainSelector: CHAIN_ID,
+                        remoteChainSelector: bChainSelector,
                         allowed: true,
                         remotePoolAddress:
                             await tokenPoolDestination.getAddress(),
@@ -425,7 +437,7 @@ describe('Bridge', function () {
 
                 await tokenPoolDestination.applyChainUpdates([
                     {
-                        remoteChainSelector: CHAIN_ID,
+                        remoteChainSelector: aChainSelector,
                         allowed: true,
                         remotePoolAddress: await tokenPoolSource.getAddress(),
                         remoteTokenAddress: await lbtcSource.getAddress(),
@@ -443,14 +455,14 @@ describe('Bridge', function () {
                 ]);
 
                 await tokenPoolSource.setRemotePool(
-                    CHAIN_ID,
+                    bChainSelector,
                     ethers.zeroPadValue(
                         await tokenPoolDestination.getAddress(),
                         32
                     )
                 );
                 await tokenPoolDestination.setRemotePool(
-                    CHAIN_ID,
+                    aChainSelector,
                     ethers.zeroPadValue(await tokenPoolSource.getAddress(), 32)
                 );
             });
@@ -473,11 +485,19 @@ describe('Bridge', function () {
                     amountWithoutFee
                 );
 
-                routerSource.setOffchainData(data.payload, data.proof);
+                await routerSource.setOffchainData(data.payload, data.proof);
 
                 await lbtcSource
                     .connect(signer1)
                     .approve(await bridgeSource.getAddress(), amount);
+                console.log(
+                    await chainlinkAdapterSource.getAddress(),
+                    'source'
+                );
+                console.log(
+                    await chainlinkAdapterDestination.getAddress(),
+                    'destination'
+                );
                 await expect(
                     bridgeSource
                         .connect(signer1)

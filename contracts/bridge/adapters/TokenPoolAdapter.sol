@@ -11,8 +11,19 @@ import {IBurnMintERC20} from "@chainlink/contracts-ccip/src/v0.8/shared/token/ER
 import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
 
 contract TokenPoolAdapter is AbstractAdapter, TokenPool {
-    uint256 gasLimit;
-    bytes32 latestPayloadHashSent;
+    error CLZeroChain();
+    error CLZeroChanSelector();
+    error CLAttemptToOverrideChainSelector();
+    error CLAttemptToOverrideChain();
+
+    event CLChainSelectorSet(bytes32, uint64);
+
+    bytes public latestPayloadSent;
+
+    mapping(bytes32 => uint64) public getRemoteChainSelector;
+    mapping(uint64 => bytes32) public getChain;
+    uint128 public getExecutionGasLimit;
+    bool public offchain;
 
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
@@ -24,15 +35,22 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     /// token pool implementation
     constructor(
         address ccipRouter_,
-        IBurnMintERC20 token_,
         address[] memory allowlist_,
         address rmnProxy_,
-        IBridge bridge_
+        IBridge bridge_,
+        bool offchain_,
+        uint128 executionGasLimit_
     )
         AbstractAdapter(bridge_)
-        TokenPool(token_, allowlist_, rmnProxy_, ccipRouter_)
+        TokenPool(
+            IBurnMintERC20(address(bridge_.lbtc())),
+            allowlist_,
+            rmnProxy_,
+            ccipRouter_
+        )
     {
-        gasLimit = 200_000;
+        _setExecutionGasLimit(executionGasLimit_);
+        offchain = offchain_;
     }
 
     /// USER ACTIONS ///
@@ -42,12 +60,15 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         bytes32,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory
+        bytes memory _payload
     ) external view returns (uint256) {
+        if (offchain) {
+            _payload = "";
+        }
         return
             IRouterClient(address(s_router)).getFee(
-                uint64(uint256(_toChain)),
-                _buildCCIPMessage(_toAddress, _amount)
+                getRemoteChainSelector[_toChain],
+                _buildCCIPMessage(_toAddress, _amount, _payload)
             );
     }
 
@@ -57,19 +78,24 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         bytes32,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory _message
+        bytes memory _payload
     ) external payable override {
         if (fromAddress == address(this)) {
             return;
         }
 
+        if (offchain) {
+            _payload = "";
+        }
+
         Client.EVM2AnyMessage memory message = _buildCCIPMessage(
             _toAddress,
-            _amount
+            _amount,
+            _payload
         );
 
         uint256 fee = IRouterClient(address(s_router)).getFee(
-            uint64(uint256(_toChain)),
+            getRemoteChainSelector[_toChain],
             message
         );
 
@@ -77,21 +103,19 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
             revert NotEnoughToPayFee(fee);
         }
 
-        latestPayloadHashSent = sha256(_message);
+        latestPayloadSent = _payload;
 
         IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
         IRouterClient(address(s_router)).ccipSend(
-            uint64(uint256(_toChain)),
+            getRemoteChainSelector[_toChain],
             message
         );
     }
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function setGasLimit(uint256 limit) external onlyOwner {
-        uint256 oldLimit = gasLimit;
-        gasLimit = limit;
-        emit GasLimitChanged(oldLimit, limit);
+    function setExecutionGasLimit(uint128 newVal) external onlyOwner {
+        _setExecutionGasLimit(newVal);
     }
 
     /// TOKEN POOL LOGIC ///
@@ -104,19 +128,20 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         _validateLockOrBurn(lockOrBurnIn);
 
         uint256 burnedAmount;
-        bytes32 payloadHash;
+        bytes memory payload;
+
         if (lockOrBurnIn.originalSender == address(this)) {
-            payloadHash = latestPayloadHashSent;
+            payload = latestPayloadSent;
             burnedAmount = lockOrBurnIn.amount;
         } else {
             // deposit assets, they will be burned in the proccess
             i_token.approve(address(bridge), lockOrBurnIn.amount);
-            (uint256 amountWithoutFee, bytes memory payload) = bridge.deposit(
-                bytes32(uint256(lockOrBurnIn.remoteChainSelector)),
+            uint256 amountWithoutFee;
+            (amountWithoutFee, payload) = bridge.deposit(
+                getChain[lockOrBurnIn.remoteChainSelector],
                 bytes32(lockOrBurnIn.receiver),
                 uint64(lockOrBurnIn.amount)
             );
-            payloadHash = sha256(payload);
             burnedAmount = amountWithoutFee;
         }
 
@@ -127,7 +152,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
                 destTokenAddress: getRemoteToken(
                     lockOrBurnIn.remoteChainSelector
                 ),
-                destPoolData: abi.encodePacked(payloadHash)
+                destPoolData: payload
             });
     }
 
@@ -138,20 +163,19 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
         _validateReleaseOrMint(releaseOrMintIn);
 
-        bytes32 payloadHash = bytes32(releaseOrMintIn.sourcePoolData);
-        (bytes memory payload, bytes memory proof) = abi.decode(
-            releaseOrMintIn.offchainTokenData,
-            (bytes, bytes)
-        );
+        bytes memory payload;
+        bytes memory proof;
 
-        if (sha256(payload) != payloadHash) {
-            revert MalformedProof();
+        if (offchain) {
+            (payload, proof) = abi.decode(
+                releaseOrMintIn.offchainTokenData,
+                (bytes, bytes)
+            );
+        } else {
+            payload = releaseOrMintIn.sourcePoolData;
         }
 
-        _receive(
-            bytes32(uint256(releaseOrMintIn.remoteChainSelector)),
-            payload
-        );
+        _receive(getChain[releaseOrMintIn.remoteChainSelector], payload);
         bridge.authNotary(payload, proof);
         bridge.withdraw(payload);
 
@@ -171,7 +195,8 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
     function _buildCCIPMessage(
         bytes32 _receiver,
-        uint256 _amount
+        uint256 _amount,
+        bytes memory payload
     ) private view returns (Client.EVM2AnyMessage memory) {
         // Set the token amounts
         Client.EVMTokenAmount[]
@@ -184,11 +209,11 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encodePacked(_receiver),
-                data: "", // No data
+                data: payload,
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
-                        gasLimit: gasLimit,
+                        gasLimit: getExecutionGasLimit,
                         allowOutOfOrderExecution: true
                     })
                 ),
@@ -197,4 +222,35 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     }
 
     function _onlyOwner() internal view override onlyOwner {}
+
+    function _setExecutionGasLimit(uint128 newVal) internal {
+        emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);
+        getExecutionGasLimit = newVal;
+    }
+
+    /**
+     * @notice Allows owner set chain selector for chain id
+     * @param chain ABI encoded chain id
+     * @param chainSelector Chain selector of chain id (https://docs.chain.link/ccip/directory/testnet/chain/)
+     */
+    function setRemoteChainSelector(
+        bytes32 chain,
+        uint64 chainSelector
+    ) external onlyOwner {
+        if (chain == bytes32(0)) {
+            revert CLZeroChain();
+        }
+        if (chainSelector == 0) {
+            revert CLZeroChain();
+        }
+        if (getRemoteChainSelector[chain] != 0) {
+            revert CLAttemptToOverrideChainSelector();
+        }
+        if (getChain[chainSelector] != bytes32(0)) {
+            revert CLAttemptToOverrideChain();
+        }
+        getRemoteChainSelector[chain] = chainSelector;
+        getChain[chainSelector] = chain;
+        emit CLChainSelectorSet(chain, chainSelector);
+    }
 }

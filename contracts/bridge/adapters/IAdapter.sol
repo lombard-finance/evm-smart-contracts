@@ -7,6 +7,8 @@ interface IAdapter {
     /// @notice Thrown when msg.value is not enough to pay CCIP fee.
     error NotEnoughToPayFee(uint256 fee);
 
+    event ExecutionGasLimitSet(uint128 indexed prevVal, uint128 indexed newVal);
+
     function bridge() external view returns (IBridge);
     function getFee(
         bytes32 _toChain,
