@@ -15,6 +15,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     error CLZeroChanSelector();
     error CLAttemptToOverrideChainSelector();
     error CLAttemptToOverrideChain();
+    error CLRefundFailed(address, uint256);
 
     event CLChainSelectorSet(bytes32, uint64);
 
@@ -23,7 +24,6 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     mapping(bytes32 => uint64) public getRemoteChainSelector;
     mapping(uint64 => bytes32) public getChain;
     uint128 public getExecutionGasLimit;
-    bool public offchain;
 
     /// @notice Emitted when gas limit is changed
     event GasLimitChanged(uint256 oldLimit, uint256 newLimit);
@@ -38,7 +38,6 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         address[] memory allowlist_,
         address rmnProxy_,
         IBridge bridge_,
-        bool offchain_,
         uint128 executionGasLimit_
     )
         AbstractAdapter(bridge_)
@@ -50,7 +49,6 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         )
     {
         _setExecutionGasLimit(executionGasLimit_);
-        offchain = offchain_;
     }
 
     /// USER ACTIONS ///
@@ -60,15 +58,12 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         bytes32,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory _payload
+        bytes memory
     ) external view returns (uint256) {
-        if (offchain) {
-            _payload = "";
-        }
         return
             IRouterClient(address(s_router)).getFee(
                 getRemoteChainSelector[_toChain],
-                _buildCCIPMessage(_toAddress, _amount, _payload)
+                _buildCCIPMessage(_toAddress, _amount)
             );
     }
 
@@ -84,14 +79,9 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
             return;
         }
 
-        if (offchain) {
-            _payload = "";
-        }
-
         Client.EVM2AnyMessage memory message = _buildCCIPMessage(
             _toAddress,
-            _amount,
-            _payload
+            _amount
         );
 
         uint256 fee = IRouterClient(address(s_router)).getFee(
@@ -102,11 +92,18 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         if (msg.value < fee) {
             revert NotEnoughToPayFee(fee);
         }
+        if (msg.value > fee) {
+            uint256 refundAm = msg.value - fee;
+            (bool success, ) = payable(fromAddress).call{ value: refundAm }("");
+            if (!success) {
+                revert CLRefundFailed(fromAddress, refundAm);
+            }
+        }
 
         latestPayloadSent = _payload;
 
         IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
-        IRouterClient(address(s_router)).ccipSend(
+        IRouterClient(address(s_router)).ccipSend{ value: fee }(
             getRemoteChainSelector[_toChain],
             message
         );
@@ -163,17 +160,10 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
         _validateReleaseOrMint(releaseOrMintIn);
 
-        bytes memory payload;
-        bytes memory proof;
-
-        if (offchain) {
-            (payload, proof) = abi.decode(
-                releaseOrMintIn.offchainTokenData,
-                (bytes, bytes)
-            );
-        } else {
-            payload = releaseOrMintIn.sourcePoolData;
-        }
+        (bytes memory payload, bytes memory proof) = abi.decode(
+            releaseOrMintIn.offchainTokenData,
+            (bytes, bytes)
+        );
 
         _receive(getChain[releaseOrMintIn.remoteChainSelector], payload);
         bridge.authNotary(payload, proof);
@@ -195,8 +185,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
     function _buildCCIPMessage(
         bytes32 _receiver,
-        uint256 _amount,
-        bytes memory payload
+        uint256 _amount
     ) private view returns (Client.EVM2AnyMessage memory) {
         // Set the token amounts
         Client.EVMTokenAmount[]
@@ -209,7 +198,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         return
             Client.EVM2AnyMessage({
                 receiver: abi.encodePacked(_receiver),
-                data: payload,
+                data: "",
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({

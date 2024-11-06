@@ -142,6 +142,12 @@ contract Bridge is
         return _deposit(destConfig, toChain, toAddress, amount);
     }
 
+    /**
+     * @notice Notify the bridge about received payload from adapter.
+     * @dev only adapter can call
+     * @param fromChain The source where payload produced.
+     * @param payload The payload received from bridge adapter.
+     */
     function receivePayload(
         bytes32 fromChain,
         bytes calldata payload
