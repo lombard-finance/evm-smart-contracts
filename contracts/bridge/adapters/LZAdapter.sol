@@ -122,9 +122,6 @@ contract LZAdapter is AbstractAdapter, OApp {
         bytes calldata // Any extra data or options to trigger on receipt.
     ) internal override {
         bytes32 fromChain = getChain[_origin.srcEid];
-        if (_getPeerOrRevert(_origin.srcEid) != _origin.sender) {
-            revert UnknownOriginContract(_origin.sender);
-        }
         emit LZMessageReceived(_guid, _origin.nonce, executor);
         _receive(fromChain, payload);
     }
