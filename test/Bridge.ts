@@ -4,8 +4,8 @@ import {
     Consortium,
     Bridge,
     TokenPoolAdapter,
-    CCIPRouterMock,
-    TokenPool,
+    MockCCIPRouter,
+    MockRMN,
 } from '../typechain-types';
 import {
     takeSnapshot,
@@ -325,102 +325,72 @@ describe('Bridge', function () {
         });
 
         describe('With Chainlink Adapter', function () {
-            let routerSource: CCIPRouterMock;
-            let routerDestination: CCIPRouterMock;
-            let chainlinkAdapterSource: TokenPoolAdapter;
-            let chainlinkAdapterDestination: TokenPoolAdapter;
-            let tokenPoolSource: TokenPool;
-            let tokenPoolDestination: TokenPool;
+            let CCIPRouter: MockCCIPRouter,
+                CCIPRMN: MockRMN,
+                aTokenPoolAdapter: TokenPoolAdapter,
+                bTokenPoolAdapter: TokenPoolAdapter;
+            const aCCIPFee = 1_0000_0000n; // 1 gwei
+            const bCCIPFee = 10_0000_0000n; // 10 gwei
 
             beforeEach(async function () {
-                /// configure source
-                routerSource = await deployContract<CCIPRouterMock>(
-                    'CCIPRouterMock',
-                    [aChainSelector, bChainSelector],
+                // configure CCIP
+                CCIPRouter = await deployContract<MockCCIPRouter>(
+                    'MockCCIPRouter',
+                    [], // [aChainSelector, bChainSelector],
                     false
                 );
-                chainlinkAdapterSource = await deployContract<TokenPoolAdapter>(
+                await CCIPRouter.setFee(aCCIPFee);
+
+                CCIPRMN = await deployContract<MockRMN>('MockRMN', [], false);
+
+                aTokenPoolAdapter = await deployContract<TokenPoolAdapter>(
                     'TokenPoolAdapter',
                     [
-                        await routerSource.getAddress(),
+                        await CCIPRouter.getAddress(),
                         [], // no allowlist
-                        await routerSource.getAddress(), // will do work of rmn as well
+                        await CCIPRMN.getAddress(), // will do work of rmn as well
                         await bridgeSource.getAddress(),
-                        true,
                         300_000,
                     ],
                     false
                 );
-                await chainlinkAdapterSource.setRemoteChainSelector(
+                await aTokenPoolAdapter.setRemoteChainSelector(
                     CHAIN_ID,
                     bChainSelector
                 );
-                tokenPoolSource = chainlinkAdapterSource;
 
-                await chainlinkAdapterSource.changeBridge(
-                    await bridgeSource.getAddress()
-                );
-
-                /// configure destination
-                routerDestination = await deployContract<CCIPRouterMock>(
-                    'CCIPRouterMock',
-                    [bChainSelector, aChainSelector],
+                bTokenPoolAdapter = await deployContract<TokenPoolAdapter>(
+                    'TokenPoolAdapter',
+                    [
+                        await CCIPRouter.getAddress(),
+                        [], // no allowlist
+                        await CCIPRMN.getAddress(), // will do work of rmn as well
+                        await bridgeDestination.getAddress(),
+                        300_000,
+                    ],
                     false
                 );
-                chainlinkAdapterDestination =
-                    await deployContract<TokenPoolAdapter>(
-                        'TokenPoolAdapter',
-                        [
-                            await routerDestination.getAddress(),
-                            [], // no allowlist
-                            await routerDestination.getAddress(), // will do work of rmn as well
-                            await bridgeDestination.getAddress(),
-                            true,
-                            300_000,
-                        ],
-                        false
-                    );
-                await chainlinkAdapterDestination.setRemoteChainSelector(
+                await bTokenPoolAdapter.setRemoteChainSelector(
                     CHAIN_ID,
                     aChainSelector
-                );
-                tokenPoolDestination = chainlinkAdapterDestination;
-
-                await chainlinkAdapterDestination.changeBridge(
-                    await bridgeDestination.getAddress()
                 );
 
                 /// configure bridges
                 await bridgeSource.changeAdapter(
                     CHAIN_ID,
-                    await chainlinkAdapterSource.getAddress()
+                    await aTokenPoolAdapter.getAddress()
                 );
                 await bridgeDestination.changeAdapter(
                     CHAIN_ID,
-                    await chainlinkAdapterDestination.getAddress()
-                );
-
-                /// configure router
-                await routerSource.setTokenPool(
-                    await tokenPoolSource.getAddress()
-                );
-                await routerDestination.setTokenPool(
-                    await tokenPoolDestination.getAddress()
-                );
-                await routerSource.setDestinationRouter(
-                    await routerDestination.getAddress()
-                );
-                await routerDestination.setDestinationRouter(
-                    await routerSource.getAddress()
+                    await bTokenPoolAdapter.getAddress()
                 );
 
                 /// set token pools
-                await tokenPoolSource.applyChainUpdates([
+                await aTokenPoolAdapter.applyChainUpdates([
                     {
                         remoteChainSelector: bChainSelector,
                         allowed: true,
-                        remotePoolAddress:
-                            await tokenPoolDestination.getAddress(),
+                        remotePoolAddress: await bTokenPoolAdapter.getAddress(),
                         remoteTokenAddress: await lbtcDestination.getAddress(),
                         inboundRateLimiterConfig: {
                             isEnabled: false,
@@ -435,11 +405,11 @@ describe('Bridge', function () {
                     },
                 ]);
 
-                await tokenPoolDestination.applyChainUpdates([
+                await bTokenPoolAdapter.applyChainUpdates([
                     {
                         remoteChainSelector: aChainSelector,
                         allowed: true,
-                        remotePoolAddress: await tokenPoolSource.getAddress(),
+                        remotePoolAddress: await aTokenPoolAdapter.getAddress(),
                         remoteTokenAddress: await lbtcSource.getAddress(),
                         inboundRateLimiterConfig: {
                             isEnabled: false,
@@ -454,16 +424,19 @@ describe('Bridge', function () {
                     },
                 ]);
 
-                await tokenPoolSource.setRemotePool(
+                await aTokenPoolAdapter.setRemotePool(
                     bChainSelector,
                     ethers.zeroPadValue(
-                        await tokenPoolDestination.getAddress(),
+                        await bTokenPoolAdapter.getAddress(),
                         32
                     )
                 );
-                await tokenPoolDestination.setRemotePool(
+                await bTokenPoolAdapter.setRemotePool(
                     aChainSelector,
-                    ethers.zeroPadValue(await tokenPoolSource.getAddress(), 32)
+                    ethers.zeroPadValue(
+                        await aTokenPoolAdapter.getAddress(),
+                        32
+                    )
                 );
             });
 
@@ -485,26 +458,22 @@ describe('Bridge', function () {
                     amountWithoutFee
                 );
 
-                await routerSource.setOffchainData(data.payload, data.proof);
+                // await routerSource.setOffchainData(data.payload, data.proof);
 
                 await lbtcSource
                     .connect(signer1)
                     .approve(await bridgeSource.getAddress(), amount);
-                console.log(
-                    await chainlinkAdapterSource.getAddress(),
-                    'source'
-                );
-                console.log(
-                    await chainlinkAdapterDestination.getAddress(),
-                    'destination'
-                );
+
                 await expect(
                     bridgeSource
                         .connect(signer1)
                         .deposit(
                             CHAIN_ID,
                             ethers.zeroPadValue(receiver, 32),
-                            amount
+                            amount,
+                            {
+                                value: aCCIPFee,
+                            }
                         )
                 )
                     .to.emit(bridgeSource, 'DepositToBridge')
