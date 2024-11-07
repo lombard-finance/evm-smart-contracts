@@ -25,12 +25,28 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
         );
 
         if (remoteSelector && remotePool && lbtc) {
+            const remotePoolAddress =
+                remotePool.length != 42
+                    ? remotePool
+                    : hre.ethers.AbiCoder.defaultAbiCoder().encode(
+                          ['address'],
+                          [remotePool]
+                      );
+
+            const lbtcEncoded =
+                lbtc.length != 42
+                    ? lbtc
+                    : hre.ethers.AbiCoder.defaultAbiCoder().encode(
+                          ['address'],
+                          [lbtc]
+                      );
+
             await adapter.applyChainUpdates([
                 {
                     remoteChainSelector: remoteSelector,
                     allowed: true,
-                    remotePoolAddress: remotePool,
-                    remoteTokenAddress: lbtc,
+                    remotePoolAddress,
+                    remoteTokenAddress: lbtcEncoded,
                     inboundRateLimiterConfig: {
                         isEnabled: false,
                         rate: 0,

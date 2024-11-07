@@ -18,24 +18,16 @@ function chainlinkAdapterTask(taskName: string) {
             'The list of addresses allowed to bridge',
             []
         )
-        .addFlag('offchain', 'Set offchain')
         .addParam(
             'gasLimit',
             'Execution gas limit on destination chain',
             300_000n.toString()
         )
         .setAction(async (taskArgs, hre) => {
-            const {
-                admin,
-                bridge,
-                router,
-                rmn,
-                allowlist,
-                gasLimit,
-                offchain,
-            } = taskArgs;
+            const { admin, bridge, router, rmn, allowlist, gasLimit } =
+                taskArgs;
 
-            const args = [router, allowlist, rmn, bridge, offchain, gasLimit];
+            const args = [router, allowlist, rmn, bridge, gasLimit];
 
             const adapter = await hre.ethers.deployContract(
                 'TokenPoolAdapter',
