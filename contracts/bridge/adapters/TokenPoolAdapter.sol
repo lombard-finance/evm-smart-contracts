@@ -19,8 +19,6 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
 
     event CLChainSelectorSet(bytes32, uint64);
 
-    bytes public latestPayloadSent;
-
     mapping(bytes32 => uint64) public getRemoteChainSelector;
     mapping(uint64 => bytes32) public getChain;
     uint128 public getExecutionGasLimit;
@@ -63,7 +61,10 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         return
             IRouterClient(address(s_router)).getFee(
                 getRemoteChainSelector[_toChain],
-                _buildCCIPMessage(_toAddress, _amount)
+                _buildCCIPMessage(
+                    getRemotePool(getRemoteChainSelector[_toChain]),
+                    _amount
+                )
             );
     }
 
@@ -73,14 +74,14 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         bytes32,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory _payload
+        bytes memory
     ) external payable override {
         if (fromAddress == address(this)) {
             return;
         }
 
         Client.EVM2AnyMessage memory message = _buildCCIPMessage(
-            _toAddress,
+            getRemotePool(getRemoteChainSelector[_toChain]),
             _amount
         );
 
@@ -94,16 +95,14 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         }
         if (msg.value > fee) {
             uint256 refundAm = msg.value - fee;
-            (bool success, ) = payable(fromAddress).call{ value: refundAm }("");
+            (bool success, ) = payable(fromAddress).call{value: refundAm}("");
             if (!success) {
                 revert CLRefundFailed(fromAddress, refundAm);
             }
         }
 
-        latestPayloadSent = _payload;
-
         IERC20(address(bridge.lbtc())).approve(address(s_router), _amount);
-        IRouterClient(address(s_router)).ccipSend{ value: fee }(
+        IRouterClient(address(s_router)).ccipSend{value: fee}(
             getRemoteChainSelector[_toChain],
             message
         );
@@ -125,16 +124,13 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
         _validateLockOrBurn(lockOrBurnIn);
 
         uint256 burnedAmount;
-        bytes memory payload;
 
         if (lockOrBurnIn.originalSender == address(this)) {
-            payload = latestPayloadSent;
             burnedAmount = lockOrBurnIn.amount;
         } else {
             // deposit assets, they will be burned in the proccess
             i_token.approve(address(bridge), lockOrBurnIn.amount);
-            uint256 amountWithoutFee;
-            (amountWithoutFee, payload) = bridge.deposit(
+            (uint256 amountWithoutFee, ) = bridge.deposit(
                 getChain[lockOrBurnIn.remoteChainSelector],
                 bytes32(lockOrBurnIn.receiver),
                 uint64(lockOrBurnIn.amount)
@@ -149,7 +145,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
                 destTokenAddress: getRemoteToken(
                     lockOrBurnIn.remoteChainSelector
                 ),
-                destPoolData: payload
+                destPoolData: ""
             });
     }
 
@@ -184,7 +180,7 @@ contract TokenPoolAdapter is AbstractAdapter, TokenPool {
     /// PRIVATE FUNCTIONS ///
 
     function _buildCCIPMessage(
-        bytes32 _receiver,
+        bytes memory _receiver,
         uint256 _amount
     ) private view returns (Client.EVM2AnyMessage memory) {
         // Set the token amounts
