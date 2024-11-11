@@ -193,14 +193,9 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                 }
 
                 if (r != bytes32(0) && s != bytes32(0)) {
-
                     // try recover with V = 27
-                    (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
-                        _payloadHash,
-                        27,
-                        r,
-                        s
-                    );
+                    (address signer, ECDSA.RecoverError err, ) = ECDSA
+                        .tryRecover(_payloadHash, 27, r, s);
 
                     // revert if bad signature
                     if (err != ECDSA.RecoverError.NoError) {
@@ -209,7 +204,12 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
                     // if signer doesn't match try V = 28
                     if (signer != validators[i]) {
-                        (signer, err, ) = ECDSA.tryRecover(_payloadHash, 28, r, s);
+                        (signer, err, ) = ECDSA.tryRecover(
+                            _payloadHash,
+                            28,
+                            r,
+                            s
+                        );
                         if (err != ECDSA.RecoverError.NoError) {
                             revert SignatureVerificationFailed(i, err);
                         }
