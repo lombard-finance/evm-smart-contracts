@@ -192,39 +192,37 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                     s := mload(add(sig, 0x40)) // next 32 bytes (offset 0x40)
                 }
 
-                if (r == bytes32(0) || s == bytes32(0)) {
-                    // either R or S missed
-                    continue;
-                }
+                if (r != bytes32(0) && s != bytes32(0)) {
 
-                // try recover with V = 27
-                (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
-                    _payloadHash,
-                    27,
-                    r,
-                    s
-                );
+                    // try recover with V = 27
+                    (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
+                        _payloadHash,
+                        27,
+                        r,
+                        s
+                    );
 
-                // revert if bad signature
-                if (err != ECDSA.RecoverError.NoError) {
-                    revert SignatureVerificationFailed(i, err);
-                }
-
-                // if signer doesn't match try V = 28
-                if (signer != validators[i]) {
-                    (signer, err, ) = ECDSA.tryRecover(_payloadHash, 28, r, s);
+                    // revert if bad signature
                     if (err != ECDSA.RecoverError.NoError) {
                         revert SignatureVerificationFailed(i, err);
                     }
 
+                    // if signer doesn't match try V = 28
                     if (signer != validators[i]) {
-                        revert WrongSignatureReceived(signatures[i]);
-                    }
-                }
-                // signature accepted
+                        (signer, err, ) = ECDSA.tryRecover(_payloadHash, 28, r, s);
+                        if (err != ECDSA.RecoverError.NoError) {
+                            revert SignatureVerificationFailed(i, err);
+                        }
 
-                unchecked {
-                    weight += weights[i];
+                        if (signer != validators[i]) {
+                            revert WrongSignatureReceived(signatures[i]);
+                        }
+                    }
+                    // signature accepted
+
+                    unchecked {
+                        weight += weights[i];
+                    }
                 }
             }
 
