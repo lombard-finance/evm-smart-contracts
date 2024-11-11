@@ -24,7 +24,12 @@ contract MockCCIPRouter is IRouter, IRouterClient {
     error InvalidExtraArgsTag();
     error ReceiverError(bytes err);
 
-    event MessageExecuted(bytes32 messageId, uint64 sourceChainSelector, address offRamp, bytes32 calldataHash);
+    event MessageExecuted(
+        bytes32 messageId,
+        uint64 sourceChainSelector,
+        address offRamp,
+        bytes32 calldataHash
+    );
     event MsgExecuted(bool success, bytes retData, uint256 gasUsed);
 
     uint16 public constant GAS_FOR_CALL_EXACT_CHECK = 5_000;
@@ -57,23 +62,39 @@ contract MockCCIPRouter is IRouter, IRouterClient {
         //
         // The ordering of these checks is important, as the first check is the cheapest to execute.
         if (
-            (message.data.length == 0 && gasLimit == 0) || receiver.code.length == 0
-            || !receiver.supportsInterface(type(IAny2EVMMessageReceiver).interfaceId)
+            (message.data.length == 0 && gasLimit == 0) ||
+            receiver.code.length == 0 ||
+            !receiver.supportsInterface(
+                type(IAny2EVMMessageReceiver).interfaceId
+            )
         ) {
             return (true, "", 0);
         }
 
-        bytes memory data = abi.encodeWithSelector(IAny2EVMMessageReceiver.ccipReceive.selector, message);
-
-        (success, retData, gasUsed) = CallWithExactGas._callWithExactGasSafeReturnData(
-            data, receiver, gasLimit, gasForCallExactCheck, Internal.MAX_RET_BYTES
+        bytes memory data = abi.encodeWithSelector(
+            IAny2EVMMessageReceiver.ccipReceive.selector,
+            message
         );
+
+        (success, retData, gasUsed) = CallWithExactGas
+            ._callWithExactGasSafeReturnData(
+                data,
+                receiver,
+                gasLimit,
+                gasForCallExactCheck,
+                Internal.MAX_RET_BYTES
+            );
 
         // Event to assist testing, does not exist on real deployments
         emit MsgExecuted(success, retData, gasUsed);
 
         // Real router event
-        emit MessageExecuted(message.messageId, message.sourceChainSelector, msg.sender, keccak256(data));
+        emit MessageExecuted(
+            message.messageId,
+            message.sourceChainSelector,
+            msg.sender,
+            keccak256(data)
+        );
         return (success, retData, gasUsed);
     }
 
@@ -85,17 +106,23 @@ contract MockCCIPRouter is IRouter, IRouterClient {
         uint64 destinationChainSelector,
         Client.EVM2AnyMessage calldata message
     ) external payable returns (bytes32) {
-        if (message.receiver.length != 32) revert InvalidAddress(message.receiver);
+        if (message.receiver.length != 32)
+            revert InvalidAddress(message.receiver);
         uint256 decodedReceiver = abi.decode(message.receiver, (uint256));
         // We want to disallow sending to address(0) and to precompiles, which exist on address(1) through address(9).
-        if (decodedReceiver > type(uint160).max || decodedReceiver < 10) revert InvalidAddress(message.receiver);
+        if (decodedReceiver > type(uint160).max || decodedReceiver < 10)
+            revert InvalidAddress(message.receiver);
 
         uint256 feeTokenAmount = getFee(destinationChainSelector, message);
         if (message.feeToken == address(0)) {
             if (msg.value < feeTokenAmount) revert InsufficientFeeTokenAmount();
         } else {
             if (msg.value > 0) revert InvalidMsgValue();
-            IERC20(message.feeToken).safeTransferFrom(msg.sender, address(this), feeTokenAmount);
+            IERC20(message.feeToken).safeTransferFrom(
+                msg.sender,
+                address(this),
+                feeTokenAmount
+            );
         }
 
         address receiver = address(uint160(decodedReceiver));
@@ -111,21 +138,37 @@ contract MockCCIPRouter is IRouter, IRouterClient {
         });
 
         for (uint256 i = 0; i < message.tokenAmounts.length; ++i) {
-            IERC20(message.tokenAmounts[i].token).safeTransferFrom(msg.sender, receiver, message.tokenAmounts[i].amount);
+            IERC20(message.tokenAmounts[i].token).safeTransferFrom(
+                msg.sender,
+                receiver,
+                message.tokenAmounts[i].amount
+            );
         }
 
-        (bool success, bytes memory retData,) = _routeMessage(executableMsg, GAS_FOR_CALL_EXACT_CHECK, gasLimit, receiver);
+        (bool success, bytes memory retData, ) = _routeMessage(
+            executableMsg,
+            GAS_FOR_CALL_EXACT_CHECK,
+            gasLimit,
+            receiver
+        );
 
         if (!success) revert ReceiverError(retData);
 
         return mockMsgId;
     }
 
-    function _fromBytes(bytes calldata extraArgs) internal pure returns (Client.EVMExtraArgsV2 memory) {
+    function _fromBytes(
+        bytes calldata extraArgs
+    ) internal pure returns (Client.EVMExtraArgsV2 memory) {
         if (extraArgs.length == 0) {
-            return Client.EVMExtraArgsV2({gasLimit: DEFAULT_GAS_LIMIT, allowOutOfOrderExecution: true});
+            return
+                Client.EVMExtraArgsV2({
+                    gasLimit: DEFAULT_GAS_LIMIT,
+                    allowOutOfOrderExecution: true
+                });
         }
-        if (bytes4(extraArgs) != Client.EVM_EXTRA_ARGS_V2_TAG) revert InvalidExtraArgsTag();
+        if (bytes4(extraArgs) != Client.EVM_EXTRA_ARGS_V2_TAG)
+            revert InvalidExtraArgsTag();
         return abi.decode(extraArgs[4:], (Client.EVMExtraArgsV2));
     }
 
@@ -135,12 +178,17 @@ contract MockCCIPRouter is IRouter, IRouterClient {
     }
 
     /// @notice Returns an empty array.
-    function getSupportedTokens(uint64) external pure returns (address[] memory tokens) {
+    function getSupportedTokens(
+        uint64
+    ) external pure returns (address[] memory tokens) {
         return new address[](0);
     }
 
     /// @notice Returns 0 as the fee is not supported in this mock contract.
-    function getFee(uint64, Client.EVM2AnyMessage memory) public view returns (uint256) {
+    function getFee(
+        uint64,
+        Client.EVM2AnyMessage memory
+    ) public view returns (uint256) {
         return s_mockFeeTokenAmount;
     }
 
@@ -150,12 +198,17 @@ contract MockCCIPRouter is IRouter, IRouterClient {
     }
 
     /// @notice Always returns address(1234567890)
-    function getOnRamp(uint64 /* destChainSelector */ ) external pure returns (address onRampAddress) {
+    function getOnRamp(
+        uint64 /* destChainSelector */
+    ) external pure returns (address onRampAddress) {
         return address(1234567890);
     }
 
     /// @notice Always returns true
-    function isOffRamp(uint64, /* sourceChainSelector */ address /* offRamp */ ) external pure returns (bool) {
+    function isOffRamp(
+        uint64,
+        /* sourceChainSelector */ address /* offRamp */
+    ) external pure returns (bool) {
         return true;
     }
 }

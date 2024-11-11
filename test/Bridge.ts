@@ -6,6 +6,8 @@ import {
     TokenPoolAdapter,
     MockCCIPRouter,
     MockRMN,
+    LombardTokenPool,
+    CLAdapter,
 } from '../typechain-types';
 import {
     takeSnapshot,
@@ -324,11 +326,13 @@ describe('Bridge', function () {
                 );
         });
 
-        describe('With Chainlink Adapter', function () {
+        describe('With Chainlink Adapter (onchain data)', function () {
             let CCIPRouter: MockCCIPRouter,
                 CCIPRMN: MockRMN,
-                aTokenPoolAdapter: TokenPoolAdapter,
-                bTokenPoolAdapter: TokenPoolAdapter;
+                aTokenPool: LombardTokenPool,
+                bTokenPool: LombardTokenPool,
+                aCLAdapter: CLAdapter,
+                bCLAdapter: CLAdapter;
             const aCCIPFee = 1_0000_0000n; // 1 gwei
             const bCCIPFee = 10_0000_0000n; // 10 gwei
 
@@ -343,34 +347,49 @@ describe('Bridge', function () {
 
                 CCIPRMN = await deployContract<MockRMN>('MockRMN', [], false);
 
-                aTokenPoolAdapter = await deployContract<TokenPoolAdapter>(
-                    'TokenPoolAdapter',
+                aCLAdapter = await deployContract<CLAdapter>(
+                    'CLAdapter',
                     [
-                        await CCIPRouter.getAddress(),
-                        [], // no allowlist
-                        await CCIPRMN.getAddress(), // will do work of rmn as well
                         await bridgeSource.getAddress(),
                         300_000,
+                        //
+                        await CCIPRouter.getAddress(),
+                        [], // no allowlist
+                        await CCIPRMN.getAddress(), // will do work of rmn as well,
+                        false,
                     ],
                     false
                 );
-                await aTokenPoolAdapter.setRemoteChainSelector(
+
+                aTokenPool = await ethers.getContractAt(
+                    'LombardTokenPool',
+                    await aCLAdapter.tokenPool()
+                );
+                await aTokenPool.acceptOwnership();
+                await aCLAdapter.setRemoteChainSelector(
                     CHAIN_ID,
                     bChainSelector
                 );
 
-                bTokenPoolAdapter = await deployContract<TokenPoolAdapter>(
-                    'TokenPoolAdapter',
+                bCLAdapter = await deployContract<CLAdapter>(
+                    'CLAdapter',
                     [
+                        await bridgeDestination.getAddress(),
+                        300_000,
+                        //
                         await CCIPRouter.getAddress(),
                         [], // no allowlist
                         await CCIPRMN.getAddress(), // will do work of rmn as well
-                        await bridgeDestination.getAddress(),
-                        300_000,
+                        false,
                     ],
                     false
                 );
-                await bTokenPoolAdapter.setRemoteChainSelector(
+                bTokenPool = await ethers.getContractAt(
+                    'LombardTokenPool',
+                    await bCLAdapter.tokenPool()
+                );
+                await bTokenPool.acceptOwnership();
+                await bCLAdapter.setRemoteChainSelector(
                     CHAIN_ID,
                     aChainSelector
                 );
@@ -378,19 +397,19 @@ describe('Bridge', function () {
                 /// configure bridges
                 await bridgeSource.changeAdapter(
                     CHAIN_ID,
-                    await aTokenPoolAdapter.getAddress()
+                    await aCLAdapter.getAddress()
                 );
                 await bridgeDestination.changeAdapter(
                     CHAIN_ID,
-                    await bTokenPoolAdapter.getAddress()
+                    await aCLAdapter.getAddress()
                 );
 
                 /// set token pools
-                await aTokenPoolAdapter.applyChainUpdates([
+                await aTokenPool.applyChainUpdates([
                     {
                         remoteChainSelector: bChainSelector,
                         allowed: true,
-                        remotePoolAddress: await bTokenPoolAdapter.getAddress(),
+                        remotePoolAddress: await bTokenPool.getAddress(),
                         remoteTokenAddress: await lbtcDestination.getAddress(),
                         inboundRateLimiterConfig: {
                             isEnabled: false,
@@ -405,11 +424,11 @@ describe('Bridge', function () {
                     },
                 ]);
 
-                await bTokenPoolAdapter.applyChainUpdates([
+                await bTokenPool.applyChainUpdates([
                     {
                         remoteChainSelector: aChainSelector,
                         allowed: true,
-                        remotePoolAddress: await aTokenPoolAdapter.getAddress(),
+                        remotePoolAddress: await aTokenPool.getAddress(),
                         remoteTokenAddress: await lbtcSource.getAddress(),
                         inboundRateLimiterConfig: {
                             isEnabled: false,
@@ -424,19 +443,13 @@ describe('Bridge', function () {
                     },
                 ]);
 
-                await aTokenPoolAdapter.setRemotePool(
+                await aTokenPool.setRemotePool(
                     bChainSelector,
-                    ethers.zeroPadValue(
-                        await bTokenPoolAdapter.getAddress(),
-                        32
-                    )
+                    ethers.zeroPadValue(await bTokenPool.getAddress(), 32)
                 );
-                await bTokenPoolAdapter.setRemotePool(
+                await bTokenPool.setRemotePool(
                     aChainSelector,
-                    ethers.zeroPadValue(
-                        await aTokenPoolAdapter.getAddress(),
-                        32
-                    )
+                    ethers.zeroPadValue(await aTokenPool.getAddress(), 32)
                 );
             });
 

@@ -23,25 +23,67 @@ function chainlinkAdapterTask(taskName: string) {
             'Execution gas limit on destination chain',
             300_000n.toString()
         )
+        .addFlag('enableAttestation')
         .setAction(async (taskArgs, hre) => {
-            const { admin, bridge, router, rmn, allowlist, gasLimit } =
-                taskArgs;
+            const {
+                admin,
+                bridge,
+                router,
+                rmn,
+                allowlist,
+                gasLimit,
+                enableAttestation,
+            } = taskArgs;
 
-            const args = [router, allowlist, rmn, bridge, gasLimit];
+            const args = [
+                bridge,
+                gasLimit,
+                router,
+                allowlist,
+                rmn,
+                enableAttestation,
+            ];
 
-            const adapter = await hre.ethers.deployContract(
-                'TokenPoolAdapter',
-                args
-            );
-            console.log('Chainlink Adapter:', await adapter.getAddress());
+            const adapter = await hre.ethers.deployContract('CLAdapter', args);
+            await adapter.waitForDeployment();
+            await sleep(12_000);
+
+            console.log('Adapter:', await adapter.getAddress());
+            console.log('TokenPool:', await adapter.tokenPool());
 
             await verify(hre.run, await adapter.getAddress(), {
                 constructorArguments: args,
                 force: true,
             });
 
+            await verify(hre.run, await adapter.tokenPool(), {
+                constructorArguments: [
+                    await adapter.lbtc(),
+                    router,
+                    allowlist,
+                    rmn,
+                    await adapter.getAddress(),
+                    enableAttestation,
+                ],
+            });
+
+            const tokenPool = await hre.ethers.getContractAt(
+                'LombardTokenPool',
+                await adapter.tokenPool()
+            );
+
+            await tokenPool.acceptOwnership();
+            console.log(
+                'TokenPool ownership accepted:',
+                await tokenPool.owner()
+            );
+
             if (admin && (await adapter.owner()) != admin) {
                 await adapter.transferOwnership(admin);
+            }
+
+            if (admin && (await tokenPool.owner()) != admin) {
+                await tokenPool.transferOwnership(admin);
             }
         });
 }
@@ -49,4 +91,4 @@ function chainlinkAdapterTask(taskName: string) {
 chainlinkAdapterTask('deploy-chainlink-adapter');
 chainlinkAdapterTask('deploy-token-pool-adapter');
 chainlinkAdapterTask('deploy-token-pool');
-chainlinkAdapterTask('deploy:TokenPoolAdapter');
+chainlinkAdapterTask('deploy:TokenPool');
