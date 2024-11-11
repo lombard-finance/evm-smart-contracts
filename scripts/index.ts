@@ -1,4 +1,5 @@
 import "./btcbpmm";
+import "./pmm";
 import "./deploy-btcb-mock";
 import "./consortium";
 import "./lbtc";
