@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       gas: 8_000_000,
@@ -39,13 +39,13 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get(
         "BSC_TESTNET_RPC",
-        "https://bsc-testnet-rpc.publicnode.com",
+        "https://bsc-testnet-rpc.publicnode.com"
       ),
       chainId: 97,
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -57,7 +57,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -70,7 +70,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -83,7 +83,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -93,13 +93,13 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get(
         "SCROLL_TESTNET_RPC",
-        "https://rpc.ankr.com/scroll_sepolia_testnet",
+        "https://rpc.ankr.com/scroll_sepolia_testnet"
       ),
       chainId: 534351,
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -112,7 +112,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -125,7 +125,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -139,7 +139,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -153,7 +153,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -166,7 +166,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "TESTNET_DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -179,7 +179,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -192,7 +192,7 @@ const config: HardhatUserConfig = {
       accounts: [
         vars.get(
           "DEPLOYER_SK",
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
         ),
       ],
       timeout: 90_000,
@@ -273,46 +273,47 @@ const config: HardhatUserConfig = {
       // testnets
       holesky: vars.get(
         "ETHERSCAN_API_KEY",
-        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1",
+        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
       ),
       bscTestnet: vars.get(
         "BSCSCAN_API_KEY",
-        "UI7BPX1FHRXIUBSW95UPW6MYIPKM696HV6",
+        "UI7BPX1FHRXIUBSW95UPW6MYIPKM696HV6"
       ),
       scroll_testnet: vars.get(
         "SCROLLSCAN_API_KEY",
-        "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP",
+        "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
       ),
       zircuit_testnet: vars.get(
         "ZIRCUIT_API_KEY",
-        "006A14771D1AF73D736D10F008030F9079",
+        "006A14771D1AF73D736D10F008030F9079"
       ),
 
       mantle_testnet: vars.get(
         "MANTLE_API_KEY",
-        "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX",
+        "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"
       ),
       linea_testnet: vars.get(
         "LINEA_API_KEY",
-        "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A",
+        "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"
       ),
       okx_testnet: vars.get(
         "OKX_API_KEY",
-        "f2245a5a-1f4c-47fa-b006-31d98eefc7a4",
+        "f2245a5a-1f4c-47fa-b006-31d98eefc7a4"
       ),
+      base: vars.get("BASE_API_KEY", ""),
       // mainnets
       mainnet: vars.get(
         "ETHERSCAN_API_KEY",
-        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1",
+        "PP5CDPZBG6AF6FBGE9CJNYGCRYXYN549M1"
       ),
       bsc: vars.get("BSCSCAN_API_KEY", "UI7BPX1FHRXIUBSW95UPW6MYIPKM696HV6"),
       scroll: vars.get(
         "SCROLLSCAN_API_KEY",
-        "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP",
+        "2CU7WCW6WCWKG5I7Y12PYYB921ETWH3PZP"
       ),
       zircuit: vars.get(
         "ZIRCUIT_API_KEY",
-        "006A14771D1AF73D736D10F008030F9079",
+        "006A14771D1AF73D736D10F008030F9079"
       ),
       linea: vars.get("LINEA_API_KEY", "HTRRV2ZFFSR8RAPMNXJMWEV131ABPUH19A"),
       mantle: vars.get("MANTLE_API_KEY", "GR8NHBNI8GJFNNA221QDU87TYVCSDMZEJX"),
