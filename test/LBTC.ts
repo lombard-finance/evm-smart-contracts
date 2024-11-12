@@ -14,6 +14,7 @@ import {
     signDepositBtcPayload,
     Signer,
     init,
+    DEFAULT_LBTC_DUST_FEE_RATE,
 } from './helpers';
 import { LBTCMock, Bascule, Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -32,6 +33,8 @@ describe('LBTC', function () {
     let bascule: Bascule;
     let snapshot: SnapshotRestorer;
     let snapshotTimestamp: number;
+    let consortium: Consortium;
+    let consortium2: Consortium;
 
     before(async function () {
         [
@@ -49,9 +52,11 @@ describe('LBTC', function () {
 
         const result = await init(burnCommission, deployer.address);
         lbtc = result.lbtc;
+        consortium = result.consortium;
 
         const result2 = await init(burnCommission, deployer.address);
         lbtc2 = result2.lbtc;
+        consortium2 = result2.consortium;
 
         bascule = await deployContract<Bascule>(
             'Bascule',
@@ -102,6 +107,11 @@ describe('LBTC', function () {
 
         it('decimals()', async function () {
             expect(await lbtc.decimals()).to.equal(8n);
+        });
+
+        it('consortium()', async function () {
+            expect(await lbtc.consortium()).to.equal(await consortium.getAddress());
+            expect(await lbtc2.consortium()).to.equal(await consortium2.getAddress());
         });
 
         it('Bascule() unset', async function () {
@@ -218,6 +228,12 @@ describe('LBTC', function () {
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
+        it('should fail to add zero address as minter', async function () {
+            await expect(
+                lbtc.addMinter(ethers.ZeroAddress)
+            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
+        });
+
         it('should fail to remove minter if not owner', async function () {
             await expect(
                 lbtc.connect(signer1).removeMinter(signer1.address)
@@ -245,6 +261,12 @@ describe('LBTC', function () {
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
+        it('should fail to add zero address as claimer', async function () {
+            await expect(
+                lbtc.addClaimer(ethers.ZeroAddress)
+            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
+        });
+
         it('should fail to remove claimer if not owner', async function () {
             await expect(
                 lbtc.connect(signer1).removeClaimer(signer1.address)
@@ -262,6 +284,51 @@ describe('LBTC', function () {
             await expect(
                 lbtc.connect(signer1).setMintFee(1)
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+        });
+
+        it("changeTreasuryAddres() fails if not owner", async function () {
+            await expect(
+                lbtc.connect(signer1).changeTreasuryAddress(signer1.address)
+            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+        });
+
+        it("changeTreasuryAddres() fails if setting treasury to zero address", async function () {
+            await expect(
+                lbtc.changeTreasuryAddress(ethers.ZeroAddress)
+            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
+        });
+
+        it("should get the default dust fee rate", async function () {
+            expect(await lbtc.getDustFeeRate()).to.be.equal(DEFAULT_LBTC_DUST_FEE_RATE);
+        });
+
+        it("changeDustFeeRate() fails if not owner", async function () {
+            await expect(
+                lbtc.connect(signer1).changeDustFeeRate(BigInt(1000))
+            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+        });
+
+        it("changeDustFeeRate() fails if setting to 0", async function () {
+            await expect(
+                lbtc.changeDustFeeRate(0)
+            ).to.revertedWithCustomError(lbtc, 'InvalidDustFeeRate');
+        });
+
+        it("changeDustFeeRate() succeeds with non zero dust fee", async function () {
+            let defaultDustFeeRate = await lbtc.getDustFeeRate();
+            let newDustFeeRate = defaultDustFeeRate + BigInt(1000);
+            await expect(
+                lbtc.changeDustFeeRate(newDustFeeRate)
+            ).to.emit(lbtc, 'DustFeeRateChanged')
+            .withArgs(defaultDustFeeRate, newDustFeeRate);
+            // restore for next tests
+            await lbtc.changeDustFeeRate(defaultDustFeeRate);
+        });
+
+        it("changeConsortium() fails if setting to zero address", async function () {
+            await expect(
+                lbtc.changeConsortium(ethers.ZeroAddress)
+            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
         });
     });
 
@@ -786,6 +853,52 @@ describe('LBTC', function () {
                             'UserSignatureExpired'
                         )
                         .withArgs(snapshotTimestamp);
+                });
+
+                it('should revert if wrong deposit btc payload type', async function () {
+                    let feeApprovalPayload = getPayloadForAction(
+                        [1, snapshotTimestamp],
+                        'feeApproval'
+                    );
+                    await expect(
+                        lbtc.mintWithFee(
+                            feeApprovalPayload,
+                            defaultProof,
+                            feeApprovalPayload,
+                            await getFeeTypedMessage(
+                                defaultArgs.mintRecipient(),
+                                await lbtc.getAddress(),
+                                1,
+                                snapshotTimestamp // it is already passed as some txns had happen
+                            )
+                        )
+                    )
+                        .to.revertedWithCustomError(
+                            lbtc,
+                            'UnexpectedAction'
+                        )
+                        .withArgs(feeApprovalPayload.slice(0, 10));
+                });
+
+                it('should revert if wrong fee approval btc payload type', async function () {
+                    await expect(
+                        lbtc.mintWithFee(
+                            defaultPayload,
+                            defaultProof,
+                            defaultPayload,
+                            await getFeeTypedMessage(
+                                defaultArgs.mintRecipient(),
+                                await lbtc.getAddress(),
+                                1,
+                                snapshotTimestamp // it is already passed as some txns had happen
+                            )
+                        )
+                    )
+                        .to.revertedWithCustomError(
+                            lbtc,
+                            'UnexpectedAction'
+                        )
+                        .withArgs(defaultPayload.slice(0, 10));
                 });
 
                 it('should revert if not claimer', async function () {
