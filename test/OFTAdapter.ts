@@ -108,7 +108,7 @@ describe('OFTAdapter', function () {
         snapshot = await takeSnapshot();
     });
 
-    describe('LBTCBurnMintOFTAdapter', function () {
+    describe('LBTCBurnMintOFTAdapter & LBTCOFTAdapter', function () {
         describe('should return result', function () {
             beforeEach(async function () {
                 await snapshot.restore();
@@ -345,6 +345,13 @@ describe('OFTAdapter', function () {
             expect(totalSupplyAfter).lt(totalSupplyBefore);
         });
 
+        it('should revert halt() when not paused', async () => {
+            await expect(aOFTAdapter.halt()).to.be.revertedWithCustomError(
+                aOFTAdapter,
+                'ExpectedPause'
+            );
+        });
+
         it('migrate Chain A to MintBurnOFTAdapter', async () => {
             await expect(aOFTAdapter.pause()).to.emit(aOFTAdapter, 'Paused');
             await expect(bBMOFTAdapter.pause()).to.emit(
@@ -483,6 +490,81 @@ describe('OFTAdapter', function () {
 
             const totalSupplyAfter = await lbtc.totalSupply();
             expect(totalSupplyAfter).eq(totalSupplyBefore);
+        });
+
+        describe('should revert when paused', function () {
+            const AMOUNT = 1_0000_0000;
+            const OPTS = Options.newOptions().addExecutorLzReceiveOption(
+                1_000_000,
+                0
+            );
+
+            beforeEach(async function () {
+                await snapshot.restore();
+                await aOFTAdapter.pause();
+                await bBMOFTAdapter.pause();
+                await lbtc.mintTo(signer1.address, AMOUNT);
+            });
+
+            it('LBTCOFTAdapter::send()', async () => {
+                const args = {
+                    dstEid: bEid,
+                    to: encode(['address'], [signer2.address]),
+                    amountLD: AMOUNT,
+                    minAmountLD: AMOUNT,
+                    extraOptions: OPTS.toHex(),
+                    composeMsg: '0x',
+                    oftCmd: '0x',
+                };
+
+                const msgFee = await aOFTAdapter.quoteSend(args, false);
+
+                await lbtc
+                    .connect(signer1)
+                    .approve(await aOFTAdapter.getAddress(), AMOUNT);
+
+                await expect(
+                    aOFTAdapter.connect(signer1).send(
+                        args,
+                        {
+                            nativeFee: msgFee.nativeFee,
+                            lzTokenFee: msgFee.lzTokenFee,
+                        },
+                        signer3.address,
+                        {
+                            value: msgFee.nativeFee,
+                        }
+                    )
+                ).to.be.revertedWithCustomError(aOFTAdapter, 'EnforcedPause');
+            });
+
+            it('LBTCBurnMintOFTAdapter::send()', async () => {
+                const args = {
+                    dstEid: aEid,
+                    to: encode(['address'], [signer1.address]),
+                    amountLD: AMOUNT,
+                    minAmountLD: AMOUNT,
+                    extraOptions: OPTS.toHex(),
+                    composeMsg: '0x',
+                    oftCmd: '0x',
+                };
+
+                const msgFee = await bBMOFTAdapter.quoteSend(args, false);
+
+                await expect(
+                    bBMOFTAdapter.connect(signer1).send(
+                        args,
+                        {
+                            nativeFee: msgFee.nativeFee,
+                            lzTokenFee: msgFee.lzTokenFee,
+                        },
+                        signer3.address,
+                        {
+                            value: msgFee.nativeFee,
+                        }
+                    )
+                ).to.be.revertedWithCustomError(bBMOFTAdapter, 'EnforcedPause');
+            });
         });
     });
 });

@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {OFTAdapter, SafeERC20, IERC20} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
-import {PausableOFTAdapter} from "./PausableOFTAdapter.sol";
+import {PausableOFTAdapter, OFTAdapter} from "./PausableOFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ILBTC} from "../../LBTC/ILBTC.sol";
 
@@ -33,6 +33,7 @@ contract LBTCBurnMintOFTAdapter is PausableOFTAdapter {
         internal
         virtual
         override
+        whenNotPaused
         returns (uint256 amountSentLD, uint256 amountReceivedLD)
     {
         (amountSentLD, amountReceivedLD) = _debitView(
