@@ -8,3 +8,4 @@ export * from './chainlink-adapter';
 export * from './PoR';
 export * from './lzadapter';
 export * from './upgrade';
+export * from './oft';
