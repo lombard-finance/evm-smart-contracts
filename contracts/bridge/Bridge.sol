@@ -122,7 +122,14 @@ contract Bridge is
         }
 
         // payload data doesn't matter for fee calculation, only length
-        return destConfig.adapter.getFee(toChain, destConfig.bridgeContract, toAddress, amount, new bytes(228));
+        return
+            destConfig.adapter.getFee(
+                toChain,
+                destConfig.bridgeContract,
+                toAddress,
+                amount,
+                new bytes(228)
+            );
     }
 
     /// ACTIONS ///
