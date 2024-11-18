@@ -6,7 +6,6 @@ import {RateLimitedOFTAdapter} from "./extensions/RateLimitedOFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ILBTC} from "../../LBTC/ILBTC.sol";
 
-
 contract LBTCBurnMintOFTAdapter is OFTAdapter, RateLimitedOFTAdapter {
     using SafeERC20 for IERC20;
 
