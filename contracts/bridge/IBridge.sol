@@ -10,9 +10,9 @@ interface IBridge is IConsortiumConsumer {
     error UnknownDestination();
 
     /// @notice Emitted when the zero address is used.
-    error ZeroAddress();
+    error Bridge_ZeroAddress();
 
-    error ZeroAmount();
+    error Bridge_ZeroAmount();
 
     /// @notice Emitted adapter is not set for destination without consortium
     error BadConfiguration();

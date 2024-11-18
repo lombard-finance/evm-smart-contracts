@@ -153,11 +153,11 @@ contract Bridge is
         // validate inputs
         // amount should be validated, because absolute commission can be not set
         if (amount == 0) {
-            revert ZeroAmount();
+            revert Bridge_ZeroAmount();
         }
 
         if (toAddress == bytes32(0)) {
-            revert ZeroAddress();
+            revert Bridge_ZeroAddress();
         }
 
         // it's not necessary to validate `toChain` because destination
@@ -513,7 +513,7 @@ contract Bridge is
 
     function _changeAdapter(bytes32 toChain, IAdapter newAdapter) internal {
         if (address(newAdapter) == address(0)) {
-            revert ZeroAddress();
+            revert Bridge_ZeroAddress();
         }
         DestinationConfig storage conf = _getBridgeStorage().destinations[
             toChain
