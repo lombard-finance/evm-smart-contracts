@@ -17,6 +17,7 @@ import {
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { Options } from '@layerzerolabs/lz-v2-utilities';
+import { Result } from 'ethers';
 
 describe('OFTAdapter', function () {
     let deployer: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
@@ -91,10 +92,31 @@ describe('OFTAdapter', function () {
             bEid,
             encode(['address'], [await bBMOFTAdapter.getAddress()])
         );
+        await aOFTAdapter.setRateLimits([
+            {
+                dstEid: bEid,
+                limit: 1_0000_0000,
+                window: 120,
+            },
+        ]);
+        await aBMOFTAdapter.setRateLimits([
+            {
+                dstEid: bEid,
+                limit: 1_0000_0000,
+                window: 120,
+            },
+        ]);
         await bBMOFTAdapter.setPeer(
             aEid,
             encode(['address'], [await aOFTAdapter.getAddress()])
         );
+        await bBMOFTAdapter.setRateLimits([
+            {
+                dstEid: aEid,
+                limit: 100_000,
+                window: 120,
+            },
+        ]);
 
         await aLZEndpoint.setDestLzEndpoint(
             await bBMOFTAdapter.getAddress(),
@@ -151,8 +173,32 @@ describe('OFTAdapter', function () {
                 );
             });
 
-            it('pause()', async () => {
-                expect(await aBMOFTAdapter.paused()).eq(false);
+            it('getAmountCanBeSent()', async () => {
+                expect(await aBMOFTAdapter.getAmountCanBeSent(bEid)).deep.eq([
+                    0n,
+                    100000000n,
+                ]);
+                expect(await aBMOFTAdapter.getAmountCanBeSent(aEid)).deep.eq([
+                    '0',
+                    '0',
+                ]);
+
+                expect(await aOFTAdapter.getAmountCanBeSent(aEid)).deep.eq([
+                    '0',
+                    '0',
+                ]);
+                expect(await aOFTAdapter.getAmountCanBeSent(bEid)).deep.eq([
+                    '0',
+                    100_000_000n,
+                ]);
+
+                expect(await bBMOFTAdapter.getAmountCanBeSent(aEid)).deep.eq([
+                    '0',
+                    100_000n,
+                ]);
+                expect(await bBMOFTAdapter.getAmountCanBeSent(bEid)).deep.eq([
+                    0, 0,
+                ]);
             });
 
             it('decimalConversionRate()', async () => {
@@ -180,7 +226,8 @@ describe('OFTAdapter', function () {
             });
 
             it('approvalRequired()', async () => {
-                expect(await aBMOFTAdapter.approvalRequired()).eq(true);
+                expect(await aBMOFTAdapter.approvalRequired()).eq(false);
+                expect(await aOFTAdapter.approvalRequired()).eq(true);
             });
 
             it('endpoint()', async () => {
@@ -345,19 +392,14 @@ describe('OFTAdapter', function () {
             expect(totalSupplyAfter).lt(totalSupplyBefore);
         });
 
-        it('should revert halt() when not paused', async () => {
-            await expect(aOFTAdapter.halt()).to.be.revertedWithCustomError(
-                aOFTAdapter,
-                'ExpectedPause'
-            );
-        });
-
         it('migrate Chain A to MintBurnOFTAdapter', async () => {
-            await expect(aOFTAdapter.pause()).to.emit(aOFTAdapter, 'Paused');
-            await expect(bBMOFTAdapter.pause()).to.emit(
-                bBMOFTAdapter,
-                'Paused'
-            );
+            await aOFTAdapter.setRateLimits([
+                {
+                    dstEid: bEid,
+                    limit: 0,
+                    window: 120,
+                },
+            ]);
 
             const totalSupplyBefore = await lbtc.totalSupply();
             const adapterBalanceBefore = await lbtc.balanceOf(aOFTAdapter);
@@ -383,11 +425,6 @@ describe('OFTAdapter', function () {
             await bLZEndpoint.setDestLzEndpoint(
                 await aBMOFTAdapter.getAddress(),
                 await aLZEndpoint.getAddress()
-            );
-
-            await expect(bBMOFTAdapter.unpause()).to.emit(
-                bBMOFTAdapter,
-                'Unpaused'
             );
         });
 
@@ -492,17 +529,15 @@ describe('OFTAdapter', function () {
             expect(totalSupplyAfter).eq(totalSupplyBefore);
         });
 
-        describe('should revert when paused', function () {
-            const AMOUNT = 1_0000_0000;
+        describe('should revert when exceed limit', function () {
+            const AMOUNT = 1_0000_1000;
             const OPTS = Options.newOptions().addExecutorLzReceiveOption(
-                1_000_000,
+                1_0000_0000,
                 0
             );
 
             beforeEach(async function () {
                 await snapshot.restore();
-                await aOFTAdapter.pause();
-                await bBMOFTAdapter.pause();
                 await lbtc.mintTo(signer1.address, AMOUNT);
             });
 
@@ -535,7 +570,10 @@ describe('OFTAdapter', function () {
                             value: msgFee.nativeFee,
                         }
                     )
-                ).to.be.revertedWithCustomError(aOFTAdapter, 'EnforcedPause');
+                ).to.be.revertedWithCustomError(
+                    aOFTAdapter,
+                    'RateLimitExceeded'
+                );
             });
 
             it('LBTCBurnMintOFTAdapter::send()', async () => {
@@ -563,7 +601,10 @@ describe('OFTAdapter', function () {
                             value: msgFee.nativeFee,
                         }
                     )
-                ).to.be.revertedWithCustomError(bBMOFTAdapter, 'EnforcedPause');
+                ).to.be.revertedWithCustomError(
+                    bBMOFTAdapter,
+                    'RateLimitExceeded'
+                );
             });
         });
     });

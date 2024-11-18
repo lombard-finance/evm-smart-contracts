@@ -2,11 +2,12 @@
 pragma solidity 0.8.24;
 
 import {OFTAdapter, SafeERC20, IERC20} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
-import {PausableOFTAdapter, OFTAdapter} from "./PausableOFTAdapter.sol";
+import {RateLimitedOFTAdapter} from "./extensions/RateLimitedOFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ILBTC} from "../../LBTC/ILBTC.sol";
 
-contract LBTCBurnMintOFTAdapter is PausableOFTAdapter {
+
+contract LBTCBurnMintOFTAdapter is OFTAdapter, RateLimitedOFTAdapter {
     using SafeERC20 for IERC20;
 
     constructor(
@@ -14,6 +15,10 @@ contract LBTCBurnMintOFTAdapter is PausableOFTAdapter {
         address _lzEndpoint,
         address _owner
     ) OFTAdapter(_token, _lzEndpoint, _owner) Ownable(_owner) {}
+
+    function approvalRequired() external pure virtual override returns (bool) {
+        return false;
+    }
 
     /**
      * @dev Burns tokens from the sender's specified balance in this contract.
@@ -32,10 +37,10 @@ contract LBTCBurnMintOFTAdapter is PausableOFTAdapter {
     )
         internal
         virtual
-        override
-        whenNotPaused
+        override(OFTAdapter, RateLimitedOFTAdapter)
         returns (uint256 amountSentLD, uint256 amountReceivedLD)
     {
+        _checkAndUpdateRateLimit(_dstEid, _amountLD);
         (amountSentLD, amountReceivedLD) = _debitView(
             _amountLD,
             _minAmountLD,

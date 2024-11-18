@@ -3,10 +3,10 @@ pragma solidity 0.8.24;
 
 import {OFTAdapter} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {PausableOFTAdapter} from "./PausableOFTAdapter.sol";
+import {RateLimitedOFTAdapter} from "./extensions/RateLimitedOFTAdapter.sol";
 import {ILBTC} from "../../LBTC/ILBTC.sol";
 
-contract LBTCOFTAdapter is PausableOFTAdapter {
+contract LBTCOFTAdapter is RateLimitedOFTAdapter {
     constructor(
         address _token,
         address _lzEndpoint,
@@ -16,7 +16,7 @@ contract LBTCOFTAdapter is PausableOFTAdapter {
     /**
      * @dev Burns locked LBTC to prevent ability to withdraw from adapter.
      */
-    function halt() external onlyOwner whenPaused {
+    function halt() external onlyOwner {
         ILBTC(address(innerToken)).burn(innerToken.balanceOf(address(this)));
     }
 }
