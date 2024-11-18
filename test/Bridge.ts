@@ -3,10 +3,10 @@ import {
     Bascule,
     Consortium,
     Bridge,
-    TokenPoolAdapter,
-    CCIPRouterMock,
-    TokenPool,
-    LZAdapter,
+    MockCCIPRouter,
+    MockRMN,
+    LombardTokenPool,
+    CLAdapter,
     EndpointV2Mock,
 } from '../typechain-types';
 import {
@@ -26,6 +26,9 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+
+const aChainSelector = 1;
+const bChainSelector = 2;
 
 describe('Bridge', function () {
     let deployer: Signer,
@@ -479,93 +482,90 @@ describe('Bridge', function () {
             });
         });
 
-        describe('With Chainlink Adapter', function () {
-            let routerSource: CCIPRouterMock;
-            let routerDestination: CCIPRouterMock;
-            let chainlinkAdapterSource: TokenPoolAdapter;
-            let chainlinkAdapterDestination: TokenPoolAdapter;
-            let tokenPoolSource: TokenPool;
-            let tokenPoolDestination: TokenPool;
+        describe('With Chainlink Adapter (onchain data)', function () {
+            let CCIPRouter: MockCCIPRouter,
+                CCIPRMN: MockRMN,
+                aTokenPool: LombardTokenPool,
+                bTokenPool: LombardTokenPool,
+                aCLAdapter: CLAdapter,
+                bCLAdapter: CLAdapter;
+            const aCCIPFee = 1_0000_0000n; // 1 gwei
+            const bCCIPFee = 10_0000_0000n; // 10 gwei
 
             beforeEach(async function () {
-                /// configure source
-                routerSource = await deployContract<CCIPRouterMock>(
-                    'CCIPRouterMock',
-                    [],
+                // configure CCIP
+                CCIPRouter = await deployContract<MockCCIPRouter>(
+                    'MockCCIPRouter',
+                    [], // [aChainSelector, bChainSelector],
                     false
                 );
-                chainlinkAdapterSource = await deployContract<TokenPoolAdapter>(
-                    'TokenPoolAdapter',
+                await CCIPRouter.setFee(aCCIPFee);
+
+                CCIPRMN = await deployContract<MockRMN>('MockRMN', [], false);
+
+                aCLAdapter = await deployContract<CLAdapter>(
+                    'CLAdapter',
                     [
-                        await routerSource.getAddress(),
-                        await lbtcSource.getAddress(),
-                        [], // no allowlist
-                        await routerSource.getAddress(), // will do work of rmn as well
                         await bridgeSource.getAddress(),
+                        300_000,
+                        //
+                        await CCIPRouter.getAddress(),
+                        [], // no allowlist
+                        await CCIPRMN.getAddress(), // will do work of rmn as well,
+                        false,
                     ],
                     false
                 );
-                tokenPoolSource = chainlinkAdapterSource;
 
-                await chainlinkAdapterSource.changeBridge(
-                    await bridgeSource.getAddress()
+                aTokenPool = await ethers.getContractAt(
+                    'LombardTokenPool',
+                    await aCLAdapter.tokenPool()
+                );
+                await aTokenPool.acceptOwnership();
+                await aCLAdapter.setRemoteChainSelector(
+                    CHAIN_ID,
+                    bChainSelector
                 );
 
-                /// configure destination
-                routerDestination = await deployContract<CCIPRouterMock>(
-                    'CCIPRouterMock',
-                    [],
+                bCLAdapter = await deployContract<CLAdapter>(
+                    'CLAdapter',
+                    [
+                        await bridgeDestination.getAddress(),
+                        300_000,
+                        //
+                        await CCIPRouter.getAddress(),
+                        [], // no allowlist
+                        await CCIPRMN.getAddress(), // will do work of rmn as well
+                        false,
+                    ],
                     false
                 );
-                chainlinkAdapterDestination =
-                    await deployContract<TokenPoolAdapter>(
-                        'TokenPoolAdapter',
-                        [
-                            await routerDestination.getAddress(),
-                            await lbtcDestination.getAddress(),
-                            [], // no allowlist
-                            await routerDestination.getAddress(), // will do work of rmn as well
-                            await bridgeDestination.getAddress(),
-                        ],
-                        false
-                    );
-                tokenPoolDestination = chainlinkAdapterDestination;
-
-                await chainlinkAdapterDestination.changeBridge(
-                    await bridgeDestination.getAddress()
+                bTokenPool = await ethers.getContractAt(
+                    'LombardTokenPool',
+                    await bCLAdapter.tokenPool()
+                );
+                await bTokenPool.acceptOwnership();
+                await bCLAdapter.setRemoteChainSelector(
+                    CHAIN_ID,
+                    aChainSelector
                 );
 
                 /// configure bridges
                 await bridgeSource.changeAdapter(
                     CHAIN_ID,
-                    await chainlinkAdapterSource.getAddress()
+                    await aCLAdapter.getAddress()
                 );
                 await bridgeDestination.changeAdapter(
                     CHAIN_ID,
-                    await chainlinkAdapterDestination.getAddress()
-                );
-
-                /// configure router
-                await routerSource.setTokenPool(
-                    await tokenPoolSource.getAddress()
-                );
-                await routerDestination.setTokenPool(
-                    await tokenPoolDestination.getAddress()
-                );
-                await routerSource.setDestinationRouter(
-                    await routerDestination.getAddress()
-                );
-                await routerDestination.setDestinationRouter(
-                    await routerSource.getAddress()
+                    await aCLAdapter.getAddress()
                 );
 
                 /// set token pools
-                await tokenPoolSource.applyChainUpdates([
+                await aTokenPool.applyChainUpdates([
                     {
-                        remoteChainSelector: CHAIN_ID,
+                        remoteChainSelector: bChainSelector,
                         allowed: true,
-                        remotePoolAddress:
-                            await tokenPoolDestination.getAddress(),
+                        remotePoolAddress: await bTokenPool.getAddress(),
                         remoteTokenAddress: await lbtcDestination.getAddress(),
                         inboundRateLimiterConfig: {
                             isEnabled: false,
@@ -580,11 +580,11 @@ describe('Bridge', function () {
                     },
                 ]);
 
-                await tokenPoolDestination.applyChainUpdates([
+                await bTokenPool.applyChainUpdates([
                     {
-                        remoteChainSelector: CHAIN_ID,
+                        remoteChainSelector: aChainSelector,
                         allowed: true,
-                        remotePoolAddress: await tokenPoolSource.getAddress(),
+                        remotePoolAddress: await aTokenPool.getAddress(),
                         remoteTokenAddress: await lbtcSource.getAddress(),
                         inboundRateLimiterConfig: {
                             isEnabled: false,
@@ -599,16 +599,13 @@ describe('Bridge', function () {
                     },
                 ]);
 
-                await tokenPoolSource.setRemotePool(
-                    CHAIN_ID,
-                    ethers.zeroPadValue(
-                        await tokenPoolDestination.getAddress(),
-                        32
-                    )
+                await aTokenPool.setRemotePool(
+                    bChainSelector,
+                    ethers.zeroPadValue(await bTokenPool.getAddress(), 32)
                 );
-                await tokenPoolDestination.setRemotePool(
-                    CHAIN_ID,
-                    ethers.zeroPadValue(await tokenPoolSource.getAddress(), 32)
+                await bTokenPool.setRemotePool(
+                    aChainSelector,
+                    ethers.zeroPadValue(await aTokenPool.getAddress(), 32)
                 );
             });
 
@@ -630,18 +627,22 @@ describe('Bridge', function () {
                     amountWithoutFee
                 );
 
-                routerSource.setOffchainData(data.payload, data.proof);
+                // await routerSource.setOffchainData(data.payload, data.proof);
 
                 await lbtcSource
                     .connect(signer1)
                     .approve(await bridgeSource.getAddress(), amount);
+
                 await expect(
                     bridgeSource
                         .connect(signer1)
                         .deposit(
                             CHAIN_ID,
                             ethers.zeroPadValue(receiver, 32),
-                            amount
+                            amount,
+                            {
+                                value: aCCIPFee,
+                            }
                         )
                 )
                     .to.emit(bridgeSource, 'DepositToBridge')
@@ -651,360 +652,6 @@ describe('Bridge', function () {
                         ethers.sha256(data.payload),
                         data.payload
                     );
-            });
-        });
-
-        describe('With LayerZero Adapter', function () {
-            let lzAdapterSource: LZAdapter;
-            let lzAdapterDestination: LZAdapter;
-            let lzEndpointSource: EndpointV2Mock;
-            let lzEndpointDestination: EndpointV2Mock;
-            let chainId: string;
-            const eidSource = 1;
-            const eidDestination = 2;
-
-            beforeEach(async function () {
-                chainId = encode(
-                    ['uint256'],
-                    [(await ethers.provider.getNetwork()).chainId]
-                );
-
-                // deploy LayerZero endpoint
-                lzEndpointSource = await deployContract<EndpointV2Mock>(
-                    'EndpointV2Mock',
-                    [eidSource],
-                    false
-                );
-                lzEndpointDestination = await deployContract<EndpointV2Mock>(
-                    'EndpointV2Mock',
-                    [eidDestination],
-                    false
-                );
-
-                lzAdapterSource = await deployContract<LZAdapter>(
-                    'LZAdapter',
-                    [
-                        deployer.address,
-                        await bridgeSource.getAddress(),
-                        await lzEndpointSource.getAddress(),
-                        100_000,
-                    ],
-                    false
-                );
-
-                lzAdapterDestination = await deployContract<LZAdapter>(
-                    'LZAdapter',
-                    [
-                        deployer.address,
-                        await bridgeDestination.getAddress(),
-                        await lzEndpointDestination.getAddress(),
-                        100_000,
-                    ],
-                    false
-                );
-
-                // configuration
-                await lzAdapterSource.setPeer(
-                    eidDestination,
-                    encode(
-                        ['address'],
-                        [await lzAdapterDestination.getAddress()]
-                    )
-                );
-                await lzAdapterSource.setEid(chainId, eidDestination);
-
-                await lzAdapterDestination.setPeer(
-                    eidSource,
-                    encode(['address'], [await lzAdapterSource.getAddress()])
-                );
-                await lzAdapterDestination.setEid(chainId, eidSource);
-
-                await bridgeSource.changeDepositRelativeCommission(1, chainId);
-                await bridgeSource.changeDepositAbsoluteCommission(1, chainId);
-
-                await bridgeDestination.changeDepositRelativeCommission(
-                    2,
-                    chainId
-                );
-                await bridgeDestination.changeDepositAbsoluteCommission(
-                    2,
-                    chainId
-                );
-
-                await lzEndpointSource.setDestLzEndpoint(
-                    await lzAdapterDestination.getAddress(),
-                    await lzEndpointDestination.getAddress()
-                );
-                await lzEndpointDestination.setDestLzEndpoint(
-                    await lzAdapterSource.getAddress(),
-                    await lzEndpointSource.getAddress()
-                );
-
-                await lzAdapterSource.changeBridge(
-                    await bridgeSource.getAddress()
-                );
-                await lzAdapterDestination.changeBridge(
-                    await bridgeDestination.getAddress()
-                );
-
-                await bridgeSource.changeAdapter(
-                    chainId,
-                    await lzAdapterSource.getAddress()
-                );
-                await bridgeDestination.changeAdapter(
-                    chainId,
-                    await lzAdapterDestination.getAddress()
-                );
-            });
-
-            describe('Setters and Getters', () => {
-                it('should return chain by eid', async function () {
-                    expect(
-                        await lzAdapterSource.getChain(eidDestination)
-                    ).to.eq(chainId);
-                });
-
-                it('should return eid by chain', async function () {
-                    expect(await lzAdapterSource.getEID(chainId)).to.eq(
-                        eidDestination
-                    );
-                });
-            });
-
-            describe('Bridge using auth from consortium', function () {
-                it('should bridge from Source to Destination', async () => {
-                    const deductFee = async (
-                        amount: bigint,
-                        bridge: Bridge
-                    ): Promise<bigint> => {
-                        const absFee =
-                            await bridge.getDepositAbsoluteCommission(chainId);
-                        const relFee =
-                            await bridge.getDepositRelativeCommission(chainId);
-                        // added 9999n to round up
-                        return (
-                            amount -
-                            (amount * relFee + 9999n) / 100_00n -
-                            absFee
-                        );
-                    };
-
-                    let amount = AMOUNT;
-                    let amountWithoutFee = await deductFee(
-                        amount,
-                        bridgeSource
-                    );
-                    let receiver = signer2.address;
-                    let payload = getPayloadForAction(
-                        [
-                            CHAIN_ID,
-                            encode(
-                                ['address'],
-                                [await bridgeSource.getAddress()]
-                            ),
-                            CHAIN_ID,
-                            encode(
-                                ['address'],
-                                [await bridgeDestination.getAddress()]
-                            ),
-                            encode(['address'], [receiver]),
-                            amountWithoutFee,
-                            ethers.AbiCoder.defaultAbiCoder().encode(
-                                ['uint256'],
-                                [0]
-                            ),
-                        ],
-                        DEPOSIT_BRIDGE_ACTION
-                    );
-
-                    await lbtcSource
-                        .connect(signer1)
-                        .approve(await bridgeSource.getAddress(), AMOUNT);
-
-                    let tx = await deployer.sendTransaction({
-                        to: signer1.address,
-                        value: ethers.parseEther('10'),
-                    });
-                    await tx.wait();
-
-                    await expect(
-                        bridgeSource
-                            .connect(signer1)
-                            .deposit(
-                                chainId,
-                                ethers.zeroPadValue(receiver, 32),
-                                AMOUNT,
-                                {
-                                    value: ethers.parseEther('10'),
-                                }
-                            )
-                    )
-                        .to.emit(bridgeSource, 'DepositToBridge')
-                        .withArgs(
-                            signer1.address,
-                            ethers.zeroPadValue(receiver, 32),
-                            ethers.sha256(payload),
-                            payload
-                        )
-                        .and.emit(lzAdapterDestination, 'LZMessageReceived');
-
-                    expect(
-                        await lbtcSource.balanceOf(signer1.address)
-                    ).to.be.equal(0);
-                    expect(
-                        await lbtcSource.balanceOf(treasurySource.address)
-                    ).to.be.equal(amount - amountWithoutFee);
-                    expect(await lbtcSource.totalSupply()).to.be.equal(
-                        amount - amountWithoutFee
-                    );
-
-                    // TODO: sign payload from event or `payload`
-                    const data1 = await signDepositBridgePayload(
-                        [signer1],
-                        [true],
-                        CHAIN_ID,
-                        await bridgeSource.getAddress(),
-                        CHAIN_ID,
-                        await bridgeDestination.getAddress(),
-                        receiver,
-                        amountWithoutFee
-                    );
-
-                    // put auth from consortium
-
-                    await expect(
-                        bridgeDestination.authNotary(data1.payload, data1.proof)
-                    )
-                        .to.emit(bridgeDestination, 'PayloadNotarized')
-                        .withArgs(receiver, data1.payloadHash);
-
-                    await expect(
-                        bridgeDestination
-                            .connect(signer2)
-                            .withdraw(data1.payload)
-                    )
-                        .to.emit(bridgeDestination, 'WithdrawFromBridge')
-                        .withArgs(
-                            receiver,
-                            ethers.sha256(data1.payload),
-                            data1.payload,
-                            amountWithoutFee
-                        );
-                    expect(await lbtcDestination.totalSupply()).to.be.equal(
-                        amountWithoutFee
-                    );
-                    expect(
-                        (
-                            await lbtcDestination.balanceOf(signer2.address)
-                        ).toString()
-                    ).to.be.equal(amountWithoutFee);
-
-                    // bridge back
-
-                    const lastAmountWithoutFee = amountWithoutFee;
-                    amount = amountWithoutFee;
-                    amountWithoutFee = await deductFee(
-                        amount,
-                        bridgeDestination
-                    );
-                    receiver = signer1.address;
-
-                    payload = getPayloadForAction(
-                        [
-                            CHAIN_ID,
-                            encode(
-                                ['address'],
-                                [await bridgeDestination.getAddress()]
-                            ),
-                            CHAIN_ID,
-                            encode(
-                                ['address'],
-                                [await bridgeSource.getAddress()]
-                            ),
-                            encode(['address'], [receiver]),
-                            amountWithoutFee,
-                            ethers.AbiCoder.defaultAbiCoder().encode(
-                                ['uint256'],
-                                [0]
-                            ),
-                        ],
-                        DEPOSIT_BRIDGE_ACTION
-                    );
-
-                    await lbtcDestination
-                        .connect(signer2)
-                        .approve(await bridgeDestination.getAddress(), amount);
-
-                    tx = await deployer.sendTransaction({
-                        to: signer2.address,
-                        value: ethers.parseEther('10'),
-                    });
-                    await tx.wait();
-
-                    await expect(
-                        bridgeDestination
-                            .connect(signer2)
-                            .deposit(
-                                chainId,
-                                ethers.zeroPadValue(receiver, 32),
-                                amount,
-                                {
-                                    value: ethers.parseEther('10'),
-                                }
-                            )
-                    )
-                        .to.emit(bridgeDestination, 'DepositToBridge')
-                        .withArgs(
-                            signer2.address,
-                            ethers.zeroPadValue(receiver, 32),
-                            ethers.sha256(payload),
-                            payload
-                        )
-                        .and.emit(lzAdapterSource, 'LZMessageReceived');
-
-                    expect(
-                        await lbtcDestination.balanceOf(signer2.address)
-                    ).to.be.equal(0);
-                    expect(
-                        await lbtcDestination.balanceOf(
-                            treasuryDestination.address
-                        )
-                    ).to.be.equal(amount - amountWithoutFee);
-                    expect(await lbtcDestination.totalSupply()).to.be.equal(
-                        amount - amountWithoutFee
-                    );
-
-                    const data2 = await signDepositBridgePayload(
-                        [signer1],
-                        [true],
-                        chainId,
-                        await bridgeDestination.getAddress(),
-                        chainId,
-                        await bridgeSource.getAddress(),
-                        receiver,
-                        amountWithoutFee
-                    );
-
-                    await expect(
-                        bridgeSource.authNotary(data2.payload, data2.proof)
-                    )
-                        .to.emit(bridgeSource, 'PayloadNotarized')
-                        .withArgs(receiver, data2.payloadHash);
-
-                    await expect(
-                        bridgeSource.connect(signer2).withdraw(data2.payload)
-                    )
-                        .to.emit(bridgeSource, 'WithdrawFromBridge')
-                        .withArgs(
-                            receiver,
-                            data2.payloadHash,
-                            data2.payload,
-                            amountWithoutFee
-                        );
-                    expect(
-                        await lbtcSource.balanceOf(signer1.address)
-                    ).to.be.equal(amountWithoutFee);
-                });
             });
         });
     });

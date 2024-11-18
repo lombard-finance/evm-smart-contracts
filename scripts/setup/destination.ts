@@ -1,4 +1,5 @@
 import { task } from 'hardhat/config';
+import { sleep } from '../helpers';
 
 task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
     .addParam('target', 'The address of bridge smart-contract')
@@ -39,6 +40,10 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
                   );
 
         const bridge = await hre.ethers.getContractAt('Bridge', target);
+
+        await bridge.removeDestination(toChainId);
+
+        await sleep(12_000);
 
         await bridge.addDestination(
             toChainId,

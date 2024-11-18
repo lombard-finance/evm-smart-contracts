@@ -110,6 +110,31 @@ contract Bridge is
         return _getBridgeStorage().consortium;
     }
 
+    function lbtc() public view override returns (ILBTC) {
+        return _getBridgeStorage().lbtc;
+    }
+
+    function getAdapterFee(
+        bytes32 toChain,
+        bytes32 toAddress,
+        uint64 amount
+    ) external view returns (uint256) {
+        DestinationConfig memory destConfig = getDestination(toChain);
+        if (destConfig.bridgeContract == bytes32(0)) {
+            return 0;
+        }
+
+        // payload data doesn't matter for fee calculation, only length
+        return
+            destConfig.adapter.getFee(
+                toChain,
+                destConfig.bridgeContract,
+                toAddress,
+                amount,
+                new bytes(228)
+            );
+    }
+
     /// ACTIONS ///
 
     /**
@@ -145,6 +170,12 @@ contract Bridge is
         return _deposit(destConfig, toChain, toAddress, amount);
     }
 
+    /**
+     * @notice Notify the bridge about received payload from adapter.
+     * @dev only adapter can call
+     * @param fromChain The source where payload produced.
+     * @param payload The payload received from bridge adapter.
+     */
     function receivePayload(
         bytes32 fromChain,
         bytes calldata payload
@@ -465,7 +496,7 @@ contract Bridge is
                 payload
             );
         } else {
-            // burn assets
+            // burn assets if no adapter
             lbtc().burn(fromAddress, amountWithoutFee);
         }
 
@@ -515,9 +546,5 @@ contract Bridge is
         if ($.destinations[chain].bridgeContract == bytes32(0)) {
             revert NotValidDestination();
         }
-    }
-
-    function lbtc() public view override returns (ILBTC) {
-        return _getBridgeStorage().lbtc;
     }
 }

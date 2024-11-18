@@ -176,7 +176,22 @@ const config: HardhatUserConfig = {
             gas: 8_000_000,
         },
 
-        // mainnets
+        arbitrumSepolia: {
+            loggingEnabled: true,
+            url: vars.get(
+                'ARBITRUM_SEPOLIA_RPC',
+                'https://rpc.ankr.com/arbitrum_sepolia'
+            ),
+            chainId: 421614,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        }, // mainnets
         mainnet: {
             loggingEnabled: true,
             url: vars.get('MAINNET_RPC', 'https://rpc.ankr.com/eth'),
@@ -234,6 +249,19 @@ const config: HardhatUserConfig = {
             loggingEnabled: true,
             url: vars.get('BASE_RPC', 'https://rpc.ankr.com/base'),
             chainId: 8453,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        arbitrum: {
+            loggingEnabled: true,
+            url: vars.get('ARBITRUM_RPC', 'https://rpc.ankr.com/base'),
+            chainId: 42161,
             accounts: [
                 vars.get(
                     'DEPLOYER_SK',
@@ -323,7 +351,8 @@ const config: HardhatUserConfig = {
             mantle_testnet: vars.get('MANTLE_API_KEY', ''),
             linea_testnet: vars.get('LINEA_API_KEY', ''),
             okx_testnet: vars.get('OKX_API_KEY', ''),
-
+            baseSepolia: vars.get('BASE_API_KEY', ''),
+            arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -331,7 +360,8 @@ const config: HardhatUserConfig = {
             zircuit: vars.get('ZIRCUIT_API_KEY', ''),
             linea: vars.get('LINEA_API_KEY', ''),
             mantle: vars.get('MANTLE_API_KEY', ''),
-            baseSepolia: vars.get('BASE_API_KEY', ''),
+            base: vars.get('BASE_API_KEY', ''),
+            arbitrum: vars.get('ARBITRUM_API_KEY', ''),
         },
     },
     sourcify: {

@@ -187,6 +187,23 @@ describe('Consortium', function () {
                 await lombard.checkProof(data.payloadHash, data.proof);
             });
 
+            it('should validate correct signatures (last signature component set to 0 instead of missing)', async function () {
+                const data = await signDepositBridgePayload(
+                    [signer3, signer1, signer2],
+                    [true, true, true],
+                    1n,
+                    signer1.address,
+                    1n,
+                    signer2.address,
+                    signer3.address,
+                    10
+                );
+
+                data.proof = data.proof.slice(0, -64) + '0'.repeat(64);
+
+                await lombard.checkProof(data.payloadHash, data.proof);
+            });
+
             it('should revert on invalid signatures', async function () {
                 const data = await signDepositBridgePayload(
                     [signer3, signer1, signer2],

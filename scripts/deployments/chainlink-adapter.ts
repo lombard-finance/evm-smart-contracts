@@ -11,7 +11,6 @@ function chainlinkAdapterTask(taskName: string) {
     task(taskName, 'Deploys the TokenPoolAdapter contract')
         .addOptionalParam('admin', 'The address of the owner')
         .addParam('router', 'The chainlink ccip router')
-        .addParam('lbtc', 'The address of the LBTC contract')
         .addParam('bridge', 'Bridge to set adapter on')
         .addParam('rmn', 'The address of the RmnProxy')
         .addVariadicPositionalParam(
@@ -19,21 +18,72 @@ function chainlinkAdapterTask(taskName: string) {
             'The list of addresses allowed to bridge',
             []
         )
+        .addParam(
+            'gasLimit',
+            'Execution gas limit on destination chain',
+            300_000n.toString()
+        )
+        .addFlag('enableAttestation')
         .setAction(async (taskArgs, hre) => {
-            const { lbtc, admin, bridge, router, rmn, allowlist } = taskArgs;
+            const {
+                admin,
+                bridge,
+                router,
+                rmn,
+                allowlist,
+                gasLimit,
+                enableAttestation,
+            } = taskArgs;
 
-            const adapter = await hre.ethers.deployContract(
-                'TokenPoolAdapter',
-                [router, lbtc, rmn, allowlist, bridge]
-            );
-            console.log('Chainlink Adapter:', await adapter.getAddress());
+            const args = [
+                bridge,
+                gasLimit,
+                router,
+                allowlist,
+                rmn,
+                enableAttestation,
+            ];
+
+            const adapter = await hre.ethers.deployContract('CLAdapter', args);
+            await adapter.waitForDeployment();
+            await sleep(12_000);
+
+            console.log('Adapter:', await adapter.getAddress());
+            console.log('TokenPool:', await adapter.tokenPool());
 
             await verify(hre.run, await adapter.getAddress(), {
-                constructorArguments: [router, lbtc, admin],
+                constructorArguments: args,
+                force: true,
             });
 
-            if (admin) {
+            await verify(hre.run, await adapter.tokenPool(), {
+                constructorArguments: [
+                    await adapter.lbtc(),
+                    router,
+                    allowlist,
+                    rmn,
+                    await adapter.getAddress(),
+                    enableAttestation,
+                ],
+            });
+
+            const tokenPool = await hre.ethers.getContractAt(
+                'LombardTokenPool',
+                await adapter.tokenPool()
+            );
+
+            await tokenPool.acceptOwnership();
+            console.log(
+                'TokenPool ownership accepted:',
+                await tokenPool.owner()
+            );
+
+            if (admin && (await adapter.owner()) != admin) {
                 await adapter.transferOwnership(admin);
+            }
+
+            if (admin && (await tokenPool.owner()) != admin) {
+                await tokenPool.transferOwnership(admin);
             }
         });
 }
@@ -41,4 +91,4 @@ function chainlinkAdapterTask(taskName: string) {
 chainlinkAdapterTask('deploy-chainlink-adapter');
 chainlinkAdapterTask('deploy-token-pool-adapter');
 chainlinkAdapterTask('deploy-token-pool');
-chainlinkAdapterTask('deploy:TokenPoolAdapter');
+chainlinkAdapterTask('deploy:TokenPool');

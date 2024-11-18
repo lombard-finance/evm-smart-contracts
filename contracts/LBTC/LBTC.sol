@@ -558,9 +558,6 @@ contract LBTC is
     }
 
     function _changeConsortium(address newVal) internal {
-        if (newVal == address(0)) {
-            revert ZeroAddress();
-        }
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
