@@ -11,7 +11,7 @@ import {IBridge, ILBTC} from "../IBridge.sol";
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
  */
 abstract contract AbstractAdapter is IAdapter, Context {
-    error ZeroAddress();
+    error Adapter_ZeroAddress();
 
     error NotBridge();
 
@@ -61,7 +61,7 @@ abstract contract AbstractAdapter is IAdapter, Context {
 
     function _notZero(address addr) internal pure {
         if (addr == address(0)) {
-            revert ZeroAddress();
+            revert Adapter_ZeroAddress();
         }
     }
 

@@ -10,7 +10,7 @@ import {Actions} from "../libs/Actions.sol";
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
 import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
-
+import {RateLimits} from "../libs/RateLimits.sol";
 contract Bridge is
     IBridge,
     Ownable2StepUpgradeable,
@@ -41,6 +41,9 @@ contract Bridge is
         mapping(bytes32 => DestinationConfig) destinations;
         mapping(bytes32 => Deposit) deposits;
         INotaryConsortium consortium;
+        // Rate limits
+        mapping(bytes32 => RateLimits.Data) depositRateLimits;
+        mapping(bytes32 => RateLimits.Data) withdrawRateLimits;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
@@ -150,11 +153,11 @@ contract Bridge is
         // validate inputs
         // amount should be validated, because absolute commission can be not set
         if (amount == 0) {
-            revert ZeroAmount();
+            revert Bridge_ZeroAmount();
         }
 
         if (toAddress == bytes32(0)) {
-            revert ZeroAddress();
+            revert Bridge_ZeroAddress();
         }
 
         // it's not necessary to validate `toChain` because destination
@@ -261,6 +264,12 @@ contract Bridge is
         }
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
+        );
+
+        // check rate limits
+        RateLimits.updateLimit(
+            $.withdrawRateLimits[bytes32(action.fromChain)],
+            action.amount
         );
 
         DestinationConfig memory destConf = $.destinations[
@@ -392,6 +401,25 @@ contract Bridge is
         $.consortium = newVal;
     }
 
+    function setRateLimits(
+        RateLimits.Config[] memory depositRateLimits,
+        RateLimits.Config[] memory withdrawRateLimits
+    ) external onlyOwner {
+        BridgeStorage storage $ = _getBridgeStorage();
+        for (uint256 i; i < depositRateLimits.length; i++) {
+            RateLimits.setRateLimit(
+                $.depositRateLimits[depositRateLimits[i].chainId],
+                depositRateLimits[i]
+            );
+        }
+        for (uint256 i; i < withdrawRateLimits.length; i++) {
+            RateLimits.setRateLimit(
+                $.withdrawRateLimits[withdrawRateLimits[i].chainId],
+                withdrawRateLimits[i]
+            );
+        }
+    }
+
     /// PRIVATE FUNCTIONS ///
 
     function __Bridge_init(
@@ -411,6 +439,9 @@ contract Bridge is
         uint64 amount
     ) internal returns (uint256, bytes memory) {
         BridgeStorage storage $ = _getBridgeStorage();
+
+        // check rate limits
+        RateLimits.updateLimit($.depositRateLimits[toChain], amount);
 
         // relative fee
         uint256 fee = FeeUtils.getRelativeFee(
@@ -482,7 +513,7 @@ contract Bridge is
 
     function _changeAdapter(bytes32 toChain, IAdapter newAdapter) internal {
         if (address(newAdapter) == address(0)) {
-            revert ZeroAddress();
+            revert Bridge_ZeroAddress();
         }
         DestinationConfig storage conf = _getBridgeStorage().destinations[
             toChain
