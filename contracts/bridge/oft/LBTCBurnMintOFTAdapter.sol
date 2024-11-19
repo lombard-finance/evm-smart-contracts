@@ -2,11 +2,11 @@
 pragma solidity 0.8.24;
 
 import {OFTAdapter, SafeERC20, IERC20} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
-import {RateLimitedOFTAdapter} from "./extensions/RateLimitedOFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
 import {ILBTC} from "../../LBTC/ILBTC.sol";
 
-contract LBTCBurnMintOFTAdapter is OFTAdapter, RateLimitedOFTAdapter {
+contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
     using SafeERC20 for IERC20;
 
     constructor(
@@ -36,10 +36,10 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, RateLimitedOFTAdapter {
     )
         internal
         virtual
-        override(OFTAdapter, RateLimitedOFTAdapter)
+        override(OFTAdapter, EfficientRateLimitedOFTAdapter)
         returns (uint256 amountSentLD, uint256 amountReceivedLD)
     {
-        _checkAndUpdateRateLimit(_dstEid, _amountLD);
+        _checkAndUpdateRateLimit(_dstEid, _amountLD, RateLimitDirection.Outbound);
         (amountSentLD, amountReceivedLD) = _debitView(
             _amountLD,
             _minAmountLD,
@@ -58,8 +58,9 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, RateLimitedOFTAdapter {
     function _credit(
         address _to,
         uint256 _amountLD,
-        uint32 /*_srcEid*/
-    ) internal virtual override returns (uint256 amountReceivedLD) {
+        uint32 _srcEid
+    ) internal virtual override (OFTAdapter, EfficientRateLimitedOFTAdapter) returns (uint256 amountReceivedLD) {
+        _checkAndUpdateRateLimit(_srcEid, _amountLD, RateLimitDirection.Inbound);
         // @dev Mint the tokens and transfer to the recipient.
         ILBTC(address(innerToken)).mint(_to, _amountLD);
         return _amountLD;

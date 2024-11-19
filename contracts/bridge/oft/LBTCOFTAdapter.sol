@@ -3,10 +3,10 @@ pragma solidity 0.8.24;
 
 import {OFTAdapter} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {RateLimitedOFTAdapter} from "./extensions/RateLimitedOFTAdapter.sol";
+import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
 import {ILBTC} from "../../LBTC/ILBTC.sol";
 
-contract LBTCOFTAdapter is RateLimitedOFTAdapter {
+contract LBTCOFTAdapter is EfficientRateLimitedOFTAdapter {
     constructor(
         address _token,
         address _lzEndpoint,

@@ -92,31 +92,10 @@ describe('OFTAdapter', function () {
             bEid,
             encode(['address'], [await bBMOFTAdapter.getAddress()])
         );
-        await aOFTAdapter.setRateLimits([
-            {
-                dstEid: bEid,
-                limit: 1_0000_0000,
-                window: 120,
-            },
-        ]);
-        await aBMOFTAdapter.setRateLimits([
-            {
-                dstEid: bEid,
-                limit: 1_0000_0000,
-                window: 120,
-            },
-        ]);
         await bBMOFTAdapter.setPeer(
             aEid,
             encode(['address'], [await aOFTAdapter.getAddress()])
         );
-        await bBMOFTAdapter.setRateLimits([
-            {
-                dstEid: aEid,
-                limit: 100_000,
-                window: 120,
-            },
-        ]);
 
         await aLZEndpoint.setDestLzEndpoint(
             await bBMOFTAdapter.getAddress(),
@@ -125,6 +104,70 @@ describe('OFTAdapter', function () {
         await bLZEndpoint.setDestLzEndpoint(
             await aOFTAdapter.getAddress(),
             await aLZEndpoint.getAddress()
+        );
+
+        // rate limits (inbound)
+        await aOFTAdapter.setRateLimits(
+            [
+                {
+                    eid: bEid,
+                    limit: 1_0000_0000,
+                    window: 120,
+                },
+            ],
+            0
+        );
+        await aBMOFTAdapter.setRateLimits(
+            [
+                {
+                    eid: bEid,
+                    limit: 1_0000_0000,
+                    window: 120,
+                },
+            ],
+            0
+        );
+        await bBMOFTAdapter.setRateLimits(
+            [
+                {
+                    eid: aEid,
+                    limit: 100_000,
+                    window: 120,
+                },
+            ],
+            0
+        );
+
+        // rate limits (outbound)
+        await aOFTAdapter.setRateLimits(
+            [
+                {
+                    eid: bEid,
+                    limit: 1_0000_0000,
+                    window: 120,
+                },
+            ],
+            1
+        );
+        await aBMOFTAdapter.setRateLimits(
+            [
+                {
+                    eid: bEid,
+                    limit: 1_0000_0000,
+                    window: 120,
+                },
+            ],
+            1
+        );
+        await bBMOFTAdapter.setRateLimits(
+            [
+                {
+                    eid: aEid,
+                    limit: 100_000,
+                    window: 120,
+                },
+            ],
+            1
         );
 
         snapshot = await takeSnapshot();
@@ -393,13 +436,27 @@ describe('OFTAdapter', function () {
         });
 
         it('migrate Chain A to MintBurnOFTAdapter', async () => {
-            await aOFTAdapter.setRateLimits([
-                {
-                    dstEid: bEid,
-                    limit: 0,
-                    window: 120,
-                },
-            ]);
+            // reset outbound limits to pause bridging
+            await aOFTAdapter.setRateLimits(
+                [
+                    {
+                        eid: bEid,
+                        limit: 0,
+                        window: 0,
+                    },
+                ],
+                0
+            );
+            await bBMOFTAdapter.setRateLimits(
+                [
+                    {
+                        eid: aEid,
+                        limit: 0,
+                        window: 0,
+                    },
+                ],
+                0
+            );
 
             const totalSupplyBefore = await lbtc.totalSupply();
             const adapterBalanceBefore = await lbtc.balanceOf(aOFTAdapter);
@@ -425,6 +482,18 @@ describe('OFTAdapter', function () {
             await bLZEndpoint.setDestLzEndpoint(
                 await aBMOFTAdapter.getAddress(),
                 await aLZEndpoint.getAddress()
+            );
+
+            // enable outbound traffic
+            await bBMOFTAdapter.setRateLimits(
+                [
+                    {
+                        eid: aEid,
+                        limit: 1_000_000,
+                        window: 120,
+                    },
+                ],
+                0
             );
         });
 
@@ -478,12 +547,12 @@ describe('OFTAdapter', function () {
         });
 
         it('should burn (Chain A) and mint (Chain B)', async () => {
-            const amountLD = 1_0000n;
+            const amountLD = 10_000n;
 
             await lbtc.mintTo(signer1.address, amountLD);
 
             const opts = Options.newOptions().addExecutorLzReceiveOption(
-                50_000,
+                110_000,
                 0
             );
 
@@ -530,7 +599,8 @@ describe('OFTAdapter', function () {
         });
 
         describe('should revert when exceed limit', function () {
-            const AMOUNT = 1_0000_1000;
+            const AMOUNT = 1_0000_1000n;
+            const AMOUNT_BELOW_LIMIT = 1_000n;
             const OPTS = Options.newOptions().addExecutorLzReceiveOption(
                 1_0000_0000,
                 0
@@ -541,7 +611,7 @@ describe('OFTAdapter', function () {
                 await lbtc.mintTo(signer1.address, AMOUNT);
             });
 
-            it('LBTCOFTAdapter::send()', async () => {
+            it('LBTCOFTAdapter::send() by outbound limit', async () => {
                 const args = {
                     dstEid: bEid,
                     to: encode(['address'], [signer2.address]),
@@ -576,7 +646,7 @@ describe('OFTAdapter', function () {
                 );
             });
 
-            it('LBTCBurnMintOFTAdapter::send()', async () => {
+            it('LBTCBurnMintOFTAdapter::send() by outbound limit', async () => {
                 const args = {
                     dstEid: aEid,
                     to: encode(['address'], [signer1.address]),
@@ -604,6 +674,113 @@ describe('OFTAdapter', function () {
                 ).to.be.revertedWithCustomError(
                     bBMOFTAdapter,
                     'RateLimitExceeded'
+                );
+            });
+
+            it('LBTCOFTAdapter::send() by inbound limit', async () => {
+                const args = {
+                    dstEid: bEid,
+                    to: encode(['address'], [signer2.address]),
+                    amountLD: AMOUNT_BELOW_LIMIT,
+                    minAmountLD: AMOUNT_BELOW_LIMIT,
+                    extraOptions: OPTS.toHex(),
+                    composeMsg: '0x',
+                    oftCmd: '0x',
+                };
+
+                const msgFee = await aOFTAdapter.quoteSend(args, false);
+
+                // apply limit
+                await bBMOFTAdapter.setRateLimits(
+                    [
+                        {
+                            eid: aEid,
+                            window: 0,
+                            limit: 0,
+                        },
+                    ],
+                    0
+                );
+
+                await lbtc
+                    .connect(signer1)
+                    .approve(
+                        await aOFTAdapter.getAddress(),
+                        AMOUNT_BELOW_LIMIT
+                    );
+
+                const tx = aOFTAdapter.connect(signer1).send(
+                    args,
+                    {
+                        nativeFee: msgFee.nativeFee,
+                        lzTokenFee: msgFee.lzTokenFee,
+                    },
+                    signer3.address,
+                    {
+                        value: msgFee.nativeFee,
+                    }
+                );
+
+                // internal call failed, tokens are not received, but locked on adapter
+                await expect(tx).changeEtherBalances(
+                    [signer1, signer3],
+                    [msgFee.nativeFee * -1n, 0]
+                );
+
+                await expect(tx).changeTokenBalances(
+                    lbtc,
+                    [signer1, signer2, aOFTAdapter, bBMOFTAdapter],
+                    [AMOUNT_BELOW_LIMIT * -1n, 0, AMOUNT_BELOW_LIMIT, 0]
+                );
+            });
+
+            it('LBTCBurnMintOFTAdapter::send() by inbound limit', async () => {
+                const args = {
+                    dstEid: aEid,
+                    to: encode(['address'], [signer1.address]),
+                    amountLD: AMOUNT_BELOW_LIMIT,
+                    minAmountLD: AMOUNT_BELOW_LIMIT,
+                    extraOptions: OPTS.toHex(),
+                    composeMsg: '0x',
+                    oftCmd: '0x',
+                };
+
+                // apply limit
+                await aOFTAdapter.setRateLimits(
+                    [
+                        {
+                            eid: bEid,
+                            window: 0,
+                            limit: 0,
+                        },
+                    ],
+                    0
+                );
+
+                const msgFee = await bBMOFTAdapter.quoteSend(args, false);
+
+                const tx = bBMOFTAdapter.connect(signer1).send(
+                    args,
+                    {
+                        nativeFee: msgFee.nativeFee,
+                        lzTokenFee: msgFee.lzTokenFee,
+                    },
+                    signer3.address,
+                    {
+                        value: msgFee.nativeFee,
+                    }
+                );
+
+                // internal call failed, tokens are not received, but burned
+                await expect(tx).changeEtherBalances(
+                    [signer1, signer3],
+                    [msgFee.nativeFee * -1n, 0]
+                );
+
+                await expect(tx).changeTokenBalances(
+                    lbtc,
+                    [signer1, aOFTAdapter, bBMOFTAdapter],
+                    [AMOUNT_BELOW_LIMIT * -1n, 0, 0]
                 );
             });
         });
