@@ -7,8 +7,10 @@ import {EfficientRateLimiter} from "./EfficientRateLimiter.sol";
 /**
  * @title OFT Adapter contract with EfficientRateLimiter
  */
-abstract contract EfficientRateLimitedOFTAdapter is OFTAdapter, EfficientRateLimiter {
-
+abstract contract EfficientRateLimitedOFTAdapter is
+    OFTAdapter,
+    EfficientRateLimiter
+{
     /**
      * @notice Sets the cross-chain tx rate limits for specific endpoints based on provided configurations.
      * It allows configuration of rate limits either for outbound or inbound directions.
@@ -19,7 +21,10 @@ abstract contract EfficientRateLimitedOFTAdapter is OFTAdapter, EfficientRateLim
      * @param direction The direction (`Outbound` or `Inbound`) specifies whether the endpoint ID passed should be considered a dstEid or srcEid.
      * This parameter determines which set of rate limits (outbound or inbound) will be updated for each endpoint.
      */
-    function setRateLimits(RateLimitConfig[] calldata _rateLimitConfigs, RateLimitDirection direction) external onlyOwner {
+    function setRateLimits(
+        RateLimitConfig[] calldata _rateLimitConfigs,
+        RateLimitDirection direction
+    ) external onlyOwner {
         _setRateLimits(_rateLimitConfigs, direction);
     }
 
@@ -28,9 +33,18 @@ abstract contract EfficientRateLimitedOFTAdapter is OFTAdapter, EfficientRateLim
         uint256 _amountLD,
         uint256 _minAmountLD,
         uint32 _dstEid
-    ) internal virtual override returns (uint256 amountSentLD, uint256 amountReceivedLD) {
+    )
+        internal
+        virtual
+        override
+        returns (uint256 amountSentLD, uint256 amountReceivedLD)
+    {
         // Check and update the rate limit based on the destination endpoint ID (dstEid) and the amount in local decimals.
-        _checkAndUpdateRateLimit(_dstEid, _amountLD, RateLimitDirection.Outbound);
+        _checkAndUpdateRateLimit(
+            _dstEid,
+            _amountLD,
+            RateLimitDirection.Outbound
+        );
         return super._debit(_from, _amountLD, _minAmountLD, _dstEid);
     }
 
@@ -40,7 +54,11 @@ abstract contract EfficientRateLimitedOFTAdapter is OFTAdapter, EfficientRateLim
         uint32 _srcEid
     ) internal virtual override returns (uint256 amountReceivedLD) {
         // Check and update the rate limit based on the source endpoint ID (srcEid) and the amount in local decimals from the message.
-        _checkAndUpdateRateLimit(_srcEid, _amountLD, RateLimitDirection.Inbound);
+        _checkAndUpdateRateLimit(
+            _srcEid,
+            _amountLD,
+            RateLimitDirection.Inbound
+        );
         return super._credit(_to, _amountLD, _srcEid);
     }
 }

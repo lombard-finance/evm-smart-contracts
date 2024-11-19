@@ -39,7 +39,11 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
         override(OFTAdapter, EfficientRateLimitedOFTAdapter)
         returns (uint256 amountSentLD, uint256 amountReceivedLD)
     {
-        _checkAndUpdateRateLimit(_dstEid, _amountLD, RateLimitDirection.Outbound);
+        _checkAndUpdateRateLimit(
+            _dstEid,
+            _amountLD,
+            RateLimitDirection.Outbound
+        );
         (amountSentLD, amountReceivedLD) = _debitView(
             _amountLD,
             _minAmountLD,
@@ -59,8 +63,17 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
         address _to,
         uint256 _amountLD,
         uint32 _srcEid
-    ) internal virtual override (OFTAdapter, EfficientRateLimitedOFTAdapter) returns (uint256 amountReceivedLD) {
-        _checkAndUpdateRateLimit(_srcEid, _amountLD, RateLimitDirection.Inbound);
+    )
+        internal
+        virtual
+        override(OFTAdapter, EfficientRateLimitedOFTAdapter)
+        returns (uint256 amountReceivedLD)
+    {
+        _checkAndUpdateRateLimit(
+            _srcEid,
+            _amountLD,
+            RateLimitDirection.Inbound
+        );
         // @dev Mint the tokens and transfer to the recipient.
         ILBTC(address(innerToken)).mint(_to, _amountLD);
         return _amountLD;
