@@ -1,12 +1,15 @@
 # OFT Adapter integration
 
 ## Deposit
-1. Inputs
-   1. Use token from `token()` (should be LBTC).
-   2. Check if approval required for OFT Adapter by calling `approvalRequired()`.
-      1. Make approval if required.
-2. Choose [destination EID](https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts). (e.g bera testnet - 40291, eth sepolia - 40161)
-3. Bridge
+
+1. Choose [destination EID](https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts). (e.g bera testnet - 40291, eth sepolia - 40161)
+2. Check limits
+   1. Call `getAmountCanBeSent` with chosen `eid`, use second return value which is `amountCanBeSent` to challenge amount for bridging
+3. Prepare LBTC tokens
+    1. Use token from `token()` (should be LBTC).
+    2. Check if approval required for OFT Adapter by calling `approvalRequired()`.
+        1. Make approval if required.
+4. Bridge
    1. Build `SendParam`
       1. `to` - zero prefixed hex address with 32 bytes length
       2. `amountLD`, `minAmountLD` - LBTC amount to send
