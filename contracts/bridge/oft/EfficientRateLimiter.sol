@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import "hardhat/console.sol";
-
 /**
  * @title RateLimiter
  * @dev Abstract contract for implementing net rate limiting functionality.  This effectively allows two operations to
@@ -264,17 +262,8 @@ abstract contract EfficientRateLimiter {
                 rl.window
             );
 
-        console.log("check");
-        console.log(
-            uint(direction),
-            currentAmountInFlight,
-            availableCapacity,
-            _amount > availableCapacity
-        );
-
         // Check if the requested amount exceeds the available capacity
         if (_amount > availableCapacity) {
-            console.log("reverting");
             revert RateLimitExceeded();
         }
 
