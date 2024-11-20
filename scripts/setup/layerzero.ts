@@ -122,6 +122,46 @@ task('setup-endpoint-config', 'Configure LayerZero endpoint')
         await tx.wait();
     });
 
+task(
+    'setup-oft-rate-limits',
+    'Configure EfficientRateLimitedOFTAdapter rate limits'
+)
+    .addParam('eids', 'Eids of remote chains')
+    .addParam('limit', 'TBD')
+    .addParam('window', 'TBD')
+    .addParam('oappAddress', 'The address of OFTAdapter')
+    .addFlag('inbound', '')
+    .addFlag('outbound', '')
+    .setAction(async (taskArgs, { ethers }, network) => {
+        const { oappAddress, inbound, outbound, eids, limit, window } =
+            taskArgs;
+
+        let direction = -1n;
+        if (!!inbound && !outbound) {
+            direction = 0n;
+        } else if (!inbound && !!outbound) {
+            direction = 1n;
+        } else {
+            throw Error('should be selected only one direction');
+        }
+
+        const endpointContract = await ethers.getContractAt(
+            'EfficientRateLimitedOFTAdapter',
+            oappAddress
+        );
+
+        const limits = eids.split(',').map((eid: string) => {
+            const e = BigInt(eid);
+            return { eid: e, limit, window };
+        });
+
+        // Send the transaction
+        const tx = await endpointContract.setRateLimits(limits, direction);
+
+        console.log('Transaction sent:', tx.hash);
+        await tx.wait();
+    });
+
 task('debug-quote-send', 'Call quote send')
     .addParam('oftAdapter', 'The address of LZAdapter smart-contract')
     .setAction(async (taskArgs, hre, network) => {
@@ -135,7 +175,7 @@ task('debug-quote-send', 'Call quote send')
         );
 
         const opts = Options.newOptions().addExecutorLzReceiveOption(
-            100_000,
+            150_000,
             0
         );
 
@@ -150,13 +190,13 @@ task('debug-quote-send', 'Call quote send')
 
         const obj = await adapter.quoteSend(
             {
-                dstEid: 40161,
+                dstEid: 40291,
                 to: ethers.AbiCoder.defaultAbiCoder().encode(
                     ['address'],
                     ['0x62F10cE5b727edf787ea45776bD050308A611508']
                 ),
-                amountLD: '100',
-                minAmountLD: '100',
+                amountLD: '1000',
+                minAmountLD: '1000',
                 extraOptions: opts.toHex(),
                 composeMsg: '0x',
                 oftCmd: '0x',
