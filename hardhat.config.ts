@@ -191,7 +191,21 @@ const config: HardhatUserConfig = {
             ],
             timeout: 90_000,
             gas: 8_000_000,
-        }, // mainnets
+        },
+      beraBartio: {
+        loggingEnabled: true,
+        url: vars.get("BERA_BARTIO_RPC", "https://bartio.rpc.berachain.com"),
+        chainId: 80084,
+        accounts: [
+          vars.get(
+            "TESTNET_DEPLOYER_SK",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ),
+        ],
+        timeout: 90_000,
+        gas: 8_000_000,
+      },
+      // mainnets
         mainnet: {
             loggingEnabled: true,
             url: vars.get('MAINNET_RPC', 'https://rpc.ankr.com/eth'),
@@ -315,6 +329,15 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://www.oklink.com/xlayer-test', //or https://www.oklink.com/xlayer for mainnet
                 },
             },
+          {
+            network: "beraBartio",
+            chainId: 80084,
+            urls: {
+              apiURL:
+                "https://api.routescan.io/v2/network/testnet/evm/80084/etherscan",
+              browserURL: "https://lineascan.build/",
+            },
+          },
             // mainnets
             {
                 network: 'mantle',
@@ -353,6 +376,7 @@ const config: HardhatUserConfig = {
             okx_testnet: vars.get('OKX_API_KEY', ''),
             baseSepolia: vars.get('BASE_API_KEY', ''),
             arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
+            beraBartio: "no",
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
