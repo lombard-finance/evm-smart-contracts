@@ -551,7 +551,10 @@ contract LBTC is
         /// need to check new sha256 hash and legacy keccak256 from payload without selector
         /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
-        if ($.usedPayloads[payloadHash] || $.legacyUsedPayloads[keccak256(payload[4:])]) {
+        if (
+            $.usedPayloads[payloadHash] ||
+            $.legacyUsedPayloads[keccak256(payload[4:])]
+        ) {
             revert PayloadAlreadyUsed();
         }
         Consortium($.consortium).checkProof(payloadHash, proof);
