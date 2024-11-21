@@ -91,7 +91,6 @@ describe('Bridge', function () {
             ],
             false
         );
-        await lbtcSource.changeBridge(await bridgeSource.getAddress());
 
         // chain 2
         lbtcDestination = await deployContract<LBTCMock>('LBTCMock', [
@@ -104,9 +103,6 @@ describe('Bridge', function () {
             treasuryDestination.address,
             deployer.address,
         ]);
-        await lbtcDestination.changeBridge(
-            await bridgeDestination.getAddress()
-        );
 
         await lbtcSource.changeTreasuryAddress(treasurySource.address);
         await lbtcDestination.changeTreasuryAddress(
