@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 import {LBTC} from "../LBTC/LBTC.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {IDepositor} from "./depositor/IDepositor.sol";
 
 /**
  * @title Convenience contract for users who wish to 
@@ -15,13 +14,10 @@ import {IDepositor} from "./depositor/IDepositor.sol";
 contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev error thrown when batched stake and bake has mismatching lengths
     error InvalidInputLength();
-    /// @dev error thrown when stake and bake is attempted with an unknown vault address
-    error VaultNotFound();
 
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
     struct StakeAndBakeStorage {
         LBTC lbtc;
-        mapping(address => IDepositor) depositors;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
@@ -31,26 +27,6 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     function initialize(address _lbtc) external initializer {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.lbtc = LBTC(_lbtc);
-    }
-
-    /**
-     * @notice Add a depositor to the internal mapping, allowing the contract to
-     * `stakeAndBake` to it.
-     * @param depositor The address of the vault we wish to be able to deposit to
-     */
-    function addDepositor(address vault, address depositor) external onlyOwner {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.depositors[vault] = IDepositor(depositor);
-    }
-    
-    /**
-     * @notice Remove a depositor from the internal mapping, removing `stakeAndBake`
-     * functionality for it.
-     * @param depositor The address of the vault we wish to remove from the internal mapping
-     */
-    function removeDepositor(address vault, address depositor) external onlyOwner {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.depositors[vault] = IDepositor(address(0));
     }
 
     /**
@@ -102,7 +78,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @notice Mint LBTC and stake directly into a given vault.
      * @param vault Address of the vault we will deposit the minted LBTC to
      * @param permitPayload Contents of permit approval signed by the user
-     * @param depositPayload Contains the parameters needed to complete a deposit
+     * @param depositPayload ABI encoded function call for vault deposit
      * @param mintPayload The message with the stake data
      * @param proof Signature of the consortium approving the mint
      * @param feePayload Contents of the fee approval signed by the user
@@ -118,11 +94,6 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         bytes calldata userSignature
     ) external nonReentrant {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-
-        IDepositor depositor = $.depositors[vault];
-        if (address(depositor) == address(0)) {
-            revert VaultNotFound();
-        }
 
         (
             uint256 value,
@@ -141,7 +112,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         // Next, we permit the vault to transfer the minted value.
         lbtc.permit(
             _msgSender(),
-            address(teller),
+            vault,
             value,
             deadline,
             v,
@@ -150,7 +121,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         );
 
         // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(vault, depositPayload);
+        vault.call(depositPayload);
     }
 
     function _getStakeAndBakeStorage() private pure returns (StakeAndBakeStorage storage $) {
