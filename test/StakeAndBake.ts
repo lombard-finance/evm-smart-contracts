@@ -33,6 +33,9 @@ describe('StakeAndBake', function () {
     let accountant: AccountantMock;
     let teller: TellerMock;
     let lbtc: LBTCMock;
+    let snapshot: SnapshotRestorer;
+    let snapshotTimestamp: number;
+    const sharePremium = 46;
 
     before(async function () {
         [
@@ -47,17 +50,13 @@ describe('StakeAndBake', function () {
         ] = await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
-
         const result = await init(burnCommission, deployer.address);
         lbtc = result.lbtc;
 
         stakeAndBake = await deployContract<StakeAndBake>(
             'StakeAndBake',
-            [],
-            false
+            [await lbtc.getAddress(), deployer.address],
         );
-        
-        stakeAndBake.initialize(await lbtc.getAddress());
 
         boringVault = await deployContract<BoringVaultMock>(
             'BoringVaultMock',
@@ -98,7 +97,7 @@ describe('StakeAndBake', function () {
         await lbtc.reinitialize();
 
         // Add LBTC as an asset to the teller
-        await teller.addAsset(await lbtc.getAddress(), 46);
+        await teller.addAsset(await lbtc.getAddress(), sharePremium);
 
         // Add BoringVaultDepositor as a depositor on the StakeAndBake contract
         await stakeAndBake.addDepositor(await teller.getAddress(), await boringVaultDepositor.getAddress());
@@ -183,7 +182,7 @@ describe('StakeAndBake', function () {
                 .withArgs(
                     ethers.ZeroAddress, 
                     signer1.address, 
-                    value - 46
+                    value - sharePremium
                 );
         });
     });

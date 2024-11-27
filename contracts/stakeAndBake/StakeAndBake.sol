@@ -45,15 +45,27 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     bytes32 private constant STAKE_AND_BAKE_STORAGE_LOCATION =
         0xd0321c9642a0f7a5931cd62db04cb9e2c0d32906ef8824eece128a7ad5e4f500;
 
-    function initialize(address _lbtc) external initializer {
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address lbtc_, address owner_) external initializer {
+        __Ownable_init(owner_);
+        __Ownable2Step_init();
+
+        __ReentrancyGuard_init();
+
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc = LBTC(_lbtc);
+        $.lbtc = LBTC(lbtc_);
     }
 
     /**
      * @notice Add a depositor to the internal mapping, allowing the contract to
      * `stakeAndBake` to it.
-     * @param depositor The address of the vault we wish to be able to deposit to
+     * @param vault The address of the vault we wish to be able to deposit to
+     * @param depositor The address of the depositor abstraction we use to deposit to the vault
      */
     function addDepositor(address vault, address depositor) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
@@ -63,9 +75,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /**
      * @notice Remove a depositor from the internal mapping, removing `stakeAndBake`
      * functionality for it.
-     * @param depositor The address of the vault we wish to remove from the internal mapping
+     * @param vault The address of the vault we wish to remove from the internal mapping
      */
-    function removeDepositor(address vault, address depositor) external onlyOwner {
+    function removeDepositor(address vault) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(address(0));
     }
