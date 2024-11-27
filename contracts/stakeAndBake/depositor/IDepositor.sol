@@ -9,11 +9,11 @@ pragma solidity 0.8.24;
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract IDepositor {
+interface IDepositor {
     /**
      * @notice Deposit function interface.
      * @param vault The address of the vault we deposit to
      * @param depositPayload The ABI encoded parameters for the vault deposit function
      */
-    function deposit(address vault, bytes depositPayload) public;
+    function deposit(address vault, bytes calldata depositPayload) external;
 }

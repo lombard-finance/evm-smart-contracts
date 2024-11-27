@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {BoringVaultMock} from "./BoringVaultMock.sol";
+import {AccountantMock} from "./AccountantMock.sol";
+
 /**
  * @title Mock implementation of BoringVault
  * @author Lombard.Finance
@@ -24,17 +27,12 @@ contract TellerMock {
     }
 
     function addAsset(address asset, uint16 sharePremium) external {
-        Asset memory _assetData = Asset {
-            allowDeposits: true,
-            allowWithdrawals: true,
-            sharePremium: 40
-        };
+        Asset memory _assetData = Asset(
+            true,
+            true,
+            sharePremium
+        );
 
         assetData[asset] = _assetData;
-    }
-
-    function deposit(address tokenAddress, uint256 amount, uint256 minimumMint) external {
-        tokenAddress.safeTransferFrom(tokenAddress, _msgSender(), address(this), amount);
-        _mint(to, amount);
     }
 }

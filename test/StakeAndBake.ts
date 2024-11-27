@@ -53,26 +53,26 @@ describe('StakeAndBake', function () {
 
         stakeAndBake = await deployContract<StakeAndBake>(
             'StakeAndBake',
-            [
-                await lbtc.getAddress(),
-            ],
+            [],
             false
         );
+        
+        stakeAndBake.initialize(await lbtc.getAddress());
 
         boringVault = await deployContract<BoringVaultMock>(
-            'BoringVault',
+            'BoringVaultMock',
             [],
             false
         );
 
         accountant = await deployContract<AccountantMock>(
-            'Accountant',
+            'AccountantMock',
             [],
             false
         );
 
         teller = await deployContract<TellerMock>(
-            'Teller',
+            'TellerMock',
             [
                 await boringVault.getAddress(),
                 await accountant.getAddress(),
@@ -81,7 +81,7 @@ describe('StakeAndBake', function () {
         );
 
         boringVaultDepositor = await deployContract<BoringVaultDepositor>(
-            'BoringVaultDepositor,
+            'BoringVaultDepositor',
             [],
             false
         );
@@ -168,11 +168,23 @@ describe('StakeAndBake', function () {
                 )
             )
                 .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer1.address, value)
+                .withArgs(
+                    ethers.ZeroAddress, 
+                    signer1.address, 
+                    value
+                )
                 .to.emit(lbtc, 'Transfer')
-                .withArgs(signer1.address, await boringVault.getAddress(), value)
+                .withArgs(
+                    signer1.address, 
+                    await boringVault.getAddress(), 
+                    value
+                )
                 .to.emit(boringVault, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer1.address, value - 46);
+                .withArgs(
+                    ethers.ZeroAddress, 
+                    signer1.address, 
+                    value - 46
+                );
         });
     });
 });

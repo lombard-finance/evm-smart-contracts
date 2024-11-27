@@ -18,6 +18,23 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev error thrown when stake and bake is attempted with an unknown vault address
     error VaultNotFound();
 
+    struct StakeAndBakeData {
+        /// @notice vault Address of the vault we will deposit the minted LBTC to
+        address vault;
+        /// @notice permitPayload Contents of permit approval signed by the user
+        bytes permitPayload;
+        /// @notice depositPayload Contains the parameters needed to complete a deposit
+        bytes depositPayload;
+        /// @notice mintPayload The message with the stake data
+        bytes mintPayload;
+        /// @notice proof Signature of the consortium approving the mint
+        bytes proof;
+        /// @notice feePayload Contents of the fee approval signed by the user
+        bytes feePayload;
+        /// @notice userSignature Signature of the user to allow Fee
+        bytes userSignature;
+    }
+
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
     struct StakeAndBakeStorage {
         LBTC lbtc;
@@ -55,74 +72,46 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
     /**
      * @notice Mint LBTC and stake directly into a given vault in batches.
-     * @param vault Address of the vault we will deposit the minted LBTC to
-     * @param permitPayload Contents of permit approval signed by the user
-     * @param depositPayload Contains the parameters needed to complete a deposit
-     * @param mintPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
-     * @param feePayload Contents of the fee approval signed by the user
-     * @param userSignature Signature of the user to allow Fee
      */
-    function batchStakeAndBake(
-        address[] vault,
-        bytes[] calldata permitPayload,
-        bytes[] calldata depositPayload,
-        bytes[] calldata mintPayload,
-        bytes[] calldata proof,
-        bytes[] calldata feePayload,
-        bytes[] calldata userSignature
-    ) external {
-        uint256 length = vault.length;
-
-        if (
-            length != permitPayload.length ||
-            length != depositPayload.length ||
-            length != mintPayload.length ||
-            length != proof.length ||
-            length != feePayload.length ||
-            length != userSignature.length
-        ) {
-            revert InvalidInputLength();
-        }
-
-        for (uint256 i; i < length; ++i) {
-            stakeAndBake(
-                vault[i],
-                permitPayload[i],
-                depositPayload[i],
-                mintPayload[i],
-                proof[i],
-                feePayload[i],
-                userSignature[i]
-            );
+    function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
+        for (uint256 i; i < data.length; ++i) {
+            stakeAndBake(data[i]);
         }
     }
 
     /**
      * @notice Mint LBTC and stake directly into a given vault.
-     * @param vault Address of the vault we will deposit the minted LBTC to
-     * @param permitPayload Contents of permit approval signed by the user
-     * @param depositPayload Contains the parameters needed to complete a deposit
-     * @param mintPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
-     * @param feePayload Contents of the fee approval signed by the user
-     * @param userSignature Signature of the user to allow Fee
+     * @param data The bundled data needed to execute this function
      */
-    function stakeAndBake(
-        address vault,
-        bytes calldata permitPayload,
-        bytes calldata depositPayload,
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) external nonReentrant {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-
-        IDepositor depositor = $.depositors[vault];
+    function stakeAndBake(StakeAndBakeData calldata data) public nonReentrant {
+        IDepositor depositor = _getDepositor(data.vault);
         if (address(depositor) == address(0)) {
             revert VaultNotFound();
         }
+
+        // First, mint the LBTC and send to owner.
+        _mintWithFee(data.mintPayload, data.proof, data.feePayload, data.userSignature);
+
+        // Next, we permit the vault to transfer the minted value.
+        _performPermit(data.permitPayload, data.vault);
+
+        // Finally, deposit LBTC to the given `vault`.
+        depositor.deposit(data.vault, data.depositPayload);
+    }
+
+    function _getStakeAndBakeStorage() private pure returns (StakeAndBakeStorage storage $) {
+        assembly {
+            $.slot := STAKE_AND_BAKE_STORAGE_LOCATION
+        }
+    }
+    
+    function _getDepositor(address vault) private view returns (IDepositor depositor) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.depositors[vault];
+    }
+
+    function _performPermit(bytes calldata permitPayload, address vault) private {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         (
             uint256 value,
@@ -135,11 +124,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
             (uint256, uint256, uint8, bytes32, bytes32)
         );
 
-        // First, mint the LBTC and send to owner.
-        $.lbtc.mintWithFee(mintPayload, proof, feePayload, userSignature);
-
-        // Next, we permit the vault to transfer the minted value.
-        lbtc.permit(
+        $.lbtc.permit(
             _msgSender(),
             vault,
             value,
@@ -148,14 +133,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
             r,
             s
         );
-
-        // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(vault, depositPayload);
     }
 
-    function _getStakeAndBakeStorage() private pure returns (StakeAndBakeStorage storage $) {
-        assembly {
-            $.slot := STAKE_AND_BAKE_STORAGE_LOCATION
-        }
+    function _mintWithFee(bytes calldata mintPayload, bytes calldata proof, bytes calldata feePayload, bytes calldata userSignature) private {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        $.lbtc.mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 }
