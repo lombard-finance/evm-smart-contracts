@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {ERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20.sol";
+
 /**
  * @title Mock implementation of BoringVault
  * @author Lombard.Finance
  * @notice Use only for testing
  */
 contract BoringVaultMock is ERC20Upgradeable {
-    function deposit(address tokenAddress, uint256 amount, uint256 minimumMint) external {
-        tokenAddress.safeTransferFrom(tokenAddress, _msgSender(), address(this), amount);
-        _mint(to, amount);
+    function enter(address from, ERC20 asset, uint256 assetAmount, address to, uint256 shareAmount) external {
+        // Transfer assets in
+        if (assetAmount > 0) asset.safeTransferFrom(from, address(this), assetAmount);
+
+        // Mint shares.
+        _mint(to, shareAmount);
     }
 }
