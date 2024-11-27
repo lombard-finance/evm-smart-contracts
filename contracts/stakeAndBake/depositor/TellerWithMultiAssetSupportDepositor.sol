@@ -9,6 +9,11 @@ import {IDepositor} from "./IDepositor.sol";
  * @notice This contract is part of the Lombard.Finance protocol
  */
 contract TellerWithMultiAssetSupportDepositor is IDepositor {
+    /**
+     * @notice Deposit function.
+     * @param vault The address of the vault we deposit to
+     * @param depositPayload The ABI encoded parameters for the vault deposit function
+     */
     function deposit(address vault, bytes depositPayload) public {
         (
             address tokenAddress,
@@ -19,7 +24,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor {
             (address, uint256, uint256)
         );
 
-        TellerWithMultiAssetSupport teller = TellerWithMultiAssetSupport(vault);
-        teller.deposit(tokenAddress, value, mininumMint);
+        bytes4 selector = bytes4(keccak256(bytes("deposit(address, uint256, uint256)")));
+        vault.call(abi.encodeWithSelector(selector, tokenAddress, uint256, uint256));
     }
 }

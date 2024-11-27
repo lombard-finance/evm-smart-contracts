@@ -38,9 +38,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * `stakeAndBake` to it.
      * @param depositor The address of the vault we wish to be able to deposit to
      */
-    function addDepositor(address depositor) external onlyOwner {
+    function addDepositor(address vault, address depositor) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.depositors[depositor] = IDepositor(depositor);
+        $.depositors[vault] = IDepositor(depositor);
     }
     
     /**
@@ -48,9 +48,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * functionality for it.
      * @param depositor The address of the vault we wish to remove from the internal mapping
      */
-    function removeDepositor(address depositor) external onlyOwner {
+    function removeDepositor(address vault, address depositor) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.depositors[depositor] = IDepositor(address(0));
+        $.depositors[vault] = IDepositor(address(0));
     }
 
     /**
@@ -116,7 +116,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external {
+    ) external nonReentrant {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         IDepositor depositor = $.depositors[vault];
@@ -150,7 +150,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         );
 
         // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(depositPayload);
+        depositor.deposit(vault, depositPayload);
     }
 
     function _getStakeAndBakeStorage() private pure returns (StakeAndBakeStorage storage $) {
