@@ -188,6 +188,125 @@ describe('StakeAndBake', function () {
                     depositValue - 50
                 );
         });
+        it('should batch stake and bake properly with the correct setup', async function () {
+            // NB for some reason trying to do this in a loop and passing around arrays of parameters
+            // makes the test fail, so i'm doing it the ugly way here
+            const data2 = await signDepositBtcPayload(
+                [signer1],
+                [true],
+                CHAIN_ID,
+                signer3.address,
+                value,
+                encode(['uint256'], [0]) // txid
+            );
+            const userSignature2 = await getFeeTypedMessage(
+                signer3,
+                await lbtc.getAddress(),
+                fee,
+                snapshotTimestamp + 100
+            );
+
+            // set max fee
+            await lbtc.setMintFee(fee);
+
+            // create permit payload
+            const block = await ethers.provider.getBlock('latest');
+            const timestamp = block!.timestamp;
+            const deadline = timestamp + 100;
+            const chainId = (await ethers.provider.getNetwork()).chainId;
+            const { v, r, s } = await generatePermitSignature(
+                lbtc,
+                signer3,
+                await tellerWithMultiAssetSupportDepositor.getAddress(),
+                depositValue,
+                deadline,
+                chainId,
+                0
+            );
+
+            const permitPayload2 = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositValue, deadline, v, r, s]);
+
+            // make a deposit payload for the boringvault
+            const depositPayload2 = encode(['address', 'address', 'uint256'], [signer3.address, await lbtc.getAddress(), depositValue]);
+            await expect(
+                stakeAndBake.batchStakeAndBake(
+                    [
+                        {
+                            vault: await teller.getAddress(),
+                            owner: signer2.address,
+                            permitPayload: permitPayload,
+                            depositPayload: depositPayload,
+                            mintPayload: data.payload,
+                            proof: data.proof,
+                            feePayload: approval,
+                            userSignature: userSignature
+                        },
+                        {
+                            vault: await teller.getAddress(),
+                            owner: signer3.address,
+                            permitPayload: permitPayload2,
+                            depositPayload: depositPayload2,
+                            mintPayload: data2.payload,
+                            proof: data2.proof,
+                            feePayload: approval,
+                            userSignature: userSignature2
+                        }
+                    ]
+                )
+            )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    ethers.ZeroAddress, 
+                    signer2.address, 
+                    value - fee
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    ethers.ZeroAddress, 
+                    signer3.address, 
+                    value - fee
+                )
+                .to.emit(lbtc, 'FeeCharged')
+                .withArgs(fee, userSignature)
+                .to.emit(lbtc, 'FeeCharged')
+                .withArgs(fee, userSignature2)
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    signer2.address, 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    depositValue
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    signer3.address, 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    depositValue
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    await teller.getAddress(), 
+                    depositValue
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    ethers.ZeroAddress, 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    depositValue - 50
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    signer2.address, 
+                    depositValue - 50
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    signer3.address, 
+                    depositValue - 50
+                );
+        });
         it('should revert when an unknown depositor is invoked', async function () {
             await stakeAndBake.removeDepositor(await teller.getAddress());
             await expect(
