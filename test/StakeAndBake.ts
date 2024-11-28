@@ -15,7 +15,14 @@ import {
     Signer,
     init,
 } from './helpers';
-import { StakeAndBake, BoringVaultDepositor, LBTCMock, BoringVaultMock, AccountantMock, TellerMock } from '../typechain-types';
+import {
+    StakeAndBake,
+    BoringVaultDepositor,
+    LBTCMock,
+    BoringVaultMock,
+    AccountantMock,
+    TellerMock,
+} from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('StakeAndBake', function () {
@@ -32,22 +39,17 @@ describe('StakeAndBake', function () {
     let snapshotTimestamp: number;
 
     before(async function () {
-        [
-            deployer,
-            signer1,
-            signer2,
-            signer3,
-            treasury,
-        ] = await getSignersWithPrivateKeys();
+        [deployer, signer1, signer2, signer3, treasury] =
+            await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
         const result = await init(burnCommission, deployer.address);
         lbtc = result.lbtc;
 
-        stakeAndBake = await deployContract<StakeAndBake>(
-            'StakeAndBake',
-            [await lbtc.getAddress(), deployer.address],
-        );
+        stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
+            await lbtc.getAddress(),
+            deployer.address,
+        ]);
 
         teller = await deployContract<TellerWithMultiAssetSupportMock>(
             'TellerWithMultiAssetSupportMock',
@@ -55,11 +57,12 @@ describe('StakeAndBake', function () {
             false
         );
 
-        tellerWithMultiAssetSupportDepositor = await deployContract<TellerWithMultiAssetSupportDepositor>(
-            'TellerWithMultiAssetSupportDepositor',
-            [],
-            false
-        );
+        tellerWithMultiAssetSupportDepositor =
+            await deployContract<TellerWithMultiAssetSupportDepositor>(
+                'TellerWithMultiAssetSupportDepositor',
+                [],
+                false
+            );
 
         await lbtc.changeTreasuryAddress(treasury.address);
 
@@ -73,7 +76,10 @@ describe('StakeAndBake', function () {
         await lbtc.reinitialize();
 
         // Add BoringVaultDepositor as a depositor on the StakeAndBake contract
-        await stakeAndBake.addDepositor(await teller.getAddress(), await tellerWithMultiAssetSupportDepositor.getAddress());
+        await stakeAndBake.addDepositor(
+            await teller.getAddress(),
+            await tellerWithMultiAssetSupportDepositor.getAddress()
+        );
 
         snapshot = await takeSnapshot();
         snapshotTimestamp = (await ethers.provider.getBlock('latest'))!
@@ -134,57 +140,57 @@ describe('StakeAndBake', function () {
                 0
             );
 
-            permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositValue, deadline, v, r, s]);
+            permitPayload = encode(
+                ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+                [depositValue, deadline, v, r, s]
+            );
 
             // make a deposit payload for the boringvault
-            depositPayload = encode(['address', 'address', 'uint256'], [signer2.address, await lbtc.getAddress(), depositValue]);
+            depositPayload = encode(
+                ['address', 'address', 'uint256'],
+                [signer2.address, await lbtc.getAddress(), depositValue]
+            );
         });
 
         it('should stake and bake properly with the correct setup', async function () {
             await expect(
-                stakeAndBake.stakeAndBake(
-                    {
-                        vault: await teller.getAddress(),
-                        owner: signer2.address,
-                        permitPayload: permitPayload,
-                        depositPayload: depositPayload,
-                        mintPayload: data.payload,
-                        proof: data.proof,
-                        feePayload: approval,
-                        userSignature: userSignature
-                    }
-                )
+                stakeAndBake.stakeAndBake({
+                    vault: await teller.getAddress(),
+                    owner: signer2.address,
+                    permitPayload: permitPayload,
+                    depositPayload: depositPayload,
+                    mintPayload: data.payload,
+                    proof: data.proof,
+                    feePayload: approval,
+                    userSignature: userSignature,
+                })
             )
                 .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress, 
-                    signer2.address, 
-                    value - fee
-                )
+                .withArgs(ethers.ZeroAddress, signer2.address, value - fee)
                 .to.emit(lbtc, 'FeeCharged')
                 .withArgs(fee, userSignature)
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(
-                    signer2.address, 
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    signer2.address,
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
                     depositValue
                 )
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    await teller.getAddress(), 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    await teller.getAddress(),
                     depositValue
                 )
                 .to.emit(teller, 'Transfer')
                 .withArgs(
-                    ethers.ZeroAddress, 
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    ethers.ZeroAddress,
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
                     depositValue - 50
                 )
                 .to.emit(teller, 'Transfer')
                 .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    signer2.address, 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    signer2.address,
                     depositValue - 50
                 );
         });
@@ -224,93 +230,18 @@ describe('StakeAndBake', function () {
                 0
             );
 
-            const permitPayload2 = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositValue, deadline, v, r, s]);
+            const permitPayload2 = encode(
+                ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+                [depositValue, deadline, v, r, s]
+            );
 
             // make a deposit payload for the boringvault
-            const depositPayload2 = encode(['address', 'address', 'uint256'], [signer3.address, await lbtc.getAddress(), depositValue]);
+            const depositPayload2 = encode(
+                ['address', 'address', 'uint256'],
+                [signer3.address, await lbtc.getAddress(), depositValue]
+            );
             await expect(
-                stakeAndBake.batchStakeAndBake(
-                    [
-                        {
-                            vault: await teller.getAddress(),
-                            owner: signer2.address,
-                            permitPayload: permitPayload,
-                            depositPayload: depositPayload,
-                            mintPayload: data.payload,
-                            proof: data.proof,
-                            feePayload: approval,
-                            userSignature: userSignature
-                        },
-                        {
-                            vault: await teller.getAddress(),
-                            owner: signer3.address,
-                            permitPayload: permitPayload2,
-                            depositPayload: depositPayload2,
-                            mintPayload: data2.payload,
-                            proof: data2.proof,
-                            feePayload: approval,
-                            userSignature: userSignature2
-                        }
-                    ]
-                )
-            )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress, 
-                    signer2.address, 
-                    value - fee
-                )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress, 
-                    signer3.address, 
-                    value - fee
-                )
-                .to.emit(lbtc, 'FeeCharged')
-                .withArgs(fee, userSignature)
-                .to.emit(lbtc, 'FeeCharged')
-                .withArgs(fee, userSignature2)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    signer2.address, 
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    depositValue
-                )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    signer3.address, 
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    depositValue
-                )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    await teller.getAddress(), 
-                    depositValue
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress, 
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    signer2.address, 
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
-                    signer3.address, 
-                    depositValue - 50
-                );
-        });
-        it('should revert when an unknown depositor is invoked', async function () {
-            await stakeAndBake.removeDepositor(await teller.getAddress());
-            await expect(
-                stakeAndBake.stakeAndBake(
+                stakeAndBake.batchStakeAndBake([
                     {
                         vault: await teller.getAddress(),
                         owner: signer2.address,
@@ -319,9 +250,78 @@ describe('StakeAndBake', function () {
                         mintPayload: data.payload,
                         proof: data.proof,
                         feePayload: approval,
-                        userSignature: userSignature
-                    }
+                        userSignature: userSignature,
+                    },
+                    {
+                        vault: await teller.getAddress(),
+                        owner: signer3.address,
+                        permitPayload: permitPayload2,
+                        depositPayload: depositPayload2,
+                        mintPayload: data2.payload,
+                        proof: data2.proof,
+                        feePayload: approval,
+                        userSignature: userSignature2,
+                    },
+                ])
+            )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer2.address, value - fee)
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer3.address, value - fee)
+                .to.emit(lbtc, 'FeeCharged')
+                .withArgs(fee, userSignature)
+                .to.emit(lbtc, 'FeeCharged')
+                .withArgs(fee, userSignature2)
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    signer2.address,
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    depositValue
                 )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    signer3.address,
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    depositValue
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    await teller.getAddress(),
+                    depositValue
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    ethers.ZeroAddress,
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    depositValue - 50
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    signer2.address,
+                    depositValue - 50
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    signer3.address,
+                    depositValue - 50
+                );
+        });
+        it('should revert when an unknown depositor is invoked', async function () {
+            await stakeAndBake.removeDepositor(await teller.getAddress());
+            await expect(
+                stakeAndBake.stakeAndBake({
+                    vault: await teller.getAddress(),
+                    owner: signer2.address,
+                    permitPayload: permitPayload,
+                    depositPayload: depositPayload,
+                    mintPayload: data.payload,
+                    proof: data.proof,
+                    feePayload: approval,
+                    userSignature: userSignature,
+                })
             ).to.be.revertedWithCustomError(stakeAndBake, 'VaultNotFound');
         });
     });

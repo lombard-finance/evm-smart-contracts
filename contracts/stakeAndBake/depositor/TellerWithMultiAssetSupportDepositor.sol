@@ -11,7 +11,10 @@ import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSu
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuardUpgradeable {
+contract TellerWithMultiAssetSupportDepositor is
+    IDepositor,
+    ReentrancyGuardUpgradeable
+{
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
     error ApproveFailed();
@@ -31,16 +34,13 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuardUpgr
      * @param teller The address of the BoringVault's associated teller
      * @param depositPayload The ABI encoded parameters for the vault deposit function
      */
-    function deposit(address teller, bytes calldata depositPayload) external nonReentrant {
-        (
-            address owner,
-            address depositAsset,
-            uint256 depositAmount
-        ) = abi.decode(
-            depositPayload,
-            (address, address, uint256)
-        );
-        
+    function deposit(
+        address teller,
+        bytes calldata depositPayload
+    ) external nonReentrant {
+        (address owner, address depositAsset, uint256 depositAmount) = abi
+            .decode(depositPayload, (address, address, uint256));
+
         // Take the owner's LBTC.
         ERC20(depositAsset).transferFrom(owner, address(this), depositAmount);
 
@@ -49,7 +49,11 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuardUpgr
         ERC20(depositAsset).approve(vault, depositAmount);
 
         // Deposit and obtain vault shares.
-        uint256 shares = ITeller(teller).deposit(ERC20(depositAsset), depositAmount, 0);
+        uint256 shares = ITeller(teller).deposit(
+            ERC20(depositAsset),
+            depositAmount,
+            0
+        );
 
         // Transfer vault shares to owner.
         ERC20(vault).transfer(owner, shares);
@@ -60,7 +64,9 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuardUpgr
      */
     function destination(address teller) external returns (address) {
         bytes4 selector = bytes4(keccak256(bytes("vault()")));
-        (bool success, bytes memory result) = teller.call(abi.encodeWithSelector(selector));
+        (bool success, bytes memory result) = teller.call(
+            abi.encodeWithSelector(selector)
+        );
         require(success);
         return abi.decode(result, (address));
     }
@@ -72,5 +78,9 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuardUpgr
  * @notice This contract is part of the Lombard.Finance protocol
  */
 interface ITeller {
-    function deposit(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint) external returns (uint256);
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint
+    ) external returns (uint256);
 }

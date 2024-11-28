@@ -7,7 +7,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {IDepositor} from "./depositor/IDepositor.sol";
 
 /**
- * @title Convenience contract for users who wish to 
+ * @title Convenience contract for users who wish to
  * stake their BTC and deposit it in a vault in the same transaction.
  * @author Lombard.Finance
  * @notice This contract is a part of the Lombard.Finance protocol
@@ -73,7 +73,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(depositor);
     }
-    
+
     /**
      * @notice Remove a depositor from the internal mapping, removing `stakeAndBake`
      * functionality for it.
@@ -104,7 +104,12 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         }
 
         // First, mint the LBTC and send to owner.
-        _mintWithFee(data.mintPayload, data.proof, data.feePayload, data.userSignature);
+        _mintWithFee(
+            data.mintPayload,
+            data.proof,
+            data.feePayload,
+            data.userSignature
+        );
 
         // Next, we permit the depositor to transfer the minted value.
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
@@ -115,43 +120,42 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         depositor.deposit(data.vault, data.depositPayload);
     }
 
-    function _getStakeAndBakeStorage() private pure returns (StakeAndBakeStorage storage $) {
+    function _getStakeAndBakeStorage()
+        private
+        pure
+        returns (StakeAndBakeStorage storage $)
+    {
         assembly {
             $.slot := STAKE_AND_BAKE_STORAGE_LOCATION
         }
     }
-    
-    function _getDepositor(address vault) private view returns (IDepositor depositor) {
+
+    function _getDepositor(
+        address vault
+    ) private view returns (IDepositor depositor) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         return $.depositors[vault];
     }
 
-    function _performPermit(bytes calldata permitPayload, address owner, address depositor) private {
+    function _performPermit(
+        bytes calldata permitPayload,
+        address owner,
+        address depositor
+    ) private {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
-        (
-            uint256 value,
-            uint256 deadline,
-            uint8 v,
-            bytes32 r,
-            bytes32 s
-        ) = abi.decode(
-            permitPayload,
-            (uint256, uint256, uint8, bytes32, bytes32)
-        );
+        (uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) = abi
+            .decode(permitPayload, (uint256, uint256, uint8, bytes32, bytes32));
 
-        $.lbtc.permit(
-            owner,
-            depositor,
-            value,
-            deadline,
-            v,
-            r,
-            s
-        );
+        $.lbtc.permit(owner, depositor, value, deadline, v, r, s);
     }
 
-    function _mintWithFee(bytes calldata mintPayload, bytes calldata proof, bytes calldata feePayload, bytes calldata userSignature) private {
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) private {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.lbtc.mintWithFee(mintPayload, proof, feePayload, userSignature);
     }

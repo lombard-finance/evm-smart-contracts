@@ -19,7 +19,11 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
         return 8;
     }
 
-    function deposit(ERC20 depositAsset, uint256 depositAmount, uint256 minimumMint) external returns (uint256) {
+    function deposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint
+    ) external returns (uint256) {
         // Transfer assets in
         depositAsset.transferFrom(_msgSender(), address(this), depositAmount);
 
