@@ -23,10 +23,7 @@ describe('StakeAndBake', function () {
         signer1: Signer,
         signer2: Signer,
         signer3: Signer,
-        treasury: Signer,
-        reporter: Signer,
-        admin: Signer,
-        pauser: Signer;
+        treasury: Signer;
     let stakeAndBake: StakeAndBake;
     let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
     let teller: TellerWithMultiAssetSupportMock;
@@ -41,9 +38,6 @@ describe('StakeAndBake', function () {
             signer2,
             signer3,
             treasury,
-            admin,
-            pauser,
-            reporter,
         ] = await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
@@ -91,52 +85,60 @@ describe('StakeAndBake', function () {
         await snapshot.restore();
     });
 
-    describe('Stake and Bake', async function () {
+    describe('Stake and Bake', function () {
+        let data;
+        let permitPayload;
+        let depositPayload;
+        let approval;
+        let userSignature;
         const value = 10001;
         const fee = 1;
-        const data = await signDepositBtcPayload(
-            [signer1],
-            [true],
-            CHAIN_ID,
-            signer2.address,
-            value,
-            encode(['uint256'], [0]) // txid
-        );
-        const userSignature = await getFeeTypedMessage(
-            signer2,
-            await lbtc.getAddress(),
-            fee,
-            snapshotTimestamp + 100
-        );
-
-        // set max fee
-        await lbtc.setMintFee(fee);
-
-        const approval = getPayloadForAction(
-            [fee, snapshotTimestamp + 100],
-            'feeApproval'
-        );
-
-        // create permit payload
-        const block = await ethers.provider.getBlock('latest');
-        const timestamp = block!.timestamp;
-        const deadline = timestamp + 100;
-        const chainId = (await ethers.provider.getNetwork()).chainId;
         const depositValue = 5000;
-        const { v, r, s } = await generatePermitSignature(
-            lbtc,
-            signer2,
-            await tellerWithMultiAssetSupportDepositor.getAddress(),
-            depositValue,
-            deadline,
-            chainId,
-            0
-        );
 
-        const permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositValue, deadline, v, r, s]);
+        before(async function () {
+            data = await signDepositBtcPayload(
+                [signer1],
+                [true],
+                CHAIN_ID,
+                signer2.address,
+                value,
+                encode(['uint256'], [0]) // txid
+            );
+            userSignature = await getFeeTypedMessage(
+                signer2,
+                await lbtc.getAddress(),
+                fee,
+                snapshotTimestamp + 100
+            );
 
-        // make a deposit payload for the boringvault
-        const depositPayload = encode(['address', 'address', 'uint256'], [signer2.address, await lbtc.getAddress(), depositValue]);
+            // set max fee
+            await lbtc.setMintFee(fee);
+
+            approval = getPayloadForAction(
+                [fee, snapshotTimestamp + 100],
+                'feeApproval'
+            );
+
+            // create permit payload
+            const block = await ethers.provider.getBlock('latest');
+            const timestamp = block!.timestamp;
+            const deadline = timestamp + 100;
+            const chainId = (await ethers.provider.getNetwork()).chainId;
+            const { v, r, s } = await generatePermitSignature(
+                lbtc,
+                signer2,
+                await tellerWithMultiAssetSupportDepositor.getAddress(),
+                depositValue,
+                deadline,
+                chainId,
+                0
+            );
+
+            permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositValue, deadline, v, r, s]);
+
+            // make a deposit payload for the boringvault
+            depositPayload = encode(['address', 'address', 'uint256'], [signer2.address, await lbtc.getAddress(), depositValue]);
+        });
 
         it('should stake and bake properly with the correct setup', async function () {
             await expect(
@@ -187,6 +189,7 @@ describe('StakeAndBake', function () {
                 );
         });
         it('should revert when an unknown depositor is invoked', async function () {
+            await stakeAndBake.removeDepositor(await teller.getAddress());
             await expect(
                 stakeAndBake.stakeAndBake(
                     {
