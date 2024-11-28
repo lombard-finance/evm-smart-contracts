@@ -18,6 +18,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev error thrown when stake and bake is attempted with an unknown vault address
     error VaultNotFound();
 
+    event DepositorAdded(address indexed vault, address indexed depositor);
+    event DepositorRemoved(address indexed vault);
+
     struct StakeAndBakeData {
         /// @notice vault Address of the vault we will deposit the minted LBTC to
         address vault;
@@ -72,6 +75,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     function addDepositor(address vault, address depositor) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(depositor);
+        emit DepositorAdded(vault, depositor);
     }
 
     /**
@@ -82,14 +86,18 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     function removeDepositor(address vault) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(address(0));
+        emit DepositorRemoved(vault);
     }
 
     /**
      * @notice Mint LBTC and stake directly into a given vault in batches.
      */
     function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
-        for (uint256 i; i < data.length; ++i) {
+        for (uint256 i; i < data.length; ) {
             stakeAndBake(data[i]);
+            unchecked {
+                i++;
+            }
         }
     }
 

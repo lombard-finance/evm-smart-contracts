@@ -76,10 +76,17 @@ describe('StakeAndBake', function () {
         await lbtc.reinitialize();
 
         // Add BoringVaultDepositor as a depositor on the StakeAndBake contract
-        await stakeAndBake.addDepositor(
-            await teller.getAddress(),
-            await tellerWithMultiAssetSupportDepositor.getAddress()
-        );
+        await expect(
+            stakeAndBake.addDepositor(
+                await teller.getAddress(),
+                await tellerWithMultiAssetSupportDepositor.getAddress()
+            )
+        )
+            .to.emit(stakeAndBake, 'DepositorAdded')
+            .withArgs(
+                await teller.getAddress(),
+                await tellerWithMultiAssetSupportDepositor.getAddress()
+            );
 
         snapshot = await takeSnapshot();
         snapshotTimestamp = (await ethers.provider.getBlock('latest'))!
@@ -310,7 +317,12 @@ describe('StakeAndBake', function () {
                 );
         });
         it('should revert when an unknown depositor is invoked', async function () {
-            await stakeAndBake.removeDepositor(await teller.getAddress());
+            await expect(
+                stakeAndBake.removeDepositor(await teller.getAddress())
+            )
+                .to.emit(stakeAndBake, 'DepositorRemoved')
+                .withArgs(await teller.getAddress());
+
             await expect(
                 stakeAndBake.stakeAndBake({
                     vault: await teller.getAddress(),
