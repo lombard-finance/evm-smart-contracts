@@ -21,6 +21,8 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     struct StakeAndBakeData {
         /// @notice vault Address of the vault we will deposit the minted LBTC to
         address vault;
+        /// @notice owner Address of the user staking and baking
+        address owner;
         /// @notice permitPayload Contents of permit approval signed by the user
         bytes permitPayload;
         /// @notice depositPayload Contains the parameters needed to complete a deposit
@@ -104,8 +106,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         // First, mint the LBTC and send to owner.
         _mintWithFee(data.mintPayload, data.proof, data.feePayload, data.userSignature);
 
-        // Next, we permit the vault to transfer the minted value.
-        _performPermit(data.permitPayload, data.vault);
+        // Next, we permit the depositor to transfer the minted value.
+        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
+        // The depositor should then send the staked vault shares back to the `owner`.
+        _performPermit(data.permitPayload, data.owner, address(depositor));
 
         // Finally, deposit LBTC to the given `vault`.
         depositor.deposit(data.vault, data.depositPayload);
@@ -122,7 +126,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         return $.depositors[vault];
     }
 
-    function _performPermit(bytes calldata permitPayload, address vault) private {
+    function _performPermit(bytes calldata permitPayload, address owner, address depositor) private {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         (
@@ -137,8 +141,8 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         );
 
         $.lbtc.permit(
-            _msgSender(),
-            vault,
+            owner,
+            depositor,
             value,
             deadline,
             v,

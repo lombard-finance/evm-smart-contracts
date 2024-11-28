@@ -28,14 +28,11 @@ describe('StakeAndBake', function () {
         admin: Signer,
         pauser: Signer;
     let stakeAndBake: StakeAndBake;
-    let boringVaultDepositor: BoringVaultDepositor;
-    let boringVault: BoringVaultMock;
-    let accountant: AccountantMock;
-    let teller: TellerMock;
+    let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
+    let teller: TellerWithMultiAssetSupportMock;
     let lbtc: LBTCMock;
     let snapshot: SnapshotRestorer;
     let snapshotTimestamp: number;
-    const sharePremium = 46;
 
     before(async function () {
         [
@@ -58,29 +55,14 @@ describe('StakeAndBake', function () {
             [await lbtc.getAddress(), deployer.address],
         );
 
-        boringVault = await deployContract<BoringVaultMock>(
-            'BoringVaultMock',
+        teller = await deployContract<TellerWithMultiAssetSupportMock>(
+            'TellerWithMultiAssetSupportMock',
             [],
             false
         );
 
-        accountant = await deployContract<AccountantMock>(
-            'AccountantMock',
-            [],
-            false
-        );
-
-        teller = await deployContract<TellerMock>(
-            'TellerMock',
-            [
-                await boringVault.getAddress(),
-                await accountant.getAddress(),
-            ],
-            false
-        );
-
-        boringVaultDepositor = await deployContract<BoringVaultDepositor>(
-            'BoringVaultDepositor',
+        tellerWithMultiAssetSupportDepositor = await deployContract<TellerWithMultiAssetSupportDepositor>(
+            'TellerWithMultiAssetSupportDepositor',
             [],
             false
         );
@@ -90,17 +72,14 @@ describe('StakeAndBake', function () {
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);
 
-        // set deployer as claimer for lbtc
-        await lbtc.addClaimer(deployer.address);
+        // set stake and bake as claimer for lbtc
+        await lbtc.addClaimer(await stakeAndBake.getAddress());
 
         // Initialize the permit module
         await lbtc.reinitialize();
 
-        // Add LBTC as an asset to the teller
-        await teller.addAsset(await lbtc.getAddress(), sharePremium);
-
         // Add BoringVaultDepositor as a depositor on the StakeAndBake contract
-        await stakeAndBake.addDepositor(await teller.getAddress(), await boringVaultDepositor.getAddress());
+        await stakeAndBake.addDepositor(await teller.getAddress(), await tellerWithMultiAssetSupportDepositor.getAddress());
 
         snapshot = await takeSnapshot();
         snapshotTimestamp = (await ethers.provider.getBlock('latest'))!
@@ -115,23 +94,24 @@ describe('StakeAndBake', function () {
     describe('Stake and Bake', function () {
         it('should stake and bake properly with the correct setup', async function () {
             const value = 10001;
+            const fee = 1;
             const data = await signDepositBtcPayload(
                 [signer1],
                 [true],
                 CHAIN_ID,
-                args.recipient().address,
-                args.amount,
-                encode(['uint256'], [i * 2 + j]) // txid
+                signer2.address,
+                value,
+                encode(['uint256'], [0]) // txid
             );
             const userSignature = await getFeeTypedMessage(
-                args.recipient(),
+                signer2,
                 await lbtc.getAddress(),
                 fee,
                 snapshotTimestamp + 100
             );
 
             // set max fee
-            await lbtc.setMintFee(max);
+            await lbtc.setMintFee(fee);
 
             const approval = getPayloadForAction(
                 [fee, snapshotTimestamp + 100],
@@ -139,50 +119,59 @@ describe('StakeAndBake', function () {
             );
 
             // create permit payload
+            const block = await ethers.provider.getBlock('latest');
+            const timestamp = block!.timestamp;
             const deadline = timestamp + 100;
+            const chainId = (await ethers.provider.getNetwork()).chainId;
+            const depositValue = 5000;
             const { v, r, s } = await generatePermitSignature(
                 lbtc,
-                signer1,
-                await boringVault.getAddress(),
-                value,
+                signer2,
+                await tellerWithMultiAssetSupportDepositor.getAddress(),
+                depositValue,
                 deadline,
                 chainId,
                 0
             );
 
-            const permitPayload = encode([value], [deadline], [v], [r], [s]);
+            const permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositValue, deadline, v, r, s]);
 
             // make a deposit payload for the boringvault
-            const depositPayload = encode([await lbtc.getAddress()], [value]);
+            const depositPayload = encode(['address', 'address', 'uint256'], [signer2.address, await lbtc.getAddress(), depositValue]);
 
             await expect(
-                stakeAndBake.StakeAndBake(
-                    await teller.getAddress(),
-                    permitPayload,
-                    depositPayload,
-                    data.payload,
-                    data.proof,
-                    approval,
-                    userSignature
+                stakeAndBake.stakeAndBake(
+                    {
+                        vault: await teller.getAddress(),
+                        owner: signer2.address,
+                        permitPayload: permitPayload,
+                        depositPayload: depositPayload,
+                        mintPayload: data.payload,
+                        proof: data.proof,
+                        feePayload: approval,
+                        userSignature: userSignature
+                    }
                 )
             )
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress, 
-                    signer1.address, 
-                    value
+                    signer2.address, 
+                    value - fee
                 )
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(
-                    signer1.address, 
-                    await boringVault.getAddress(), 
-                    value
+                    signer2.address, 
+                    await teller.getAddress(), 
+                    depositValue
                 )
-                .to.emit(boringVault, 'Transfer')
+                .to.emit(lbtc, 'FeeCharged')
+                .withArgs(fee, userSignature)
+                .to.emit(teller, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress, 
-                    signer1.address, 
-                    value - sharePremium
+                    signer2.address, 
+                    depositValue - 50
                 );
         });
     });
