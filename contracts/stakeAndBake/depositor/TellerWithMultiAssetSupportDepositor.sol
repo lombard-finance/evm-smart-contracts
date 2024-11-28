@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDepositor} from "./IDepositor.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSupportMock.sol";
 
 /**
@@ -10,17 +11,27 @@ import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSu
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract TellerWithMultiAssetSupportDepositor is IDepositor {
+contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuardUpgradeable {
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
     error ApproveFailed();
+
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() external initializer {
+        __ReentrancyGuard_init();
+    }
 
     /**
      * @notice Deposit function.
      * @param teller The address of the BoringVault's associated teller
      * @param depositPayload The ABI encoded parameters for the vault deposit function
      */
-    function deposit(address teller, bytes calldata depositPayload) external {
+    function deposit(address teller, bytes calldata depositPayload) external nonReentrant {
         (
             address owner,
             address depositAsset,
