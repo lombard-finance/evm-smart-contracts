@@ -38,10 +38,6 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor {
         ERC20(depositAsset).approve(vault, depositAmount);
 
         // Deposit and obtain vault shares.
-        //bytes4 selector = bytes4(keccak256(bytes("deposit(address, uint256, uint256)")));
-        //(bool success, bytes memory result) = teller.call(abi.encodeWithSelector(selector, depositAsset, depositAmount, 0));
-        //require(success);
-        //uint256 shares = abi.decode(result, (uint256));
         uint256 shares = ITeller(teller).deposit(ERC20(depositAsset), depositAmount, 0);
 
         // Transfer vault shares to owner.

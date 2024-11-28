@@ -159,17 +159,29 @@ describe('StakeAndBake', function () {
                     signer2.address, 
                     value - fee
                 )
+                .to.emit(lbtc, 'FeeCharged')
+                .withArgs(fee, userSignature)
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(
                     signer2.address, 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    depositValue
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
                     await teller.getAddress(), 
                     depositValue
                 )
-                .to.emit(lbtc, 'FeeCharged')
-                .withArgs(fee, userSignature)
                 .to.emit(teller, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress, 
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
+                    depositValue - 50
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(), 
                     signer2.address, 
                     depositValue - 50
                 );
