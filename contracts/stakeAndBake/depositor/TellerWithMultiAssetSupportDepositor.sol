@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDepositor} from "./IDepositor.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -17,6 +18,8 @@ contract TellerWithMultiAssetSupportDepositor is
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    using SafeERC20 for ERC20;
+
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
     error ApproveFailed();
@@ -37,17 +40,19 @@ contract TellerWithMultiAssetSupportDepositor is
     /**
      * @notice Deposit function.
      * @param teller The address of the BoringVault's associated teller
+     * @param owner The address of the user who will receive the shares
      * @param depositPayload The ABI encoded parameters for the vault deposit function
      */
     function deposit(
         address teller,
+        address owner,
         bytes calldata depositPayload
     ) external nonReentrant {
-        (address owner, address depositAsset, uint256 depositAmount) = abi
-            .decode(depositPayload, (address, address, uint256));
+        (address depositAsset, uint256 depositAmount) = abi
+            .decode(depositPayload, (address, uint256));
 
         // Take the owner's LBTC.
-        ERC20(depositAsset).transferFrom(owner, address(this), depositAmount);
+        ERC20(depositAsset).safeTransferFrom(owner, address(this), depositAmount);
 
         // Give the vault the needed allowance.
         address vault = this.destination(teller);
@@ -61,7 +66,7 @@ contract TellerWithMultiAssetSupportDepositor is
         );
 
         // Transfer vault shares to owner.
-        ERC20(vault).transfer(owner, shares);
+        ERC20(vault).safeTransfer(owner, shares);
     }
 
     /**

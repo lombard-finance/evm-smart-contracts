@@ -125,7 +125,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         _performPermit(data.permitPayload, data.owner, address(depositor));
 
         // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(data.vault, data.depositPayload);
+        depositor.deposit(data.vault, data.owner, data.depositPayload);
     }
 
     function _getStakeAndBakeStorage()

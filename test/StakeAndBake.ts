@@ -153,8 +153,8 @@ describe('StakeAndBake', function () {
 
             // make a deposit payload for the boringvault
             depositPayload = encode(
-                ['address', 'address', 'uint256'],
-                [signer2.address, await lbtc.getAddress(), depositValue]
+                ['address', 'uint256'],
+                [await lbtc.getAddress(), depositValue]
             );
         });
 
@@ -243,8 +243,8 @@ describe('StakeAndBake', function () {
 
             // make a deposit payload for the boringvault
             const depositPayload2 = encode(
-                ['address', 'address', 'uint256'],
-                [signer3.address, await lbtc.getAddress(), depositValue]
+                ['address', 'uint256'],
+                [await lbtc.getAddress(), depositValue]
             );
             await expect(
                 stakeAndBake.batchStakeAndBake([

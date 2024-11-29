@@ -13,9 +13,10 @@ interface IDepositor {
     /**
      * @notice Deposit function interface.
      * @param vault The address of the vault we deposit to
+     * @param owner The address of the user who will receive the shares
      * @param depositPayload The ABI encoded parameters for the vault deposit function
      */
-    function deposit(address vault, bytes calldata depositPayload) external;
+    function deposit(address vault, address owner, bytes calldata depositPayload) external;
 
     /**
      * @notice Retrieves the final vault address. Used for granting `permit` to the right address.
