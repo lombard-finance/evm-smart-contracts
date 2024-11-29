@@ -18,12 +18,10 @@ task(
 
         const { ledgerNetwork, proxyFactoryAddr, admin } = taskArgs;
 
-        await create3(
-            'TellerWithMultiAssetSupportDepositor',
-            [admin],
-            proxyFactoryAddr,
-            ledgerNetwork,
-            admin,
-            hre
-        );
+        const args = [
+            admin
+        ];
+
+        const adapter = await hre.ethers.deployContract('TellerWithMultiAssetSupportDepositor', args);
+        await adapter.waitForDeployment();
     });
