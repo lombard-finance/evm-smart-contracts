@@ -60,7 +60,7 @@ describe('StakeAndBake', function () {
         tellerWithMultiAssetSupportDepositor =
             await deployContract<TellerWithMultiAssetSupportDepositor>(
                 'TellerWithMultiAssetSupportDepositor',
-                [deployer.address],
+                [],
                 false
             );
 

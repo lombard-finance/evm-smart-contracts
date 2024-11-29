@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDepositor} from "./IDepositor.sol";
-import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSupportMock.sol";
 
@@ -13,18 +12,12 @@ import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSu
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract TellerWithMultiAssetSupportDepositor is
-    IDepositor,
-    Ownable2Step,
-    ReentrancyGuard
-{
+contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     using SafeERC20 for ERC20;
 
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
     error ApproveFailed();
-
-    constructor(address initialOwner) Ownable(initialOwner) {}
 
     /**
      * @notice Deposit function.
