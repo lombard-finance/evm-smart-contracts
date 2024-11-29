@@ -60,7 +60,8 @@ describe('StakeAndBake', function () {
         tellerWithMultiAssetSupportDepositor =
             await deployContract<TellerWithMultiAssetSupportDepositor>(
                 'TellerWithMultiAssetSupportDepositor',
-                [deployer.address]
+                [deployer.address],
+                false
             );
 
         await lbtc.changeTreasuryAddress(treasury.address);

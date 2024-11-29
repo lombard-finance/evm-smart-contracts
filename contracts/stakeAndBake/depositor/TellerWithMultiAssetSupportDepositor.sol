@@ -4,8 +4,8 @@ pragma solidity 0.8.24;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDepositor} from "./IDepositor.sol";
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSupportMock.sol";
 
 /**
@@ -15,8 +15,8 @@ import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSu
  */
 contract TellerWithMultiAssetSupportDepositor is
     IDepositor,
-    Ownable2StepUpgradeable,
-    ReentrancyGuardUpgradeable
+    Ownable2Step,
+    ReentrancyGuard
 {
     using SafeERC20 for ERC20;
 
@@ -24,18 +24,7 @@ contract TellerWithMultiAssetSupportDepositor is
     error ZeroAssets();
     error ApproveFailed();
 
-    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    function initialize(address owner_) external initializer {
-        __Ownable_init(owner_);
-        __Ownable2Step_init();
-
-        __ReentrancyGuard_init();
-    }
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     /**
      * @notice Deposit function.
