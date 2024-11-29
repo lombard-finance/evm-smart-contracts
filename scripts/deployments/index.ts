@@ -10,3 +10,4 @@ export * from './oft';
 export * from './stake-and-bake';
 export * from './teller-mock';
 export * from './teller-depositor';
+export * from './partner-vault';
