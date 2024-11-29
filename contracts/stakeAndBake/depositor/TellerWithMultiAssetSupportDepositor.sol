@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IDepositor} from "./IDepositor.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSupportMock.sol";
 
@@ -13,6 +14,7 @@ import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSu
  */
 contract TellerWithMultiAssetSupportDepositor is
     IDepositor,
+    Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable
 {
     /// @dev error thrown when the passed depositAmount is zero
@@ -25,7 +27,10 @@ contract TellerWithMultiAssetSupportDepositor is
         _disableInitializers();
     }
 
-    function initialize() external initializer {
+    function initialize(address owner_) external initializer {
+        __Ownable_init(owner_);
+        __Ownable2Step_init();
+
         __ReentrancyGuard_init();
     }
 

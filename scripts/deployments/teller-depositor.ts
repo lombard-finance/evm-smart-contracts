@@ -21,7 +21,7 @@ task('deploy-teller-depositor', 'Deploys the TellerWithMultiAssetSupportDeposito
 
         await create3(
             'TellerWithMultiAssetSupportDepositor',
-            [],
+            [admin],
             proxyFactoryAddr,
             ledgerNetwork,
             admin,
