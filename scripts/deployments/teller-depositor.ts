@@ -7,7 +7,6 @@ task(
     'Deploys the TellerWithMultiAssetSupportDepositor contract'
 )
     .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
-    .addParam('admin', 'The owner of the proxy')
     .addParam(
         'proxyFactoryAddr',
         'The ProxyFactory address',
@@ -16,9 +15,9 @@ task(
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
-        const { ledgerNetwork, proxyFactoryAddr, admin } = taskArgs;
+        const { ledgerNetwork, proxyFactoryAddr } = taskArgs;
 
-        const args = [admin];
+        const args = [];
 
         const adapter = await hre.ethers.deployContract(
             'TellerWithMultiAssetSupportDepositor',
