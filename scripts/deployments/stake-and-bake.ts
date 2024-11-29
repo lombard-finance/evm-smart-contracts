@@ -19,12 +19,7 @@ task('deploy-stake-and-bake', 'Deploys the StakeAndBake contract')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
-        const {
-            ledgerNetwork,
-            lbtc,
-            admin,
-            proxyFactoryAddr,
-        } = taskArgs;
+        const { ledgerNetwork, lbtc, admin, proxyFactoryAddr } = taskArgs;
 
         await create3(
             'StakeAndBake',

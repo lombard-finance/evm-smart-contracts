@@ -5,7 +5,9 @@ task('deploy-teller-mock', 'Deploys the Teller Mock contract').setAction(
     async (taskArgs, hre) => {
         const { ethers, run } = hre;
 
-        const deployment = await ethers.deployContract('TellerWithMultiAssetSupportMock');
+        const deployment = await ethers.deployContract(
+            'TellerWithMultiAssetSupportMock'
+        );
         await deployment.waitForDeployment();
 
         console.log(`Deployment address is ${await deployment.getAddress()}`);
