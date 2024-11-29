@@ -7,3 +7,4 @@ export * from './chainlink-adapter';
 export * from './PoR';
 export * from './upgrade';
 export * from './oft';
+export * from './partner-vault';
