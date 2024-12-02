@@ -126,7 +126,7 @@ contract PartnerVault is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
     function _takeLBTC(uint256 amount) internal {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        $.lbtc.transferFrom(msg.sender, address(this), amount);
+        $.lbtc.burn(msg.sender, amount);
     }
 
     function _approveToLockedFBTC(uint256 amount) internal {
@@ -177,8 +177,7 @@ contract PartnerVault is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
     function _sendLBTC(uint256 amount) internal {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        // XXX: do we mint from lbtc or do we keep this in the vault?
-        $.lbtc.transfer(msg.sender, amount);
+        $.lbtc.mint(msg.sender, amount);
     }
 
     function _getPartnerVaultStorage()
