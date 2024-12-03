@@ -303,7 +303,7 @@ const config: HardhatUserConfig = {
             ],
             timeout: 90_000,
             gas: 8_000_000,
-            gasPrice: 0.0005,
+            gasPrice: 500000,
         },
     },
     etherscan: {
