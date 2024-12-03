@@ -413,6 +413,7 @@ const config: HardhatUserConfig = {
             mantle: vars.get('MANTLE_API_KEY', ''),
             base: vars.get('BASE_API_KEY', ''),
             arbitrum: vars.get('ARBITRUM_API_KEY', ''),
+            cornMaizenet: 'no',
         },
     },
     sourcify: {
