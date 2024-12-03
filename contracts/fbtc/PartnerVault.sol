@@ -12,10 +12,10 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
  */
-contract PartnerVault is 
-    PausableUpgradeable, 
-    ReentrancyGuardUpgradeable, 
-    AccessControlUpgradeable 
+contract PartnerVault is
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    AccessControlUpgradeable
 {
     enum Operation {
         Nop, // starts from 1.
@@ -55,7 +55,7 @@ contract PartnerVault is
         mapping(address => uint256) minted;
         mapping(address => uint256) pendingWithdrawals;
     }
-    
+
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
@@ -97,7 +97,9 @@ contract PartnerVault is
      * deployment of the partner vault.
      * @param lockedFbtc_ The address at which the `lockedFbtc` contract lives
      */
-    function setLockedFbtc(address lockedFbtc_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setLockedFbtc(
+        address lockedFbtc_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         $.lockedFbtc = lockedFbtc_;
     }
@@ -161,10 +163,16 @@ contract PartnerVault is
 
         // We only make a call to set the redeeming up first. We can only start moving tokens later
         // when all correct steps have been taken.
-        _makeRedeemFbtcRequest(amount, depositTxId, outputIndex);
+        (bytes32 hash, Request memory request) = _makeRedeemFbtcRequest(
+            amount,
+            depositTxId,
+            outputIndex
+        );
 
-        // Ensure that this caller can redeem for `amount` later when all bookkeeping off-chain is done.
+        // Ensure that this caller can redeem for `amount` later when
+        // all bookkeeping off-chain is done.
         $.pendingWithdrawals[msg.sender] = amount;
+        return (hash, request);
     }
 
     /**
@@ -195,7 +203,7 @@ contract PartnerVault is
         _unpause();
     }
 
-    function stakeLimit() external returns (uint256) {
+    function stakeLimit() external view returns (uint256) {
         return _getPartnerVaultStorage().stakeLimit;
     }
 
