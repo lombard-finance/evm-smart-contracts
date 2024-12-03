@@ -50,6 +50,10 @@ task('setup-endpoint-config', 'Configure LayerZero endpoint')
         'The executor implementation to pay fees to for calling the lzReceive function on the destination chain',
         '0x0000000000000000000000000000000000000000'
     )
+    .addFlag(
+        'populate',
+        'Populate raw transaction to broadcast it from another account'
+    )
     .setAction(async (taskArgs, { ethers }, network) => {
         const {
             lzEndpoint,
@@ -57,6 +61,7 @@ task('setup-endpoint-config', 'Configure LayerZero endpoint')
             oappAddress,
             ulnLibAddress,
             ulnReceive,
+            populate,
         } = taskArgs;
 
         const endpointContract = await ethers.getContractAt(
@@ -109,17 +114,27 @@ task('setup-endpoint-config', 'Configure LayerZero endpoint')
             config: encodedExecutorConfig,
         };
 
-        // Send the transaction
-        const tx = await endpointContract.setConfig(
-            oappAddress,
-            ulnLibAddress,
-            ulnReceive
-                ? [setConfigParamUln]
-                : [setConfigParamUln, setConfigParamExecutor]
-        );
-
-        console.log('Transaction sent:', tx.hash);
-        await tx.wait();
+        if (populate) {
+            const tx = await endpointContract.setConfig.populateTransaction(
+                oappAddress,
+                ulnLibAddress,
+                ulnReceive
+                    ? [setConfigParamUln]
+                    : [setConfigParamUln, setConfigParamExecutor]
+            );
+            console.log('Raw transaction:\n', JSON.stringify(tx, null, 2));
+        } else {
+            // Send the transaction
+            const tx = await endpointContract.setConfig(
+                oappAddress,
+                ulnLibAddress,
+                ulnReceive
+                    ? [setConfigParamUln]
+                    : [setConfigParamUln, setConfigParamExecutor]
+            );
+            console.log('Transaction sent:', tx.hash);
+            await tx.wait();
+        }
     });
 
 task(
@@ -132,9 +147,20 @@ task(
     .addParam('oappAddress', 'The address of OFTAdapter')
     .addFlag('inbound', '')
     .addFlag('outbound', '')
+    .addFlag(
+        'populate',
+        'Populate raw transaction to broadcast it from another account'
+    )
     .setAction(async (taskArgs, { ethers }, network) => {
-        const { oappAddress, inbound, outbound, eids, limit, window } =
-            taskArgs;
+        const {
+            oappAddress,
+            inbound,
+            outbound,
+            eids,
+            limit,
+            window,
+            populate,
+        } = taskArgs;
 
         let direction = -1n;
         if (!!inbound && !outbound) {
@@ -145,7 +171,7 @@ task(
             throw Error('should be selected only one direction');
         }
 
-        const endpointContract = await ethers.getContractAt(
+        const oftAdapter = await ethers.getContractAt(
             'EfficientRateLimitedOFTAdapter',
             oappAddress
         );
@@ -155,11 +181,19 @@ task(
             return { eid: e, limit, window };
         });
 
-        // Send the transaction
-        const tx = await endpointContract.setRateLimits(limits, direction);
+        if (populate) {
+            const tx = await oftAdapter.setRateLimits.populateTransaction(
+                limits,
+                direction
+            );
+            console.log('Raw transaction:\n', JSON.stringify(tx, null, 2));
+        } else {
+            // Send the transaction
+            const tx = await oftAdapter.setRateLimits(limits, direction);
 
-        console.log('Transaction sent:', tx.hash);
-        await tx.wait();
+            console.log('Transaction sent:', tx.hash);
+            await tx.wait();
+        }
     });
 
 task('debug-quote-send', 'Call quote send')
