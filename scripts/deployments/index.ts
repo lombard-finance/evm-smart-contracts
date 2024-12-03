@@ -8,3 +8,6 @@ export * from './PoR';
 export * from './upgrade';
 export * from './oft';
 export * from './partner-vault';
+export * from './stake-and-bake';
+export * from './teller-mock';
+export * from './teller-depositor';

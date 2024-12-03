@@ -469,13 +469,13 @@ contract Bridge is
         // prepare bridge deposit payload
         bytes memory payload = abi.encodeWithSelector(
             Actions.DEPOSIT_BRIDGE_ACTION,
-            block.chainid,
-            address(this),
+            bytes32(block.chainid),
+            bytes32(uint256(uint160(address(this)))),
             toChain,
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            bytes32($.crossChainOperationsNonce++)
+            $.crossChainOperationsNonce++
         );
 
         if (address(config.adapter) != address(0)) {
