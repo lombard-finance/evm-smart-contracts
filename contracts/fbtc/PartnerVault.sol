@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {ILBTC} from "../LBTC/ILBTC.sol";
 import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -42,7 +43,7 @@ contract PartnerVault is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @custom:storage-location erc7201:lombardfinance.storage.PartnerVault
     struct PartnerVaultStorage {
         IERC20 fbtc;
-        IERC20 lbtc;
+        ILBTC lbtc;
         address lockedFbtc;
     }
 
@@ -68,7 +69,7 @@ contract PartnerVault is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         $.fbtc = IERC20(fbtc);
-        $.lbtc = IERC20(lbtc);
+        $.lbtc = ILBTC(lbtc);
     }
 
     /**
