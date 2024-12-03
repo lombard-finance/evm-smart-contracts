@@ -386,7 +386,7 @@ const config: HardhatUserConfig = {
                 network: 'cornMaizenet',
                 chainId: 21000000,
                 urls: {
-                    apiURL: 'https://api.routescan.io/v2/network/testnet/evm/21000000/etherscan',
+                    apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan',
                     browserURL: 'https://cornscan.io/',
                 },
             },
