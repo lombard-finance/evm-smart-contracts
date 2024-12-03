@@ -2,7 +2,7 @@ import { task } from 'hardhat/config';
 import { verify } from '../helpers';
 
 task('deploy-oft-adapter', 'Deploys the LayerZero OFT adapter contract')
-    .addParam('admin', 'The address of the owner')
+    .addParam('admin', 'The address of the owner', 'self')
     .addParam('lzEndpoint', 'The LayerZero endpoint')
     .addParam('lbtc', 'The LBTC address')
     .addFlag('burnMint')
