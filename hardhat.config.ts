@@ -288,6 +288,22 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        cornMaizenet: {
+            loggingEnabled: true,
+            url: vars.get(
+                'CORN_MAIZENET_RPC',
+                'https://rpc.ankr.com/corn_maizenet'
+            ),
+            chainId: 21000000,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
     },
     etherscan: {
         customChains: [
@@ -337,7 +353,7 @@ const config: HardhatUserConfig = {
                 chainId: 80084,
                 urls: {
                     apiURL: 'https://api.routescan.io/v2/network/testnet/evm/80084/etherscan',
-                    browserURL: 'https://lineascan.build/',
+                    browserURL: 'https://bartio.beratrail.io/',
                 },
             },
             // mainnets
@@ -363,6 +379,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: 'https://api.scrollscan.com/api',
                     browserURL: 'https://scrollscan.com/address',
+                },
+            },
+            {
+                network: 'cornMaizenet',
+                chainId: 21000000,
+                urls: {
+                    apiURL: 'https://api.routescan.io/v2/network/testnet/evm/21000000/etherscan',
+                    browserURL: 'https://cornscan.io/',
                 },
             },
         ],

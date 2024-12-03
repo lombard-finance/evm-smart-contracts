@@ -224,7 +224,7 @@ task('debug-quote-send', 'Call quote send')
 
         const obj = await adapter.quoteSend(
             {
-                dstEid: 40291,
+                dstEid: 40161,
                 to: ethers.AbiCoder.defaultAbiCoder().encode(
                     ['address'],
                     ['0x62F10cE5b727edf787ea45776bD050308A611508']
