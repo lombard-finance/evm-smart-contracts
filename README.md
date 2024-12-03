@@ -1,6 +1,7 @@
 # Lombard Finance EVM smart-contracts
 [Website](https://www.lombard.finance/) | [Docs](https://docs.lombard.finance/)
 
+
 ## Overview
 LBTC is liquid Bitcoin; it's yield-bearing, cross-chain, and 1:1 backed by BTC. LBTC enables yield-bearing BTC to move cross-chain without fragmenting liquidity, and is designed to seamlessly integrate Bitcoin into the decentralized finance (DeFi) ecosystem while maintaining the security and integrity of the underlying asset.
 
@@ -43,9 +44,48 @@ yarn hardhat compile
 ```bash
 yarn hardhat test
 ```
-#### Deploy
+
+### Deployment
+Compile contracts before deployment
 ```bash
-yarn hardhat deploy-consortium [params]
-yarn hardhat deploy-timelock [params]
-yarn hardhat deploy-lbtc [params]
+yarn hardhat compile
 ```
+#### Proxy factory
+Deploy proxy factory from zero nonce account
+```bash
+yarn hardhat deploy-proxy-factory --network '$NETWORK'
+```
+
+#### Core contracts
+Deploy consortium
+```bash
+yarn hardhat deploy-consortium --network '$NETWORK'
+```
+
+Deploy LBTC
+```bash
+yarn hardhat deploy-lbtc --consortium '$CONSORTIUM' --burn-commission 10000 --network '$NETWORK'
+```
+
+Configure smart-contracts:
+*TBD*
+
+##### Bridge
+Deploy adapter (e.g. Chain Link)
+[Find router](https://docs.chain.link/ccip/supported-networks)
+```bash
+yarn hardhat deploy-chainlink-adapter --router '$ROUTER_ADDR' --lbtc '$LBTC_ADDR' --network '$NETWORK'
+```
+Deploy bridge
+```bash
+yarn hardhat deploy-bridge --lbtc '$LBTC_ADDR' --treasury '$TREASURY_ADDR'  --adapter '$ADAPTER_ADDR' --set-bridge --network '$NETWORK'
+```
+Deploy token pool
+```bash
+yarn hardhat deploy-ccip-token-pool --router '$ROUTER_ADDR' --lbtc '$LBTC_ADDR' --adapter '$ADAPTER_ADDR' --rmn '$RMN_ADDR' --network '$NETWORK'
+```
+Configure smart-contracts:
+1. Add destinations using `addDestinations` of **Bridge** smart-contract.
+2. *Claim the ownership of the token pool / register it in Chainlink*
+3. *Connect token pools from different chains with addChainUpdates*
+4. *TBD*
