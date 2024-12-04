@@ -151,10 +151,20 @@ describe('PartnerVault', function () {
                 oneLbtc - mintAmount
             );
         });
+        it('should be able to set minting as admin', async function () {
+            expect(await partnerVault.setAllowMintLbtc(true));
+            expect(await partnerVault.allowMintLbtc()).to.be.equal(true);
+        });
+        it('should not be able to set minting as non-admin', async function () {
+            await expect(
+                partnerVault.connect(signer1)['setAllowMintLbtc(bool)'](true)
+            ).to.be.reverted;
+        });
     });
     describe('FBTC locking', function () {
         beforeEach(async function () {
             await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+            await partnerVault.setAllowMintLbtc(true);
         });
         it('should be able to mint LBTC on depositing FBTC', async function () {
             const mintAmount = 10;
@@ -222,6 +232,7 @@ describe('PartnerVault', function () {
         const mintAmount = 10;
         beforeEach(async function () {
             await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+            await partnerVault.setAllowMintLbtc(true);
             await fbtc.mint(signer1.address, mintAmount);
             await fbtc
                 .connect(signer1)
@@ -351,6 +362,7 @@ describe('PartnerVault', function () {
         const mintAmount = 10;
         beforeEach(async function () {
             await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+            await partnerVault.setAllowMintLbtc(true);
             await fbtc.mint(signer1.address, mintAmount);
         });
         it('should not be able to burn LBTC if none was minted', async function () {

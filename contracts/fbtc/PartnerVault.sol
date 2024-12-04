@@ -52,6 +52,7 @@ contract PartnerVault is
         address lockedFbtc;
         uint256 stakeLimit;
         uint256 totalStake;
+        bool allowMintLbtc;
         mapping(address => uint256) minted;
         mapping(address => uint256) pendingWithdrawals;
     }
@@ -107,6 +108,17 @@ contract PartnerVault is
     }
 
     /**
+     * @notice Sets the LBTC minting functionality.
+     * @param shouldMint Boolean value if we should mint or not
+     */
+    function setAllowMintLbtc(
+        bool shouldMint
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        PartnerVaultStorage storage $ = _getPartnerVaultStorage();
+        $.allowMintLbtc = shouldMint;
+    }
+
+    /**
      * @notice Sets the stake limit for the partner vault.
      * @param newStakeLimit The stake limit to use going forward
      */
@@ -142,7 +154,7 @@ contract PartnerVault is
         uint256 amountLocked = _makeMintLockedFbtcRequest(amount);
 
         // At this point we have our FBTC minted to us, and we need to then give the user his LBTC.
-        $.lbtc.mint(msg.sender, amountLocked);
+        if ($.allowMintLbtc) $.lbtc.mint(msg.sender, amountLocked);
         return amountLocked;
     }
 
@@ -192,7 +204,7 @@ contract PartnerVault is
         $.minted[msg.sender] -= amount;
 
         // First, take the LBTC back.
-        $.lbtc.burn(msg.sender, amount);
+        if ($.allowMintLbtc) $.lbtc.burn(msg.sender, amount);
 
         // Next, we finalize the redeeming flow.
         _confirmRedeemFbtc(amount);
@@ -211,6 +223,10 @@ contract PartnerVault is
 
     function stakeLimit() external view returns (uint256) {
         return _getPartnerVaultStorage().stakeLimit;
+    }
+
+    function allowMintLbtc() external view returns (bool) {
+        return _getPartnerVaultStorage().allowMintLbtc;
     }
 
     function remainingStake() external view returns (uint256) {
