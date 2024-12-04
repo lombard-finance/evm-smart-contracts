@@ -69,5 +69,7 @@ contract LockedFBTCMock {
         return (bytes32("test"), request);
     }
 
-    function confirmRedeemFbtc(uint256 amount) external {}
+    function confirmRedeemFbtc(uint256 amount) external {
+        fbtc.transfer(msg.sender, amount);
+    }
 }

@@ -66,6 +66,8 @@ contract PartnerVault is
     error StakeLimitExceeded();
     error ZeroAmount();
     error InsufficientFunds();
+    error WithdrawalInProgress();
+    error NoWithdrawalInitiated();
     event StakeLimitSet(uint256 newStakeLimit);
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -140,7 +142,7 @@ contract PartnerVault is
         uint256 amountLocked = _makeMintLockedFbtcRequest(amount);
 
         // At this point we have our FBTC minted to us, and we need to then give the user his LBTC.
-        $.lbtc.mint(msg.sender, amount);
+        $.lbtc.mint(msg.sender, amountLocked);
         return amountLocked;
     }
 
@@ -160,6 +162,8 @@ contract PartnerVault is
         if (amount == 0) revert ZeroAmount();
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         if ($.minted[msg.sender] < amount) revert InsufficientFunds();
+        if ($.pendingWithdrawals[msg.sender] != 0)
+            revert WithdrawalInProgress();
 
         // We only make a call to set the redeeming up first. We can only start moving tokens later
         // when all correct steps have been taken.
@@ -180,6 +184,8 @@ contract PartnerVault is
      */
     function finalizeBurn() public nonReentrant whenNotPaused {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
+        if ($.pendingWithdrawals[msg.sender] == 0)
+            revert NoWithdrawalInitiated();
         uint256 amount = $.pendingWithdrawals[msg.sender];
         $.pendingWithdrawals[msg.sender] = 0;
         $.totalStake -= amount;
