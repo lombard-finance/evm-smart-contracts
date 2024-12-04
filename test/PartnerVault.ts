@@ -32,6 +32,11 @@ describe('PartnerVault', function () {
     let lbtc: LBTCMock;
     let snapshot: SnapshotRestorer;
     let snapshotTimestamp: number;
+    const oneLbtc = 100000000;
+    const pauserRoleHash =
+        '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a';
+    const operatorRoleHash =
+        '0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929';
 
     before(async function () {
         [deployer, signer1, signer2, signer3, treasury] =
@@ -47,7 +52,7 @@ describe('PartnerVault', function () {
             deployer.address,
             await fbtc.getAddress(),
             await lbtc.getAddress(),
-            deployer.address,
+            oneLbtc,
         ]);
 
         lockedFbtc = await deployContract<LockedFBTCMock>(
@@ -78,29 +83,284 @@ describe('PartnerVault', function () {
     });
 
     describe('Setters and getters', function () {
-        it('should be able to set the locked fbtc contract as admin', async function () {});
-        it('should not be able to set the locked fbtc contract as anyone else', async function () {});
-        it('should be able to set a stake limit as operator', async function () {});
-        it('should not be able to set a stake limit as anyone else', async function () {});
-        it('should be able to pause the contract as pauser', async function () {});
-        it('should not be able to pause the contract as anyone else', async function () {});
-        it('should be able to unpause the contract as admin', async function () {});
-        it('should not be able to unpause the contract as anyone else', async function () {});
-        it('should be able to retrieve the stake limit', async function () {});
-        it('should be able to retrieve the remaining stake', async function () {});
+        it('should be able to set the locked fbtc contract as admin', async function () {
+            await expect(partnerVault.setLockedFbtc(signer2.address));
+        });
+        it('should not be able to set the locked fbtc contract as anyone else', async function () {
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    ['setLockedFbtc(address)'](signer2.address)
+            ).to.be.reverted;
+        });
+        it('should be able to set a stake limit as operator', async function () {
+            const stakeLimit = 20;
+            await partnerVault.grantRole(operatorRoleHash, signer1.address);
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    ['setStakeLimit(uint256)'](stakeLimit)
+            )
+                .to.emit(partnerVault, 'StakeLimitSet')
+                .withArgs(stakeLimit);
+
+            expect(await partnerVault.stakeLimit()).to.be.equal(stakeLimit);
+        });
+        it('should not be able to set a stake limit as anyone else', async function () {
+            await expect(
+                partnerVault.connect(signer2)['setStakeLimit(uint256)'](20)
+            ).to.be.reverted;
+        });
+        it('should be able to pause the contract as pauser', async function () {
+            await partnerVault.grantRole(pauserRoleHash, signer1.address);
+            await expect(partnerVault.connect(signer1)['pause()']());
+        });
+        it('should not be able to pause the contract as anyone else', async function () {
+            await expect(partnerVault.connect(signer2)['pause()']()).to.be
+                .reverted;
+        });
+        it('should be able to unpause the contract as admin', async function () {
+            await partnerVault.grantRole(pauserRoleHash, signer1.address);
+            await expect(partnerVault.connect(signer1)['pause()']());
+            await expect(partnerVault.unpause());
+        });
+        it('should not be able to unpause the contract as anyone else', async function () {
+            await partnerVault.grantRole(pauserRoleHash, signer1.address);
+            await expect(partnerVault.connect(signer1)['pause()']());
+            await expect(partnerVault.connect(signer1)['pause()']()).to.be
+                .reverted;
+        });
+        it('should be able to retrieve the stake limit', async function () {
+            expect(await partnerVault.stakeLimit()).to.be.equal(oneLbtc);
+        });
+        it('should be able to retrieve the remaining stake', async function () {
+            // We will mint some just to check that the computation is correct.
+            await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+            const mintAmount = 10;
+            await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            await partnerVault
+                .connect(signer1)
+                ['initiateMint(uint256)'](mintAmount);
+
+            expect(await partnerVault.remainingStake()).to.be.equal(
+                oneLbtc - mintAmount
+            );
+        });
     });
     describe('FBTC locking', function () {
-        it('should be able to mint LBTC on depositing FBTC', async function () {});
-        it('should not be able to mint LBTC without depositing', async function () {});
-        it('should not be able to mint 0 LBTC', async function () {});
-        it('should not be able to go over the stake limit', async function () {});
+        beforeEach(async function () {
+            await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+        });
+        it('should be able to mint LBTC on depositing FBTC', async function () {
+            const mintAmount = 10;
+            await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            expect(
+                await partnerVault
+                    .connect(signer1)
+                    ['initiateMint(uint256)'](mintAmount)
+            )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    signer1.address,
+                    await partnerVault.getAddress(),
+                    mintAmount
+                )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    await lockedFbtc.getAddress(),
+                    mintAmount
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer1.address, mintAmount);
+            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(
+                mintAmount
+            );
+        });
+        it('should not be able to mint LBTC without depositing', async function () {
+            const mintAmount = 10;
+            await fbtc.mint(signer1.address, mintAmount);
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    ['initiateMint(uint256)'](mintAmount)
+            ).to.be.reverted;
+        });
+        it('should not be able to mint 0 LBTC', async function () {
+            const mintAmount = 10;
+            await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            await expect(
+                partnerVault.connect(signer1)['initiateMint(uint256)'](0)
+            ).to.be.revertedWithCustomError(partnerVault, 'ZeroAmount');
+        });
+        it('should not be able to go over the stake limit', async function () {
+            const mintAmount = oneLbtc + oneLbtc;
+            await fbtc.mint(signer1.address, mintAmount);
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    ['initiateMint(uint256)'](mintAmount)
+            ).to.be.revertedWithCustomError(partnerVault, 'StakeLimitExceeded');
+        });
     });
     describe('FBTC unlocking', function () {
-        it('should be able to burn LBTC and unlock FBTC to the user', async function () {});
-        it('should be able to burn less LBTC than was minted', async function () {});
-        it('should be able to burn minted LBTC in multiple attempts', async function () {});
-        it('should not be able to burn LBTC if none was minted', async function () {});
-        it('should not be able to burn more LBTC than was minted', async function () {});
-        it('should not be able to finalize a burn without initiating one', async function () {});
+        const mintAmount = 10;
+        beforeEach(async function () {
+            await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+            await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            expect(
+                await partnerVault
+                    .connect(signer1)
+                    ['initiateMint(uint256)'](mintAmount)
+            )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    signer1.address,
+                    await partnerVault.getAddress(),
+                    mintAmount
+                )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    await lockedFbtc.getAddress(),
+                    mintAmount
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer1.address, mintAmount);
+        });
+        it('should be able to burn LBTC and unlock FBTC to the user', async function () {
+            await partnerVault
+                .connect(signer1)
+                [
+                    'initializeBurn(uint256, bytes32, uint256)'
+                ](mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0);
+            expect(await partnerVault.connect(signer1)['finalizeBurn()']())
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(signer1.address, ethers.ZeroAddress, mintAmount)
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    signer1.address,
+                    mintAmount
+                );
+        });
+        it('should be able to burn less LBTC than was minted', async function () {
+            const amount = mintAmount - 5;
+            await partnerVault
+                .connect(signer1)
+                [
+                    'initializeBurn(uint256, bytes32, uint256)'
+                ](amount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0);
+            expect(await partnerVault.connect(signer1)['finalizeBurn()']())
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(signer1.address, ethers.ZeroAddress, amount)
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    signer1.address,
+                    amount
+                );
+        });
+        it('should be able to burn minted LBTC in multiple attempts', async function () {
+            const amount = mintAmount - 5;
+            await partnerVault
+                .connect(signer1)
+                [
+                    'initializeBurn(uint256, bytes32, uint256)'
+                ](amount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0);
+            expect(await partnerVault.connect(signer1)['finalizeBurn()']())
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(signer1.address, ethers.ZeroAddress, amount)
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    signer1.address,
+                    amount
+                );
+            await partnerVault
+                .connect(signer1)
+                [
+                    'initializeBurn(uint256, bytes32, uint256)'
+                ](amount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0);
+            expect(await partnerVault.connect(signer1)['finalizeBurn()']())
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(signer1.address, ethers.ZeroAddress, amount)
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    signer1.address,
+                    amount
+                );
+        });
+        it('should not be able to initiate withdrawal twice without collecting', async function () {
+            await partnerVault
+                .connect(signer1)
+                [
+                    'initializeBurn(uint256, bytes32, uint256)'
+                ](mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0);
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    [
+                        'initializeBurn(uint256, bytes32, uint256)'
+                    ](mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            ).to.be.revertedWithCustomError(
+                partnerVault,
+                'WithdrawalInProgress'
+            );
+        });
+        it('should not be able to burn more LBTC than was minted', async function () {
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    [
+                        'initializeBurn(uint256, bytes32, uint256)'
+                    ](mintAmount + 1, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            ).to.be.revertedWithCustomError(partnerVault, 'InsufficientFunds');
+        });
+        it('should not be able to finalize a burn without initiating one', async function () {
+            await expect(
+                partnerVault.connect(signer1)['finalizeBurn()']()
+            ).to.be.revertedWithCustomError(
+                partnerVault,
+                'NoWithdrawalInitiated'
+            );
+        });
+    });
+    describe('FBTC unlocking without prior mint', function () {
+        const mintAmount = 10;
+        beforeEach(async function () {
+            await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
+            await fbtc.mint(signer1.address, mintAmount);
+        });
+        it('should not be able to burn LBTC if none was minted', async function () {
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    [
+                        'initializeBurn(uint256, bytes32, uint256)'
+                    ](mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            ).to.be.revertedWithCustomError(partnerVault, 'InsufficientFunds');
+        });
     });
 });
