@@ -197,6 +197,36 @@ describe('PartnerVault', function () {
                 mintAmount
             );
         });
+        it('should not mint LBTC when minting is turned off', async function () {
+            const mintAmount = 10;
+            await fbtc.mint(signer1.address, mintAmount);
+            await partnerVault.setAllowMintLbtc(false);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            expect(
+                await partnerVault
+                    .connect(signer1)
+                    ['initiateMint(uint256)'](mintAmount)
+            )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    signer1.address,
+                    await partnerVault.getAddress(),
+                    mintAmount
+                )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    await lockedFbtc.getAddress(),
+                    mintAmount
+                );
+            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(
+                0
+            );
+        });
         it('should not be able to mint LBTC without depositing', async function () {
             const mintAmount = 10;
             await fbtc.mint(signer1.address, mintAmount);
