@@ -251,6 +251,11 @@ describe('PartnerVault', function () {
         it('should not be able to go over the stake limit', async function () {
             const mintAmount = oneLbtc + oneLbtc;
             await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
             await expect(
                 partnerVault
                     .connect(signer1)
