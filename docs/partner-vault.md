@@ -12,7 +12,7 @@ The FBTC Partner Vault contract is for users who wish to lock their FBTC to rece
 
 ## Key methods
 
-There are 3 key user methods, 2 setter functions, a pause functionality and 2 getter functions on this contract.
+There are 3 key user methods, 3 setter functions, a pause functionality and 3 getter functions on this contract.
 
 ### 1. setLockedFbtc
 
@@ -48,12 +48,29 @@ const stakeLimit = 100000000000;
 await partnerVault.setStakeLimit(stakeLimit);
 ```
 
+### 3. setAllowMintLbtc
+
+**Method:** `setAllowMintLbtc(bool shouldMint)`
+
+**Description:** Sets whether or not the contract will mint LBTC when locking FBTC0.
+
+**Restrictions:**
+
+- Only callable by contract owner
+
+**Example:**
+
+```javascript
+const shouldMint = true;
+await partnerVault.setAllowMintLbtc(shouldMint);
+```
+
 **Emits:**
 
 - `StakeLimitSet(amount)` event
   - `amount`: New amount of the stake limit
 
-### 3. initiateMint
+### 4. initiateMint
 
 **Method:** `initiateMint(uint256 amount)`
 
@@ -72,7 +89,7 @@ const amount = 10000;
 await partnerVault.initiateMint(amount);
 ```
 
-### 4. initializeBurn
+### 5. initializeBurn
 
 **Method:** `initializeBurn(uint256 amount, bytes32 depositTxId, uint256 outputIndex)`
 
@@ -93,7 +110,7 @@ const outputIndex = 0;
 await partnerVault.initializeBurn(amount, depositTxId, outputIndex)
 ```
 
-### 5. finalizeBurn
+### 6. finalizeBurn
 
 **Method:** `finalizeBurn()`
 
@@ -105,7 +122,7 @@ await partnerVault.initializeBurn(amount, depositTxId, outputIndex)
 await partnerVault.finalizeBurn();
 ```
 
-### 6. stakeLimit
+### 7. stakeLimit
 
 **Method:** `stakeLimit()`
 
@@ -117,7 +134,7 @@ await partnerVault.finalizeBurn();
 const stakeLimit = await partnerVault.stakeLimit();
 ```
 
-### 7. remainingStake
+### 8. remainingStake
 
 **Method:** `remainingStake()`
 
@@ -127,4 +144,16 @@ const stakeLimit = await partnerVault.stakeLimit();
 
 ```javascript
 const remainingStake = await partnerVault.remainingStake();
+```
+
+### 9. allowMintLbtc
+
+**Method:** `allowMintLbtc()`
+
+**Description:** Returns whether or not the contract will mint LBTC when locking FBTC0.
+
+**Example:**
+
+```javascript
+const remainingStake = await partnerVault.allowMintLbtc();
 ```
