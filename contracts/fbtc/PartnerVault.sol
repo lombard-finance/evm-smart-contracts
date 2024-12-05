@@ -140,9 +140,6 @@ contract PartnerVault is
     ) public nonReentrant whenNotPaused returns (uint256) {
         if (amount == 0) revert ZeroAmount();
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        if ($.totalStake + amount > $.stakeLimit) revert StakeLimitExceeded();
-        $.totalStake += amount;
-        $.minted[msg.sender] += amount;
 
         // First, we take the FBTC from the sender.
         $.fbtc.transferFrom(msg.sender, address(this), amount);
@@ -152,6 +149,9 @@ contract PartnerVault is
 
         // Now we can make the mintLockedFbtcRequest.
         uint256 amountLocked = _makeMintLockedFbtcRequest(amount);
+        if ($.totalStake + amountLocked > $.stakeLimit) revert StakeLimitExceeded();
+        $.minted[msg.sender] += amountLocked;
+        $.totalStake += amountLocked;
 
         // At this point we have our FBTC minted to us, and we need to then give the user his LBTC.
         if ($.allowMintLbtc) $.lbtc.mint(msg.sender, amountLocked);
