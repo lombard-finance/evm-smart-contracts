@@ -101,6 +101,8 @@ await partnerVault.initiateMint(amount);
 - `bytes32 depositTxId` The transaction ID of the bitcoin network deposit corresponding to the burn
 - `uint256 outputIndex` The user's nonce
 
+**Prerequisites:** We will need to have moved `amount` of BTC back to the FBTC `depositAddress` before calling this function.
+
 **Example:**
 
 ```javascript
@@ -115,6 +117,8 @@ await partnerVault.initializeBurn(amount, depositTxId, outputIndex)
 **Method:** `finalizeBurn()`
 
 **Description:** Finalizes the burning of LBTC after all off-chain bookkeeping is performed.
+
+**Prerequisites:** FBTC team should have approved this redeemal.
 
 **Example:**
 
