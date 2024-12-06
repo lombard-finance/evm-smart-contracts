@@ -8,6 +8,16 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+interface LockedFBTC {
+    function mintLockedFbtcRequest(uint256 amount) external returns (uint256);
+    function redeemFbtcRequest(
+        uint256 amount,
+        bytes32 depositTxId,
+        uint256 outputIndex
+    ) external returns (bytes32, FBTCPartnerVault.Request memory);
+    function confirmRedeemFbtc(uint256 amount) external;
+}
+
 /**
  * @title Partner Vault implementation for integration with FBTC
  * @author Lombard.Finance
@@ -39,12 +49,12 @@ contract FBTCPartnerVault is
     struct Request {
         Operation op;
         Status status;
-        uint128 nonce; // Those can be packed into one slot in evm storage.
+        uint128 nonce;
         bytes32 srcChain;
         bytes srcAddress;
         bytes32 dstChain;
         bytes dstAddress;
-        uint256 amount; // Transfer value without fee.
+        uint256 amount;
         uint256 fee;
         bytes extra;
     }
@@ -57,7 +67,7 @@ contract FBTCPartnerVault is
         uint256 stakeLimit;
         uint256 totalStake;
         bool allowMintLbtc;
-        mapping(address => uint256) pendingWithdrawals;
+        mapping(bytes32 => Request) pendingWithdrawals;
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -77,6 +87,19 @@ contract FBTCPartnerVault is
     event StakeLimitSet(uint256 newStakeLimit);
     event LockedFBTCSet(address lockedFbtc);
     event MintLBTCSet(bool shouldMint);
+    event FBTCLocked(address recipient, uint256 amountLocked, bool lbtcMinted);
+    event BurnInitiated(
+        address recipient,
+        uint256 amount,
+        bytes32 depositTxId,
+        uint256 outputIndex
+    );
+    event BurnFinalized(
+        address recipient,
+        uint256 amount,
+        bytes32 depositTxId,
+        uint256 outputIndex
+    );
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -86,8 +109,8 @@ contract FBTCPartnerVault is
 
     function initialize(
         address admin,
-        address fbtc,
-        address lbtc,
+        address fbtc_,
+        address lbtc_,
         uint256 stakeLimit_
     ) external initializer {
         __Pausable_init();
@@ -97,8 +120,8 @@ contract FBTCPartnerVault is
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        $.fbtc = IERC20(fbtc);
-        $.lbtc = ILBTC(lbtc);
+        $.fbtc = IERC20(fbtc_);
+        $.lbtc = ILBTC(lbtc_);
         $.stakeLimit = stakeLimit_;
     }
 
@@ -148,7 +171,7 @@ contract FBTCPartnerVault is
      */
     function mint(
         uint256 amount
-    ) public nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant whenNotPaused returns (uint256) {
         if (amount == 0) revert ZeroAmount();
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
 
@@ -159,7 +182,7 @@ contract FBTCPartnerVault is
         $.fbtc.approve(address($.lockedFbtc), amount);
 
         // Now we can make the mintLockedFbtcRequest.
-        uint256 amountLocked = _makeMintLockedFbtcRequest(amount);
+        uint256 amountLocked = $.lockedFbtc.mintLockedFbtcRequest(amount);
         if ($.totalStake + amountLocked > $.stakeLimit)
             revert StakeLimitExceeded();
         $.totalStake += amountLocked;
@@ -167,6 +190,7 @@ contract FBTCPartnerVault is
         // At this point we have our locked FBTC minted to us. If the `allowMintLbtc` variable is
         // set to true, we also give the user some LBTC. Otherwise, this is done manually afterwards.
         if ($.allowMintLbtc) $.lbtc.mint(_msgSender(), amountLocked);
+        emit FBTCLocked(_msgSender(), amountLocked, $.allowMintLbtc);
         return amountLocked;
     }
 
@@ -184,7 +208,7 @@ contract FBTCPartnerVault is
         bytes32 depositTxId,
         uint256 outputIndex
     )
-        public
+        external
         nonReentrant
         whenNotPaused
         onlyRole(OPERATOR_ROLE)
@@ -193,11 +217,15 @@ contract FBTCPartnerVault is
         if (amount == 0) revert ZeroAmount();
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         if (amount > $.totalStake) revert InsufficientFunds();
-        if ($.pendingWithdrawals[recipient] != 0) revert WithdrawalInProgress();
+        bytes32 key = keccak256(
+            abi.encode(recipient, amount, depositTxId, outputIndex)
+        );
+        if ($.pendingWithdrawals[key].amount != 0)
+            revert WithdrawalInProgress();
 
         // We only make a call to set the redeeming up first. We can only start moving tokens later
         // when all correct steps have been taken.
-        (bytes32 hash, Request memory request) = _makeRedeemFbtcRequest(
+        (bytes32 hash, Request memory request) = $.lockedFbtc.redeemFbtcRequest(
             amount,
             depositTxId,
             outputIndex
@@ -205,7 +233,8 @@ contract FBTCPartnerVault is
 
         // Ensure that this caller can redeem for `amount` later when
         // all bookkeeping off-chain is done.
-        $.pendingWithdrawals[recipient] = amount;
+        $.pendingWithdrawals[key] = request;
+        emit BurnInitiated(recipient, amount, depositTxId, outputIndex);
         return (hash, request);
     }
 
@@ -213,23 +242,48 @@ contract FBTCPartnerVault is
      * @notice Finalizes the withdrawal of LBTC back into FBTC.
      */
     function finalizeBurn(
-        address recipient
-    ) public nonReentrant whenNotPaused onlyRole(OPERATOR_ROLE) {
+        address recipient,
+        uint256 amount,
+        bytes32 depositTxId,
+        uint256 outputIndex
+    ) external nonReentrant whenNotPaused onlyRole(OPERATOR_ROLE) {
+        bytes32 key = keccak256(
+            abi.encode(recipient, amount, depositTxId, outputIndex)
+        );
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        if ($.pendingWithdrawals[recipient] == 0)
+        if ($.pendingWithdrawals[key].amount != amount)
             revert NoWithdrawalInitiated();
-        uint256 amount = $.pendingWithdrawals[recipient];
-        $.pendingWithdrawals[recipient] = 0;
+        if (amount > $.totalStake) revert InsufficientFunds();
         $.totalStake -= amount;
+        delete $.pendingWithdrawals[key];
 
-        // First, take the LBTC back if the `allowMintLbtc` variable is set.
+        // First, take the LBTC back if the `allowMintLbtc` variable is set. If not, this burn will
+        // be performed manually by the LBTC team or consortium.
         if ($.allowMintLbtc) $.lbtc.burn(recipient, amount);
 
         // Next, we finalize the redeeming flow.
-        _confirmRedeemFbtc(amount);
+        $.lockedFbtc.confirmRedeemFbtc(amount);
 
         // Finally, we need to send the received FBTC back to the caller.
         $.fbtc.safeTransfer(recipient, amount);
+        emit BurnFinalized(recipient, amount, depositTxId, outputIndex);
+    }
+
+    /**
+     * @notice Allows an operator to remove a pending withdrawal request manually, in case it has been
+     * rejected by the FBTC team.
+     */
+    function removeWithdrawalRequest(
+        address recipient,
+        uint256 amount,
+        bytes32 depositTxId,
+        uint256 outputIndex
+    ) external whenNotPaused onlyRole(OPERATOR_ROLE) {
+        bytes32 key = keccak256(
+            abi.encode(recipient, amount, depositTxId, outputIndex)
+        );
+        PartnerVaultStorage storage $ = _getPartnerVaultStorage();
+        delete $.pendingWithdrawals[key];
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {
@@ -254,25 +308,14 @@ contract FBTCPartnerVault is
         return $.stakeLimit - $.totalStake;
     }
 
-    function _makeMintLockedFbtcRequest(
-        uint256 amount
-    ) internal returns (uint256) {
+    function fbtc() external view returns (address) {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        return $.lockedFbtc.mintLockedFbtcRequest(amount);
+        return address($.fbtc);
     }
 
-    function _makeRedeemFbtcRequest(
-        uint256 amount,
-        bytes32 depositTxId,
-        uint256 outputIndex
-    ) internal returns (bytes32, Request memory) {
+    function lockedFbtc() external view returns (address) {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        return $.lockedFbtc.redeemFbtcRequest(amount, depositTxId, outputIndex);
-    }
-
-    function _confirmRedeemFbtc(uint256 amount) internal {
-        PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        return $.lockedFbtc.confirmRedeemFbtc(amount);
+        return address($.lockedFbtc);
     }
 
     function _getPartnerVaultStorage()
@@ -284,14 +327,4 @@ contract FBTCPartnerVault is
             $.slot := PARTNER_VAULT_STORAGE_LOCATION
         }
     }
-}
-
-interface LockedFBTC {
-    function mintLockedFbtcRequest(uint256 amount) external returns (uint256);
-    function redeemFbtcRequest(
-        uint256 amount,
-        bytes32 depositTxId,
-        uint256 outputIndex
-    ) external returns (bytes32, FBTCPartnerVault.Request memory);
-    function confirmRedeemFbtc(uint256 amount) external;
 }
