@@ -70,9 +70,9 @@ await partnerVault.setAllowMintLbtc(shouldMint);
 - `StakeLimitSet(amount)` event
   - `amount`: New amount of the stake limit
 
-### 4. initiateMint
+### 4. mint
 
-**Method:** `initiateMint(uint256 amount)`
+**Method:** `mint(uint256 amount)`
 
 **Description:** Locks up the user's FBTC and mints LBTC to them.
 
@@ -86,7 +86,7 @@ await partnerVault.setAllowMintLbtc(shouldMint);
 
 ```javascript
 const amount = 10000;
-await partnerVault.initiateMint(amount);
+await partnerVault.mint(amount);
 ```
 
 ### 5. initializeBurn
