@@ -198,6 +198,7 @@ contract FBTCPartnerVault is
      * @notice Functionality to initiate a swap for LBTC into FBTC. This only initiates the withdrawal
      * request and needs to be finalized by `finalizeBurn` later on, once all the off-chain bookkeeping
      * is finalized as well.
+     * @param recipient The recipient of the FBTC to be released
      * @param amount The amount of satoshis of FBTC to be released
      * @param depositTxId The transaction ID of the BTC deposit on the bitcoin network
      * @param amount The transaction output index to user's deposit address
@@ -240,6 +241,10 @@ contract FBTCPartnerVault is
 
     /**
      * @notice Finalizes the withdrawal of LBTC back into FBTC.
+     * @param recipient The recipient of the FBTC to be released
+     * @param amount The amount of satoshis of FBTC to be released
+     * @param depositTxId The transaction ID of the BTC deposit on the bitcoin network
+     * @param amount The transaction output index to user's deposit address
      */
     function finalizeBurn(
         address recipient,
@@ -272,6 +277,10 @@ contract FBTCPartnerVault is
     /**
      * @notice Allows an operator to remove a pending withdrawal request manually, in case it has been
      * rejected by the FBTC team.
+     * @param recipient The recipient of the FBTC to be released
+     * @param amount The amount of satoshis of FBTC to be released
+     * @param depositTxId The transaction ID of the BTC deposit on the bitcoin network
+     * @param amount The transaction output index to user's deposit address
      */
     function removeWithdrawalRequest(
         address recipient,
