@@ -69,6 +69,9 @@ contract PartnerVault is
     error InsufficientFunds();
     error WithdrawalInProgress();
     error NoWithdrawalInitiated();
+    error MintLockedFbtcRequestFailed();
+    error RedeemFbtcRequestFailed();
+    error ConfirmRedeemFbtcFailed();
     event StakeLimitSet(uint256 newStakeLimit);
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -246,7 +249,7 @@ contract PartnerVault is
         (bool success, bytes memory result) = $.lockedFbtc.call(
             abi.encodeWithSelector(selector, amount)
         );
-        require(success);
+        if (!success) revert MintLockedFbtcRequestFailed();
         return abi.decode(result, (uint256));
     }
 
@@ -262,7 +265,7 @@ contract PartnerVault is
         (bool success, bytes memory result) = $.lockedFbtc.call(
             abi.encodeWithSelector(selector, amount, depositTxId, outputIndex)
         );
-        require(success);
+        if (!success) revert RedeemFbtcRequestFailed();
         return abi.decode(result, (bytes32, Request));
     }
 
@@ -274,7 +277,7 @@ contract PartnerVault is
         (bool success, ) = $.lockedFbtc.call(
             abi.encodeWithSelector(selector, amount)
         );
-        require(success);
+        if (!success) revert ConfirmRedeemFbtcFailed();
     }
 
     function _getPartnerVaultStorage()
