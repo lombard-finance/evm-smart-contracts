@@ -48,12 +48,15 @@ describe('FBTCPartnerVault', function () {
 
         fbtc = await deployContract<WBTCMock>('WBTCMock', []);
 
-        partnerVault = await deployContract<FBTCPartnerVault>('FBTCPartnerVault', [
-            deployer.address,
-            await fbtc.getAddress(),
-            await lbtc.getAddress(),
-            oneLbtc,
-        ]);
+        partnerVault = await deployContract<FBTCPartnerVault>(
+            'FBTCPartnerVault',
+            [
+                deployer.address,
+                await fbtc.getAddress(),
+                await lbtc.getAddress(),
+                oneLbtc,
+            ]
+        );
 
         lockedFbtc = await deployContract<LockedFBTCMock>(
             'LockedFBTCMock',
@@ -143,9 +146,7 @@ describe('FBTCPartnerVault', function () {
                 [
                     'approve(address,uint256)'
                 ](await partnerVault.getAddress(), mintAmount);
-            await partnerVault
-                .connect(signer1)
-                ['mint(uint256)'](mintAmount);
+            await partnerVault.connect(signer1)['mint(uint256)'](mintAmount);
 
             expect(await partnerVault.remainingStake()).to.be.equal(
                 oneLbtc - mintAmount
@@ -175,9 +176,7 @@ describe('FBTCPartnerVault', function () {
                     'approve(address,uint256)'
                 ](await partnerVault.getAddress(), mintAmount);
             expect(
-                await partnerVault
-                    .connect(signer1)
-                    ['mint(uint256)'](mintAmount)
+                await partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
             )
                 .to.emit(fbtc, 'Transfer')
                 .withArgs(
@@ -207,9 +206,7 @@ describe('FBTCPartnerVault', function () {
                     'approve(address,uint256)'
                 ](await partnerVault.getAddress(), mintAmount);
             expect(
-                await partnerVault
-                    .connect(signer1)
-                    ['mint(uint256)'](mintAmount)
+                await partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
             )
                 .to.emit(fbtc, 'Transfer')
                 .withArgs(
@@ -229,9 +226,7 @@ describe('FBTCPartnerVault', function () {
             const mintAmount = 10;
             await fbtc.mint(signer1.address, mintAmount);
             await expect(
-                partnerVault
-                    .connect(signer1)
-                    ['mint(uint256)'](mintAmount)
+                partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
             ).to.be.reverted;
         });
         it('should not be able to mint 0 LBTC', async function () {
@@ -255,9 +250,7 @@ describe('FBTCPartnerVault', function () {
                     'approve(address,uint256)'
                 ](await partnerVault.getAddress(), mintAmount);
             await expect(
-                partnerVault
-                    .connect(signer1)
-                    ['mint(uint256)'](mintAmount)
+                partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
             ).to.be.revertedWithCustomError(partnerVault, 'StakeLimitExceeded');
         });
     });
@@ -274,9 +267,7 @@ describe('FBTCPartnerVault', function () {
                     'approve(address,uint256)'
                 ](await partnerVault.getAddress(), mintAmount);
             expect(
-                await partnerVault
-                    .connect(signer1)
-                    ['mint(uint256)'](mintAmount)
+                await partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
             )
                 .to.emit(fbtc, 'Transfer')
                 .withArgs(
@@ -294,14 +285,28 @@ describe('FBTCPartnerVault', function () {
                 .withArgs(ethers.ZeroAddress, signer1.address, mintAmount);
         });
         it('should not allow just anyone to initiate burn', async function () {
-            await expect(partnerVault.connect(signer2)['initializeBurn(address, uint256, bytes32, uint256)'](signer2.address, 10, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)).to.be.reverted;
+            await expect(
+                partnerVault
+                    .connect(signer2)
+                    [
+                        'initializeBurn(address, uint256, bytes32, uint256)'
+                    ](signer2.address, 10, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            ).to.be.reverted;
         });
         it('should not allow just anyone to finalize burn', async function () {
-            await expect(partnerVault.connect(signer2)['finalizeBurn(address)'](signer2.address)).to.be.reverted;
+            await expect(
+                partnerVault
+                    .connect(signer2)
+                    ['finalizeBurn(address)'](signer2.address)
+            ).to.be.reverted;
         });
         it('should be able to burn LBTC and unlock FBTC to the user', async function () {
-            await partnerVault
-                .initializeBurn(signer1.address, mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            await partnerVault.initializeBurn(
+                signer1.address,
+                mintAmount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
             expect(await partnerVault.finalizeBurn(signer1.address))
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(signer1.address, ethers.ZeroAddress, mintAmount)
@@ -314,8 +319,12 @@ describe('FBTCPartnerVault', function () {
         });
         it('should be able to burn less LBTC than was minted', async function () {
             const amount = mintAmount - 5;
-            await partnerVault
-                .initializeBurn(signer1.address, amount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            await partnerVault.initializeBurn(
+                signer1.address,
+                amount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
             expect(await partnerVault.finalizeBurn(signer1.address))
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(signer1.address, ethers.ZeroAddress, amount)
@@ -328,8 +337,12 @@ describe('FBTCPartnerVault', function () {
         });
         it('should be able to burn minted LBTC in multiple attempts', async function () {
             const amount = mintAmount - 5;
-            await partnerVault
-                .initializeBurn(signer1.address, amount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            await partnerVault.initializeBurn(
+                signer1.address,
+                amount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
             expect(await partnerVault.finalizeBurn(signer1.address))
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(signer1.address, ethers.ZeroAddress, amount)
@@ -339,8 +352,12 @@ describe('FBTCPartnerVault', function () {
                     signer1.address,
                     amount
                 );
-            await partnerVault
-                .initializeBurn(signer1.address, amount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            await partnerVault.initializeBurn(
+                signer1.address,
+                amount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
             expect(await partnerVault.finalizeBurn(signer1.address))
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(signer1.address, ethers.ZeroAddress, amount)
@@ -352,10 +369,19 @@ describe('FBTCPartnerVault', function () {
                 );
         });
         it('should not be able to initiate withdrawal twice without collecting', async function () {
-            await partnerVault
-                .initializeBurn(signer1.address, mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
-            await expect(partnerVault
-                .initializeBurn(signer1.address, mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            await partnerVault.initializeBurn(
+                signer1.address,
+                mintAmount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
+            await expect(
+                partnerVault.initializeBurn(
+                    signer1.address,
+                    mintAmount,
+                    '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                    0
+                )
             ).to.be.revertedWithCustomError(
                 partnerVault,
                 'WithdrawalInProgress'
@@ -363,22 +389,35 @@ describe('FBTCPartnerVault', function () {
         });
         it('should not be able to burn more LBTC than was minted', async function () {
             await expect(
-            partnerVault
-                .initializeBurn(signer1.address, mintAmount + 1, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+                partnerVault.initializeBurn(
+                    signer1.address,
+                    mintAmount + 1,
+                    '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                    0
+                )
             ).to.be.revertedWithCustomError(partnerVault, 'InsufficientFunds');
         });
         it('should not be able to finalize a burn without initiating one', async function () {
-            await expect(partnerVault.finalizeBurn(signer1.address))
-            .to.be.revertedWithCustomError(
+            await expect(
+                partnerVault.finalizeBurn(signer1.address)
+            ).to.be.revertedWithCustomError(
                 partnerVault,
                 'NoWithdrawalInitiated'
             );
         });
         it('should not be able to finalize burn for a mismatched recipient', async function () {
-            await 
-            partnerVault
-                .initializeBurn(signer1.address, mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0);
-            await expect(partnerVault.finalizeBurn(signer2.address)).to.be.revertedWithCustomError(partnerVault, 'NoWithdrawalInitiated');
+            await partnerVault.initializeBurn(
+                signer1.address,
+                mintAmount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
+            await expect(
+                partnerVault.finalizeBurn(signer2.address)
+            ).to.be.revertedWithCustomError(
+                partnerVault,
+                'NoWithdrawalInitiated'
+            );
         });
     });
     describe('FBTC unlocking without prior mint', function () {
@@ -391,8 +430,12 @@ describe('FBTCPartnerVault', function () {
         });
         it('should not be able to burn LBTC if none was minted', async function () {
             await expect(
-            partnerVault
-                .initializeBurn(signer1.address, mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+                partnerVault.initializeBurn(
+                    signer1.address,
+                    mintAmount,
+                    '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                    0
+                )
             ).to.be.revertedWithCustomError(partnerVault, 'InsufficientFunds');
         });
     });

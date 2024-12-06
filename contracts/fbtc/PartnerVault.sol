@@ -164,7 +164,7 @@ contract FBTCPartnerVault is
             revert StakeLimitExceeded();
         $.totalStake += amountLocked;
 
-        // At this point we have our locked FBTC minted to us. If the `allowMintLbtc` variable is 
+        // At this point we have our locked FBTC minted to us. If the `allowMintLbtc` variable is
         // set to true, we also give the user some LBTC. Otherwise, this is done manually afterwards.
         if ($.allowMintLbtc) $.lbtc.mint(_msgSender(), amountLocked);
         return amountLocked;
@@ -183,12 +183,17 @@ contract FBTCPartnerVault is
         uint256 amount,
         bytes32 depositTxId,
         uint256 outputIndex
-    ) public nonReentrant whenNotPaused onlyRole(OPERATOR_ROLE) returns (bytes32, Request memory) {
+    )
+        public
+        nonReentrant
+        whenNotPaused
+        onlyRole(OPERATOR_ROLE)
+        returns (bytes32, Request memory)
+    {
         if (amount == 0) revert ZeroAmount();
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         if (amount > $.totalStake) revert InsufficientFunds();
-        if ($.pendingWithdrawals[recipient] != 0)
-            revert WithdrawalInProgress();
+        if ($.pendingWithdrawals[recipient] != 0) revert WithdrawalInProgress();
 
         // We only make a call to set the redeeming up first. We can only start moving tokens later
         // when all correct steps have been taken.
@@ -207,7 +212,9 @@ contract FBTCPartnerVault is
     /**
      * @notice Finalizes the withdrawal of LBTC back into FBTC.
      */
-    function finalizeBurn(address recipient) public nonReentrant whenNotPaused onlyRole(OPERATOR_ROLE) {
+    function finalizeBurn(
+        address recipient
+    ) public nonReentrant whenNotPaused onlyRole(OPERATOR_ROLE) {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         if ($.pendingWithdrawals[recipient] == 0)
             revert NoWithdrawalInitiated();
@@ -260,16 +267,12 @@ contract FBTCPartnerVault is
         uint256 outputIndex
     ) internal returns (bytes32, Request memory) {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        return $.lockedFbtc.redeemFbtcRequest(
-            amount, depositTxId, outputIndex
-        );
+        return $.lockedFbtc.redeemFbtcRequest(amount, depositTxId, outputIndex);
     }
 
     function _confirmRedeemFbtc(uint256 amount) internal {
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
-        return $.lockedFbtc.confirmRedeemFbtc(
-            amount
-        );
+        return $.lockedFbtc.confirmRedeemFbtc(amount);
     }
 
     function _getPartnerVaultStorage()
@@ -285,6 +288,10 @@ contract FBTCPartnerVault is
 
 interface LockedFBTC {
     function mintLockedFbtcRequest(uint256 amount) external returns (uint256);
-    function redeemFbtcRequest(uint256 amount, bytes32 depositTxId, uint256 outputIndex) external returns (bytes32, FBTCPartnerVault.Request memory);
+    function redeemFbtcRequest(
+        uint256 amount,
+        bytes32 depositTxId,
+        uint256 outputIndex
+    ) external returns (bytes32, FBTCPartnerVault.Request memory);
     function confirmRedeemFbtc(uint256 amount) external;
 }

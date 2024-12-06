@@ -91,39 +91,54 @@ await partnerVault.mint(amount);
 
 ### 5. initializeBurn
 
-**Method:** `initializeBurn(uint256 amount, bytes32 depositTxId, uint256 outputIndex)`
+**Method:** `initializeBurn(address recipient, uint256 amount, bytes32 depositTxId, uint256 outputIndex)`
 
-**Description:** Starts the LBTC burning process.
+**Description:** Starts the Locked FBTC burning process.
 
 **Parameters:**
 
-- `uint256 amount` The amount of LBTC to burn
+- `address recipient` The recipient of the FBTC
+- `uint256 amount` The amount of Locked FBTC to burn
 - `bytes32 depositTxId` The transaction ID of the bitcoin network deposit corresponding to the burn
 - `uint256 outputIndex` The user's nonce
 
 **Prerequisites:** We will need to have moved `amount` of BTC back to the FBTC `depositAddress` before calling this function.
 
+**Restrictions:**
+
+- Only callable by operator role
+
 **Example:**
 
 ```javascript
+const recipient = "0x94d62fBbFcb82B38bA28DB4f4bd3B111BaF4175a";
 const amount = 10000;
 const depositTxId = "0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929";
 const outputIndex = 0;
-await partnerVault.initializeBurn(amount, depositTxId, outputIndex)
+await partnerVault.initializeBurn(recipient, amount, depositTxId, outputIndex)
 ```
 
 ### 6. finalizeBurn
 
-**Method:** `finalizeBurn()`
+**Method:** `finalizeBurn(address recipient)`
 
-**Description:** Finalizes the burning of LBTC after all off-chain bookkeeping is performed.
+**Description:** Finalizes the burning of Locked FBTC after all off-chain bookkeeping is performed.
+
+**Parameters:**
+
+- `address recipient` The recipient of the FBTC
 
 **Prerequisites:** FBTC team should have approved this redeemal.
+
+**Restrictions:**
+
+- Only callable by operator role
 
 **Example:**
 
 ```javascript
-await partnerVault.finalizeBurn();
+const recipient = "0x94d62fBbFcb82B38bA28DB4f4bd3B111BaF4175a";
+await partnerVault.finalizeBurn(recipient);
 ```
 
 ### 7. stakeLimit
