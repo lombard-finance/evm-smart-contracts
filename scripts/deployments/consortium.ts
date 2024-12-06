@@ -9,7 +9,7 @@ import { create3 } from '../helpers/create3Deployment';
 
 task('deploy-consortium', 'Deploys the Consortium contract via create3')
     .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
-    .addParam('admin', 'The address of the owner')
+    .addParam('admin', 'The address of the owner', 'self')
     .addParam(
         'proxyFactoryAddr',
         'The ProxyFactory address',
@@ -18,12 +18,19 @@ task('deploy-consortium', 'Deploys the Consortium contract via create3')
     .setAction(async (taskArgs, hre) => {
         const { ledgerNetwork, admin, proxyFactoryAddr } = taskArgs;
 
+        const [signer] = await hre.ethers.getSigners();
+        let owner = await signer.getAddress();
+
+        if (hre.ethers.isAddress(admin)) {
+            owner = admin;
+        }
+
         await create3(
             'Consortium',
-            [admin],
+            [owner],
             proxyFactoryAddr,
             ledgerNetwork,
-            admin,
+            owner,
             hre
         );
     });
