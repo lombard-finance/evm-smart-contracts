@@ -253,6 +253,98 @@ describe('FBTCPartnerVault', function () {
                 partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
             ).to.be.revertedWithCustomError(partnerVault, 'StakeLimitExceeded');
         });
+        it('should be able to delete a withdrawal request as an operator', async function () {
+            const mintAmount = 10;
+            await partnerVault.grantRole(operatorRoleHash, deployer.address);
+            await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            expect(
+                await partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
+            )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    signer1.address,
+                    await partnerVault.getAddress(),
+                    mintAmount
+                )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    await lockedFbtc.getAddress(),
+                    mintAmount
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer1.address, mintAmount);
+
+            await partnerVault.initializeBurn(
+                signer1.address,
+                mintAmount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
+            await partnerVault.removeWithdrawalRequest(
+                signer1.address,
+                mintAmount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
+            await expect(
+                partnerVault.finalizeBurn(
+                    signer1.address,
+                    mintAmount,
+                    '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                    0
+                )
+            ).to.be.revertedWithCustomError(
+                partnerVault,
+                'NoWithdrawalInitiated'
+            );
+        });
+        it('should not be able to try and delete a withdrawal request as anyone else', async function () {
+            const mintAmount = 10;
+            await partnerVault.grantRole(operatorRoleHash, deployer.address);
+            await fbtc.mint(signer1.address, mintAmount);
+            await fbtc
+                .connect(signer1)
+                [
+                    'approve(address,uint256)'
+                ](await partnerVault.getAddress(), mintAmount);
+            expect(
+                await partnerVault.connect(signer1)['mint(uint256)'](mintAmount)
+            )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    signer1.address,
+                    await partnerVault.getAddress(),
+                    mintAmount
+                )
+                .to.emit(fbtc, 'Transfer')
+                .withArgs(
+                    await partnerVault.getAddress(),
+                    await lockedFbtc.getAddress(),
+                    mintAmount
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer1.address, mintAmount);
+
+            await partnerVault.initializeBurn(
+                signer1.address,
+                mintAmount,
+                '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a',
+                0
+            );
+            await expect(
+                partnerVault
+                    .connect(signer1)
+                    [
+                        'removeWithdrawalRequest(address, uint256, bytes32, uint256)'
+                    ](signer1.address, mintAmount, '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a', 0)
+            ).to.be.reverted;
+        });
     });
     describe('FBTC unlocking', function () {
         const mintAmount = 10;
