@@ -239,3 +239,15 @@ task('debug-quote-send', 'Call quote send')
         );
         console.log(obj);
     });
+
+task('setup-oft-set-delegate', 'Call `setDelegate` on smart-contract')
+    .addParam('target', 'The address of smart-contract')
+    .addParam('delegate', 'The address to be delegate')
+    .setAction(async (taskArgs, hre, network) => {
+        const { ethers } = hre;
+
+        const { target, delegate } = taskArgs;
+
+        const adapter = await ethers.getContractAt('OFTAdapter', target);
+        await adapter.setDelegate(delegate);
+    });
