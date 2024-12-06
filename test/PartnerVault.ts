@@ -223,9 +223,7 @@ describe('PartnerVault', function () {
                     await lockedFbtc.getAddress(),
                     mintAmount
                 );
-            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(
-                0
-            );
+            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
         });
         it('should not be able to mint LBTC without depositing', async function () {
             const mintAmount = 10;
