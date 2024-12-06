@@ -149,7 +149,8 @@ contract PartnerVault is
 
         // Now we can make the mintLockedFbtcRequest.
         uint256 amountLocked = _makeMintLockedFbtcRequest(amount);
-        if ($.totalStake + amountLocked > $.stakeLimit) revert StakeLimitExceeded();
+        if ($.totalStake + amountLocked > $.stakeLimit)
+            revert StakeLimitExceeded();
         $.minted[msg.sender] += amountLocked;
         $.totalStake += amountLocked;
 
