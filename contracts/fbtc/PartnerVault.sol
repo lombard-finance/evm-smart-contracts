@@ -87,18 +87,28 @@ contract FBTCPartnerVault is
     event StakeLimitSet(uint256 newStakeLimit);
     event LockedFBTCSet(address lockedFbtc);
     event MintLBTCSet(bool shouldMint);
-    event FBTCLocked(address recipient, uint256 amountLocked, bool lbtcMinted);
-    event BurnInitiated(
-        address recipient,
+    event FBTCLocked(
+        address indexed recipient,
+        uint256 amountLocked,
+        bool indexed lbtcMinted
+    );
+    event WithdrawalDeleted(
+        address indexed recipient,
         uint256 amount,
-        bytes32 depositTxId,
-        uint256 outputIndex
+        bytes32 indexed depositTxId,
+        uint256 indexed outputIndex
+    );
+    event BurnInitiated(
+        address indexed recipient,
+        uint256 amount,
+        bytes32 indexed depositTxId,
+        uint256 indexed outputIndex
     );
     event BurnFinalized(
-        address recipient,
+        address indexed recipient,
         uint256 amount,
-        bytes32 depositTxId,
-        uint256 outputIndex
+        bytes32 indexed depositTxId,
+        uint256 indexed outputIndex
     );
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -293,6 +303,7 @@ contract FBTCPartnerVault is
         );
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         delete $.pendingWithdrawals[key];
+        emit WithdrawalDeleted(recipient, amount, depositTxId, outputIndex);
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {
