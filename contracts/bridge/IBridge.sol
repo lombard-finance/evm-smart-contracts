@@ -110,5 +110,5 @@ interface IBridge is IConsortiumConsumer {
         uint64 amount
     ) external payable returns (uint256, bytes memory);
     function authNotary(bytes calldata payload, bytes calldata proof) external;
-    function withdraw(bytes calldata payload) external;
+    function withdraw(bytes calldata payload) external returns (uint64);
 }
