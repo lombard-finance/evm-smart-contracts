@@ -277,7 +277,11 @@ contract FBTCPartnerVault is
         if ($.allowMintLbtc) {
             $.lbtc.burn(recipient, amount);
         } else {
-            IERC20(address($.lbtc)).safeTransferFrom(recipient, address(this), amount);
+            IERC20(address($.lbtc)).safeTransferFrom(
+                recipient,
+                address(this),
+                amount
+            );
         }
 
         // Next, we finalize the redeeming flow.
