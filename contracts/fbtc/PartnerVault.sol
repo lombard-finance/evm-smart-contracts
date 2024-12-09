@@ -272,9 +272,13 @@ contract FBTCPartnerVault is
         $.totalStake -= amount;
         delete $.pendingWithdrawals[key];
 
-        // First, take the LBTC back if the `allowMintLbtc` variable is set. If not, this burn will
-        // be performed manually by the LBTC team or consortium.
-        if ($.allowMintLbtc) $.lbtc.burn(recipient, amount);
+        // First, take the LBTC back if the `allowMintLbtc` variable is set. If not, the LBTC will
+        // be deducted from the user's balance and put in the vault to be burned manually later.
+        if ($.allowMintLbtc) {
+            $.lbtc.burn(recipient, amount);
+        } else {
+            IERC20(address($.lbtc)).safeTransferFrom(recipient, address(this), amount);
+        }
 
         // Next, we finalize the redeeming flow.
         $.lockedFbtc.confirmRedeemFbtc(amount);
