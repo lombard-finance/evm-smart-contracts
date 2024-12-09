@@ -255,7 +255,9 @@ contract Bridge is
     /**
      * @notice Withdraw bridged LBTC
      */
-    function withdraw(bytes calldata payload) external nonReentrant {
+    function withdraw(
+        bytes calldata payload
+    ) external nonReentrant returns (uint64) {
         BridgeStorage storage $ = _getBridgeStorage();
 
         // payload validation
@@ -306,6 +308,8 @@ contract Bridge is
             payload,
             action.amount
         );
+
+        return action.amount;
     }
 
     /// ONLY OWNER ///
