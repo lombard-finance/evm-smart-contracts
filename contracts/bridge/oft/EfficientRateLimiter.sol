@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {RateLimits} from "../../libs/RateLimits.sol";
+
 /**
  * @title RateLimiter
  * @dev Abstract contract for implementing net rate limiting functionality.  This effectively allows two operations to
@@ -10,28 +12,20 @@ pragma solidity 0.8.24;
  * leeway when someone tries to forcefully congest the network, while still preventing huge amounts to be sent at once.
  */
 abstract contract EfficientRateLimiter {
-    /**
-     * @notice Rate Limit struct.
-     * @param amountInFlight Current amount within the rate limit window.
-     * @param lastUpdated Timestamp representing the last time the rate limit was checked or updated.
-     * @param limit This represents the maximum allowed amount within a given window.
-     * @param window Defines the duration of the rate limiting window.
-     */
-    struct RateLimit {
-        uint256 amountInFlight;
-        uint256 lastUpdated;
-        uint256 limit;
-        uint256 window;
-    }
-
     // Tracks rate limits for outbound transactions to a dstEid.
-    mapping(uint32 dstEid => RateLimit limit) public outboundRateLimits;
+    mapping(uint32 dstEid => RateLimits.Data limit) public outboundRateLimits;
     // Tracks rate limits for inbound transactions from a srcEid.
-    mapping(uint32 srcEid => RateLimit limit) public inboundRateLimits;
+    mapping(uint32 srcEid => RateLimits.Data limit) public inboundRateLimits;
+
+    // Define an enum to clearly distinguish between inbound and outbound rate limits.
+    enum RateLimitDirection {
+        Inbound,
+        Outbound
+    }
 
     /**
      * @notice Rate Limit Configuration struct.
-     * @param dstEid The destination endpoint id.
+     * @param eid The destination endpoint id.
      * @param limit This represents the maximum allowed amount within a given window.
      * @param window Defines the duration of the rate limiting window.
      */
@@ -39,12 +33,6 @@ abstract contract EfficientRateLimiter {
         uint32 eid;
         uint256 limit;
         uint256 window;
-    }
-
-    // Define an enum to clearly distinguish between inbound and outbound rate limits.
-    enum RateLimitDirection {
-        Inbound,
-        Outbound
     }
 
     /**
@@ -61,11 +49,6 @@ abstract contract EfficientRateLimiter {
     );
 
     /**
-     * @notice Error that is thrown when an amount exceeds the rate_limit for a given direction.
-     */
-    error RateLimitExceeded();
-
-    /**
      * @notice Get the current amount that can be sent to this destination endpoint id for the given rate limit window.
      * @param _dstEid The destination endpoint id.
      * @return currentAmountInFlight The current amount that was sent in this window.
@@ -79,7 +62,7 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeSent)
     {
-        RateLimit storage orl = outboundRateLimits[_dstEid];
+        RateLimits.Data storage orl = outboundRateLimits[_dstEid];
         return
             _amountCanBeSent(
                 orl.amountInFlight,
@@ -103,7 +86,7 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeReceived)
     {
-        RateLimit storage irl = inboundRateLimits[_srcEid];
+        RateLimits.Data storage irl = inboundRateLimits[_srcEid];
         return
             _amountCanBeReceived(
                 irl.amountInFlight,
@@ -124,7 +107,7 @@ abstract contract EfficientRateLimiter {
     ) internal virtual {
         unchecked {
             for (uint256 i = 0; i < _rateLimitConfigs.length; i++) {
-                RateLimit storage rateLimit = direction ==
+                RateLimits.Data storage rateLimit = direction ==
                     RateLimitDirection.Outbound
                     ? outboundRateLimits[_rateLimitConfigs[i].eid]
                     : inboundRateLimits[_rateLimitConfigs[i].eid];
@@ -142,41 +125,6 @@ abstract contract EfficientRateLimiter {
             }
         }
         emit RateLimitsChanged(_rateLimitConfigs, direction);
-    }
-
-    /**
-     * @dev Calculates the current amount in flight and the available capacity based on the rate limit configuration and time elapsed.
-     * This function applies a linear decay model to compute how much of the 'amountInFlight' remains based on the time elapsed since the last update.
-     * @param _amountInFlight The total amount that was in flight at the last update.
-     * @param _lastUpdated The timestamp (in seconds) when the last update occurred.
-     * @param _limit The maximum allowable amount within the specified window.
-     * @param _window The time window (in seconds) for which the limit applies.
-     * @return currentAmountInFlight The decayed amount of in-flight based on the elapsed time since lastUpdated. If the time since lastUpdated exceeds the window, it returns zero.
-     * @return availableCapacity The amount of capacity available for new activity. If the time since lastUpdated exceeds the window, it returns the full limit.
-     */
-    function _calculateDecay(
-        uint256 _amountInFlight,
-        uint256 _lastUpdated,
-        uint256 _limit,
-        uint256 _window
-    )
-        internal
-        view
-        returns (uint256 currentAmountInFlight, uint256 availableCapacity)
-    {
-        uint256 timeSinceLastUpdate = block.timestamp - _lastUpdated;
-        if (timeSinceLastUpdate >= _window) {
-            return (0, _limit);
-        } else {
-            uint256 decay = (_limit * timeSinceLastUpdate) / _window;
-            currentAmountInFlight = _amountInFlight > decay
-                ? _amountInFlight - decay
-                : 0;
-            availableCapacity = _limit > currentAmountInFlight
-                ? _limit - currentAmountInFlight
-                : 0;
-            return (currentAmountInFlight, availableCapacity);
-        }
     }
 
     /**
@@ -199,12 +147,13 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeSent)
     {
-        (currentAmountInFlight, amountCanBeSent) = _calculateDecay(
-            _amountInFlight,
-            _lastUpdated,
-            _limit,
-            _window
-        );
+        (currentAmountInFlight, amountCanBeSent) = RateLimits
+            .availableAmountToSend(
+                _amountInFlight,
+                _lastUpdated,
+                _limit,
+                _window
+            );
     }
 
     /**
@@ -227,12 +176,13 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeReceived)
     {
-        (currentAmountInFlight, amountCanBeReceived) = _calculateDecay(
-            _amountInFlight,
-            _lastUpdated,
-            _limit,
-            _window
-        );
+        (currentAmountInFlight, amountCanBeReceived) = RateLimits
+            .availableAmountToSend(
+                _amountInFlight,
+                _lastUpdated,
+                _limit,
+                _window
+            );
     }
 
     /**
@@ -247,15 +197,13 @@ abstract contract EfficientRateLimiter {
         RateLimitDirection direction
     ) internal {
         // Select the correct mapping based on the direction of the rate limit
-        RateLimit storage rl = direction == RateLimitDirection.Outbound
+        RateLimits.Data storage rl = direction == RateLimitDirection.Outbound
             ? outboundRateLimits[_eid]
             : inboundRateLimits[_eid];
 
         // Calculate current amount in flight and available capacity
-        (
-            uint256 currentAmountInFlight,
-            uint256 availableCapacity
-        ) = _calculateDecay(
+        (uint256 currentAmountInFlight, uint256 availableCapacity) = RateLimits
+            .availableAmountToSend(
                 rl.amountInFlight,
                 rl.lastUpdated,
                 rl.limit,
@@ -264,20 +212,21 @@ abstract contract EfficientRateLimiter {
 
         // Check if the requested amount exceeds the available capacity
         if (_amount > availableCapacity) {
-            revert RateLimitExceeded();
+            revert RateLimits.RateLimitExceeded();
         }
 
         // Update the rate limit with the new amount in flight and the current timestamp
         rl.amountInFlight = currentAmountInFlight + _amount;
         rl.lastUpdated = uint128(block.timestamp);
 
-        RateLimit storage oppositeRL = direction == RateLimitDirection.Outbound
+        RateLimits.Data storage oppositeRL = direction ==
+            RateLimitDirection.Outbound
             ? inboundRateLimits[_eid]
             : outboundRateLimits[_eid];
         (
             uint256 otherCurrentAmountInFlight,
             uint256 otherAvailableCapacity
-        ) = _calculateDecay(
+        ) = RateLimits.availableAmountToSend(
                 oppositeRL.amountInFlight,
                 oppositeRL.lastUpdated,
                 oppositeRL.limit,
