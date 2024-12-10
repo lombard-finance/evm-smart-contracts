@@ -177,7 +177,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
         uint256 weight = 0;
         uint256[] storage weights = $.validatorSet[$.epoch].weights;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length; ++i) {
             // each signature preset R || S values
             // V is missed, because validators use Cosmos SDK keyring which is not signing in eth style
             if (signatures[i].length == 64) {
@@ -224,10 +224,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                         weight += weights[i];
                     }
                 }
-            }
-
-            unchecked {
-                ++i;
             }
         }
         if (weight < $.validatorSet[$.epoch].weightThreshold) {
