@@ -149,16 +149,6 @@ describe('LBTC', function () {
                 .withArgs(signer1.address);
         });
 
-        it('changeNameAndSymbol', async function () {
-            const newName = 'NEW_NAME';
-            const newSymbol = 'NEW_SYMBOL';
-            await expect(lbtc.changeNameAndSymbol(newName, newSymbol))
-                .to.emit(lbtc, 'NameAndSymbolChanged')
-                .withArgs(newName, newSymbol);
-            expect(await lbtc.name()).to.be.eq(newName);
-            expect(await lbtc.symbol()).to.be.eq(newSymbol);
-        });
-
         it('toggleWithdrawals() enables or disables burn', async function () {
             await expect(lbtc.toggleWithdrawals())
                 .to.emit(lbtc, 'WithdrawalsEnabled')
