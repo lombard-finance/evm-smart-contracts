@@ -269,7 +269,7 @@ abstract contract EfficientRateLimiter {
 
         // Update the rate limit with the new amount in flight and the current timestamp
         rl.amountInFlight = currentAmountInFlight + _amount;
-        rl.lastUpdated = uint128(block.timestamp);
+        rl.lastUpdated = block.timestamp;
 
         RateLimit storage oppositeRL = direction == RateLimitDirection.Outbound
             ? inboundRateLimits[_eid]
@@ -288,6 +288,6 @@ abstract contract EfficientRateLimiter {
                 ? otherCurrentAmountInFlight - _amount
                 : 0;
         }
-        oppositeRL.lastUpdated = uint128(block.timestamp);
+        oppositeRL.lastUpdated = block.timestamp;
     }
 }
