@@ -24,27 +24,15 @@ abstract contract EfficientRateLimiter {
     }
 
     /**
-     * @notice Rate Limit Configuration struct.
-     * @param eid The destination endpoint id.
-     * @param limit This represents the maximum allowed amount within a given window.
-     * @param window Defines the duration of the rate limiting window.
-     */
-    struct RateLimitConfig {
-        uint32 eid;
-        uint256 limit;
-        uint256 window;
-    }
-
-    /**
      * @notice Emitted when _setRateLimits occurs.
-     * @param rateLimitConfigs An array of `RateLimitConfig` structs representing the rate limit configurations set per endpoint id.
+     * @param rateLimitConfigs An array of `RateLimits.Config` structs representing the rate limit configurations set per endpoint id.
      * - `eid`: The source / destination endpoint id (depending on direction).
      * - `limit`: This represents the maximum allowed amount within a given window.
      * - `window`: Defines the duration of the rate limiting window.
      * @param direction Specifies whether the outbound or inbound rates were changed.
      */
     event RateLimitsChanged(
-        RateLimitConfig[] rateLimitConfigs,
+        RateLimits.Config[] rateLimitConfigs,
         RateLimitDirection direction
     );
 
@@ -98,23 +86,23 @@ abstract contract EfficientRateLimiter {
 
     /**
      * @notice Sets the Rate Limits.
-     * @param _rateLimitConfigs A `RateLimitConfig[]` array representing the rate limit configurations for either outbound or inbound.
+     * @param _rateLimitConfigs A `RateLimits.Config[]` array representing the rate limit configurations for either outbound or inbound.
      * @param direction Indicates whether the rate limits being set are for outbound or inbound.
      */
     function _setRateLimits(
-        RateLimitConfig[] memory _rateLimitConfigs,
+        RateLimits.Config[] memory _rateLimitConfigs,
         RateLimitDirection direction
     ) internal virtual {
         unchecked {
             for (uint256 i = 0; i < _rateLimitConfigs.length; i++) {
                 RateLimits.Data storage rateLimit = direction ==
                     RateLimitDirection.Outbound
-                    ? outboundRateLimits[_rateLimitConfigs[i].eid]
-                    : inboundRateLimits[_rateLimitConfigs[i].eid];
+                    ? outboundRateLimits[_rateLimitConfigs[i].chainId]
+                    : inboundRateLimits[_rateLimitConfigs[i].chainId];
 
                 // Checkpoint the existing rate limit to not retroactively apply the new decay rate.
                 _checkAndUpdateRateLimit(
-                    _rateLimitConfigs[i].eid,
+                    _rateLimitConfigs[i].chainId,
                     0,
                     direction
                 );

@@ -23,7 +23,7 @@ library RateLimits {
      * @param window Defines the duration of the rate limiting window.
      */
     struct Config {
-        bytes32 chainId;
+        uint32 chainId;
         uint256 limit;
         uint256 window;
     }
