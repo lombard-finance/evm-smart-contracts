@@ -627,7 +627,7 @@ describe('LBTC', function () {
                     [1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1],
                     NEW_VALSET
                 );
-                await newConsortium.setInitalValidatorSet(valset);
+                await newConsortium.setInitialValidatorSet(valset);
                 const data = await signDepositBtcPayload(
                     defaultArgs.signers(),
                     defaultArgs.signatures,

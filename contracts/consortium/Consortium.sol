@@ -50,7 +50,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
     /// @notice Sets the initial validator set from any epoch
     /// @param _initialValSet - The initial list of validators
-    function setInitalValidatorSet(
+    function setInitialValidatorSet(
         bytes calldata _initialValSet
     ) external onlyOwner {
         ConsortiumStorage storage $ = _getConsortiumStorage();

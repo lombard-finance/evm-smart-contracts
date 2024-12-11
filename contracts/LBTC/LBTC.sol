@@ -35,8 +35,6 @@ contract LBTC is
         string symbol;
         bool isWithdrawalsEnabled;
         address consortium;
-        bool isWBTCEnabled;
-        IERC20 wbtc;
         address treasury;
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
@@ -67,6 +65,8 @@ contract LBTC is
     bytes32 private constant LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
+    uint256 private constant dustFeeRate_ = 3000;
+
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -96,7 +96,7 @@ contract LBTC is
         );
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.dustFeeRate = 3000; // Default value - 3 satoshis per byte
+        $.dustFeeRate = dustFeeRate_; // Default value - 3 satoshis per byte
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
@@ -244,27 +244,12 @@ contract LBTC is
         bytes calldata scriptPubkey,
         uint256 amount
     ) public view returns (uint256 amountAfterFee, bool isAboveDust) {
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-        if (outType == OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-
         LBTCStorage storage $ = _getLBTCStorage();
-
-        uint64 fee = $.burnCommission;
-        if (amount <= fee) {
-            return (0, false);
-        }
-
-        amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
+        (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
-            $.dustFeeRate
+            amount,
+            $.burnCommission
         );
-
-        isAboveDust = amountAfterFee >= dustLimit;
-
         return (amountAfterFee, isAboveDust);
     }
 
@@ -473,12 +458,6 @@ contract LBTC is
      * @param amount Amount of LBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-
-        if (outType == OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-
         LBTCStorage storage $ = _getLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
@@ -486,18 +465,16 @@ contract LBTC is
         }
 
         uint64 fee = $.burnCommission;
-        if (amount <= fee) {
+        (
+            uint256 amountAfterFee,
+            bool isAboveFee,
+            uint256 dustLimit,
+            bool isAboveDust
+        ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee);
+        if (!isAboveFee) {
             revert AmountLessThanCommission(fee);
         }
-
-        uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
-            scriptPubkey,
-            $.dustFeeRate
-        );
-
-        if (amountAfterFee < dustLimit) {
+        if (!isAboveDust) {
             revert AmountBelowDustLimit(dustLimit);
         }
 
@@ -741,6 +718,32 @@ contract LBTC is
         }
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
+    }
+
+    function _calcFeeAndDustLimit(
+        bytes calldata scriptPubkey,
+        uint256 amount,
+        uint64 fee
+    ) internal view returns (uint256, bool, uint256, bool) {
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+        if (outType == OutputType.UNSUPPORTED) {
+            revert ScriptPubkeyUnsupported();
+        }
+
+        if (amount <= fee) {
+            return (0, false, 0, false);
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 amountAfterFee = amount - fee;
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
+            outType,
+            scriptPubkey,
+            $.dustFeeRate
+        );
+
+        bool isAboveDust = amountAfterFee >= dustLimit;
+        return (amountAfterFee, true, dustLimit, isAboveDust);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
