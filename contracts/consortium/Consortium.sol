@@ -180,6 +180,12 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
         for (uint256 i; i < length; ) {
             // each signature preset R || S values
             // V is missed, because validators use Cosmos SDK keyring which is not signing in eth style
+            // We only check signatures which are the expected 64 bytes long - we are expecting
+            // a signatures array with the same amount of items as there are validators, but not all
+            // validators will need to sign for a proof to be valid, so validators who have not signed
+            // will have their corresponding signature set to 0 bytes.
+            // In case of a malformed signature (i.e. length isn't 0 bytes but also isn't 64 bytes)
+            // this signature will be discarded.
             if (signatures[i].length == 64) {
                 // split signature by R and S values
                 bytes memory sig = signatures[i];
