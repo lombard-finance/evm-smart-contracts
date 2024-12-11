@@ -31,7 +31,7 @@ abstract contract EfficientRateLimiter {
 
     /**
      * @notice Rate Limit Configuration struct.
-     * @param dstEid The destination endpoint id.
+     * @param eid The destination endpoint id.
      * @param limit This represents the maximum allowed amount within a given window.
      * @param window Defines the duration of the rate limiting window.
      */
