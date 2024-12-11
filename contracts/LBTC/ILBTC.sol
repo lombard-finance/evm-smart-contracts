@@ -44,6 +44,7 @@ interface ILBTC {
     event MinterUpdated(address indexed minter, bool isMinter);
     event BridgeChanged(address indexed prevVal, address indexed newVal);
     event ClaimerUpdated(address indexed claimer, bool isClaimer);
+    event OperatorUpdated(address indexed operator, bool isOperator);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
     error FeeGreaterThanAmount();

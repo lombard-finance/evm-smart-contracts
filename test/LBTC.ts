@@ -76,6 +76,10 @@ describe('LBTC', function () {
         await lbtc.addClaimer(deployer.address);
         await lbtc2.addClaimer(deployer.address);
 
+        // set deployer as operator for lbtc
+        await lbtc.addOperator(deployer.address);
+        await lbtc2.addOperator(deployer.address);
+
         // Initialize the permit module
         await lbtc.reinitialize();
         await lbtc2.reinitialize();
@@ -251,17 +255,44 @@ describe('LBTC', function () {
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
-        it('should set mint fee', async function () {
+        it('addOperator should be callable by owner', async function () {
+            await expect(lbtc.addOperator(signer1.address))
+                .to.emit(lbtc, 'OperatorUpdated')
+                .withArgs(signer1.address, true);
+            expect(await lbtc.isOperator(signer1.address)).to.be.true;
+        });
+
+        it('removeOperator should be callable by owner', async function () {
+            await lbtc.addOperator(signer1.address);
+            await expect(lbtc.removeOperator(signer1.address))
+                .to.emit(lbtc, 'OperatorUpdated')
+                .withArgs(signer1.address, false);
+            expect(await lbtc.isOperator(signer1.address)).to.be.false;
+        });
+
+        it('should fail to add operator if not owner', async function () {
+            await expect(
+                lbtc.connect(signer1).addOperator(signer1.address)
+            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+        });
+
+        it('should fail to remove operator if not owner', async function () {
+            await expect(
+                lbtc.connect(signer1).removeOperator(signer1.address)
+            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+        });
+
+        it('should set mint fee by operator', async function () {
             await expect(lbtc.setMintFee(1234))
                 .to.emit(lbtc, 'FeeChanged')
                 .withArgs(0, 1234);
             expect(await lbtc.getMintFee()).to.be.equal(1234);
         });
 
-        it('should fail to set mint fee if not owner', async function () {
+        it('should fail to set mint fee if not operator', async function () {
             await expect(
                 lbtc.connect(signer1).setMintFee(1)
-            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+            ).to.revertedWithCustomError(lbtc, 'UnauthorizedAccount');
         });
     });
 

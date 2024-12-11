@@ -56,6 +56,7 @@ contract LBTC is
         address pauser;
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
+        mapping(address => bool) operators;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
         // @dev is sha256(payload) used
@@ -112,6 +113,13 @@ contract LBTC is
         _;
     }
 
+    modifier onlyOperator() {
+        if (!_getLBTCStorage().operators[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyOwner {
@@ -136,7 +144,7 @@ contract LBTC is
      * @param fee New fee value
      * @dev zero allowed to disable fee
      */
-    function setMintFee(uint256 fee) external onlyOwner {
+    function setMintFee(uint256 fee) external onlyOperator {
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
@@ -179,6 +187,14 @@ contract LBTC is
 
     function removeClaimer(address oldClaimer) external onlyOwner {
         _updateClaimer(oldClaimer, false);
+    }
+
+    function addOperator(address newOperator) external onlyOwner {
+        _updateOperator(newOperator, true);
+    }
+
+    function removeOperator(address oldOperator) external onlyOwner {
+        _updateOperator(oldOperator, false);
     }
 
     /// @notice Change the dust fee rate used for dust limit calculations
@@ -313,6 +329,10 @@ contract LBTC is
 
     function isClaimer(address claimer) external view returns (bool) {
         return _getLBTCStorage().claimers[claimer];
+    }
+
+    function isOperator(address operator) external view returns (bool) {
+        return _getLBTCStorage().operators[operator];
     }
 
     /// USER ACTIONS ///
@@ -715,6 +735,14 @@ contract LBTC is
         }
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
+    }
+
+    function _updateOperator(address operator, bool _isOperator) internal {
+        if (operator == address(0)) {
+            revert ZeroAddress();
+        }
+        _getLBTCStorage().operators[operator] = _isOperator;
+        emit OperatorUpdated(operator, _isOperator);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
