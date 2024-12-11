@@ -53,6 +53,10 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     function setInitalValidatorSet(
         bytes calldata _initialValSet
     ) external onlyOwner {
+        // Payload validation
+        if (bytes4(_initialValSet) != Actions.NEW_VALSET)
+            revert UnexpectedAction(bytes4(_initialValSet));
+
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         Actions.ValSetAction memory action = Actions.validateValSet(
