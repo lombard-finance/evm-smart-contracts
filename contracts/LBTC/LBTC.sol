@@ -56,11 +56,11 @@ contract LBTC is
         address pauser;
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
-        address operator;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
         // @dev is sha256(payload) used
         mapping(bytes32 => bool) usedPayloads;
+        address operator;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
