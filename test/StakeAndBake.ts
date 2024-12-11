@@ -43,7 +43,11 @@ describe('StakeAndBake', function () {
             await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
 
         stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
@@ -63,8 +67,6 @@ describe('StakeAndBake', function () {
                 [],
                 false
             );
-
-        await lbtc.changeTreasuryAddress(treasury.address);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);

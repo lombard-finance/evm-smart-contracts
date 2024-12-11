@@ -47,10 +47,18 @@ describe('LBTC', function () {
 
         const burnCommission = 1000;
 
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
 
-        const result2 = await init(burnCommission, deployer.address);
+        const result2 = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc2 = result2.lbtc;
 
         bascule = await deployContract<Bascule>(
@@ -64,9 +72,6 @@ describe('LBTC', function () {
             ],
             false
         );
-
-        await lbtc.changeTreasuryAddress(treasury.address);
-        await lbtc2.changeTreasuryAddress(treasury.address);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);

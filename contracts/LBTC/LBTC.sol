@@ -78,6 +78,7 @@ contract LBTC is
     function initialize(
         address consortium_,
         uint64 burnCommission_,
+        address treasury,
         address owner_
     ) external initializer {
         __ERC20_init("LBTC", "LBTC");
@@ -92,6 +93,7 @@ contract LBTC is
             "Lombard Staked Bitcoin",
             "LBTC",
             consortium_,
+            treasury,
             burnCommission_
         );
 
@@ -152,13 +154,7 @@ contract LBTC is
     }
 
     function changeTreasuryAddress(address newValue) external onlyOwner {
-        if (newValue == address(0)) {
-            revert ZeroAddress();
-        }
-        LBTCStorage storage $ = _getLBTCStorage();
-        address prevValue = $.treasury;
-        $.treasury = newValue;
-        emit TreasuryAddressChanged(prevValue, newValue);
+        _changeTreasuryAddress(newValue);
     }
 
     function changeBurnCommission(uint64 newValue) external onlyOwner {
@@ -534,10 +530,12 @@ contract LBTC is
         string memory name_,
         string memory symbol_,
         address consortium_,
+        address treasury,
         uint64 burnCommission_
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
+        _changeTreasuryAddress(treasury);
         _changeBurnCommission(burnCommission_);
     }
 
@@ -741,6 +739,16 @@ contract LBTC is
         }
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
+    }
+
+    function _changeTreasuryAddress(address newValue) internal {
+        if (newValue == address(0)) {
+            revert ZeroAddress();
+        }
+        LBTCStorage storage $ = _getLBTCStorage();
+        address prevValue = $.treasury;
+        $.treasury = newValue;
+        emit TreasuryAddressChanged(prevValue, newValue);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
