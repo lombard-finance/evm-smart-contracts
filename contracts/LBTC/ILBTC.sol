@@ -23,6 +23,10 @@ interface ILBTC {
         address indexed previousPauser,
         address indexed newPauser
     );
+    event OperatorRoleTransferred(
+        address indexed previousOperator,
+        address indexed newPauser
+    );
     event UnstakeRequest(
         address indexed fromAddress,
         bytes scriptPubKey,
