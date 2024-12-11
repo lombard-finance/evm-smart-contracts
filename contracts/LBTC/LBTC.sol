@@ -56,7 +56,7 @@ contract LBTC is
         address pauser;
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
-        mapping(address => bool) operators;
+        address operator;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
         // @dev is sha256(payload) used
@@ -114,7 +114,7 @@ contract LBTC is
     }
 
     modifier onlyOperator() {
-        if (!_getLBTCStorage().operators[_msgSender()]) {
+        if (_getLBTCStorage().operator != _msgSender()) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
@@ -189,14 +189,6 @@ contract LBTC is
         _updateClaimer(oldClaimer, false);
     }
 
-    function addOperator(address newOperator) external onlyOwner {
-        _updateOperator(newOperator, true);
-    }
-
-    function removeOperator(address oldOperator) external onlyOwner {
-        _updateOperator(oldOperator, false);
-    }
-
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
@@ -224,6 +216,13 @@ contract LBTC is
             revert ZeroAddress();
         }
         _transferPauserRole(newPauser);
+    }
+
+    function transferOperatorRole(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferOperatorRole(newOperator);
     }
 
     /// GETTERS ///
@@ -323,16 +322,16 @@ contract LBTC is
         return _getLBTCStorage().pauser;
     }
 
+    function operator() external view returns (address) {
+        return _getLBTCStorage().operator;
+    }
+
     function isMinter(address minter) external view returns (bool) {
         return _getLBTCStorage().minters[minter];
     }
 
     function isClaimer(address claimer) external view returns (bool) {
         return _getLBTCStorage().claimers[claimer];
-    }
-
-    function isOperator(address operator) external view returns (bool) {
-        return _getLBTCStorage().operators[operator];
     }
 
     /// USER ACTIONS ///
@@ -644,6 +643,13 @@ contract LBTC is
         emit PauserRoleTransferred(oldPauser, newPauser);
     }
 
+    function _transferOperatorRole(address newOperator) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldOperator = $.operator;
+        $.operator = newOperator;
+        emit OperatorRoleTransferred(oldOperator, newOperator);
+    }
+
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
@@ -735,14 +741,6 @@ contract LBTC is
         }
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
-    }
-
-    function _updateOperator(address operator, bool _isOperator) internal {
-        if (operator == address(0)) {
-            revert ZeroAddress();
-        }
-        _getLBTCStorage().operators[operator] = _isOperator;
-        emit OperatorUpdated(operator, _isOperator);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {

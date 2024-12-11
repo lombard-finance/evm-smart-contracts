@@ -77,8 +77,8 @@ describe('LBTC', function () {
         await lbtc2.addClaimer(deployer.address);
 
         // set deployer as operator for lbtc
-        await lbtc.addOperator(deployer.address);
-        await lbtc2.addOperator(deployer.address);
+        await lbtc.transferOperatorRole(deployer.address);
+        await lbtc2.transferOperatorRole(deployer.address);
 
         // Initialize the permit module
         await lbtc.reinitialize();
@@ -255,31 +255,23 @@ describe('LBTC', function () {
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
-        it('addOperator should be callable by owner', async function () {
-            await expect(lbtc.addOperator(signer1.address))
-                .to.emit(lbtc, 'OperatorUpdated')
-                .withArgs(signer1.address, true);
-            expect(await lbtc.isOperator(signer1.address)).to.be.true;
-        });
-
-        it('removeOperator should be callable by owner', async function () {
-            await lbtc.addOperator(signer1.address);
-            await expect(lbtc.removeOperator(signer1.address))
-                .to.emit(lbtc, 'OperatorUpdated')
-                .withArgs(signer1.address, false);
-            expect(await lbtc.isOperator(signer1.address)).to.be.false;
+        it('transferOperatorRole should be callable by owner', async function () {
+            await expect(lbtc.transferOperatorRole(signer1.address))
+                .to.emit(lbtc, 'OperatorRoleTransferred')
+                .withArgs(deployer.address, signer1.address);
+            expect(await lbtc.operator()).to.be.equal(signer1.address);
         });
 
         it('should fail to add operator if not owner', async function () {
             await expect(
-                lbtc.connect(signer1).addOperator(signer1.address)
+                lbtc.connect(signer1).transferOperatorRole(signer1.address)
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
-        it('should fail to remove operator if not owner', async function () {
+        it('should fail to add zero address operator', async function () {
             await expect(
-                lbtc.connect(signer1).removeOperator(signer1.address)
-            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+                lbtc.transferOperatorRole(ethers.ZeroAddress)
+            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
         });
 
         it('should set mint fee by operator', async function () {

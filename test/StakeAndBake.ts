@@ -73,7 +73,7 @@ describe('StakeAndBake', function () {
         await lbtc.addClaimer(await stakeAndBake.getAddress());
 
         // set deployer as operator
-        await lbtc.addOperator(deployer.address);
+        await lbtc.transferOperatorRole(deployer.address);
 
         // Initialize the permit module
         await lbtc.reinitialize();
