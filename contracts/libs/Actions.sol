@@ -233,6 +233,10 @@ library Actions {
             if (_pubKeys[i].length == 65) {
                 bytes memory data = _pubKeys[i];
 
+                // Ensure that first byte of pubkey is 0x04
+                if (_pubKeys[i][0] != 0x04)
+                    revert InvalidPublicKey(_pubKeys[i]);
+
                 // create a new array with length - 1 (excluding the first 0x04 byte)
                 bytes memory result = new bytes(data.length - 1);
 
