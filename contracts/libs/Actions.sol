@@ -72,6 +72,9 @@ library Actions {
     /// @dev Error thrown when zero fee is used
     error ZeroFee();
 
+    /// @dev Error thrown when payload length is too big
+    error PayloadTooLarge();
+
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
     // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
@@ -105,6 +108,9 @@ library Actions {
     /// at least one Byzantine fault.
     uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
 
+    /// @dev A constant representing the number of bytes for a slot of information in a payload.
+    uint256 internal constant ABI_SLOT_SIZE = 32;
+
     /**
      * @notice Returns decoded deposit btc msg
      * @dev Message should not contain the selector
@@ -113,6 +119,8 @@ library Actions {
     function depositBtc(
         bytes memory payload
     ) internal view returns (DepositBtcAction memory) {
+        if (payload.length != ABI_SLOT_SIZE * 5) revert PayloadTooLarge();
+
         (
             uint256 toChain,
             address recipient,
@@ -142,6 +150,8 @@ library Actions {
     function depositBridge(
         bytes memory payload
     ) internal view returns (DepositBridgeAction memory) {
+        if (payload.length != ABI_SLOT_SIZE * 7) revert PayloadTooLarge();
+
         (
             uint256 fromChain,
             address fromContract,
@@ -267,6 +277,8 @@ library Actions {
     function feeApproval(
         bytes memory payload
     ) internal view returns (FeeApprovalAction memory) {
+        if (payload.length != ABI_SLOT_SIZE * 2) revert PayloadTooLarge();
+
         (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
 
         if (block.timestamp > expiry) {
