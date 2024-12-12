@@ -60,7 +60,7 @@ describe('Consortium', function () {
                 NEW_VALSET
             );
 
-            await lombard.setInitalValidatorSet(initialValset);
+            await lombard.setInitialValidatorSet(initialValset);
         });
 
         it('should set the correct threshold', async function () {
@@ -107,7 +107,7 @@ describe('Consortium', function () {
                 NEW_VALSET
             );
             await expect(
-                lombard.setInitalValidatorSet(payload)
+                lombard.setInitialValidatorSet(payload)
             ).to.revertedWithCustomError(lombard, 'ValSetAlreadySet');
         });
 
@@ -283,7 +283,7 @@ describe('Consortium with real data', function () {
     });
 
     it('should set initial ValSet', async function () {
-        await expect(consortium.setInitalValidatorSet(initialValset))
+        await expect(consortium.setInitialValidatorSet(initialValset))
             .to.emit(consortium, 'ValidatorSetUpdated')
             .withArgs(
                 2,
