@@ -42,14 +42,13 @@ contract Bridge is
         mapping(bytes32 => Deposit) deposits;
         INotaryConsortium consortium;
         // Rate limits
-        mapping(bytes32 => RateLimits.Data) depositRateLimits;
-        mapping(bytes32 => RateLimits.Data) withdrawRateLimits;
+        mapping(uint32 => RateLimits.Data) depositRateLimits;
+        mapping(uint32 => RateLimits.Data) withdrawRateLimits;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
-    uint16 private constant MAX_COMMISSION = 100_00; // 100.00%
 
     /// PUBLIC FUNCTIONS ///
 
@@ -270,7 +269,7 @@ contract Bridge is
 
         // check rate limits
         RateLimits.updateLimit(
-            $.withdrawRateLimits[bytes32(action.fromChain)],
+            $.withdrawRateLimits[uint32(action.fromChain)],
             action.amount
         );
 
@@ -445,7 +444,10 @@ contract Bridge is
         BridgeStorage storage $ = _getBridgeStorage();
 
         // check rate limits
-        RateLimits.updateLimit($.depositRateLimits[toChain], amount);
+        RateLimits.updateLimit(
+            $.depositRateLimits[uint32(uint256(toChain))],
+            amount
+        );
 
         // relative fee
         uint256 fee = FeeUtils.getRelativeFee(
@@ -525,14 +527,6 @@ contract Bridge is
         address previousAdapter = address(conf.adapter);
         conf.adapter = IAdapter(newAdapter);
         emit AdapterChanged(previousAdapter, newAdapter);
-    }
-
-    function _calcRelativeFee(
-        uint64 amount,
-        uint16 commission
-    ) internal pure returns (uint256 fee) {
-        return
-            Math.mulDiv(amount, commission, MAX_COMMISSION, Math.Rounding.Ceil);
     }
 
     function _getBridgeStorage()

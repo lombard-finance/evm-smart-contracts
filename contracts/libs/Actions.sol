@@ -17,7 +17,7 @@ library Actions {
         address toContract;
         address recipient;
         uint64 amount;
-        bytes32 nonce;
+        uint256 nonce;
     }
 
     struct ValSetAction {
@@ -149,10 +149,10 @@ library Actions {
             address toContract,
             address recipient,
             uint64 amount,
-            bytes32 nonce
+            uint256 nonce
         ) = abi.decode(
                 payload,
-                (uint256, address, uint256, address, address, uint64, bytes32)
+                (uint256, address, uint256, address, address, uint64, uint256)
             );
 
         if (toChain != block.chainid) {
