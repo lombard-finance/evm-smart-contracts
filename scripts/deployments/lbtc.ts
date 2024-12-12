@@ -9,6 +9,7 @@ import { create3 } from '../helpers/create3Deployment';
  * 3. Set pauser
  * 4. Set mint fee
  * 5. Set claimers
+ * 6. Set operator
  */
 
 task('deploy-lbtc', 'Deploys the LBTC contract')
