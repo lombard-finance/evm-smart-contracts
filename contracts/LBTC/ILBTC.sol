@@ -25,7 +25,7 @@ interface ILBTC {
     );
     event OperatorRoleTransferred(
         address indexed previousOperator,
-        address indexed newPauser
+        address indexed newOperator
     );
     event UnstakeRequest(
         address indexed fromAddress,
