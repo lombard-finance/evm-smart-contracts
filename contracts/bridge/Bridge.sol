@@ -277,6 +277,9 @@ contract Bridge is
         DestinationConfig memory destConf = $.destinations[
             bytes32(action.fromChain)
         ];
+        if (destConf.bridgeContract == bytes32(0)) {
+            revert UnknownDestination();
+        }
 
         bytes32 payloadHash = sha256(payload);
         Deposit storage depositData = $.deposits[payloadHash];
@@ -362,6 +365,8 @@ contract Bridge is
 
         BridgeStorage storage $ = _getBridgeStorage();
         delete $.destinations[toChain];
+        delete $.depositRateLimits[toChain];
+        delete $.withdrawRateLimits[toChain];
 
         emit DepositAbsoluteCommissionChanged(0, toChain);
         emit DepositRelativeCommissionChanged(0, toChain);
