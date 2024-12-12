@@ -80,7 +80,7 @@ contract LBTC is
         uint64 burnCommission_,
         address owner_
     ) external initializer {
-        __ERC20_init("LBTC", "LBTC");
+        __ERC20_init("", "");
         __ERC20Pausable_init();
 
         __Ownable_init(owner_);
