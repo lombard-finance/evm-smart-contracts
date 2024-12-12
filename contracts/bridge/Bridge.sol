@@ -268,6 +268,9 @@ contract Bridge is
             payload[4:]
         );
 
+        // Validate toContract
+        if (action.toContract != address(this)) revert NotValidDestination();
+
         // check rate limits
         RateLimits.updateLimit(
             $.withdrawRateLimits[bytes32(action.fromChain)],
