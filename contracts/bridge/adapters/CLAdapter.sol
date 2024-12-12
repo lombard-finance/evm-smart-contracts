@@ -23,6 +23,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
     error CLRefundFailed(address, uint256);
     error CLUnauthorizedTokenPool(address);
     error ZeroPayload();
+    error ReceiverTooBig();
+    error AmountOverflow();
 
     event CLChainSelectorSet(bytes32, uint64);
     event CLTokenPoolDeployed(address);
@@ -95,6 +97,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
             _lastPayload = new bytes(0);
             _lastBurnedAmount = 0;
         } else {
+            if (receiver.length > 32) revert ReceiverTooBig();
+            if (amount >= 2 ** 64) revert AmountOverflow();
             IERC20(address(lbtc())).approve(address(bridge), amount);
             (lastBurnedAmount, lastPayload) = bridge.deposit(
                 getChain[remoteChainSelector],
