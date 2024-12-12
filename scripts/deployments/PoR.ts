@@ -19,5 +19,12 @@ task('deploy-por', 'Deploys the PoR contract via create3')
     .setAction(async (taskArgs, hre) => {
         const { ledgerNetwork, admin, proxyFactoryAddr } = taskArgs;
 
-        await create3('PoR', [admin], proxyFactoryAddr, ledgerNetwork, admin, hre);
+        await create3(
+            'PoR',
+            [admin],
+            proxyFactoryAddr,
+            ledgerNetwork,
+            admin,
+            hre
+        );
     });

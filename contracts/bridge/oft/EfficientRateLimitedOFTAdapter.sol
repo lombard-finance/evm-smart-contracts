@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {OFTAdapter} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {EfficientRateLimiter} from "./EfficientRateLimiter.sol";
+import {RateLimits} from "../../libs/RateLimits.sol";
 
 /**
  * @title OFT Adapter contract with EfficientRateLimiter
@@ -16,13 +17,13 @@ abstract contract EfficientRateLimitedOFTAdapter is
      * It allows configuration of rate limits either for outbound or inbound directions.
      * This method is designed to be called by contract admins for updating the system's rate limiting behavior.
      *
-     * @param _rateLimitConfigs An array of `RateLimitConfig` structs that specify the new rate limit settings.
+     * @param _rateLimitConfigs An array of `RateLimits.Config` structs that specify the new rate limit settings.
      * Each struct includes an endpoint ID, the limit value, and the window duration.
      * @param direction The direction (`Outbound` or `Inbound`) specifies whether the endpoint ID passed should be considered a dstEid or srcEid.
      * This parameter determines which set of rate limits (outbound or inbound) will be updated for each endpoint.
      */
     function setRateLimits(
-        RateLimitConfig[] calldata _rateLimitConfigs,
+        RateLimits.Config[] calldata _rateLimitConfigs,
         RateLimitDirection direction
     ) external onlyOwner {
         _setRateLimits(_rateLimitConfigs, direction);
