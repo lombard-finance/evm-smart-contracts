@@ -113,6 +113,20 @@ contract LBTC is
         _;
     }
 
+    modifier onlyMinter() {
+        if (!_getLBTCStorage().minters[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    modifier onlyClaimer() {
+        if (!_getLBTCStorage().claimers[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     modifier onlyOperator() {
         if (_getLBTCStorage().operator != _msgSender()) {
             revert UnauthorizedAccount(_msgSender());
@@ -342,9 +356,7 @@ contract LBTC is
      * @param amount The amount of LBTC to mint
      * @dev Only callable by whitelisted minters
      */
-    function mint(address to, uint256 amount) external override {
-        _onlyMinter(_msgSender());
-
+    function mint(address to, uint256 amount) external override onlyMinter {
         _mint(to, amount);
     }
 
@@ -357,9 +369,7 @@ contract LBTC is
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external {
-        _onlyMinter(_msgSender());
-
+    ) external onlyMinter {
         if (to.length != amount.length) {
             revert InvalidInputLength();
         }
@@ -426,9 +436,7 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external {
-        _onlyClaimer(_msgSender());
-
+    ) external onlyClaimer {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -444,9 +452,7 @@ contract LBTC is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external {
-        _onlyClaimer(_msgSender());
-
+    ) external onlyClaimer {
         uint256 length = mintPayload.length;
         if (
             length != proof.length ||
@@ -522,9 +528,7 @@ contract LBTC is
      *
      * @param amount Amount of LBTC to burn
      */
-    function burn(address from, uint256 amount) external override {
-        _onlyMinter(_msgSender());
-
+    function burn(address from, uint256 amount) external override onlyMinter {
         _burn(from, amount);
     }
 
@@ -609,18 +613,6 @@ contract LBTC is
         IBascule bascule = self.bascule;
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
-        }
-    }
-
-    function _onlyMinter(address sender) internal view {
-        if (!_getLBTCStorage().minters[sender]) {
-            revert UnauthorizedAccount(sender);
-        }
-    }
-
-    function _onlyClaimer(address sender) internal view {
-        if (!_getLBTCStorage().claimers[sender]) {
-            revert UnauthorizedAccount(sender);
         }
     }
 
