@@ -60,6 +60,7 @@ contract LBTC is
         uint256 maximumFee;
         // @dev is sha256(payload) used
         mapping(bytes32 => bool) usedPayloads;
+        address operator;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -79,7 +80,7 @@ contract LBTC is
         uint64 burnCommission_,
         address owner_
     ) external initializer {
-        __ERC20_init("LBTC", "LBTC");
+        __ERC20_init("", "");
         __ERC20Pausable_init();
 
         __Ownable_init(owner_);
@@ -126,6 +127,13 @@ contract LBTC is
         _;
     }
 
+    modifier onlyOperator() {
+        if (_getLBTCStorage().operator != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyOwner {
@@ -150,7 +158,7 @@ contract LBTC is
      * @param fee New fee value
      * @dev zero allowed to disable fee
      */
-    function setMintFee(uint256 fee) external onlyOwner {
+    function setMintFee(uint256 fee) external onlyOperator {
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
@@ -222,6 +230,13 @@ contract LBTC is
             revert ZeroAddress();
         }
         _transferPauserRole(newPauser);
+    }
+
+    function transferOperatorRole(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferOperatorRole(newOperator);
     }
 
     /// GETTERS ///
@@ -319,6 +334,10 @@ contract LBTC is
 
     function pauser() public view returns (address) {
         return _getLBTCStorage().pauser;
+    }
+
+    function operator() external view returns (address) {
+        return _getLBTCStorage().operator;
     }
 
     function isMinter(address minter) external view returns (bool) {
@@ -614,6 +633,13 @@ contract LBTC is
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
+    }
+
+    function _transferOperatorRole(address newOperator) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldOperator = $.operator;
+        $.operator = newOperator;
+        emit OperatorRoleTransferred(oldOperator, newOperator);
     }
 
     function _mintWithFee(
