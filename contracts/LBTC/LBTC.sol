@@ -142,13 +142,6 @@ contract LBTC is
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
     }
 
-    function changeNameAndSymbol(
-        string calldata name_,
-        string calldata symbol_
-    ) external onlyOwner {
-        _changeNameAndSymbol(name_, symbol_);
-    }
-
     function changeConsortium(address newVal) external onlyOwner {
         _changeConsortium(newVal);
     }
