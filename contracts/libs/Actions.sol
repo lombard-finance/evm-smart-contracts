@@ -18,6 +18,7 @@ library Actions {
         address recipient;
         uint64 amount;
         bytes32 uniqueActionData;
+        uint16 version;
     }
 
     struct ValSetAction {
@@ -79,8 +80,8 @@ library Actions {
         0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
     bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
-    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
-    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
+    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256,uint16)"))
+    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x4d975b4d;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant NEW_VALSET = 0x4aab1d6f;
 
@@ -149,10 +150,20 @@ library Actions {
             address toContract,
             address recipient,
             uint64 amount,
-            bytes32 uniqueActionData
+            bytes32 uniqueActionData,
+            uint16 version
         ) = abi.decode(
                 payload,
-                (uint256, address, uint256, address, address, uint64, bytes32)
+                (
+                    uint256,
+                    address,
+                    uint256,
+                    address,
+                    address,
+                    uint64,
+                    bytes32,
+                    uint16
+                )
             );
 
         if (toChain != block.chainid) {
@@ -173,7 +184,8 @@ library Actions {
                 toContract,
                 recipient,
                 amount,
-                uniqueActionData
+                uniqueActionData,
+                version
             );
     }
 

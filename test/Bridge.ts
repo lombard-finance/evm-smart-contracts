@@ -47,6 +47,7 @@ describe('Bridge', function () {
     let bridgeSource: Bridge;
     let bridgeDestination: Bridge;
     let snapshot: SnapshotRestorer;
+    const version = 1;
 
     before(async function () {
         [
@@ -193,6 +194,7 @@ describe('Bridge', function () {
                     encode(['address'], [receiver]),
                     amountWithoutFee,
                     ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [0]),
+                    encode(['uint16'], [version]),
                 ],
                 DEPOSIT_BRIDGE_ACTION
             );
@@ -234,7 +236,8 @@ describe('Bridge', function () {
                 CHAIN_ID,
                 await bridgeDestination.getAddress(),
                 receiver,
-                amountWithoutFee
+                amountWithoutFee,
+                version
             );
 
             await expect(
@@ -279,6 +282,7 @@ describe('Bridge', function () {
                     encode(['address'], [receiver]),
                     amountWithoutFee,
                     ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [0]),
+                    encode(['uint16'], [version]),
                 ],
                 DEPOSIT_BRIDGE_ACTION
             );
@@ -315,7 +319,8 @@ describe('Bridge', function () {
                 CHAIN_ID,
                 await bridgeSource.getAddress(),
                 receiver,
-                amountWithoutFee
+                amountWithoutFee,
+                version
             );
 
             await expect(
@@ -447,7 +452,8 @@ describe('Bridge', function () {
                     CHAIN_ID,
                     await bridgeDestination.getAddress(),
                     signer2.address,
-                    amountWithoutFee
+                    amountWithoutFee,
+                    version
                 );
 
                 await expect(
@@ -620,7 +626,8 @@ describe('Bridge', function () {
                     CHAIN_ID,
                     await bridgeDestination.getAddress(),
                     receiver,
-                    amountWithoutFee
+                    amountWithoutFee,
+                    version
                 );
 
                 // await routerSource.setOffchainData(data.payload, data.proof);

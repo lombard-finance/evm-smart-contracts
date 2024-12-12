@@ -51,6 +51,9 @@ contract Bridge is
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
     uint16 private constant MAX_COMMISSION = 100_00; // 100.00%
 
+    /// @dev Bridge contract version used for bridge action payload validation.
+    uint16 private constant VERSION = 1;
+
     /// PUBLIC FUNCTIONS ///
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -479,7 +482,8 @@ contract Bridge is
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            $.crossChainOperationsNonce++
+            $.crossChainOperationsNonce++,
+            VERSION
         );
 
         if (address(config.adapter) != address(0)) {
