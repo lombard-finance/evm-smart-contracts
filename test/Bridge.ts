@@ -73,6 +73,7 @@ describe('Bridge', function () {
         lbtcSource = await deployContract<LBTCMock>('LBTCMock', [
             await consortium.getAddress(),
             100,
+            treasurySource.address,
             deployer.address,
         ]);
         bridgeSource = await deployContract<Bridge>('Bridge', [
@@ -96,6 +97,7 @@ describe('Bridge', function () {
         lbtcDestination = await deployContract<LBTCMock>('LBTCMock', [
             await consortium.getAddress(),
             100,
+            treasuryDestination.address,
             deployer.address,
         ]);
         bridgeDestination = await deployContract<Bridge>('Bridge', [
@@ -103,11 +105,6 @@ describe('Bridge', function () {
             treasuryDestination.address,
             deployer.address,
         ]);
-
-        await lbtcSource.changeTreasuryAddress(treasurySource.address);
-        await lbtcDestination.changeTreasuryAddress(
-            treasuryDestination.address
-        );
 
         await lbtcSource.addMinter(await bridgeSource.getAddress());
         await lbtcDestination.addMinter(await bridgeDestination.getAddress());

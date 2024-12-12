@@ -41,6 +41,7 @@ describe('OFTAdapter', function () {
         lbtc = await deployContract<LBTCMock>('LBTCMock', [
             ethers.ZeroAddress,
             100,
+            deployer.address, // treasury - not relevant for this test, but can not be zero
             deployer.address,
         ]);
 
