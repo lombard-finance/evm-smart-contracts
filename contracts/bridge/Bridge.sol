@@ -49,7 +49,6 @@ contract Bridge is
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
-    uint16 private constant MAX_COMMISSION = 100_00; // 100.00%
 
     /// PUBLIC FUNCTIONS ///
 

@@ -60,6 +60,7 @@ contract LBTC is
         uint256 maximumFee;
         // @dev is sha256(payload) used
         mapping(bytes32 => bool) usedPayloads;
+        address operator;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -79,7 +80,7 @@ contract LBTC is
         uint64 burnCommission_,
         address owner_
     ) external initializer {
-        __ERC20_init("LBTC", "LBTC");
+        __ERC20_init("", "");
         __ERC20Pausable_init();
 
         __Ownable_init(owner_);
@@ -112,19 +113,33 @@ contract LBTC is
         _;
     }
 
+    modifier onlyMinter() {
+        if (!_getLBTCStorage().minters[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    modifier onlyClaimer() {
+        if (!_getLBTCStorage().claimers[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    modifier onlyOperator() {
+        if (_getLBTCStorage().operator != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyOwner {
         LBTCStorage storage $ = _getLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
-    }
-
-    function changeNameAndSymbol(
-        string calldata name_,
-        string calldata symbol_
-    ) external onlyOwner {
-        _changeNameAndSymbol(name_, symbol_);
     }
 
     function changeConsortium(address newVal) external onlyOwner {
@@ -136,7 +151,7 @@ contract LBTC is
      * @param fee New fee value
      * @dev zero allowed to disable fee
      */
-    function setMintFee(uint256 fee) external onlyOwner {
+    function setMintFee(uint256 fee) external onlyOperator {
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
@@ -208,6 +223,13 @@ contract LBTC is
             revert ZeroAddress();
         }
         _transferPauserRole(newPauser);
+    }
+
+    function transferOperatorRole(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferOperatorRole(newOperator);
     }
 
     /// GETTERS ///
@@ -307,6 +329,10 @@ contract LBTC is
         return _getLBTCStorage().pauser;
     }
 
+    function operator() external view returns (address) {
+        return _getLBTCStorage().operator;
+    }
+
     function isMinter(address minter) external view returns (bool) {
         return _getLBTCStorage().minters[minter];
     }
@@ -323,9 +349,7 @@ contract LBTC is
      * @param amount The amount of LBTC to mint
      * @dev Only callable by whitelisted minters
      */
-    function mint(address to, uint256 amount) external override {
-        _onlyMinter(_msgSender());
-
+    function mint(address to, uint256 amount) external override onlyMinter {
         _mint(to, amount);
     }
 
@@ -338,9 +362,7 @@ contract LBTC is
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external {
-        _onlyMinter(_msgSender());
-
+    ) external onlyMinter {
         if (to.length != amount.length) {
             revert InvalidInputLength();
         }
@@ -407,9 +429,7 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external {
-        _onlyClaimer(_msgSender());
-
+    ) external onlyClaimer {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -425,9 +445,7 @@ contract LBTC is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external {
-        _onlyClaimer(_msgSender());
-
+    ) external onlyClaimer {
         uint256 length = mintPayload.length;
         if (
             length != proof.length ||
@@ -503,9 +521,7 @@ contract LBTC is
      *
      * @param amount Amount of LBTC to burn
      */
-    function burn(address from, uint256 amount) external override {
-        _onlyMinter(_msgSender());
-
+    function burn(address from, uint256 amount) external override onlyMinter {
         _burn(from, amount);
     }
 
@@ -593,18 +609,6 @@ contract LBTC is
         }
     }
 
-    function _onlyMinter(address sender) internal view {
-        if (!_getLBTCStorage().minters[sender]) {
-            revert UnauthorizedAccount(sender);
-        }
-    }
-
-    function _onlyClaimer(address sender) internal view {
-        if (!_getLBTCStorage().claimers[sender]) {
-            revert UnauthorizedAccount(sender);
-        }
-    }
-
     /**
      * Change the address of the Bascule drawbridge contract.
      * @param newVal The new address.
@@ -622,6 +626,13 @@ contract LBTC is
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
+    }
+
+    function _transferOperatorRole(address newOperator) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldOperator = $.operator;
+        $.operator = newOperator;
+        emit OperatorRoleTransferred(oldOperator, newOperator);
     }
 
     function _mintWithFee(

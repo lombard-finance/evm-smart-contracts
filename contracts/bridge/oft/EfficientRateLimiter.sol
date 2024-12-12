@@ -122,24 +122,18 @@ abstract contract EfficientRateLimiter {
         RateLimitConfig[] memory _rateLimitConfigs,
         RateLimitDirection direction
     ) internal virtual {
-        unchecked {
-            for (uint256 i = 0; i < _rateLimitConfigs.length; i++) {
-                RateLimit storage rateLimit = direction ==
-                    RateLimitDirection.Outbound
-                    ? outboundRateLimits[_rateLimitConfigs[i].eid]
-                    : inboundRateLimits[_rateLimitConfigs[i].eid];
+        for (uint256 i = 0; i < _rateLimitConfigs.length; i++) {
+            RateLimit storage rateLimit = direction ==
+                RateLimitDirection.Outbound
+                ? outboundRateLimits[_rateLimitConfigs[i].eid]
+                : inboundRateLimits[_rateLimitConfigs[i].eid];
 
-                // Checkpoint the existing rate limit to not retroactively apply the new decay rate.
-                _checkAndUpdateRateLimit(
-                    _rateLimitConfigs[i].eid,
-                    0,
-                    direction
-                );
+            // Checkpoint the existing rate limit to not retroactively apply the new decay rate.
+            _checkAndUpdateRateLimit(_rateLimitConfigs[i].eid, 0, direction);
 
-                // Does NOT reset the amountInFlight/lastUpdated of an existing rate limit.
-                rateLimit.limit = _rateLimitConfigs[i].limit;
-                rateLimit.window = _rateLimitConfigs[i].window;
-            }
+            // Does NOT reset the amountInFlight/lastUpdated of an existing rate limit.
+            rateLimit.limit = _rateLimitConfigs[i].limit;
+            rateLimit.window = _rateLimitConfigs[i].window;
         }
         emit RateLimitsChanged(_rateLimitConfigs, direction);
     }
@@ -269,7 +263,7 @@ abstract contract EfficientRateLimiter {
 
         // Update the rate limit with the new amount in flight and the current timestamp
         rl.amountInFlight = currentAmountInFlight + _amount;
-        rl.lastUpdated = uint128(block.timestamp);
+        rl.lastUpdated = block.timestamp;
 
         RateLimit storage oppositeRL = direction == RateLimitDirection.Outbound
             ? inboundRateLimits[_eid]
@@ -288,6 +282,6 @@ abstract contract EfficientRateLimiter {
                 ? otherCurrentAmountInFlight - _amount
                 : 0;
         }
-        oppositeRL.lastUpdated = uint128(block.timestamp);
+        oppositeRL.lastUpdated = block.timestamp;
     }
 }
