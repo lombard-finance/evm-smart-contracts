@@ -65,7 +65,7 @@ describe('Bridge', function () {
         consortium = await deployContract<Consortium>('Consortium', [
             deployer.address,
         ]);
-        await consortium.setInitalValidatorSet(
+        await consortium.setInitialValidatorSet(
             getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET)
         );
 
