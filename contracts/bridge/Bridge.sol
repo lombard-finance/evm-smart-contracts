@@ -526,19 +526,6 @@ contract Bridge is
         emit AdapterChanged(previousAdapter, newAdapter);
     }
 
-    function _calcRelativeFee(
-        uint64 amount,
-        uint16 commission
-    ) internal pure returns (uint256 fee) {
-        return
-            Math.mulDiv(
-                amount,
-                commission,
-                FeeUtils.MAX_COMMISSION,
-                Math.Rounding.Ceil
-            );
-    }
-
     function _getBridgeStorage()
         private
         pure
