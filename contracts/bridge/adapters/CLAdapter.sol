@@ -9,6 +9,8 @@ import {IBridge} from "../IBridge.sol";
 import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {LombardTokenPool} from "./TokenPool.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20 as OZIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title CCIP bridge adapter
@@ -145,6 +147,13 @@ contract CLAdapter is AbstractAdapter, Ownable {
             }
         }
 
+        // transfer assets from bridge
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            _amount
+        );
         IERC20(address(lbtc())).approve(router, _amount);
         IRouterClient(router).ccipSend{value: fee}(chainSelector, message);
     }
