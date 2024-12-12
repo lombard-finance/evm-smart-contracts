@@ -28,6 +28,8 @@ abstract contract EfficientRateLimiter {
     mapping(uint32 dstEid => RateLimit limit) public outboundRateLimits;
     // Tracks rate limits for inbound transactions from a srcEid.
     mapping(uint32 srcEid => RateLimit limit) public inboundRateLimits;
+    // Keeps track of all eids in case we need to halt and delete all entries.
+    uint32[] internal eids;
 
     /**
      * @notice Rate Limit Configuration struct.
@@ -124,6 +126,8 @@ abstract contract EfficientRateLimiter {
     ) internal virtual {
         unchecked {
             for (uint256 i = 0; i < _rateLimitConfigs.length; i++) {
+                eids.push(_rateLimitConfigs[i].eid);
+
                 RateLimit storage rateLimit = direction ==
                     RateLimitDirection.Outbound
                     ? outboundRateLimits[_rateLimitConfigs[i].eid]
