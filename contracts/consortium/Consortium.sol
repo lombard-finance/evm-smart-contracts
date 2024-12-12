@@ -100,7 +100,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
         // check proof
         bytes32 payloadHash = sha256(payload);
-        this.checkProof(payloadHash, proof);
+        checkProof(payloadHash, proof);
 
         if (action.epoch != $.epoch + 1) revert InvalidEpoch();
 
