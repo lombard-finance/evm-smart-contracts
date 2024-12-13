@@ -30,7 +30,7 @@ task('deploy-partner-vault', 'Deploys the PartnerVault contract via create3')
         } = taskArgs;
 
         await create3(
-            'PartnerVault',
+            'FBTCPartnerVault',
             [admin, fbtc, lbtc, stakeLimit],
             proxyFactoryAddr,
             ledgerNetwork,
