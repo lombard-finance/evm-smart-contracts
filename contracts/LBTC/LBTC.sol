@@ -242,18 +242,18 @@ contract LBTC is
     /// @param scriptPubkey The Bitcoin script public key as a byte array
     /// @param amount The amount of LBTC to be burned
     /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
-    /// @return isAboveDust Whether the amountAfterFee is above the dust limit
+    /// @return isEqualOrAboveDust Whether the amountAfterFee is equal to or above the dust limit
     function calcUnstakeRequestAmount(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) public view returns (uint256 amountAfterFee, bool isAboveDust) {
+    ) public view returns (uint256 amountAfterFee, bool isEqualOrAboveDust) {
         LBTCStorage storage $ = _getLBTCStorage();
-        (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
+        (amountAfterFee, , , isEqualOrAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
             amount,
             $.burnCommission
         );
-        return (amountAfterFee, isAboveDust);
+        return (amountAfterFee, isEqualOrAboveDust);
     }
 
     function consortium() external view virtual returns (address) {
@@ -464,12 +464,12 @@ contract LBTC is
             uint256 amountAfterFee,
             bool isAboveFee,
             uint256 dustLimit,
-            bool isAboveDust
+            bool isEqualOrAboveDust
         ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee);
         if (!isAboveFee) {
             revert AmountLessThanCommission(fee);
         }
-        if (!isAboveDust) {
+        if (!isEqualOrAboveDust) {
             revert AmountBelowDustLimit(dustLimit);
         }
 
@@ -735,8 +735,8 @@ contract LBTC is
             $.dustFeeRate
         );
 
-        bool isAboveDust = amountAfterFee >= dustLimit;
-        return (amountAfterFee, true, dustLimit, isAboveDust);
+        bool isEqualOrAboveDust = amountAfterFee >= dustLimit;
+        return (amountAfterFee, true, dustLimit, isEqualOrAboveDust);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
