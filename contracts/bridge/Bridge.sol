@@ -233,7 +233,23 @@ contract Bridge is
             payload[4:]
         );
 
-        // TODO: verify action
+        // Ensure that fromContract matches the bridgeContract
+        DestinationConfig memory destConf = getDestination(
+            bytes32(action.fromChain)
+        );
+        if (destConf.bridgeContract == bytes32(0)) {
+            revert UnknownDestination();
+        }
+
+        if (
+            destConf.bridgeContract !=
+            bytes32(uint256(uint160(action.fromContract)))
+        ) {
+            revert UnknownOriginContract(
+                bytes32(action.fromChain),
+                bytes32(uint256(uint160(action.fromContract)))
+            );
+        }
 
         bytes32 payloadHash = sha256(payload);
         BridgeStorage storage $ = _getBridgeStorage();
