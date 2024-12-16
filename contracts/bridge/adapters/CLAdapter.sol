@@ -114,6 +114,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
         uint256 _amount,
         bytes memory _payload
     ) external payable virtual override {
+        _onlyBridge();
+
         // if deposit was initiated by adapter do nothing
         if (fromAddress == address(this)) {
             return;
