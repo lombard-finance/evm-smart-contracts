@@ -208,6 +208,22 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        beraCartio: {
+            loggingEnabled: true,
+            url: vars.get(
+                'BERA_CARTIO_RPC',
+                'https://rockbeard-eth-cartio.berachain.com'
+            ),
+            chainId: 80000,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
         // mainnets
         mainnet: {
             loggingEnabled: true,
@@ -357,6 +373,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://bartio.beratrail.io/',
                 },
             },
+            {
+                network: 'beraCartio',
+                chainId: 80000,
+                urls: {
+                    apiURL: 'https://api.routescan.io/v2/network/testnet/evm/80000/etherscan',
+                    browserURL: 'https://80000.testnet.routescan.io/',
+                },
+            },
             // mainnets
             {
                 network: 'mantle',
@@ -404,6 +428,7 @@ const config: HardhatUserConfig = {
             baseSepolia: vars.get('BASE_API_KEY', ''),
             arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
             beraBartio: 'no',
+            beraCartio: 'no',
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
