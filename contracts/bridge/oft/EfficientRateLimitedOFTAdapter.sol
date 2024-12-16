@@ -40,13 +40,19 @@ abstract contract EfficientRateLimitedOFTAdapter is
         override
         returns (uint256 amountSentLD, uint256 amountReceivedLD)
     {
+        (amountSentLD, amountReceivedLD) = super._debit(
+            _from,
+            _amountLD,
+            _minAmountLD,
+            _dstEid
+        );
         // Check and update the rate limit based on the destination endpoint ID (dstEid) and the amount in local decimals.
         _checkAndUpdateRateLimit(
             _dstEid,
-            _amountLD,
+            amountSentLD,
             RateLimitDirection.Outbound
         );
-        return super._debit(_from, _amountLD, _minAmountLD, _dstEid);
+        return (amountSentLD, amountReceivedLD);
     }
 
     function _credit(
@@ -54,12 +60,13 @@ abstract contract EfficientRateLimitedOFTAdapter is
         uint256 _amountLD,
         uint32 _srcEid
     ) internal virtual override returns (uint256 amountReceivedLD) {
+        amountReceivedLD = super._credit(_to, _amountLD, _srcEid);
         // Check and update the rate limit based on the source endpoint ID (srcEid) and the amount in local decimals from the message.
         _checkAndUpdateRateLimit(
             _srcEid,
-            _amountLD,
+            amountReceivedLD,
             RateLimitDirection.Inbound
         );
-        return super._credit(_to, _amountLD, _srcEid);
+        return amountReceivedLD;
     }
 }
