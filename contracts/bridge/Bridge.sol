@@ -203,6 +203,10 @@ contract Bridge is
         );
 
         // extra checks
+        if (action.version != VERSION) {
+            revert VersionMismatch(action.version, VERSION);
+        }
+
         if (
             destConf.bridgeContract !=
             bytes32(uint256(uint160(action.fromContract)))
@@ -238,6 +242,9 @@ contract Bridge is
         );
 
         // TODO: verify action
+        if (action.version != VERSION) {
+            revert VersionMismatch(action.version, VERSION);
+        }
 
         bytes32 payloadHash = sha256(payload);
         BridgeStorage storage $ = _getBridgeStorage();
@@ -270,6 +277,10 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
+
+        if (action.version != VERSION) {
+            revert VersionMismatch(action.version, VERSION);
+        }
 
         // check rate limits
         RateLimits.updateLimit(

@@ -48,6 +48,9 @@ interface IBridge is IConsortiumConsumer {
     /// @notice Emitted no payload submitted by consortium
     error ConsortiumNotConfirmed();
 
+    /// @notice Emitted when the deposit bridge payload has a version mismatch with the deployed contract.
+    error VersionMismatch(uint16 actionVersion, uint16 contractVersion);
+
     /// @notice Emitted when the deposit absolute commission is changed.
     event DepositAbsoluteCommissionChanged(
         uint64 newValue,
