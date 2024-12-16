@@ -56,7 +56,7 @@ function chainlinkAdapterTask(taskName: string) {
 
             await verify(hre.run, await adapter.getAddress(), {
                 constructorArguments: args,
-                force: true,
+                // force: true,
             });
 
             await verify(hre.run, await adapter.tokenPool(), {
@@ -68,7 +68,7 @@ function chainlinkAdapterTask(taskName: string) {
                     await adapter.getAddress(),
                     enableAttestation,
                 ],
-                force: true,
+                // force: true,
             });
 
             const tokenPool = await hre.ethers.getContractAt(
