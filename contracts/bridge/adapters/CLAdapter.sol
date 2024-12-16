@@ -97,6 +97,12 @@ contract CLAdapter is AbstractAdapter, Ownable {
             _lastPayload = new bytes(0);
             _lastBurnedAmount = 0;
         } else {
+            SafeERC20.safeTransferFrom(
+                OZIERC20(address(lbtc())),
+                _msgSender(),
+                address(this),
+                amount
+            );
             IERC20(address(lbtc())).approve(address(bridge), amount);
             (lastBurnedAmount, lastPayload) = bridge.deposit(
                 getChain[remoteChainSelector],

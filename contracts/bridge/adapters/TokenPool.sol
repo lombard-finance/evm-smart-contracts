@@ -35,7 +35,7 @@ contract LombardTokenPool is TokenPool {
         _validateLockOrBurn(lockOrBurnIn);
 
         // send out to burn
-        i_token.transfer(address(adapter), lockOrBurnIn.amount);
+        i_token.approve(address(adapter), lockOrBurnIn.amount);
         (uint256 burnedAmount, bytes memory payload) = adapter.initiateDeposit(
             lockOrBurnIn.remoteChainSelector,
             lockOrBurnIn.receiver,
