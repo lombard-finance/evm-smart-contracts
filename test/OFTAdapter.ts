@@ -461,7 +461,7 @@ describe('OFTAdapter', function () {
 
             const totalSupplyBefore = await lbtc.totalSupply();
             const adapterBalanceBefore = await lbtc.balanceOf(aOFTAdapter);
-            const haltTx = aOFTAdapter.halt();
+            const haltTx = aOFTAdapter.empty();
             await expect(haltTx).changeTokenBalance(
                 lbtc,
                 aOFTAdapter,

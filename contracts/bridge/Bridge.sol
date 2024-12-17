@@ -201,11 +201,6 @@ contract Bridge is
             payload[4:]
         );
 
-        // extra checks
-        if (action.version != VERSION) {
-            revert VersionMismatch(action.version, VERSION);
-        }
-
         if (
             destConf.bridgeContract !=
             bytes32(uint256(uint160(action.fromContract)))
@@ -239,11 +234,6 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
-
-        // TODO: verify action
-        if (action.version != VERSION) {
-            revert VersionMismatch(action.version, VERSION);
-        }
 
         // Ensure that fromContract matches the bridgeContract
         DestinationConfig memory destConf = getDestination(
@@ -294,10 +284,6 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
-
-        if (action.version != VERSION) {
-            revert VersionMismatch(action.version, VERSION);
-        }
 
         // Validate toContract
         if (action.toContract != address(this)) revert NotValidDestination();
@@ -363,8 +349,6 @@ contract Bridge is
         IAdapter adapter,
         bool requireConsortium
     ) external onlyOwner {
-        if (!requireConsortium) _notEOA(address(adapter));
-
         if (toContract == bytes32(0)) {
             revert ZeroContractHash();
         }
@@ -441,7 +425,6 @@ contract Bridge is
     }
 
     function changeConsortium(INotaryConsortium newVal) external onlyOwner {
-        _notEOA(address(newVal));
         if (address(newVal) == address(0)) revert Bridge_ZeroAddress();
         BridgeStorage storage $ = _getBridgeStorage();
         emit ConsortiumChanged($.consortium, newVal);
@@ -463,7 +446,7 @@ contract Bridge is
                 depositRateLimits[i].limit == 0 ||
                 depositRateLimits[i].limit == 2 ** 256 - 1 ||
                 depositRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+            ) revert RateLimits.MalformedRateLimit();
 
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
@@ -482,7 +465,7 @@ contract Bridge is
                 withdrawRateLimits[i].limit == 0 ||
                 withdrawRateLimits[i].limit == 2 ** 256 - 1 ||
                 withdrawRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+            ) revert RateLimits.MalformedRateLimit();
 
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
@@ -497,7 +480,6 @@ contract Bridge is
         ILBTC lbtc_,
         address treasury_
     ) internal onlyInitializing {
-        _notEOA(address(lbtc_));
         if (address(lbtc_) == address(0)) revert Bridge_ZeroAddress();
         if (treasury_ == address(0)) revert Bridge_ZeroAddress();
         _changeTreasury(treasury_);
@@ -617,13 +599,5 @@ contract Bridge is
         if ($.destinations[chain].bridgeContract == bytes32(0)) {
             revert NotValidDestination();
         }
-    }
-
-    function _notEOA(address addr) internal view {
-        uint32 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        if (size == 0) revert Bridge_AddressIsEOA();
     }
 }

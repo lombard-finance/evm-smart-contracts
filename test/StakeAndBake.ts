@@ -126,15 +126,14 @@ describe('StakeAndBake', function () {
                 signer2,
                 await lbtc.getAddress(),
                 fee,
-                snapshotTimestamp + 100,
-                ethers.sha256(data.payload)
+                snapshotTimestamp + 100
             );
 
             // set max fee
             await lbtc.setMintFee(fee);
 
             approval = getPayloadForAction(
-                [fee, snapshotTimestamp + 100, ethers.sha256(data.payload)],
+                [fee, snapshotTimestamp + 100],
                 'feeApproval'
             );
 
@@ -222,11 +221,10 @@ describe('StakeAndBake', function () {
                 signer3,
                 await lbtc.getAddress(),
                 fee,
-                snapshotTimestamp + 100,
-                ethers.sha256(data2.payload)
+                snapshotTimestamp + 100
             );
             const approval2 = getPayloadForAction(
-                [fee, snapshotTimestamp + 100, ethers.sha256(data2.payload)],
+                [fee, snapshotTimestamp + 100],
                 'feeApproval'
             );
 

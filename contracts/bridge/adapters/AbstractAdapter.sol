@@ -22,7 +22,6 @@ abstract contract AbstractAdapter is IAdapter, Context {
 
     constructor(IBridge bridge_) {
         _notZero(address(bridge_));
-        _notEOA(address(bridge_));
         bridge = bridge_;
     }
 
@@ -46,7 +45,6 @@ abstract contract AbstractAdapter is IAdapter, Context {
     function changeBridge(IBridge bridge_) external {
         _onlyOwner();
         _notZero(address(bridge_));
-        _notEOA(address(bridge_));
 
         IBridge oldBridge = bridge;
         bridge = bridge_;
@@ -67,14 +65,6 @@ abstract contract AbstractAdapter is IAdapter, Context {
         if (addr == address(0)) {
             revert Adapter_ZeroAddress();
         }
-    }
-
-    function _notEOA(address addr) internal view {
-        uint32 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        if (size == 0) revert Adapter_AddressIsEOA();
     }
 
     /**
