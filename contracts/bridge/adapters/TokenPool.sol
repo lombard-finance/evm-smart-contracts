@@ -73,10 +73,11 @@ contract LombardTokenPool is TokenPool {
 
         uint64 amount;
         if (isAttestationEnabled) {
-            if (
-                sha256(releaseOrMintIn.sourcePoolData) !=
-                sha256(releaseOrMintIn.offchainTokenData)
-            ) {
+            (bytes memory payload, ) = abi.decode(
+                releaseOrMintIn.offchainTokenData,
+                (bytes, bytes)
+            );
+            if (bytes32(releaseOrMintIn.sourcePoolData) != sha256(payload)) {
                 revert OffChainDataMismatch();
             }
 
