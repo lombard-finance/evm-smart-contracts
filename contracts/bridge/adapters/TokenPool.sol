@@ -13,6 +13,10 @@ contract LombardTokenPool is TokenPool {
     CLAdapter public adapter;
     bool public isAttestationEnabled;
 
+    /// @dev Emitted when, in the case of attestations being enabled, the sha256 hash of the payloads
+    /// for offChainTokenData and sourcePoolData don't match.
+    error OffChainDataMismatch();
+
     /// @notice msg.sender gets the ownership of the contract given
     /// token pool implementation
     constructor(
@@ -69,6 +73,14 @@ contract LombardTokenPool is TokenPool {
 
         uint64 amount;
         if (isAttestationEnabled) {
+            (bytes memory payload, ) = abi.decode(
+                releaseOrMintIn.offchainTokenData,
+                (bytes, bytes)
+            );
+            if (bytes32(releaseOrMintIn.sourcePoolData) != sha256(payload)) {
+                revert OffChainDataMismatch();
+            }
+
             amount = adapter.initiateWithdrawal(
                 releaseOrMintIn.remoteChainSelector,
                 releaseOrMintIn.offchainTokenData
