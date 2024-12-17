@@ -122,6 +122,14 @@ contract CLAdapter is AbstractAdapter, Ownable {
         uint256 _amount,
         bytes memory _payload
     ) external payable virtual override {
+        // transfer assets from bridge
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            _amount
+        );
+
         // if deposit was initiated by adapter do nothing
         if (fromAddress == address(this)) {
             return;
@@ -153,13 +161,6 @@ contract CLAdapter is AbstractAdapter, Ownable {
             }
         }
 
-        // transfer assets from bridge
-        SafeERC20.safeTransferFrom(
-            OZIERC20(address(lbtc())),
-            _msgSender(),
-            address(this),
-            _amount
-        );
         IERC20(address(lbtc())).approve(router, _amount);
         IRouterClient(router).ccipSend{value: fee}(chainSelector, message);
     }
