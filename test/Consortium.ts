@@ -19,6 +19,7 @@ describe('Consortium', function () {
     let deployer: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
     let lombard: Consortium;
     let snapshot: SnapshotRestorer;
+    const version = 1;
 
     before(async function () {
         [deployer, signer1, signer2, signer3] =
@@ -181,7 +182,8 @@ describe('Consortium', function () {
                     1n,
                     signer2.address,
                     signer3.address,
-                    10
+                    10,
+                    version
                 );
 
                 await lombard.checkProof(data.payloadHash, data.proof);
@@ -196,7 +198,8 @@ describe('Consortium', function () {
                     1n,
                     signer2.address,
                     signer3.address,
-                    10
+                    10,
+                    version
                 );
 
                 data.proof = data.proof.slice(0, -64) + '0'.repeat(64);
@@ -204,7 +207,7 @@ describe('Consortium', function () {
                 await lombard.checkProof(data.payloadHash, data.proof);
             });
 
-            it('should revert on invalid signatures', async function () {
+            it('should not succeed on invalid signatures', async function () {
                 const data = await signDepositBridgePayload(
                     [signer3, signer1, signer2],
                     [true, true, false],
@@ -213,7 +216,8 @@ describe('Consortium', function () {
                     1n,
                     signer2.address,
                     signer3.address,
-                    10
+                    10,
+                    version
                 );
 
                 const payload = getPayloadForAction(
@@ -246,16 +250,17 @@ describe('Consortium', function () {
                             ['uint256'],
                             [0]
                         ),
+                        ethers.AbiCoder.defaultAbiCoder().encode(
+                            ['uint16'],
+                            [version]
+                        ),
                     ],
                     DEPOSIT_BRIDGE_ACTION
                 );
 
                 await expect(
                     lombard.checkProof(ethers.sha256(payload), data.proof)
-                ).to.be.revertedWithCustomError(
-                    lombard,
-                    'WrongSignatureReceived'
-                );
+                ).to.be.revertedWithCustomError(lombard, 'NotEnoughSignatures');
             });
         });
     });

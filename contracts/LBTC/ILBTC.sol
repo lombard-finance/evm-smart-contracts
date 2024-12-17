@@ -18,6 +18,7 @@ interface ILBTC {
     error InvalidUserSignature();
     error PayloadAlreadyUsed();
     error InvalidInputLength();
+    error InvalidMintAmount();
 
     event PauserRoleTransferred(
         address indexed previousPauser,

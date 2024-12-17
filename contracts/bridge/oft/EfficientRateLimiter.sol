@@ -13,9 +13,9 @@ import {RateLimits} from "../../libs/RateLimits.sol";
  */
 abstract contract EfficientRateLimiter {
     // Tracks rate limits for outbound transactions to a dstEid.
-    mapping(uint32 dstEid => RateLimits.Data limit) public outboundRateLimits;
+    mapping(bytes32 dstEid => RateLimits.Data limit) public outboundRateLimits;
     // Tracks rate limits for inbound transactions from a srcEid.
-    mapping(uint32 srcEid => RateLimits.Data limit) public inboundRateLimits;
+    mapping(bytes32 srcEid => RateLimits.Data limit) public inboundRateLimits;
 
     // Define an enum to clearly distinguish between inbound and outbound rate limits.
     enum RateLimitDirection {
@@ -53,7 +53,9 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeSent)
     {
-        RateLimits.Data storage orl = outboundRateLimits[_dstEid];
+        RateLimits.Data storage orl = outboundRateLimits[
+            bytes32(uint256(_dstEid))
+        ];
         return
             _amountCanBeSent(
                 orl.amountInFlight,
@@ -77,7 +79,9 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeReceived)
     {
-        RateLimits.Data storage irl = inboundRateLimits[_srcEid];
+        RateLimits.Data storage irl = inboundRateLimits[
+            bytes32(uint256(_srcEid))
+        ];
         return
             _amountCanBeReceived(
                 irl.amountInFlight,
@@ -187,7 +191,7 @@ abstract contract EfficientRateLimiter {
      * @param direction The direction (Outbound or Inbound) of the rate limits being checked.
      */
     function _checkAndUpdateRateLimit(
-        uint32 _eid,
+        bytes32 _eid,
         uint256 _amount,
         RateLimitDirection direction
     ) internal {

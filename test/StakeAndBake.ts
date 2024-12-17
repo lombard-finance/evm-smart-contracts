@@ -223,6 +223,10 @@ describe('StakeAndBake', function () {
                 fee,
                 snapshotTimestamp + 100
             );
+            const approval2 = getPayloadForAction(
+                [fee, snapshotTimestamp + 100],
+                'feeApproval'
+            );
 
             // set max fee
             await lbtc.setMintFee(fee);
@@ -271,7 +275,7 @@ describe('StakeAndBake', function () {
                         depositPayload: depositPayload2,
                         mintPayload: data2.payload,
                         proof: data2.proof,
-                        feePayload: approval,
+                        feePayload: approval2,
                         userSignature: userSignature2,
                     },
                 ])

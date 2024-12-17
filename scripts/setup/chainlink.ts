@@ -1,5 +1,4 @@
 import { task } from 'hardhat/config';
-import { ethers } from 'hardhat';
 import { sleep } from '../helpers';
 
 task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')

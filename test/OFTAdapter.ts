@@ -27,6 +27,10 @@ describe('OFTAdapter', function () {
 
     const aEid = 1;
     const bEid = 2;
+    const aEidBytes =
+        '0x0000000000000000000000000000000000000000000000000000000000000001';
+    const bEidBytes =
+        '0x0000000000000000000000000000000000000000000000000000000000000002';
 
     let aOFTAdapter: LBTCOFTAdapter;
     let aBMOFTAdapter: LBTCBurnMintOFTAdapter;
@@ -39,7 +43,7 @@ describe('OFTAdapter', function () {
             await getSignersWithPrivateKeys();
 
         lbtc = await deployContract<LBTCMock>('LBTCMock', [
-            ethers.ZeroAddress,
+            deployer.address, // consortium - not relevant for this test, but can not be zero
             100,
             deployer.address, // treasury - not relevant for this test, but can not be zero
             deployer.address,
@@ -111,7 +115,7 @@ describe('OFTAdapter', function () {
         await aOFTAdapter.setRateLimits(
             [
                 {
-                    chainId: bEid,
+                    chainId: bEidBytes,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -121,7 +125,7 @@ describe('OFTAdapter', function () {
         await aBMOFTAdapter.setRateLimits(
             [
                 {
-                    chainId: bEid,
+                    chainId: bEidBytes,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -131,7 +135,7 @@ describe('OFTAdapter', function () {
         await bBMOFTAdapter.setRateLimits(
             [
                 {
-                    chainId: aEid,
+                    chainId: aEidBytes,
                     limit: 100_000,
                     window: 120,
                 },
@@ -143,7 +147,7 @@ describe('OFTAdapter', function () {
         await aOFTAdapter.setRateLimits(
             [
                 {
-                    chainId: bEid,
+                    chainId: bEidBytes,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -153,7 +157,7 @@ describe('OFTAdapter', function () {
         await aBMOFTAdapter.setRateLimits(
             [
                 {
-                    chainId: bEid,
+                    chainId: bEidBytes,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -163,7 +167,7 @@ describe('OFTAdapter', function () {
         await bBMOFTAdapter.setRateLimits(
             [
                 {
-                    chainId: aEid,
+                    chainId: aEidBytes,
                     limit: 100_000,
                     window: 120,
                 },
@@ -441,7 +445,7 @@ describe('OFTAdapter', function () {
             await aOFTAdapter.setRateLimits(
                 [
                     {
-                        chainId: bEid,
+                        chainId: bEidBytes,
                         limit: 0,
                         window: 0,
                     },
@@ -451,7 +455,7 @@ describe('OFTAdapter', function () {
             await bBMOFTAdapter.setRateLimits(
                 [
                     {
-                        chainId: aEid,
+                        chainId: aEidBytes,
                         limit: 0,
                         window: 0,
                     },
@@ -461,7 +465,7 @@ describe('OFTAdapter', function () {
 
             const totalSupplyBefore = await lbtc.totalSupply();
             const adapterBalanceBefore = await lbtc.balanceOf(aOFTAdapter);
-            const haltTx = aOFTAdapter.halt();
+            const haltTx = aOFTAdapter.empty();
             await expect(haltTx).changeTokenBalance(
                 lbtc,
                 aOFTAdapter,
@@ -489,7 +493,7 @@ describe('OFTAdapter', function () {
             await bBMOFTAdapter.setRateLimits(
                 [
                     {
-                        chainId: aEid,
+                        chainId: aEidBytes,
                         limit: 1_000_000,
                         window: 120,
                     },
@@ -695,7 +699,7 @@ describe('OFTAdapter', function () {
                 await bBMOFTAdapter.setRateLimits(
                     [
                         {
-                            chainId: aEid,
+                            chainId: aEidBytes,
                             window: 0,
                             limit: 0,
                         },
@@ -750,7 +754,7 @@ describe('OFTAdapter', function () {
                 await aOFTAdapter.setRateLimits(
                     [
                         {
-                            chainId: bEid,
+                            chainId: bEidBytes,
                             window: 0,
                             limit: 0,
                         },

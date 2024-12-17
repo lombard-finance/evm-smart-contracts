@@ -42,13 +42,16 @@ contract Bridge is
         mapping(bytes32 => Deposit) deposits;
         INotaryConsortium consortium;
         // Rate limits
-        mapping(uint32 => RateLimits.Data) depositRateLimits;
-        mapping(uint32 => RateLimits.Data) withdrawRateLimits;
+        mapping(bytes32 => RateLimits.Data) depositRateLimits;
+        mapping(bytes32 => RateLimits.Data) withdrawRateLimits;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
+
+    /// @dev Bridge contract version used for bridge action payload validation.
+    uint16 private constant VERSION = 1;
 
     /// PUBLIC FUNCTIONS ///
 
@@ -198,7 +201,6 @@ contract Bridge is
             payload[4:]
         );
 
-        // extra checks
         if (
             destConf.bridgeContract !=
             bytes32(uint256(uint160(action.fromContract)))
@@ -237,9 +239,6 @@ contract Bridge is
         DestinationConfig memory destConf = getDestination(
             bytes32(action.fromChain)
         );
-        if (destConf.bridgeContract == bytes32(0)) {
-            revert UnknownDestination();
-        }
 
         if (
             destConf.bridgeContract !=
@@ -288,7 +287,7 @@ contract Bridge is
 
         // check rate limits
         RateLimits.updateLimit(
-            $.withdrawRateLimits[uint32(action.fromChain)],
+            $.withdrawRateLimits[bytes32(action.fromChain)],
             action.amount
         );
 
@@ -347,8 +346,6 @@ contract Bridge is
         IAdapter adapter,
         bool requireConsortium
     ) external onlyOwner {
-        if (!requireConsortium) _notEOA(address(adapter));
-
         if (toContract == bytes32(0)) {
             revert ZeroContractHash();
         }
@@ -425,7 +422,6 @@ contract Bridge is
     }
 
     function changeConsortium(INotaryConsortium newVal) external onlyOwner {
-        _notEOA(address(newVal));
         if (address(newVal) == address(0)) revert Bridge_ZeroAddress();
         BridgeStorage storage $ = _getBridgeStorage();
         emit ConsortiumChanged($.consortium, newVal);
@@ -444,11 +440,11 @@ contract Bridge is
             if (destConf.bridgeContract == bytes32(0)) {
                 revert UnknownDestination();
             }
-            if (
-                depositRateLimits[i].limit == 0 ||
-                depositRateLimits[i].limit == 2 ** 256 - 1 ||
-                depositRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+
+            RateLimits.checkRateLimitSanity(
+                depositRateLimits[i].limit,
+                depositRateLimits[i].window
+            );
 
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
@@ -462,11 +458,11 @@ contract Bridge is
             if (destConf.bridgeContract == bytes32(0)) {
                 revert UnknownDestination();
             }
-            if (
-                withdrawRateLimits[i].limit == 0 ||
-                withdrawRateLimits[i].limit == 2 ** 256 - 1 ||
-                withdrawRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+
+            RateLimits.checkRateLimitSanity(
+                withdrawRateLimits[i].limit,
+                withdrawRateLimits[i].window
+            );
 
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
@@ -481,7 +477,6 @@ contract Bridge is
         ILBTC lbtc_,
         address treasury_
     ) internal onlyInitializing {
-        _notEOA(address(lbtc_));
         if (address(lbtc_) == address(0)) revert Bridge_ZeroAddress();
         if (treasury_ == address(0)) revert Bridge_ZeroAddress();
         _changeTreasury(treasury_);
@@ -499,10 +494,7 @@ contract Bridge is
         BridgeStorage storage $ = _getBridgeStorage();
 
         // check rate limits
-        RateLimits.updateLimit(
-            $.depositRateLimits[uint32(uint256(toChain))],
-            amount
-        );
+        RateLimits.updateLimit($.depositRateLimits[toChain], amount);
 
         // relative fee
         uint256 fee = FeeUtils.getRelativeFee(
@@ -536,7 +528,8 @@ contract Bridge is
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            $.crossChainOperationsNonce++
+            $.crossChainOperationsNonce++,
+            VERSION
         );
 
         if (address(config.adapter) != address(0)) {
@@ -600,13 +593,5 @@ contract Bridge is
         if ($.destinations[chain].bridgeContract == bytes32(0)) {
             revert NotValidDestination();
         }
-    }
-
-    function _notEOA(address addr) internal view {
-        uint32 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        if (size == 0) revert Bridge_AddressIsEOA();
     }
 }

@@ -43,7 +43,11 @@ describe('FBTCPartnerVault', function () {
             await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            deployer.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
 
         fbtc = await deployContract<WBTCMock>('WBTCMock', []);

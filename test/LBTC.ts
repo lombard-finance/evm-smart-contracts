@@ -607,7 +607,7 @@ describe('LBTC', function () {
                 txId: defaultTxId,
                 signatureTxId: defaultTxId,
                 interface: () => newConsortium,
-                customError: 'WrongSignatureReceived',
+                customError: 'NotEnoughSignatures',
                 params: () => [],
             };
             let defaultProof: string;
@@ -705,7 +705,7 @@ describe('LBTC', function () {
                     ...defaultArgs,
                     name: 'unknown validator set',
                     signers: () => [signer1, deployer],
-                    customError: 'WrongSignatureReceived',
+                    customError: 'NotEnoughSignatures',
                 },
                 {
                     ...defaultArgs,

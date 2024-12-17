@@ -16,7 +16,7 @@ contract LBTCOFTAdapter is EfficientRateLimitedOFTAdapter {
     /**
      * @dev Burns locked LBTC to prevent ability to withdraw from adapter.
      */
-    function halt() external onlyOwner {
+    function empty() external onlyOwner {
         ILBTC(address(innerToken)).burn(innerToken.balanceOf(address(this)));
     }
 }
