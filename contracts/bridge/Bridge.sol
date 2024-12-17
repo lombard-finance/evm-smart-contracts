@@ -385,8 +385,8 @@ contract Bridge is
 
         BridgeStorage storage $ = _getBridgeStorage();
         delete $.destinations[toChain];
-        delete $.depositRateLimits[toChain];
-        delete $.withdrawRateLimits[toChain];
+        delete $.depositRateLimits[uint32(uint256(toChain))];
+        delete $.withdrawRateLimits[uint32(uint256(toChain))];
 
         emit DepositAbsoluteCommissionChanged(0, toChain);
         emit DepositRelativeCommissionChanged(0, toChain);
@@ -438,9 +438,8 @@ contract Bridge is
     ) external onlyOwner {
         BridgeStorage storage $ = _getBridgeStorage();
         for (uint256 i; i < depositRateLimits.length; i++) {
-            DestinationConfig memory destConf = $.destinations[
-                depositRateLimits[i].chainId
-            ];
+            bytes32 chainId = bytes32(abi.encode(depositRateLimits[i].chainId));
+            DestinationConfig memory destConf = $.destinations[chainId];
             if (destConf.bridgeContract == bytes32(0)) {
                 revert UnknownDestination();
             }
@@ -456,9 +455,10 @@ contract Bridge is
             );
         }
         for (uint256 i; i < withdrawRateLimits.length; i++) {
-            DestinationConfig memory destConf = $.destinations[
-                withdrawRateLimits[i].chainId
-            ];
+            bytes32 chainId = bytes32(
+                abi.encode(withdrawRateLimits[i].chainId)
+            );
+            DestinationConfig memory destConf = $.destinations[chainId];
             if (destConf.bridgeContract == bytes32(0)) {
                 revert UnknownDestination();
             }
