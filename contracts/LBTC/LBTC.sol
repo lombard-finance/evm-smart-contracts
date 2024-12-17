@@ -637,6 +637,9 @@ contract LBTC is
             feePayload[4:]
         );
 
+        if (feeAction.payloadHash != sha256(mintPayload))
+            revert FeePayloadMismatch();
+
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 fee = $.maximumFee;
         if (fee > feeAction.fee) {
@@ -655,7 +658,8 @@ contract LBTC is
                         Actions.FEE_APPROVAL_EIP712_ACTION,
                         block.chainid,
                         feeAction.fee,
-                        feeAction.expiry
+                        feeAction.expiry,
+                        feeAction.payloadHash
                     )
                 )
             );
