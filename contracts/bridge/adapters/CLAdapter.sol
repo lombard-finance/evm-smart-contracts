@@ -203,12 +203,10 @@ contract CLAdapter is AbstractAdapter, Ownable {
             amount: _amount
         });
 
-        bytes memory data;
-
         return
             Client.EVM2AnyMessage({
                 receiver: _receiver,
-                data: data,
+                data: "",
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
