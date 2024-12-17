@@ -126,12 +126,14 @@ abstract contract EfficientRateLimiter {
     ) internal virtual {
         unchecked {
             for (uint256 i = 0; i < _rateLimitConfigs.length; i++) {
-                eids.push(_rateLimitConfigs[i].eid);
-
                 RateLimit storage rateLimit = direction ==
                     RateLimitDirection.Outbound
                     ? outboundRateLimits[_rateLimitConfigs[i].eid]
                     : inboundRateLimits[_rateLimitConfigs[i].eid];
+
+                if (rateLimit.window == 0 && rateLimit.limit == 0) {
+                    eids.push(_rateLimitConfigs[i].eid);
+                }
 
                 // Checkpoint the existing rate limit to not retroactively apply the new decay rate.
                 _checkAndUpdateRateLimit(
