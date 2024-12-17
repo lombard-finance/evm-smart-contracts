@@ -25,6 +25,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
     error CLRefundFailed(address, uint256);
     error CLUnauthorizedTokenPool(address);
     error ZeroPayload();
+    error ReceiverTooBig();
+    error AmountOverflow();
 
     event CLChainSelectorSet(bytes32, uint64);
     event CLTokenPoolDeployed(address);
@@ -97,6 +99,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
             _lastPayload = new bytes(0);
             _lastBurnedAmount = 0;
         } else {
+            if (receiver.length > 32) revert ReceiverTooBig();
+            if (amount >= 2 ** 64) revert AmountOverflow();
             SafeERC20.safeTransferFrom(
                 OZIERC20(address(lbtc())),
                 _msgSender(),
@@ -122,6 +126,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
         uint256 _amount,
         bytes memory _payload
     ) external payable virtual override {
+        _onlyBridge();
+
         // transfer assets from bridge
         SafeERC20.safeTransferFrom(
             OZIERC20(address(lbtc())),
@@ -214,13 +220,6 @@ contract CLAdapter is AbstractAdapter, Ownable {
         });
 
         bytes memory data;
-        if (!tokenPool.isAttestationEnabled()) {
-            // we should send payload if not attestations expected
-            if (_payload.length == 0) {
-                revert ZeroPayload();
-            }
-            data = _payload;
-        }
 
         return
             Client.EVM2AnyMessage({
@@ -229,7 +228,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
-                        gasLimit: getExecutionGasLimit,
+                        gasLimit: 0,
                         allowOutOfOrderExecution: true
                     })
                 ),

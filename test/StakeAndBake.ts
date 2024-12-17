@@ -43,7 +43,11 @@ describe('StakeAndBake', function () {
             await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
 
         stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
@@ -63,8 +67,6 @@ describe('StakeAndBake', function () {
                 [],
                 false
             );
-
-        await lbtc.changeTreasuryAddress(treasury.address);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);
@@ -124,14 +126,15 @@ describe('StakeAndBake', function () {
                 signer2,
                 await lbtc.getAddress(),
                 fee,
-                snapshotTimestamp + 100
+                snapshotTimestamp + 100,
+                ethers.sha256(data.payload)
             );
 
             // set max fee
             await lbtc.setMintFee(fee);
 
             approval = getPayloadForAction(
-                [fee, snapshotTimestamp + 100],
+                [fee, snapshotTimestamp + 100, ethers.sha256(data.payload)],
                 'feeApproval'
             );
 
@@ -219,7 +222,12 @@ describe('StakeAndBake', function () {
                 signer3,
                 await lbtc.getAddress(),
                 fee,
-                snapshotTimestamp + 100
+                snapshotTimestamp + 100,
+                ethers.sha256(data2.payload)
+            );
+            const approval2 = getPayloadForAction(
+                [fee, snapshotTimestamp + 100, ethers.sha256(data2.payload)],
+                'feeApproval'
             );
 
             // set max fee
@@ -269,7 +277,7 @@ describe('StakeAndBake', function () {
                         depositPayload: depositPayload2,
                         mintPayload: data2.payload,
                         proof: data2.proof,
-                        feePayload: approval,
+                        feePayload: approval2,
                         userSignature: userSignature2,
                     },
                 ])
