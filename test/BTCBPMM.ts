@@ -47,6 +47,7 @@ describe('BTCBPMM', function () {
         lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
             ethers.hexlify(ethers.randomBytes(20)), // not relevant for BTCB tests
             1000, // not relevant for BTCB tests
+            deployer.address, // not relevant for BTCB tests, but can not be zero
             deployer.address,
         ]);
         pmm = await deploy<BTCBPMM>('BTCBPMM', 'BTCBPMM', [

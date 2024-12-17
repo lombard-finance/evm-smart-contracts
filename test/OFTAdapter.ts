@@ -39,8 +39,9 @@ describe('OFTAdapter', function () {
             await getSignersWithPrivateKeys();
 
         lbtc = await deployContract<LBTCMock>('LBTCMock', [
-            ethers.ZeroAddress,
+            deployer.address, // consortium - not relevant for this test, but can not be zero
             100,
+            deployer.address, // treasury - not relevant for this test, but can not be zero
             deployer.address,
         ]);
 
@@ -110,7 +111,7 @@ describe('OFTAdapter', function () {
         await aOFTAdapter.setRateLimits(
             [
                 {
-                    eid: bEid,
+                    chainId: bEid,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -120,7 +121,7 @@ describe('OFTAdapter', function () {
         await aBMOFTAdapter.setRateLimits(
             [
                 {
-                    eid: bEid,
+                    chainId: bEid,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -130,7 +131,7 @@ describe('OFTAdapter', function () {
         await bBMOFTAdapter.setRateLimits(
             [
                 {
-                    eid: aEid,
+                    chainId: aEid,
                     limit: 100_000,
                     window: 120,
                 },
@@ -142,7 +143,7 @@ describe('OFTAdapter', function () {
         await aOFTAdapter.setRateLimits(
             [
                 {
-                    eid: bEid,
+                    chainId: bEid,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -152,7 +153,7 @@ describe('OFTAdapter', function () {
         await aBMOFTAdapter.setRateLimits(
             [
                 {
-                    eid: bEid,
+                    chainId: bEid,
                     limit: 1_0000_0000,
                     window: 120,
                 },
@@ -162,7 +163,7 @@ describe('OFTAdapter', function () {
         await bBMOFTAdapter.setRateLimits(
             [
                 {
-                    eid: aEid,
+                    chainId: aEid,
                     limit: 100_000,
                     window: 120,
                 },
@@ -440,7 +441,7 @@ describe('OFTAdapter', function () {
             await aOFTAdapter.setRateLimits(
                 [
                     {
-                        eid: bEid,
+                        chainId: bEid,
                         limit: 0,
                         window: 0,
                     },
@@ -450,7 +451,7 @@ describe('OFTAdapter', function () {
             await bBMOFTAdapter.setRateLimits(
                 [
                     {
-                        eid: aEid,
+                        chainId: aEid,
                         limit: 0,
                         window: 0,
                     },
@@ -488,7 +489,7 @@ describe('OFTAdapter', function () {
             await bBMOFTAdapter.setRateLimits(
                 [
                     {
-                        eid: aEid,
+                        chainId: aEid,
                         limit: 1_000_000,
                         window: 120,
                     },
@@ -694,7 +695,7 @@ describe('OFTAdapter', function () {
                 await bBMOFTAdapter.setRateLimits(
                     [
                         {
-                            eid: aEid,
+                            chainId: aEid,
                             window: 0,
                             limit: 0,
                         },
@@ -749,7 +750,7 @@ describe('OFTAdapter', function () {
                 await aOFTAdapter.setRateLimits(
                     [
                         {
-                            eid: bEid,
+                            chainId: bEid,
                             window: 0,
                             limit: 0,
                         },

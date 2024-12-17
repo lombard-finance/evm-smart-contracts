@@ -47,10 +47,18 @@ describe('LBTC', function () {
 
         const burnCommission = 1000;
 
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
 
-        const result2 = await init(burnCommission, deployer.address);
+        const result2 = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc2 = result2.lbtc;
 
         bascule = await deployContract<Bascule>(
@@ -64,9 +72,6 @@ describe('LBTC', function () {
             ],
             false
         );
-
-        await lbtc.changeTreasuryAddress(treasury.address);
-        await lbtc2.changeTreasuryAddress(treasury.address);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);
@@ -151,16 +156,6 @@ describe('LBTC', function () {
             await expect(lbtc.connect(signer1).unpause())
                 .to.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
                 .withArgs(signer1.address);
-        });
-
-        it('changeNameAndSymbol', async function () {
-            const newName = 'NEW_NAME';
-            const newSymbol = 'NEW_SYMBOL';
-            await expect(lbtc.changeNameAndSymbol(newName, newSymbol))
-                .to.emit(lbtc, 'NameAndSymbolChanged')
-                .withArgs(newName, newSymbol);
-            expect(await lbtc.name()).to.be.eq(newName);
-            expect(await lbtc.symbol()).to.be.eq(newSymbol);
         });
 
         it('toggleWithdrawals() enables or disables burn', async function () {
@@ -389,14 +384,19 @@ describe('LBTC', function () {
                             args.recipient(),
                             await lbtc.getAddress(),
                             fee,
-                            snapshotTimestamp + 100
+                            snapshotTimestamp + 100,
+                            ethers.sha256(data.payload)
                         );
 
                         // set max fee
                         await lbtc.setMintFee(max);
 
                         const approval = getPayloadForAction(
-                            [fee, snapshotTimestamp + 100],
+                            [
+                                fee,
+                                snapshotTimestamp + 100,
+                                ethers.sha256(data.payload),
+                            ],
                             'feeApproval'
                         );
 
@@ -627,7 +627,7 @@ describe('LBTC', function () {
                     [1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1],
                     NEW_VALSET
                 );
-                await newConsortium.setInitalValidatorSet(valset);
+                await newConsortium.setInitialValidatorSet(valset);
                 const data = await signDepositBtcPayload(
                     defaultArgs.signers(),
                     defaultArgs.signatures,
@@ -773,14 +773,19 @@ describe('LBTC', function () {
                         defaultPayload,
                         defaultProof,
                         getPayloadForAction(
-                            [1, snapshotTimestamp + 100],
+                            [
+                                1,
+                                snapshotTimestamp + 100,
+                                ethers.sha256(defaultPayload),
+                            ],
                             'feeApproval'
                         ),
                         await getFeeTypedMessage(
                             defaultArgs.mintRecipient(),
                             await lbtc.getAddress(),
                             1,
-                            snapshotTimestamp + 100
+                            snapshotTimestamp + 100,
+                            ethers.sha256(defaultPayload)
                         )
                     )
                 ).to.revertedWithCustomError(lbtc, 'PayloadAlreadyUsed');
@@ -793,14 +798,19 @@ describe('LBTC', function () {
                             defaultPayload,
                             defaultProof,
                             getPayloadForAction(
-                                [1, snapshotTimestamp],
+                                [
+                                    1,
+                                    snapshotTimestamp,
+                                    ethers.sha256(defaultPayload),
+                                ],
                                 'feeApproval'
                             ),
                             await getFeeTypedMessage(
                                 defaultArgs.mintRecipient(),
                                 await lbtc.getAddress(),
                                 1,
-                                snapshotTimestamp // it is already passed as some txns had happen
+                                snapshotTimestamp, // it is already passed as some txns had happen
+                                ethers.sha256(defaultPayload)
                             )
                         )
                     )
@@ -819,14 +829,19 @@ describe('LBTC', function () {
                                 defaultPayload,
                                 defaultProof,
                                 getPayloadForAction(
-                                    [1, snapshotTimestamp + 100],
+                                    [
+                                        1,
+                                        snapshotTimestamp + 100,
+                                        ethers.sha256(defaultPayload),
+                                    ],
                                     'feeApproval'
                                 ),
                                 await getFeeTypedMessage(
                                     defaultArgs.mintRecipient(),
                                     await lbtc.getAddress(),
                                     1,
-                                    snapshotTimestamp + 100
+                                    snapshotTimestamp + 100,
+                                    ethers.sha256(defaultPayload)
                                 )
                             )
                     )
@@ -846,6 +861,7 @@ describe('LBTC', function () {
                                 [
                                     defaultArgs.mintAmount,
                                     snapshotTimestamp + 100,
+                                    ethers.sha256(defaultPayload),
                                 ],
                                 'feeApproval'
                             ),
@@ -853,7 +869,8 @@ describe('LBTC', function () {
                                 defaultArgs.mintRecipient(),
                                 await lbtc.getAddress(),
                                 defaultArgs.mintAmount,
-                                snapshotTimestamp + 100
+                                snapshotTimestamp + 100,
+                                ethers.sha256(defaultPayload)
                             )
                         )
                     ).to.revertedWithCustomError(lbtc, 'FeeGreaterThanAmount');
@@ -865,14 +882,19 @@ describe('LBTC', function () {
                             defaultPayload,
                             defaultProof,
                             getPayloadForAction(
-                                [1, snapshotTimestamp + 100],
+                                [
+                                    1,
+                                    snapshotTimestamp + 100,
+                                    ethers.sha256(defaultPayload),
+                                ],
                                 'feeApproval'
                             ),
                             await getFeeTypedMessage(
                                 deployer,
                                 await lbtc.getAddress(),
                                 1,
-                                snapshotTimestamp + 100
+                                snapshotTimestamp + 100,
+                                ethers.sha256(defaultPayload)
                             )
                         )
                     ).to.revertedWithCustomError(lbtc, 'InvalidUserSignature');
@@ -884,14 +906,19 @@ describe('LBTC', function () {
                             defaultPayload,
                             defaultProof,
                             getPayloadForAction(
-                                [1, snapshotTimestamp + 100],
+                                [
+                                    1,
+                                    snapshotTimestamp + 100,
+                                    ethers.sha256(defaultPayload),
+                                ],
                                 'feeApproval'
                             ),
                             await getFeeTypedMessage(
                                 defaultArgs.mintRecipient(),
                                 await lbtc.getAddress(),
                                 2, // wrong fee
-                                snapshotTimestamp + 100
+                                snapshotTimestamp + 100,
+                                ethers.sha256(defaultPayload)
                             )
                         )
                     ).to.revertedWithCustomError(lbtc, 'InvalidUserSignature');
