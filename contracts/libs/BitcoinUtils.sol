@@ -22,6 +22,8 @@ uint256 constant NON_WITNESS_INPUT_SIZE = 107; // Used for non-witness outputs (
 uint256 constant WITNESS_INPUT_SIZE = 26; // floor(107 / 4), used for witness outputs (P2WPKH, P2WSH, P2TR)
 
 library BitcoinUtils {
+    uint256 public constant dustFeeRate_ = 3000;
+
     function getOutputType(
         bytes calldata scriptPubkey
     ) internal pure returns (OutputType) {

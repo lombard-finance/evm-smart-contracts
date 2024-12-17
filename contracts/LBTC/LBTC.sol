@@ -66,8 +66,6 @@ contract LBTC is
     bytes32 private constant LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
-    uint256 private constant dustFeeRate_ = 3000;
-
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -99,7 +97,7 @@ contract LBTC is
         );
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.dustFeeRate = dustFeeRate_; // Default value - 3 satoshis per byte
+        $.dustFeeRate = BitcoinUtils.dustFeeRate_; // Default value - 3 satoshis per byte
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
