@@ -16,6 +16,8 @@ abstract contract EfficientRateLimiter {
     mapping(uint32 dstEid => RateLimits.Data limit) public outboundRateLimits;
     // Tracks rate limits for inbound transactions from a srcEid.
     mapping(uint32 srcEid => RateLimits.Data limit) public inboundRateLimits;
+    // Keeps track of all eids in case we need to halt and delete all entries.
+    uint32[] internal eids;
 
     // Define an enum to clearly distinguish between inbound and outbound rate limits.
     enum RateLimitDirection {
@@ -98,6 +100,10 @@ abstract contract EfficientRateLimiter {
                 RateLimitDirection.Outbound
                 ? outboundRateLimits[_rateLimitConfigs[i].chainId]
                 : inboundRateLimits[_rateLimitConfigs[i].chainId];
+
+            if (rateLimit.window == 0 && rateLimit.limit == 0) {
+                eids.push(_rateLimitConfigs[i].chainId);
+            }
 
             // Checkpoint the existing rate limit to not retroactively apply the new decay rate.
             _checkAndUpdateRateLimit(
