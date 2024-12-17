@@ -101,6 +101,13 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     ) external returns (uint256 lastBurnedAmount, bytes memory lastPayload) {
         _onlyTokenPool();
 
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            amount
+        );
+
         if (_lastPayload.length > 0) {
             // just return if already initiated
             lastBurnedAmount = _lastBurnedAmount;
@@ -110,12 +117,6 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         } else {
             if (receiver.length > 32) revert ReceiverTooBig();
             if (amount >= 2 ** 64) revert AmountOverflow();
-            SafeERC20.safeTransferFrom(
-                OZIERC20(address(lbtc())),
-                _msgSender(),
-                address(this),
-                amount
-            );
             IERC20(address(lbtc())).approve(address(bridge), amount);
             (lastBurnedAmount, lastPayload) = bridge.deposit(
                 getChain[remoteChainSelector],
