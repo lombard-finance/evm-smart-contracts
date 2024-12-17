@@ -24,6 +24,8 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     error CLRefundFailed(address, uint256);
     error CLUnauthorizedTokenPool(address);
     error ZeroPayload();
+    error ReceiverTooBig();
+    error AmountOverflow();
 
     event CLChainSelectorSet(bytes32, uint64);
     event CLTokenPoolDeployed(address);
@@ -104,6 +106,8 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
             _lastPayload = new bytes(0);
             _lastBurnedAmount = 0;
         } else {
+            if (receiver.length > 32) revert ReceiverTooBig();
+            if (amount >= 2 ** 64) revert AmountOverflow();
             IERC20(address(lbtc())).approve(address(bridge), amount);
             (lastBurnedAmount, lastPayload) = bridge.deposit(
                 getChain[remoteChainSelector],
@@ -123,6 +127,8 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         uint256 _amount,
         bytes memory _payload
     ) external payable virtual override {
+        _onlyBridge();
+
         // if deposit was initiated by adapter do nothing
         if (fromAddress == address(this)) {
             return;
@@ -204,13 +210,6 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         });
 
         bytes memory data;
-        if (!tokenPool.isAttestationEnabled()) {
-            // we should send payload if not attestations expected
-            if (_payload.length == 0) {
-                revert ZeroPayload();
-            }
-            data = _payload;
-        }
 
         return
             Client.EVM2AnyMessage({
@@ -219,7 +218,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
-                        gasLimit: getExecutionGasLimit,
+                        gasLimit: 0,
                         allowOutOfOrderExecution: true
                     })
                 ),

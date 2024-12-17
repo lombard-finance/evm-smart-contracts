@@ -4,8 +4,11 @@ import { sleep, verify } from '../helpers';
 /*
  * After deployment:
  * 1. Set adapter in bridge
- * 2. Accept ownership
- * 3. Configure Token pool
+ * 2. Accepts ownership
+ *    1. RegistryModuleOwnerCustom::registerAdminViaOwner
+ *    2. TokenAdminRegistry::acceptAdminRole
+ *    3. TokenAdminRegistry::setPool
+ * 3. Configure Token pool `yarn hardhat setup-token-pool`
  */
 function chainlinkAdapterTask(taskName: string) {
     task(taskName, 'Deploys the TokenPoolAdapter contract')
@@ -53,7 +56,7 @@ function chainlinkAdapterTask(taskName: string) {
 
             await verify(hre.run, await adapter.getAddress(), {
                 constructorArguments: args,
-                force: true,
+                // force: true,
             });
 
             await verify(hre.run, await adapter.tokenPool(), {
@@ -65,6 +68,7 @@ function chainlinkAdapterTask(taskName: string) {
                     await adapter.getAddress(),
                     enableAttestation,
                 ],
+                // force: true,
             });
 
             const tokenPool = await hre.ethers.getContractAt(
@@ -78,11 +82,21 @@ function chainlinkAdapterTask(taskName: string) {
                 await tokenPool.owner()
             );
 
-            if (admin && (await adapter.owner()) != admin) {
+            await sleep(12_000);
+
+            if (
+                admin &&
+                (await adapter.owner()).toLowerCase() != admin.toLowerCase()
+            ) {
+                console.log(admin, await adapter.owner());
                 await adapter.transferOwnership(admin);
             }
 
-            if (admin && (await tokenPool.owner()) != admin) {
+            if (
+                admin &&
+                (await tokenPool.owner()).toLowerCase() != admin.toLowerCase()
+            ) {
+                console.log(admin, await tokenPool.owner());
                 await tokenPool.transferOwnership(admin);
             }
         });
