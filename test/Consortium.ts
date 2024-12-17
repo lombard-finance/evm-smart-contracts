@@ -207,7 +207,7 @@ describe('Consortium', function () {
                 await lombard.checkProof(data.payloadHash, data.proof);
             });
 
-            it('should revert on invalid signatures', async function () {
+            it('should not succeed on invalid signatures', async function () {
                 const data = await signDepositBridgePayload(
                     [signer3, signer1, signer2],
                     [true, true, false],
@@ -262,7 +262,7 @@ describe('Consortium', function () {
                     lombard.checkProof(ethers.sha256(payload), data.proof)
                 ).to.be.revertedWithCustomError(
                     lombard,
-                    'WrongSignatureReceived'
+                    'NotEnoughSignatures'
                 );
             });
         });
