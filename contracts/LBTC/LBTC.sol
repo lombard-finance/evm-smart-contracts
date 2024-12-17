@@ -444,7 +444,7 @@ contract LBTC is
                 $.usedPayloads[payloadHash] ||
                 $.legacyUsedPayloads[keccak256(mintPayload[i][4:])]
             ) {
-                revert PayloadAlreadyUsed();
+                continue;
             }
 
             _mintWithFee(
