@@ -35,6 +35,7 @@ contract LBTC is
         string symbol;
         bool isWithdrawalsEnabled;
         address consortium;
+        bool isWBTCEnabled;
         address treasury;
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
