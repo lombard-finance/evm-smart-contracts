@@ -198,13 +198,6 @@ contract CLAdapter is AbstractAdapter, Ownable {
         });
 
         bytes memory data;
-        if (!tokenPool.isAttestationEnabled()) {
-            // we should send payload if not attestations expected
-            if (_payload.length == 0) {
-                revert ZeroPayload();
-            }
-            data = _payload;
-        }
 
         return
             Client.EVM2AnyMessage({
