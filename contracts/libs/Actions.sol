@@ -152,7 +152,7 @@ library Actions {
     function depositBridge(
         bytes memory payload
     ) internal view returns (DepositBridgeAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 7) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 8) revert PayloadTooLarge();
 
         (
             uint256 fromChain,
@@ -218,6 +218,17 @@ library Actions {
                 payload,
                 (uint256, bytes[], uint256[], uint256, uint256)
             );
+
+        // Since dynamic arrays can variably insert more slots of data for things such as data length,
+        // offset etc., we will just encode the received variables again and check for a length match.
+        bytes memory reEncodedPayload = abi.encode(
+            epoch,
+            pubKeys,
+            weights,
+            weightThreshold,
+            height
+        );
+        if (reEncodedPayload.length != payload.length) revert PayloadTooLarge();
 
         if (
             pubKeys.length < MIN_VALIDATOR_SET_SIZE ||
