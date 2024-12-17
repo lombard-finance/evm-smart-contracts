@@ -201,11 +201,6 @@ contract Bridge is
             payload[4:]
         );
 
-        // extra checks
-        if (action.version != VERSION) {
-            revert VersionMismatch(action.version, VERSION);
-        }
-
         if (
             destConf.bridgeContract !=
             bytes32(uint256(uint160(action.fromContract)))
@@ -239,11 +234,6 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
-
-        // TODO: verify action
-        if (action.version != VERSION) {
-            revert VersionMismatch(action.version, VERSION);
-        }
 
         // Ensure that fromContract matches the bridgeContract
         DestinationConfig memory destConf = getDestination(
@@ -294,10 +284,6 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
-
-        if (action.version != VERSION) {
-            revert VersionMismatch(action.version, VERSION);
-        }
 
         // Validate toContract
         if (action.toContract != address(this)) revert NotValidDestination();
