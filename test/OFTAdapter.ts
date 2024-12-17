@@ -39,7 +39,7 @@ describe('OFTAdapter', function () {
             await getSignersWithPrivateKeys();
 
         lbtc = await deployContract<LBTCMock>('LBTCMock', [
-            ethers.ZeroAddress,
+            deployer.address, // consortium - not relevant for this test, but can not be zero
             100,
             deployer.address, // treasury - not relevant for this test, but can not be zero
             deployer.address,
