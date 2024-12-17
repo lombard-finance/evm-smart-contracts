@@ -23,6 +23,9 @@ abstract contract EfficientRateLimiter {
         Outbound
     }
 
+    /// @notice Emitted when a rate limit seems to be malformed.
+    error MalformedRateLimit();
+
     /**
      * @notice Emitted when _setRateLimits occurs.
      * @param rateLimitConfigs An array of `RateLimits.Config` structs representing the rate limit configurations set per endpoint id.
@@ -105,6 +108,12 @@ abstract contract EfficientRateLimiter {
                 0,
                 direction
             );
+
+            if (
+                rateLimit.limit == 0 ||
+                rateLimit.limit == 2 ** 256 - 1 ||
+                rateLimit.window == 0
+            ) revert MalformedRateLimit();
 
             // Does NOT reset the amountInFlight/lastUpdated of an existing rate limit.
             rateLimit.limit = _rateLimitConfigs[i].limit;
