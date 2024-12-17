@@ -210,7 +210,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
-                        gasLimit: 0,
+                        gasLimit: getExecutionGasLimit,
                         allowOutOfOrderExecution: true
                     })
                 ),
