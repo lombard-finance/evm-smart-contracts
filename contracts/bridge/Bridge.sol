@@ -50,6 +50,9 @@ contract Bridge is
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
 
+    /// @dev Bridge contract version used for bridge action payload validation.
+    uint16 private constant VERSION = 1;
+
     /// PUBLIC FUNCTIONS ///
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -198,7 +201,6 @@ contract Bridge is
             payload[4:]
         );
 
-        // extra checks
         if (
             destConf.bridgeContract !=
             bytes32(uint256(uint160(action.fromContract)))
@@ -347,8 +349,6 @@ contract Bridge is
         IAdapter adapter,
         bool requireConsortium
     ) external onlyOwner {
-        if (!requireConsortium) _notEOA(address(adapter));
-
         if (toContract == bytes32(0)) {
             revert ZeroContractHash();
         }
@@ -425,7 +425,6 @@ contract Bridge is
     }
 
     function changeConsortium(INotaryConsortium newVal) external onlyOwner {
-        _notEOA(address(newVal));
         if (address(newVal) == address(0)) revert Bridge_ZeroAddress();
         BridgeStorage storage $ = _getBridgeStorage();
         emit ConsortiumChanged($.consortium, newVal);
@@ -447,7 +446,7 @@ contract Bridge is
                 depositRateLimits[i].limit == 0 ||
                 depositRateLimits[i].limit == 2 ** 256 - 1 ||
                 depositRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+            ) revert RateLimits.MalformedRateLimit();
 
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
@@ -466,7 +465,7 @@ contract Bridge is
                 withdrawRateLimits[i].limit == 0 ||
                 withdrawRateLimits[i].limit == 2 ** 256 - 1 ||
                 withdrawRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+            ) revert RateLimits.MalformedRateLimit();
 
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
@@ -481,7 +480,6 @@ contract Bridge is
         ILBTC lbtc_,
         address treasury_
     ) internal onlyInitializing {
-        _notEOA(address(lbtc_));
         if (address(lbtc_) == address(0)) revert Bridge_ZeroAddress();
         if (treasury_ == address(0)) revert Bridge_ZeroAddress();
         _changeTreasury(treasury_);
@@ -536,7 +534,8 @@ contract Bridge is
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            $.crossChainOperationsNonce++
+            $.crossChainOperationsNonce++,
+            VERSION
         );
 
         if (address(config.adapter) != address(0)) {
@@ -600,13 +599,5 @@ contract Bridge is
         if ($.destinations[chain].bridgeContract == bytes32(0)) {
             revert NotValidDestination();
         }
-    }
-
-    function _notEOA(address addr) internal view {
-        uint32 size;
-        assembly {
-            size := extcodesize(addr)
-        }
-        if (size == 0) revert Bridge_AddressIsEOA();
     }
 }

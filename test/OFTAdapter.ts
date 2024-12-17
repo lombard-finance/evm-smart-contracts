@@ -39,7 +39,7 @@ describe('OFTAdapter', function () {
             await getSignersWithPrivateKeys();
 
         lbtc = await deployContract<LBTCMock>('LBTCMock', [
-            ethers.ZeroAddress,
+            deployer.address, // consortium - not relevant for this test, but can not be zero
             100,
             deployer.address, // treasury - not relevant for this test, but can not be zero
             deployer.address,
@@ -461,7 +461,7 @@ describe('OFTAdapter', function () {
 
             const totalSupplyBefore = await lbtc.totalSupply();
             const adapterBalanceBefore = await lbtc.balanceOf(aOFTAdapter);
-            const haltTx = aOFTAdapter.halt();
+            const haltTx = aOFTAdapter.empty();
             await expect(haltTx).changeTokenBalance(
                 lbtc,
                 aOFTAdapter,

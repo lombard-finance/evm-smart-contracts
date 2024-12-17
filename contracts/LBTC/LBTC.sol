@@ -35,6 +35,7 @@ contract LBTC is
         string symbol;
         bool isWithdrawalsEnabled;
         address consortium;
+        bool isWBTCEnabled;
         address treasury;
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
@@ -64,8 +65,6 @@ contract LBTC is
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
-
-    uint256 private constant dustFeeRate_ = 3000;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -98,7 +97,7 @@ contract LBTC is
         );
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.dustFeeRate = dustFeeRate_; // Default value - 3 satoshis per byte
+        $.dustFeeRate = BitcoinUtils.dustFeeRate_; // Default value - 3 satoshis per byte
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
@@ -534,6 +533,9 @@ contract LBTC is
     }
 
     function _changeConsortium(address newVal) internal {
+        if (newVal == address(0)) {
+            revert ZeroAddress();
+        }
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
@@ -547,6 +549,8 @@ contract LBTC is
         bytes calldata proof
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
+
+        if (amountToMint > depositAmount) revert InvalidMintAmount();
 
         /// make sure that hash of payload not used before
         /// need to check new sha256 hash and legacy keccak256 from payload without selector

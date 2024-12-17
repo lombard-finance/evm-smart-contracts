@@ -209,7 +209,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
                     // revert if bad signature
                     if (err != ECDSA.RecoverError.NoError) {
-                        revert SignatureVerificationFailed(i, err);
+                        continue;
                     }
 
                     // if signer doesn't match try V = 28
@@ -221,11 +221,11 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                             s
                         );
                         if (err != ECDSA.RecoverError.NoError) {
-                            revert SignatureVerificationFailed(i, err);
+                            continue;
                         }
 
                         if (signer != validators[i]) {
-                            revert WrongSignatureReceived(signatures[i]);
+                            continue;
                         }
                     }
                     // signature accepted
