@@ -107,8 +107,7 @@ library RateLimits {
         rl.lastUpdated = block.timestamp;
     }
 
-    function checkRateLimitSanity(uint256 limit, uint256 window) internal pure {
-        if (limit == type(uint256).max || window == 0)
-            revert RateLimits.MalformedRateLimit();
+    function checkRateLimitSanity(uint256 limit) internal pure {
+        if (limit == type(uint256).max) revert RateLimits.MalformedRateLimit();
     }
 }

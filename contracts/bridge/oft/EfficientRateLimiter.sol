@@ -110,6 +110,8 @@ abstract contract EfficientRateLimiter {
                 direction
             );
 
+            RateLimits.checkRateLimitSanity(rateLimit.limit);
+
             // Does NOT reset the amountInFlight/lastUpdated of an existing rate limit.
             rateLimit.limit = _rateLimitConfigs[i].limit;
             rateLimit.window = _rateLimitConfigs[i].window;
