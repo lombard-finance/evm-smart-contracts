@@ -51,9 +51,6 @@ interface IBridge is IConsortiumConsumer {
     /// @notice Emitted when address is EOA in a case where it shouldn't be.
     error Bridge_AddressIsEOA();
 
-    /// @notice Emitted when a rate limit seems to be malformed.
-    error MalformedRateLimit();
-
     /// @notice Emitted when the deposit absolute commission is changed.
     event DepositAbsoluteCommissionChanged(
         uint64 newValue,

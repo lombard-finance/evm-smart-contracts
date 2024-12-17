@@ -446,7 +446,7 @@ contract Bridge is
                 depositRateLimits[i].limit == 0 ||
                 depositRateLimits[i].limit == 2 ** 256 - 1 ||
                 depositRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+            ) revert RateLimits.MalformedRateLimit();
 
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
@@ -465,7 +465,7 @@ contract Bridge is
                 withdrawRateLimits[i].limit == 0 ||
                 withdrawRateLimits[i].limit == 2 ** 256 - 1 ||
                 withdrawRateLimits[i].window == 0
-            ) revert MalformedRateLimit();
+            ) revert RateLimits.MalformedRateLimit();
 
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],

@@ -33,6 +33,9 @@ library RateLimits {
      */
     error RateLimitExceeded();
 
+    /// @notice Emitted when a rate limit seems to be malformed.
+    error MalformedRateLimit();
+
     function setRateLimit(Data storage rl, Config memory config) internal {
         // @dev Ensure we checkpoint the existing rate limit as to not retroactively apply the new decay rate.
         updateLimit(rl, 0);
