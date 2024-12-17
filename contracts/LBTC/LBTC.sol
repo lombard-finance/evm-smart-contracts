@@ -524,6 +524,9 @@ contract LBTC is
     }
 
     function _changeConsortium(address newVal) internal {
+        if (newVal == address(0)) {
+            revert ZeroAddress();
+        }
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
@@ -537,6 +540,8 @@ contract LBTC is
         bytes calldata proof
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
+
+        if (amountToMint > depositAmount) revert InvalidMintAmount();
 
         /// make sure that hash of payload not used before
         /// need to check new sha256 hash and legacy keccak256 from payload without selector
