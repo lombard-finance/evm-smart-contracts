@@ -50,6 +50,9 @@ contract Bridge is
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
 
+    /// @dev Bridge contract version used for bridge action payload validation.
+    uint16 private constant VERSION = 1;
+
     /// PUBLIC FUNCTIONS ///
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -199,6 +202,10 @@ contract Bridge is
         );
 
         // extra checks
+        if (action.version != VERSION) {
+            revert VersionMismatch(action.version, VERSION);
+        }
+
         if (
             destConf.bridgeContract !=
             bytes32(uint256(uint160(action.fromContract)))
@@ -232,6 +239,11 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
+
+        // TODO: verify action
+        if (action.version != VERSION) {
+            revert VersionMismatch(action.version, VERSION);
+        }
 
         // Ensure that fromContract matches the bridgeContract
         DestinationConfig memory destConf = getDestination(
@@ -282,6 +294,10 @@ contract Bridge is
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
         );
+
+        if (action.version != VERSION) {
+            revert VersionMismatch(action.version, VERSION);
+        }
 
         // Validate toContract
         if (action.toContract != address(this)) revert NotValidDestination();
@@ -536,7 +552,8 @@ contract Bridge is
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            $.crossChainOperationsNonce++
+            $.crossChainOperationsNonce++,
+            VERSION
         );
 
         if (address(config.adapter) != address(0)) {
