@@ -527,10 +527,15 @@ contract Bridge is
         );
 
         if (address(config.adapter) != address(0)) {
-            // transfer assets to adapter
+            // transfer assets to bridge
             SafeERC20.safeTransferFrom(
                 IERC20(address(lbtc())),
                 fromAddress,
+                address(this),
+                amountWithoutFee
+            );
+            // Approve spending by adapter
+            IERC20(address(lbtc())).approve(
                 address(config.adapter),
                 amountWithoutFee
             );

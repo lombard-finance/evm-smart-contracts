@@ -9,6 +9,8 @@ import {IBridge} from "../IBridge.sol";
 import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {LombardTokenPool} from "./TokenPool.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20 as OZIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
@@ -99,6 +101,13 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     ) external returns (uint256 lastBurnedAmount, bytes memory lastPayload) {
         _onlyTokenPool();
 
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            amount
+        );
+
         if (_lastPayload.length > 0) {
             // just return if already initiated
             lastBurnedAmount = _lastBurnedAmount;
@@ -128,6 +137,14 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         bytes memory _payload
     ) external payable virtual override {
         _onlyBridge();
+
+        // transfer assets from bridge
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            _amount
+        );
 
         // if deposit was initiated by adapter do nothing
         if (fromAddress == address(this)) {
