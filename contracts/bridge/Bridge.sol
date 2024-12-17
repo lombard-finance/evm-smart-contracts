@@ -441,10 +441,7 @@ contract Bridge is
                 revert UnknownDestination();
             }
 
-            RateLimits.checkRateLimitSanity(
-                depositRateLimits[i].limit,
-                depositRateLimits[i].window
-            );
+            RateLimits.checkRateLimitSanity(depositRateLimits[i].limit);
 
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
@@ -459,10 +456,7 @@ contract Bridge is
                 revert UnknownDestination();
             }
 
-            RateLimits.checkRateLimitSanity(
-                withdrawRateLimits[i].limit,
-                withdrawRateLimits[i].window
-            );
+            RateLimits.checkRateLimitSanity(withdrawRateLimits[i].limit);
 
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
