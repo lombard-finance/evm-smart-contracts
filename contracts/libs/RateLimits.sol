@@ -106,4 +106,9 @@ library RateLimits {
         rl.amountInFlight = currentAmountInFlight + _amount;
         rl.lastUpdated = block.timestamp;
     }
+
+    function checkRateLimitSanity(uint256 limit, uint256 window) internal pure {
+        if (limit == type(uint256).max || window == 0)
+            revert RateLimits.MalformedRateLimit();
+    }
 }

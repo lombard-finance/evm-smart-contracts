@@ -437,16 +437,17 @@ contract Bridge is
     ) external onlyOwner {
         BridgeStorage storage $ = _getBridgeStorage();
         for (uint256 i; i < depositRateLimits.length; i++) {
-            bytes32 chainId = bytes32(abi.encode(depositRateLimits[i].chainId));
-            DestinationConfig memory destConf = $.destinations[chainId];
+            DestinationConfig memory destConf = $.destinations[
+                depositRateLimits[i].chainId
+            ];
             if (destConf.bridgeContract == bytes32(0)) {
                 revert UnknownDestination();
             }
-            if (
-                depositRateLimits[i].limit == 0 ||
-                depositRateLimits[i].limit == 2 ** 256 - 1 ||
-                depositRateLimits[i].window == 0
-            ) revert RateLimits.MalformedRateLimit();
+
+            RateLimits.checkRateLimitSanity(
+                depositRateLimits[i].limit,
+                depositRateLimits[i].window
+            );
 
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
@@ -454,18 +455,17 @@ contract Bridge is
             );
         }
         for (uint256 i; i < withdrawRateLimits.length; i++) {
-            bytes32 chainId = bytes32(
-                abi.encode(withdrawRateLimits[i].chainId)
-            );
-            DestinationConfig memory destConf = $.destinations[chainId];
+            DestinationConfig memory destConf = $.destinations[
+                withdrawRateLimits[i].chainId
+            ];
             if (destConf.bridgeContract == bytes32(0)) {
                 revert UnknownDestination();
             }
-            if (
-                withdrawRateLimits[i].limit == 0 ||
-                withdrawRateLimits[i].limit == 2 ** 256 - 1 ||
-                withdrawRateLimits[i].window == 0
-            ) revert RateLimits.MalformedRateLimit();
+
+            RateLimits.checkRateLimitSanity(
+                withdrawRateLimits[i].limit,
+                withdrawRateLimits[i].window
+            );
 
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
