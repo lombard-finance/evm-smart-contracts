@@ -39,7 +39,7 @@ await lbtc.approve(bridge.address, amount);
 Call the method `function deposit(bytes32 toChain, bytes32 toAddress, uint64 amount)`
 
 ```typescript
-await bridge.deposit(destChainId, destBridge, destReceiver, amount, {value: fee});
+await bridge.deposit(destChainId, destReceiver, amount, {value: fee});
 ```
 
 ### Track bridge
