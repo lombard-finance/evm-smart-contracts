@@ -80,9 +80,7 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                 remoteSelector
             );
             await r.wait(2);
-            console.log(
-                `Chain ${chain} set for chain selector ${remoteSelector}`
-            );
+            console.log(`Chain ${chain} set for chain selector ${toChainId}`);
 
             await sleep(12_000);
         }
