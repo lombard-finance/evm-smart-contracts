@@ -42,8 +42,8 @@ contract Bridge is
         mapping(bytes32 => Deposit) deposits;
         INotaryConsortium consortium;
         // Rate limits
-        mapping(uint32 => RateLimits.Data) depositRateLimits;
-        mapping(uint32 => RateLimits.Data) withdrawRateLimits;
+        mapping(bytes32 => RateLimits.Data) depositRateLimits;
+        mapping(bytes32 => RateLimits.Data) withdrawRateLimits;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
@@ -290,7 +290,7 @@ contract Bridge is
 
         // check rate limits
         RateLimits.updateLimit(
-            $.withdrawRateLimits[uint32(action.fromChain)],
+            $.withdrawRateLimits[bytes32(action.fromChain)],
             action.amount
         );
 
@@ -385,8 +385,8 @@ contract Bridge is
 
         BridgeStorage storage $ = _getBridgeStorage();
         delete $.destinations[toChain];
-        delete $.depositRateLimits[uint32(uint256(toChain))];
-        delete $.withdrawRateLimits[uint32(uint256(toChain))];
+        delete $.depositRateLimits[toChain];
+        delete $.withdrawRateLimits[toChain];
 
         emit DepositAbsoluteCommissionChanged(0, toChain);
         emit DepositRelativeCommissionChanged(0, toChain);
@@ -497,10 +497,7 @@ contract Bridge is
         BridgeStorage storage $ = _getBridgeStorage();
 
         // check rate limits
-        RateLimits.updateLimit(
-            $.depositRateLimits[uint32(uint256(toChain))],
-            amount
-        );
+        RateLimits.updateLimit($.depositRateLimits[toChain], amount);
 
         // relative fee
         uint256 fee = FeeUtils.getRelativeFee(

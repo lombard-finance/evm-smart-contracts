@@ -45,7 +45,7 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
             _dstEid
         );
         _checkAndUpdateRateLimit(
-            _dstEid,
+            bytes32(uint256(_dstEid)),
             amountSentLD,
             RateLimitDirection.Outbound
         );
@@ -70,7 +70,7 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
         returns (uint256 amountReceivedLD)
     {
         _checkAndUpdateRateLimit(
-            _srcEid,
+            bytes32(uint256(_srcEid)),
             _amountLD,
             RateLimitDirection.Inbound
         );
