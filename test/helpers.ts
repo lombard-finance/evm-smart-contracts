@@ -18,7 +18,7 @@ export const encode = (types: string[], values: any[]) =>
 export const CHAIN_ID: string = encode(['uint256'], [31337]);
 
 const ACTIONS_IFACE = ethers.Interface.from([
-    'function feeApproval(uint256,uint256)',
+    'function feeApproval(uint256,uint256,bytes32)',
     'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
     'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256,uint16) external',
     'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
@@ -182,7 +182,11 @@ export async function getSignersWithPrivateKeys(
     });
 }
 
-export async function init(burnCommission: number, owner: string) {
+export async function init(
+    burnCommission: number,
+    treasury: string,
+    owner: string
+) {
     const consortium = await deployContract<Consortium>('ConsortiumMock', [
         owner,
     ]);
@@ -190,6 +194,7 @@ export async function init(burnCommission: number, owner: string) {
     const lbtc = await deployContract<LBTCMock>('LBTCMock', [
         await consortium.getAddress(),
         burnCommission,
+        treasury,
         owner,
     ]);
 
@@ -246,6 +251,7 @@ export async function getFeeTypedMessage(
     verifyingContract: string,
     fee: BigNumberish,
     expiry: BigNumberish,
+    payloadHash: string,
     domainName: string = 'Lombard Staked Bitcoin',
     version: string = '1',
     chainId: BigNumberish = Number(CHAIN_ID)
@@ -261,9 +267,10 @@ export async function getFeeTypedMessage(
             { name: 'chainId', type: 'uint256' },
             { name: 'fee', type: 'uint256' },
             { name: 'expiry', type: 'uint256' },
+            { name: 'payloadHash', type: 'bytes32' },
         ],
     };
-    const message = { chainId, fee, expiry };
+    const message = { chainId, fee, expiry, payloadHash };
 
     return signer.signTypedData(domain, types, message);
 }

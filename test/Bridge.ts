@@ -48,6 +48,7 @@ describe('Bridge', function () {
     let bridgeDestination: Bridge;
     let snapshot: SnapshotRestorer;
     const version = 1;
+    const absoluteFee = 100n;
 
     before(async function () {
         [
@@ -66,7 +67,7 @@ describe('Bridge', function () {
         consortium = await deployContract<Consortium>('Consortium', [
             deployer.address,
         ]);
-        await consortium.setInitalValidatorSet(
+        await consortium.setInitialValidatorSet(
             getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET)
         );
 
@@ -74,6 +75,7 @@ describe('Bridge', function () {
         lbtcSource = await deployContract<LBTCMock>('LBTCMock', [
             await consortium.getAddress(),
             100,
+            treasurySource.address,
             deployer.address,
         ]);
         bridgeSource = await deployContract<Bridge>('Bridge', [
@@ -97,6 +99,7 @@ describe('Bridge', function () {
         lbtcDestination = await deployContract<LBTCMock>('LBTCMock', [
             await consortium.getAddress(),
             100,
+            treasuryDestination.address,
             deployer.address,
         ]);
         bridgeDestination = await deployContract<Bridge>('Bridge', [
@@ -104,11 +107,6 @@ describe('Bridge', function () {
             treasuryDestination.address,
             deployer.address,
         ]);
-
-        await lbtcSource.changeTreasuryAddress(treasurySource.address);
-        await lbtcDestination.changeTreasuryAddress(
-            treasuryDestination.address
-        );
 
         await lbtcSource.addMinter(await bridgeSource.getAddress());
         await lbtcDestination.addMinter(await bridgeDestination.getAddress());
@@ -120,8 +118,24 @@ describe('Bridge', function () {
         const oo = {
             chainId: CHAIN_ID,
             limit: 1_0000_0000n, // 1 LBTC
-            window: 0,
+            window: 100,
         };
+        await bridgeSource.addDestination(
+            CHAIN_ID,
+            encode(['address'], [await bridgeDestination.getAddress()]),
+            1000, // 10%
+            0,
+            ethers.ZeroAddress,
+            true
+        );
+        await bridgeDestination.addDestination(
+            CHAIN_ID,
+            encode(['address'], [await bridgeSource.getAddress()]),
+            0, // 0%
+            absoluteFee,
+            ethers.ZeroAddress,
+            true
+        );
         await bridgeSource.setRateLimits([oo], [oo]);
         await bridgeDestination.setRateLimits([oo], [oo]);
 
@@ -155,27 +169,10 @@ describe('Bridge', function () {
     });
 
     describe('Actions/Flows', function () {
-        const absoluteFee = 100n;
         const AMOUNT = 1_0000_0000n; // 1 LBTC
 
         beforeEach(async function () {
             await lbtcSource.mintTo(signer1.address, AMOUNT);
-            await bridgeSource.addDestination(
-                CHAIN_ID,
-                encode(['address'], [await bridgeDestination.getAddress()]),
-                1000, // 10%
-                0,
-                ethers.ZeroAddress,
-                true
-            );
-            await bridgeDestination.addDestination(
-                CHAIN_ID,
-                encode(['address'], [await bridgeSource.getAddress()]),
-                0, // 0%
-                absoluteFee,
-                ethers.ZeroAddress,
-                true
-            );
         });
 
         it('full flow', async () => {
@@ -470,7 +467,7 @@ describe('Bridge', function () {
                         {
                             chainId: CHAIN_ID,
                             limit: amountWithoutFee - 1n,
-                            window: 0,
+                            window: 1,
                         },
                     ]
                 );
