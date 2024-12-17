@@ -12,6 +12,7 @@ import {IBridge, ILBTC} from "../IBridge.sol";
  */
 abstract contract AbstractAdapter is IAdapter, Context {
     error Adapter_ZeroAddress();
+    error Adapter_AddressIsEOA();
 
     error NotBridge();
 
@@ -20,6 +21,8 @@ abstract contract AbstractAdapter is IAdapter, Context {
     IBridge public override bridge;
 
     constructor(IBridge bridge_) {
+        _notZero(address(bridge_));
+        _notEOA(address(bridge_));
         bridge = bridge_;
     }
 
@@ -43,6 +46,7 @@ abstract contract AbstractAdapter is IAdapter, Context {
     function changeBridge(IBridge bridge_) external {
         _onlyOwner();
         _notZero(address(bridge_));
+        _notEOA(address(bridge_));
 
         IBridge oldBridge = bridge;
         bridge = bridge_;
@@ -63,6 +67,14 @@ abstract contract AbstractAdapter is IAdapter, Context {
         if (addr == address(0)) {
             revert Adapter_ZeroAddress();
         }
+    }
+
+    function _notEOA(address addr) internal view {
+        uint32 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        if (size == 0) revert Adapter_AddressIsEOA();
     }
 
     /**

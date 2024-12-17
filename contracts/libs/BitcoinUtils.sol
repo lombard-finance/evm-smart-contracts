@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 enum OutputType {
     UNSUPPORTED,
     P2TR,
@@ -79,6 +81,6 @@ library BitcoinUtils {
         spendCost += scriptPubkey.length;
 
         // Calculate dust limit
-        dustLimit = (spendCost * dustFeeRate) / 1000;
+        dustLimit = Math.ceilDiv(spendCost * dustFeeRate, 1000);
     }
 }

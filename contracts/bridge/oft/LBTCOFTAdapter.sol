@@ -18,5 +18,10 @@ contract LBTCOFTAdapter is EfficientRateLimitedOFTAdapter {
      */
     function halt() external onlyOwner {
         ILBTC(address(innerToken)).burn(innerToken.balanceOf(address(this)));
+        for (uint256 i = 0; i < eids.length; ++i) {
+            delete outboundRateLimits[eids[i]];
+            delete inboundRateLimits[eids[i]];
+            delete eids;
+        }
     }
 }
