@@ -239,9 +239,6 @@ contract Bridge is
         DestinationConfig memory destConf = getDestination(
             bytes32(action.fromChain)
         );
-        if (destConf.bridgeContract == bytes32(0)) {
-            revert UnknownDestination();
-        }
 
         if (
             destConf.bridgeContract !=
