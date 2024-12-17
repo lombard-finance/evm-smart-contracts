@@ -260,10 +260,7 @@ describe('Consortium', function () {
 
                 await expect(
                     lombard.checkProof(ethers.sha256(payload), data.proof)
-                ).to.be.revertedWithCustomError(
-                    lombard,
-                    'NotEnoughSignatures'
-                );
+                ).to.be.revertedWithCustomError(lombard, 'NotEnoughSignatures');
             });
         });
     });
