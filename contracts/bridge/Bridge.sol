@@ -50,9 +50,6 @@ contract Bridge is
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
 
-    /// @dev Bridge contract version used for bridge action payload validation.
-    uint16 private constant VERSION = 1;
-
     /// PUBLIC FUNCTIONS ///
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -201,13 +198,10 @@ contract Bridge is
             payload[4:]
         );
 
-        if (
-            destConf.bridgeContract !=
-            bytes32(uint256(uint160(action.fromContract)))
-        ) {
+        if (destConf.bridgeContract != action.fromContract) {
             revert UnknownOriginContract(
                 bytes32(action.fromChain),
-                bytes32(uint256(uint160(action.fromContract)))
+                action.fromContract
             );
         }
 
@@ -240,13 +234,10 @@ contract Bridge is
             bytes32(action.fromChain)
         );
 
-        if (
-            destConf.bridgeContract !=
-            bytes32(uint256(uint160(action.fromContract)))
-        ) {
+        if (destConf.bridgeContract != action.fromContract) {
             revert UnknownOriginContract(
                 bytes32(action.fromChain),
-                bytes32(uint256(uint160(action.fromContract)))
+                action.fromContract
             );
         }
 
@@ -388,6 +379,7 @@ contract Bridge is
         emit DepositAbsoluteCommissionChanged(0, toChain);
         emit DepositRelativeCommissionChanged(0, toChain);
         emit BridgeDestinationRemoved(toChain);
+        emit RateLimitsChanged(toChain, 0, 0);
     }
 
     function changeDepositAbsoluteCommission(
@@ -447,6 +439,11 @@ contract Bridge is
                 $.depositRateLimits[depositRateLimits[i].chainId],
                 depositRateLimits[i]
             );
+            emit RateLimitsChanged(
+                depositRateLimits[i].chainId,
+                depositRateLimits[i].limit,
+                depositRateLimits[i].window
+            );
         }
         for (uint256 i; i < withdrawRateLimits.length; i++) {
             DestinationConfig memory destConf = $.destinations[
@@ -462,6 +459,11 @@ contract Bridge is
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
                 withdrawRateLimits[i]
             );
+            emit RateLimitsChanged(
+                withdrawRateLimits[i].chainId,
+                withdrawRateLimits[i].limit,
+                withdrawRateLimits[i].window
+            );
         }
     }
 
@@ -471,8 +473,6 @@ contract Bridge is
         ILBTC lbtc_,
         address treasury_
     ) internal onlyInitializing {
-        if (address(lbtc_) == address(0)) revert Bridge_ZeroAddress();
-        if (treasury_ == address(0)) revert Bridge_ZeroAddress();
         _changeTreasury(treasury_);
 
         BridgeStorage storage $ = _getBridgeStorage();
@@ -522,8 +522,7 @@ contract Bridge is
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            $.crossChainOperationsNonce++,
-            VERSION
+            $.crossChainOperationsNonce++
         );
 
         if (address(config.adapter) != address(0)) {

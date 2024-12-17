@@ -4,12 +4,11 @@ import { create3 } from '../helpers/create3Deployment';
 
 /*
  * After deployment:
- * 1. Set treasury address
- * 2. Set minters (e.g. BTCBPMM)
- * 3. Set pauser
- * 4. Set mint fee
- * 5. Set claimers
- * 6. Set operator
+ * 1. Set minters (e.g. BTCBPMM)
+ * 2. Set pauser
+ * 3. Set mint fee
+ * 4. Set claimers
+ * 5. Set operator
  */
 
 task('deploy-lbtc', 'Deploys the LBTC contract')
@@ -17,6 +16,7 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
     .addParam('consortium', 'The address of LombardConsortium')
     .addParam('burnCommission', 'The burn commission')
     .addParam('admin', 'The owner of the proxy', 'self')
+    .addParam('treasury', 'The address of the treasury')
     .addParam(
         'proxyFactoryAddr',
         'The ProxyFactory address',
@@ -30,6 +30,7 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
             consortium,
             burnCommission,
             admin,
+            treasury,
             proxyFactoryAddr,
         } = taskArgs;
 
@@ -42,7 +43,7 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
 
         const data = await create3(
             'LBTC',
-            [consortium, burnCommission, admin],
+            [consortium, burnCommission, admin, treasury],
             proxyFactoryAddr,
             ledgerNetwork,
             owner,

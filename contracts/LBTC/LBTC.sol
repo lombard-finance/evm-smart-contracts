@@ -36,6 +36,7 @@ contract LBTC is
         bool isWithdrawalsEnabled;
         address consortium;
         bool isWBTCEnabled;
+        IERC20 wbtc;
         address treasury;
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
@@ -97,7 +98,7 @@ contract LBTC is
         );
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.dustFeeRate = BitcoinUtils.dustFeeRate_; // Default value - 3 satoshis per byte
+        $.dustFeeRate = BitcoinUtils.dustFeeRate_;
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
@@ -141,6 +142,13 @@ contract LBTC is
         LBTCStorage storage $ = _getLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
+    }
+
+    function changeNameAndSymbol(
+        string calldata name_,
+        string calldata symbol_
+    ) external onlyOwner {
+        _changeNameAndSymbol(name_, symbol_);
     }
 
     function changeConsortium(address newVal) external onlyOwner {
@@ -245,7 +253,7 @@ contract LBTC is
     function calcUnstakeRequestAmount(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) public view returns (uint256 amountAfterFee, bool isEqualOrAboveDust) {
+    ) external view returns (uint256 amountAfterFee, bool isEqualOrAboveDust) {
         LBTCStorage storage $ = _getLBTCStorage();
         (amountAfterFee, , , isEqualOrAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,

@@ -191,7 +191,6 @@ describe('Bridge', function () {
                     encode(['address'], [receiver]),
                     amountWithoutFee,
                     ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [0]),
-                    encode(['uint16'], [version]),
                 ],
                 DEPOSIT_BRIDGE_ACTION
             );
@@ -233,8 +232,7 @@ describe('Bridge', function () {
                 CHAIN_ID,
                 await bridgeDestination.getAddress(),
                 receiver,
-                amountWithoutFee,
-                version
+                amountWithoutFee
             );
 
             await expect(
@@ -279,7 +277,6 @@ describe('Bridge', function () {
                     encode(['address'], [receiver]),
                     amountWithoutFee,
                     ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [0]),
-                    encode(['uint16'], [version]),
                 ],
                 DEPOSIT_BRIDGE_ACTION
             );
@@ -623,8 +620,7 @@ describe('Bridge', function () {
                     CHAIN_ID,
                     await bridgeDestination.getAddress(),
                     receiver,
-                    amountWithoutFee,
-                    version
+                    amountWithoutFee
                 );
 
                 // await routerSource.setOffchainData(data.payload, data.proof);

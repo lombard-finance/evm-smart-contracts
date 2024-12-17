@@ -20,7 +20,7 @@ export const CHAIN_ID: string = encode(['uint256'], [31337]);
 const ACTIONS_IFACE = ethers.Interface.from([
     'function feeApproval(uint256,uint256)',
     'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
-    'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256,uint16) external',
+    'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
     'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
 ]);
 
@@ -36,7 +36,7 @@ export function rawSign(signer: Signer, message: string): string {
 }
 
 export const DEPOSIT_BTC_ACTION = '0xf2e73f7c';
-export const DEPOSIT_BRIDGE_ACTION = '0x4d975b4d';
+export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 
 export async function signDepositBridgePayload(
@@ -48,7 +48,6 @@ export async function signDepositBridgePayload(
     toContract: string,
     recipient: string,
     amount: number | BigInt,
-    version: number | BigInt,
     nonce: BigInt | number = 0n
 ) {
     let msg = getPayloadForAction(
@@ -65,7 +64,6 @@ export async function signDepositBridgePayload(
             encode(['address'], [recipient]),
             amount,
             encode(['uint256'], [nonce]),
-            encode(['uint16'], [version]),
         ],
         DEPOSIT_BRIDGE_ACTION
     );

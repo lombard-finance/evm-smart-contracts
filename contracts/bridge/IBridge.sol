@@ -48,9 +48,6 @@ interface IBridge is IConsortiumConsumer {
     /// @notice Emitted no payload submitted by consortium
     error ConsortiumNotConfirmed();
 
-    /// @notice Emitted when address is EOA in a case where it shouldn't be.
-    error Bridge_AddressIsEOA();
-
     /// @notice Emitted when the deposit absolute commission is changed.
     event DepositAbsoluteCommissionChanged(
         uint64 newValue,
@@ -100,6 +97,12 @@ interface IBridge is IConsortiumConsumer {
     event PayloadNotarized(
         address indexed recipient,
         bytes32 indexed payloadHash
+    );
+
+    event RateLimitsChanged(
+        bytes32 indexed chainId,
+        uint256 limit,
+        uint256 window
     );
 
     /// @notice Emitted when the treasury is changed.
