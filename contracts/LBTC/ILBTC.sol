@@ -18,6 +18,8 @@ interface ILBTC {
     error InvalidUserSignature();
     error PayloadAlreadyUsed();
     error InvalidInputLength();
+    error FeePayloadMismatch();
+    error InvalidMintAmount();
 
     event PauserRoleTransferred(
         address indexed previousPauser,
@@ -25,7 +27,7 @@ interface ILBTC {
     );
     event OperatorRoleTransferred(
         address indexed previousOperator,
-        address indexed newPauser
+        address indexed newOperator
     );
     event UnstakeRequest(
         address indexed fromAddress,

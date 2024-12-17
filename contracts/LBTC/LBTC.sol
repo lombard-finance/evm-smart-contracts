@@ -35,8 +35,6 @@ contract LBTC is
         string symbol;
         bool isWithdrawalsEnabled;
         address consortium;
-        bool isWBTCEnabled;
-        IERC20 wbtc;
         address treasury;
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
@@ -67,6 +65,8 @@ contract LBTC is
     bytes32 private constant LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
+    uint256 private constant dustFeeRate_ = 3000;
+
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -78,9 +78,10 @@ contract LBTC is
     function initialize(
         address consortium_,
         uint64 burnCommission_,
+        address treasury,
         address owner_
     ) external initializer {
-        __ERC20_init("LBTC", "LBTC");
+        __ERC20_init("", "");
         __ERC20Pausable_init();
 
         __Ownable_init(owner_);
@@ -92,11 +93,12 @@ contract LBTC is
             "Lombard Staked Bitcoin",
             "LBTC",
             consortium_,
+            treasury,
             burnCommission_
         );
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.dustFeeRate = 3000; // Default value - 3 satoshis per byte
+        $.dustFeeRate = dustFeeRate_; // Default value - 3 satoshis per byte
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
@@ -113,6 +115,20 @@ contract LBTC is
         _;
     }
 
+    modifier onlyMinter() {
+        if (!_getLBTCStorage().minters[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    modifier onlyClaimer() {
+        if (!_getLBTCStorage().claimers[_msgSender()]) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     modifier onlyOperator() {
         if (_getLBTCStorage().operator != _msgSender()) {
             revert UnauthorizedAccount(_msgSender());
@@ -126,13 +142,6 @@ contract LBTC is
         LBTCStorage storage $ = _getLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
-    }
-
-    function changeNameAndSymbol(
-        string calldata name_,
-        string calldata symbol_
-    ) external onlyOwner {
-        _changeNameAndSymbol(name_, symbol_);
     }
 
     function changeConsortium(address newVal) external onlyOwner {
@@ -152,13 +161,7 @@ contract LBTC is
     }
 
     function changeTreasuryAddress(address newValue) external onlyOwner {
-        if (newValue == address(0)) {
-            revert ZeroAddress();
-        }
-        LBTCStorage storage $ = _getLBTCStorage();
-        address prevValue = $.treasury;
-        $.treasury = newValue;
-        emit TreasuryAddressChanged(prevValue, newValue);
+        _changeTreasuryAddress(newValue);
     }
 
     function changeBurnCommission(uint64 newValue) external onlyOwner {
@@ -239,33 +242,18 @@ contract LBTC is
     /// @param scriptPubkey The Bitcoin script public key as a byte array
     /// @param amount The amount of LBTC to be burned
     /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
-    /// @return isAboveDust Whether the amountAfterFee is above the dust limit
+    /// @return isEqualOrAboveDust Whether the amountAfterFee is equal to or above the dust limit
     function calcUnstakeRequestAmount(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) public view returns (uint256 amountAfterFee, bool isAboveDust) {
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-        if (outType == OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-
+    ) public view returns (uint256 amountAfterFee, bool isEqualOrAboveDust) {
         LBTCStorage storage $ = _getLBTCStorage();
-
-        uint64 fee = $.burnCommission;
-        if (amount <= fee) {
-            return (0, false);
-        }
-
-        amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
+        (amountAfterFee, , , isEqualOrAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
-            $.dustFeeRate
+            amount,
+            $.burnCommission
         );
-
-        isAboveDust = amountAfterFee >= dustLimit;
-
-        return (amountAfterFee, isAboveDust);
+        return (amountAfterFee, isEqualOrAboveDust);
     }
 
     function consortium() external view virtual returns (address) {
@@ -342,9 +330,7 @@ contract LBTC is
      * @param amount The amount of LBTC to mint
      * @dev Only callable by whitelisted minters
      */
-    function mint(address to, uint256 amount) external override {
-        _onlyMinter(_msgSender());
-
+    function mint(address to, uint256 amount) external override onlyMinter {
         _mint(to, amount);
     }
 
@@ -357,9 +343,7 @@ contract LBTC is
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external {
-        _onlyMinter(_msgSender());
-
+    ) external onlyMinter {
         if (to.length != amount.length) {
             revert InvalidInputLength();
         }
@@ -426,9 +410,7 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external {
-        _onlyClaimer(_msgSender());
-
+    ) external onlyClaimer {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -444,9 +426,7 @@ contract LBTC is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external {
-        _onlyClaimer(_msgSender());
-
+    ) external onlyClaimer {
         uint256 length = mintPayload.length;
         if (
             length != proof.length ||
@@ -473,12 +453,6 @@ contract LBTC is
      * @param amount Amount of LBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-
-        if (outType == OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-
         LBTCStorage storage $ = _getLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
@@ -486,18 +460,16 @@ contract LBTC is
         }
 
         uint64 fee = $.burnCommission;
-        if (amount <= fee) {
+        (
+            uint256 amountAfterFee,
+            bool isAboveFee,
+            uint256 dustLimit,
+            bool isEqualOrAboveDust
+        ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee);
+        if (!isAboveFee) {
             revert AmountLessThanCommission(fee);
         }
-
-        uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
-            scriptPubkey,
-            $.dustFeeRate
-        );
-
-        if (amountAfterFee < dustLimit) {
+        if (!isEqualOrAboveDust) {
             revert AmountBelowDustLimit(dustLimit);
         }
 
@@ -522,9 +494,7 @@ contract LBTC is
      *
      * @param amount Amount of LBTC to burn
      */
-    function burn(address from, uint256 amount) external override {
-        _onlyMinter(_msgSender());
-
+    function burn(address from, uint256 amount) external override onlyMinter {
         _burn(from, amount);
     }
 
@@ -534,10 +504,12 @@ contract LBTC is
         string memory name_,
         string memory symbol_,
         address consortium_,
+        address treasury,
         uint64 burnCommission_
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
+        _changeTreasuryAddress(treasury);
         _changeBurnCommission(burnCommission_);
     }
 
@@ -552,6 +524,9 @@ contract LBTC is
     }
 
     function _changeConsortium(address newVal) internal {
+        if (newVal == address(0)) {
+            revert ZeroAddress();
+        }
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
@@ -565,6 +540,8 @@ contract LBTC is
         bytes calldata proof
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
+
+        if (amountToMint > depositAmount) revert InvalidMintAmount();
 
         /// make sure that hash of payload not used before
         /// need to check new sha256 hash and legacy keccak256 from payload without selector
@@ -609,18 +586,6 @@ contract LBTC is
         IBascule bascule = self.bascule;
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
-        }
-    }
-
-    function _onlyMinter(address sender) internal view {
-        if (!_getLBTCStorage().minters[sender]) {
-            revert UnauthorizedAccount(sender);
-        }
-    }
-
-    function _onlyClaimer(address sender) internal view {
-        if (!_getLBTCStorage().claimers[sender]) {
-            revert UnauthorizedAccount(sender);
         }
     }
 
@@ -672,6 +637,9 @@ contract LBTC is
             feePayload[4:]
         );
 
+        if (feeAction.payloadHash != sha256(mintPayload))
+            revert FeePayloadMismatch();
+
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 fee = $.maximumFee;
         if (fee > feeAction.fee) {
@@ -690,7 +658,8 @@ contract LBTC is
                         Actions.FEE_APPROVAL_EIP712_ACTION,
                         block.chainid,
                         feeAction.fee,
-                        feeAction.expiry
+                        feeAction.expiry,
+                        feeAction.payloadHash
                     )
                 )
             );
@@ -741,6 +710,42 @@ contract LBTC is
         }
         _getLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
+    }
+
+    function _changeTreasuryAddress(address newValue) internal {
+        if (newValue == address(0)) {
+            revert ZeroAddress();
+        }
+        LBTCStorage storage $ = _getLBTCStorage();
+        address prevValue = $.treasury;
+        $.treasury = newValue;
+        emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    function _calcFeeAndDustLimit(
+        bytes calldata scriptPubkey,
+        uint256 amount,
+        uint64 fee
+    ) internal view returns (uint256, bool, uint256, bool) {
+        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
+        if (outType == OutputType.UNSUPPORTED) {
+            revert ScriptPubkeyUnsupported();
+        }
+
+        if (amount <= fee) {
+            return (0, false, 0, false);
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 amountAfterFee = amount - fee;
+        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
+            outType,
+            scriptPubkey,
+            $.dustFeeRate
+        );
+
+        bool isEqualOrAboveDust = amountAfterFee >= dustLimit;
+        return (amountAfterFee, true, dustLimit, isEqualOrAboveDust);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {

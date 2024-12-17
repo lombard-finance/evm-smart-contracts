@@ -17,7 +17,8 @@ library Actions {
         address toContract;
         address recipient;
         uint64 amount;
-        bytes32 uniqueActionData;
+        uint256 nonce;
+        uint16 version;
     }
 
     struct ValSetAction {
@@ -31,6 +32,7 @@ library Actions {
     struct FeeApprovalAction {
         uint256 fee;
         uint256 expiry;
+        bytes32 payloadHash;
     }
 
     /// @dev Error thrown when invalid public key is provided
@@ -75,15 +77,15 @@ library Actions {
     /// @dev Error thrown when payload length is too big
     error PayloadTooLarge();
 
-    // bytes4(keccak256("feeApproval(uint256,uint256)"))
-    bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
-    // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
+    // bytes4(keccak256("feeApproval(uint256,uint256,bytes32)"))
+    bytes4 internal constant FEE_APPROVAL_ACTION = 0xe56c2066;
+    // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry,bytes32 payloadHash)")
     bytes32 internal constant FEE_APPROVAL_EIP712_ACTION =
-        0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
+        0x8cd6a262be9887f020c805c45c4569ce7e59eedfec7c1465283dd56b5e61a643;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
     bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
-    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
-    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
+    // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256,uint16)"))
+    bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x4d975b4d;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant NEW_VALSET = 0x4aab1d6f;
 
@@ -159,10 +161,20 @@ library Actions {
             address toContract,
             address recipient,
             uint64 amount,
-            bytes32 uniqueActionData
+            uint256 nonce,
+            uint16 version
         ) = abi.decode(
                 payload,
-                (uint256, address, uint256, address, address, uint64, bytes32)
+                (
+                    uint256,
+                    address,
+                    uint256,
+                    address,
+                    address,
+                    uint64,
+                    uint256,
+                    uint16
+                )
             );
 
         if (toChain != block.chainid) {
@@ -183,7 +195,8 @@ library Actions {
                 toContract,
                 recipient,
                 amount,
-                uniqueActionData
+                nonce,
+                version
             );
     }
 
@@ -243,6 +256,10 @@ library Actions {
             if (_pubKeys[i].length == 65) {
                 bytes memory data = _pubKeys[i];
 
+                // Ensure that first byte of pubkey is 0x04
+                if (_pubKeys[i][0] != 0x04)
+                    revert InvalidPublicKey(_pubKeys[i]);
+
                 // create a new array with length - 1 (excluding the first 0x04 byte)
                 bytes memory result = new bytes(data.length - 1);
 
@@ -277,9 +294,12 @@ library Actions {
     function feeApproval(
         bytes memory payload
     ) internal view returns (FeeApprovalAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 2) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 3) revert PayloadTooLarge();
 
-        (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
+        (uint256 fee, uint256 expiry, bytes32 payloadHash) = abi.decode(
+            payload,
+            (uint256, uint256, bytes32)
+        );
 
         if (block.timestamp > expiry) {
             revert UserSignatureExpired(expiry);
@@ -288,6 +308,6 @@ library Actions {
             revert ZeroFee();
         }
 
-        return FeeApprovalAction(fee, expiry);
+        return FeeApprovalAction(fee, expiry, payloadHash);
     }
 }
