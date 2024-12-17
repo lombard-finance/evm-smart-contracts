@@ -11,13 +11,14 @@ import {LombardTokenPool} from "./TokenPool.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20 as OZIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title CCIP bridge adapter
  * @author Lombard.finance
  * @notice CLAdapter present an intermediary to enforce TokenPool compatibility
  */
-contract CLAdapter is AbstractAdapter, Ownable {
+contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     error CLZeroChain();
     error CLZeroChanSelector();
     error CLAttemptToOverrideChainSelector();
@@ -39,6 +40,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
     // store last state
     uint256 internal _lastBurnedAmount;
     bytes internal _lastPayload;
+
+    mapping(address => uint256) public refunds;
 
     /// @notice msg.sender gets the ownership of the contract given
     /// token pool implementation
@@ -66,6 +69,12 @@ contract CLAdapter is AbstractAdapter, Ownable {
     }
 
     /// USER ACTIONS ///
+
+    function withdrawRefund() external nonReentrant {
+        uint256 refundAm = refunds[_msgSender()];
+        refunds[_msgSender()] = 0;
+        payable(_msgSender()).transfer(refundAm);
+    }
 
     function getFee(
         bytes32 _toChain,
@@ -161,10 +170,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
         }
         if (msg.value > fee) {
             uint256 refundAm = msg.value - fee;
-            (bool success, ) = payable(fromAddress).call{value: refundAm}("");
-            if (!success) {
-                revert CLRefundFailed(fromAddress, refundAm);
-            }
+            refunds[fromAddress] += refundAm;
         }
 
         IERC20(address(lbtc())).approve(router, _amount);
@@ -219,16 +225,14 @@ contract CLAdapter is AbstractAdapter, Ownable {
             amount: _amount
         });
 
-        bytes memory data;
-
         return
             Client.EVM2AnyMessage({
                 receiver: _receiver,
-                data: data,
+                data: "",
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
-                        gasLimit: 0,
+                        gasLimit: getExecutionGasLimit,
                         allowOutOfOrderExecution: true
                     })
                 ),

@@ -13,11 +13,9 @@ import {RateLimits} from "../../libs/RateLimits.sol";
  */
 abstract contract EfficientRateLimiter {
     // Tracks rate limits for outbound transactions to a dstEid.
-    mapping(uint32 dstEid => RateLimits.Data limit) public outboundRateLimits;
+    mapping(bytes32 dstEid => RateLimits.Data limit) public outboundRateLimits;
     // Tracks rate limits for inbound transactions from a srcEid.
-    mapping(uint32 srcEid => RateLimits.Data limit) public inboundRateLimits;
-    // Keeps track of all eids in case we need to halt and delete all entries.
-    uint32[] internal eids;
+    mapping(bytes32 srcEid => RateLimits.Data limit) public inboundRateLimits;
 
     // Define an enum to clearly distinguish between inbound and outbound rate limits.
     enum RateLimitDirection {
@@ -52,7 +50,9 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeSent)
     {
-        RateLimits.Data storage orl = outboundRateLimits[_dstEid];
+        RateLimits.Data storage orl = outboundRateLimits[
+            bytes32(uint256(_dstEid))
+        ];
         return
             _amountCanBeSent(
                 orl.amountInFlight,
@@ -76,7 +76,9 @@ abstract contract EfficientRateLimiter {
         virtual
         returns (uint256 currentAmountInFlight, uint256 amountCanBeReceived)
     {
-        RateLimits.Data storage irl = inboundRateLimits[_srcEid];
+        RateLimits.Data storage irl = inboundRateLimits[
+            bytes32(uint256(_srcEid))
+        ];
         return
             _amountCanBeReceived(
                 irl.amountInFlight,
@@ -101,16 +103,14 @@ abstract contract EfficientRateLimiter {
                 ? outboundRateLimits[_rateLimitConfigs[i].chainId]
                 : inboundRateLimits[_rateLimitConfigs[i].chainId];
 
-            if (rateLimit.window == 0 && rateLimit.limit == 0) {
-                eids.push(_rateLimitConfigs[i].chainId);
-            }
-
             // Checkpoint the existing rate limit to not retroactively apply the new decay rate.
             _checkAndUpdateRateLimit(
                 _rateLimitConfigs[i].chainId,
                 0,
                 direction
             );
+
+            RateLimits.checkRateLimitSanity(rateLimit.limit);
 
             // Does NOT reset the amountInFlight/lastUpdated of an existing rate limit.
             rateLimit.limit = _rateLimitConfigs[i].limit;
@@ -184,7 +184,7 @@ abstract contract EfficientRateLimiter {
      * @param direction The direction (Outbound or Inbound) of the rate limits being checked.
      */
     function _checkAndUpdateRateLimit(
-        uint32 _eid,
+        bytes32 _eid,
         uint256 _amount,
         RateLimitDirection direction
     ) internal {

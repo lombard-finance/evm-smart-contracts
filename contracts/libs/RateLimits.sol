@@ -23,7 +23,7 @@ library RateLimits {
      * @param window Defines the duration of the rate limiting window.
      */
     struct Config {
-        uint32 chainId;
+        bytes32 chainId;
         uint256 limit;
         uint256 window;
     }
@@ -32,6 +32,9 @@ library RateLimits {
      * @notice Error that is thrown when an amount exceeds the rate_limit for a given direction.
      */
     error RateLimitExceeded();
+
+    /// @notice Emitted when a rate limit seems to be malformed.
+    error MalformedRateLimit();
 
     function setRateLimit(Data storage rl, Config memory config) internal {
         // @dev Ensure we checkpoint the existing rate limit as to not retroactively apply the new decay rate.
@@ -102,5 +105,9 @@ library RateLimits {
 
         rl.amountInFlight = currentAmountInFlight + _amount;
         rl.lastUpdated = block.timestamp;
+    }
+
+    function checkRateLimitSanity(uint256 limit) internal pure {
+        if (limit == type(uint256).max) revert RateLimits.MalformedRateLimit();
     }
 }

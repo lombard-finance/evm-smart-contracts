@@ -48,7 +48,7 @@ abstract contract EfficientRateLimitedOFTAdapter is
         );
         // Check and update the rate limit based on the destination endpoint ID (dstEid) and the amount in local decimals.
         _checkAndUpdateRateLimit(
-            _dstEid,
+            bytes32(uint256(_dstEid)),
             amountSentLD,
             RateLimitDirection.Outbound
         );
@@ -60,13 +60,13 @@ abstract contract EfficientRateLimitedOFTAdapter is
         uint256 _amountLD,
         uint32 _srcEid
     ) internal virtual override returns (uint256 amountReceivedLD) {
-        amountReceivedLD = super._credit(_to, _amountLD, _srcEid);
         // Check and update the rate limit based on the source endpoint ID (srcEid) and the amount in local decimals from the message.
         _checkAndUpdateRateLimit(
-            _srcEid,
-            amountReceivedLD,
+            bytes32(uint256(_srcEid)),
+            _amountLD,
             RateLimitDirection.Inbound
         );
+        amountReceivedLD = super._credit(_to, _amountLD, _srcEid);
         return amountReceivedLD;
     }
 }
