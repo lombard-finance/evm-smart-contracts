@@ -15,8 +15,8 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
     .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
     .addParam('consortium', 'The address of LombardConsortium')
     .addParam('burnCommission', 'The burn commission')
-    .addParam('admin', 'The owner of the proxy', 'self')
     .addParam('treasury', 'The address of the treasury')
+    .addParam('admin', 'The owner of the proxy', 'self')
     .addParam(
         'proxyFactoryAddr',
         'The ProxyFactory address',
@@ -29,8 +29,8 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
             ledgerNetwork,
             consortium,
             burnCommission,
-            admin,
             treasury,
+            admin,
             proxyFactoryAddr,
         } = taskArgs;
 
@@ -43,7 +43,7 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
 
         const data = await create3(
             'LBTC',
-            [consortium, burnCommission, admin, treasury],
+            [consortium, burnCommission, treasury, admin],
             proxyFactoryAddr,
             ledgerNetwork,
             owner,

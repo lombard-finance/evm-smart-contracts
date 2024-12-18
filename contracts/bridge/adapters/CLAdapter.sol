@@ -43,6 +43,13 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
 
     mapping(address => uint256) public refunds;
 
+    modifier onlyTokenPool() {
+        if (address(tokenPool) != _msgSender()) {
+            revert CLUnauthorizedTokenPool(_msgSender());
+        }
+        _;
+    }
+
     /// @notice msg.sender gets the ownership of the contract given
     /// token pool implementation
     constructor(
@@ -73,7 +80,10 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     function withdrawRefund() external nonReentrant {
         uint256 refundAm = refunds[_msgSender()];
         refunds[_msgSender()] = 0;
-        payable(_msgSender()).transfer(refundAm);
+        (bool success, ) = payable(_msgSender()).call{value: refundAm}("");
+        if (!success) {
+            revert CLRefundFailed(_msgSender(), refundAm);
+        }
     }
 
     function getFee(
@@ -98,9 +108,11 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         uint64 remoteChainSelector,
         bytes calldata receiver,
         uint256 amount
-    ) external returns (uint256 lastBurnedAmount, bytes memory lastPayload) {
-        _onlyTokenPool();
-
+    )
+        external
+        onlyTokenPool
+        returns (uint256 lastBurnedAmount, bytes memory lastPayload)
+    {
         SafeERC20.safeTransferFrom(
             OZIERC20(address(lbtc())),
             _msgSender(),
@@ -182,9 +194,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     function initWithdrawalNoSignatures(
         uint64 remoteSelector,
         bytes calldata onChainData
-    ) external returns (uint64) {
-        _onlyTokenPool();
-
+    ) external onlyTokenPool returns (uint64) {
         _receive(getChain[remoteSelector], onChainData);
         return bridge.withdraw(onChainData);
     }
@@ -192,9 +202,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     function initiateWithdrawal(
         uint64 remoteSelector,
         bytes calldata offChainData
-    ) external returns (uint64) {
-        _onlyTokenPool();
-
+    ) external onlyTokenPool returns (uint64) {
         (bytes memory payload, bytes memory proof) = abi.decode(
             offChainData,
             (bytes, bytes)
@@ -242,12 +250,6 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     }
 
     function _onlyOwner() internal view override onlyOwner {}
-
-    function _onlyTokenPool() internal view {
-        if (address(tokenPool) != _msgSender()) {
-            revert CLUnauthorizedTokenPool(_msgSender());
-        }
-    }
 
     function _setExecutionGasLimit(uint128 newVal) internal {
         emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);

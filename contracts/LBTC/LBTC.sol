@@ -98,7 +98,7 @@ contract LBTC is
         );
 
         LBTCStorage storage $ = _getLBTCStorage();
-        $.dustFeeRate = BitcoinUtils.dustFeeRate_;
+        $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
@@ -249,18 +249,18 @@ contract LBTC is
     /// @param scriptPubkey The Bitcoin script public key as a byte array
     /// @param amount The amount of LBTC to be burned
     /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
-    /// @return isEqualOrAboveDust Whether the amountAfterFee is equal to or above the dust limit
+    /// @return isAboveDust Whether the amountAfterFee is equal to or above the dust limit
     function calcUnstakeRequestAmount(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external view returns (uint256 amountAfterFee, bool isEqualOrAboveDust) {
+    ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         LBTCStorage storage $ = _getLBTCStorage();
-        (amountAfterFee, , , isEqualOrAboveDust) = _calcFeeAndDustLimit(
+        (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
             amount,
             $.burnCommission
         );
-        return (amountAfterFee, isEqualOrAboveDust);
+        return (amountAfterFee, isAboveDust);
     }
 
     function consortium() external view virtual returns (address) {
@@ -481,12 +481,12 @@ contract LBTC is
             uint256 amountAfterFee,
             bool isAboveFee,
             uint256 dustLimit,
-            bool isEqualOrAboveDust
+            bool isAboveDust
         ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee);
         if (!isAboveFee) {
             revert AmountLessThanCommission(fee);
         }
-        if (!isEqualOrAboveDust) {
+        if (!isAboveDust) {
             revert AmountBelowDustLimit(dustLimit);
         }
 
@@ -757,8 +757,8 @@ contract LBTC is
             $.dustFeeRate
         );
 
-        bool isEqualOrAboveDust = amountAfterFee >= dustLimit;
-        return (amountAfterFee, true, dustLimit, isEqualOrAboveDust);
+        bool isAboveDust = amountAfterFee > dustLimit;
+        return (amountAfterFee, true, dustLimit, isAboveDust);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {

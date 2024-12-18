@@ -14,7 +14,6 @@ interface ILBTC {
     error InvalidDustFeeRate();
     error UnauthorizedAccount(address account);
     error UnexpectedAction(bytes4 action);
-    error UnknownOriginContract(uint256 fromChainId, bytes32 fromContract);
     error InvalidUserSignature();
     error PayloadAlreadyUsed();
     error InvalidInputLength();
