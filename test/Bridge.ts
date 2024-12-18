@@ -480,7 +480,6 @@ describe('Bridge', function () {
         });
 
         it('should deny deposit after removing chain', async () => {
-
             // Only need to fulfil parameters, they are not subject of the test
             let amount = 10000n;
             let receiver = signer2.address;
@@ -493,9 +492,11 @@ describe('Bridge', function () {
                 .to.emit(bridgeSource, 'DepositRelativeCommissionChanged')
                 .withArgs(0, CHAIN_ID);
 
-            await expect(bridgeSource.connect(signer1).deposit(CHAIN_ID, encode(['address'], [receiver]), amount))
-                .to.be.revertedWithCustomError(bridgeSource, 'UnknownDestination');
-
+            await expect(
+                bridgeSource
+                    .connect(signer1)
+                    .deposit(CHAIN_ID, encode(['address'], [receiver]), amount)
+            ).to.be.revertedWithCustomError(bridgeSource, 'UnknownDestination');
         });
 
         describe('With Chainlink Adapter', function () {

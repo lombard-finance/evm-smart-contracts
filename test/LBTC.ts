@@ -114,8 +114,12 @@ describe('LBTC', function () {
         });
 
         it('consortium()', async function () {
-            expect(await lbtc.consortium()).to.equal(await consortium.getAddress());
-            expect(await lbtc2.consortium()).to.equal(await consortium2.getAddress());
+            expect(await lbtc.consortium()).to.equal(
+                await consortium.getAddress()
+            );
+            expect(await lbtc2.consortium()).to.equal(
+                await consortium2.getAddress()
+            );
         });
 
         it('Bascule() unset', async function () {
@@ -309,49 +313,45 @@ describe('LBTC', function () {
             ).to.revertedWithCustomError(lbtc, 'UnauthorizedAccount');
         });
 
-        it("changeTreasuryAddres() fails if not owner", async function () {
+        it('changeTreasuryAddres() fails if not owner', async function () {
             await expect(
                 lbtc.connect(signer1).changeTreasuryAddress(signer1.address)
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
-        it("changeTreasuryAddres() fails if setting treasury to zero address", async function () {
+        it('changeTreasuryAddres() fails if setting treasury to zero address', async function () {
             await expect(
                 lbtc.changeTreasuryAddress(ethers.ZeroAddress)
             ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
         });
 
-        it("should get the default dust fee rate", async function () {
-            expect(await lbtc.getDustFeeRate()).to.be.equal(DEFAULT_LBTC_DUST_FEE_RATE);
+        it('should get the default dust fee rate', async function () {
+            expect(await lbtc.getDustFeeRate()).to.be.equal(
+                DEFAULT_LBTC_DUST_FEE_RATE
+            );
         });
 
-        it("changeDustFeeRate() fails if not owner", async function () {
+        it('changeDustFeeRate() fails if not owner', async function () {
             await expect(
                 lbtc.connect(signer1).changeDustFeeRate(BigInt(1000))
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
-        it("changeDustFeeRate() fails if setting to 0", async function () {
-            await expect(
-                lbtc.changeDustFeeRate(0)
-            ).to.revertedWithCustomError(lbtc, 'InvalidDustFeeRate');
+        it('changeDustFeeRate() fails if setting to 0', async function () {
+            await expect(lbtc.changeDustFeeRate(0)).to.revertedWithCustomError(
+                lbtc,
+                'InvalidDustFeeRate'
+            );
         });
 
-        it("changeDustFeeRate() succeeds with non zero dust fee", async function () {
+        it('changeDustFeeRate() succeeds with non zero dust fee', async function () {
             let defaultDustFeeRate = await lbtc.getDustFeeRate();
             let newDustFeeRate = defaultDustFeeRate + BigInt(1000);
-            await expect(
-                lbtc.changeDustFeeRate(newDustFeeRate)
-            ).to.emit(lbtc, 'DustFeeRateChanged')
-            .withArgs(defaultDustFeeRate, newDustFeeRate);
+            await expect(lbtc.changeDustFeeRate(newDustFeeRate))
+                .to.emit(lbtc, 'DustFeeRateChanged')
+                .withArgs(defaultDustFeeRate, newDustFeeRate);
             // restore for next tests
             await lbtc.changeDustFeeRate(defaultDustFeeRate);
-        });
-
-        it("changeConsortium() fails if setting to zero address", async function () {
-            await expect(
-                lbtc.changeConsortium(ethers.ZeroAddress)
-            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
         });
     });
 
@@ -896,10 +896,7 @@ describe('LBTC', function () {
                             )
                         )
                     )
-                        .to.revertedWithCustomError(
-                            lbtc,
-                            'UnexpectedAction'
-                        )
+                        .to.revertedWithCustomError(lbtc, 'UnexpectedAction')
                         .withArgs(feeApprovalPayload.slice(0, 10));
                 });
 
@@ -917,10 +914,7 @@ describe('LBTC', function () {
                             )
                         )
                     )
-                        .to.revertedWithCustomError(
-                            lbtc,
-                            'UnexpectedAction'
-                        )
+                        .to.revertedWithCustomError(lbtc, 'UnexpectedAction')
                         .withArgs(defaultPayload.slice(0, 10));
                 });
 

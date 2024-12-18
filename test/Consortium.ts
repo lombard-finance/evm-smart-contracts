@@ -182,10 +182,9 @@ describe('Consortium', function () {
                 1
             );
             data.payload = DEPOSIT_BRIDGE_ACTION + data.payload.slice(10); // 0x + 4 bytes
-            await expect(
-                lombard.setNextValidatorSet(data.payload, data.proof)
-            ).to.be.revertedWithCustomError(lombard, 'UnexpectedAction')
-            .withArgs(DEPOSIT_BRIDGE_ACTION);
+            await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+                .to.be.revertedWithCustomError(lombard, 'UnexpectedAction')
+                .withArgs(DEPOSIT_BRIDGE_ACTION);
         });
 
         describe('Signature verification', function () {
@@ -288,7 +287,8 @@ describe('Consortium', function () {
                 );
 
                 // replace first 2 bytes of last signature to have an invalid s (in the upper half of the curve)
-                data.proof = data.proof.slice(0, -64) + 'ffff' + data.proof.slice(-62);
+                data.proof =
+                    data.proof.slice(0, -64) + 'ffff' + data.proof.slice(-62);
 
                 await expect(
                     lombard.checkProof(data.payloadHash, data.proof)
