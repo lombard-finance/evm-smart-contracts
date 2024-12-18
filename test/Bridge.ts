@@ -447,8 +447,7 @@ describe('Bridge', function () {
                     CHAIN_ID,
                     await bridgeDestination.getAddress(),
                     signer2.address,
-                    amountWithoutFee,
-                    version
+                    amountWithoutFee
                 );
 
                 await expect(
