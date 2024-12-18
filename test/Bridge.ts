@@ -26,6 +26,7 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { bridge } from '../typechain-types/contracts';
 
 const aChainSelector = 1;
 const bChainSelector = 2;
@@ -478,7 +479,27 @@ describe('Bridge', function () {
             });
         });
 
-        describe('With Chainlink Adapter (onchain data)', function () {
+        it('should deny deposit after removing chain', async () => {
+            // Only need to fulfil parameters, they are not subject of the test
+            let amount = 10000n;
+            let receiver = signer2.address;
+
+            await expect(bridgeSource.removeDestination(CHAIN_ID))
+                .to.emit(bridgeSource, 'BridgeDestinationRemoved')
+                .withArgs(CHAIN_ID)
+                .to.emit(bridgeSource, 'DepositAbsoluteCommissionChanged')
+                .withArgs(0, CHAIN_ID)
+                .to.emit(bridgeSource, 'DepositRelativeCommissionChanged')
+                .withArgs(0, CHAIN_ID);
+
+            await expect(
+                bridgeSource
+                    .connect(signer1)
+                    .deposit(CHAIN_ID, encode(['address'], [receiver]), amount)
+            ).to.be.revertedWithCustomError(bridgeSource, 'UnknownDestination');
+        });
+
+        describe('With Chainlink Adapter', function () {
             let CCIPRouter: MockCCIPRouter,
                 CCIPRMN: MockRMN,
                 aTokenPool: LombardTokenPool,

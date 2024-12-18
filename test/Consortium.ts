@@ -101,7 +101,7 @@ describe('Consortium', function () {
             ]);
         });
 
-        it('should fail to set initial validator set', async function () {
+        it('should fail to set initial validator set again', async function () {
             const payload = getPayloadForAction(
                 [11, [signer1.publicKey], [1], 1, 1],
                 NEW_VALSET
@@ -169,6 +169,22 @@ describe('Consortium', function () {
             await expect(
                 lombard.setNextValidatorSet(data.payload, data.proof)
             ).to.be.revertedWithCustomError(lombard, 'ZeroWeight');
+        });
+
+        it('should fail if payload selector is different', async function () {
+            const data = await signNewValSetPayload(
+                [signer3, signer1, signer2],
+                [true, true, false],
+                10,
+                [signer1.publicKey, signer2.publicKey],
+                [1, 1],
+                1,
+                1
+            );
+            data.payload = DEPOSIT_BRIDGE_ACTION + data.payload.slice(10); // 0x + 4 bytes
+            await expect(lombard.setNextValidatorSet(data.payload, data.proof))
+                .to.be.revertedWithCustomError(lombard, 'UnexpectedAction')
+                .withArgs(DEPOSIT_BRIDGE_ACTION);
         });
 
         describe('Signature verification', function () {
@@ -255,6 +271,30 @@ describe('Consortium', function () {
                 ).to.be.revertedWithCustomError(
                     lombard,
                     'WrongSignatureReceived'
+                );
+            });
+
+            it('should revert on invalid ECDSA signature', async function () {
+                const data = await signDepositBridgePayload(
+                    [signer3, signer1, signer2],
+                    [true, true, true],
+                    1n,
+                    signer1.address,
+                    1n,
+                    signer2.address,
+                    signer3.address,
+                    10
+                );
+
+                // replace first 2 bytes of last signature to have an invalid s (in the upper half of the curve)
+                data.proof =
+                    data.proof.slice(0, -64) + 'ffff' + data.proof.slice(-62);
+
+                await expect(
+                    lombard.checkProof(data.payloadHash, data.proof)
+                ).to.be.revertedWithCustomError(
+                    lombard,
+                    'SignatureVerificationFailed'
                 );
             });
         });
