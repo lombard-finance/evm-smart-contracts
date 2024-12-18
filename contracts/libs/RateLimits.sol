@@ -108,6 +108,6 @@ library RateLimits {
     }
 
     function checkRateLimitSanity(uint256 limit) internal pure {
-        if (limit == type(uint256).max) revert RateLimits.MalformedRateLimit();
+        if (limit == 0) revert RateLimits.MalformedRateLimit();
     }
 }

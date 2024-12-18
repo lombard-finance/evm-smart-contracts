@@ -446,7 +446,7 @@ describe('OFTAdapter', function () {
                 [
                     {
                         chainId: bEidBytes,
-                        limit: 0,
+                        limit: Number.MAX_SAFE_INTEGER,
                         window: 0,
                     },
                 ],
@@ -456,7 +456,7 @@ describe('OFTAdapter', function () {
                 [
                     {
                         chainId: aEidBytes,
-                        limit: 0,
+                        limit: Number.MAX_SAFE_INTEGER,
                         window: 0,
                     },
                 ],
@@ -701,7 +701,7 @@ describe('OFTAdapter', function () {
                         {
                             chainId: aEidBytes,
                             window: 0,
-                            limit: 0,
+                            limit: 1,
                         },
                     ],
                     0
@@ -756,7 +756,7 @@ describe('OFTAdapter', function () {
                         {
                             chainId: bEidBytes,
                             window: 0,
-                            limit: 0,
+                            limit: Number.MAX_SAFE_INTEGER,
                         },
                     ],
                     0

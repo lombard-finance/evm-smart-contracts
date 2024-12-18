@@ -48,7 +48,6 @@ describe('Bridge', function () {
     let bridgeSource: Bridge;
     let bridgeDestination: Bridge;
     let snapshot: SnapshotRestorer;
-    const version = 1;
     const absoluteFee = 100n;
 
     before(async function () {
@@ -314,8 +313,7 @@ describe('Bridge', function () {
                 CHAIN_ID,
                 await bridgeSource.getAddress(),
                 receiver,
-                amountWithoutFee,
-                version
+                amountWithoutFee
             );
 
             await expect(
