@@ -4,8 +4,11 @@ This folder consists of the audit reports performed on Lombard EVM smart contrac
 
 ⚠️ Some of the contracts were modified after they were audited.
 
-| Audit Purpose   | Scope                                   | Report                                                                                             | Firm                               | Date       |
-|-----------------|-----------------------------------------|----------------------------------------------------------------------------------------------------|------------------------------------|------------|
-| Lombard release | `consortium`, `LBTC`, `libs`, `bascule` | [pdf](https://github.com/lombard-finance/evm-smart-contracts/blob/main/docs/audit/Halborn_V0.pdf)  | [Halborn](https://www.halborn.com) | 05.08.2024 |
-| Lombard release | `consortium`, `LBTC`, `libs`            | [pdf](https://github.com/lombard-finance/evm-smart-contracts/blob/main/docs/audit/Veridise_V0.pdf) | [Veridise](https://veridise.com)   | 21.08.2024 |
-| BTCB PMM release | `LBTC`, `pmm`, `libs`                   | [pdf](https://github.com/lombard-finance/evm-smart-contracts/blob/main/docs/audit/Veridise_V1_5.pdf) | [Halborn](https://www.halborn.com) | 10.10.2024 |
+| Audit Purpose    | Scope                                                                 | Report                                                                                                           | Firm                                         | Date       |
+|------------------|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|----------------------------------------------|------------|
+| V1 Release       | `consortium`, `LBTC`, `libs`, `bascule`                               | [pdf](https://raw.githubusercontent.com/lombard-finance/evm-smart-contracts/main/docs/audit/Halborn_V1.pdf)      | [Halborn](https://www.halborn.com)           | 05.08.2024 |
+| V1 Release       | `consortium`, `LBTC`, `libs`                                          | [pdf](https://raw.githubusercontent.com/lombard-finance/evm-smart-contracts/main/docs/audit/Veridise_V1.pdf)     | [Veridise](https://veridise.com)             | 21.08.2024 |
+| BTCB PMM release | `LBTC`, `pmm`, `libs`                                                 | [pdf](https://raw.githubusercontent.com/lombard-finance/evm-smart-contracts/main/docs/audit/Veridise_V1_5.pdf)   | [Halborn](https://www.halborn.com)           | 10.10.2024 |
+| FBTC integration | `fbtc`,                                                               | [pdf](https://raw.githubusercontent.com/lombard-finance/evm-smart-contracts/main/docs/audit/Halborn_V2.pdf)      | [Halborn](https://www.halborn.com)           | 09.12.2024 |
+| V2 Release       | `LBTC`, `bridge/oft`, `consortium`, `libs`                            | [pdf](https://raw.githubusercontent.com/lombard-finance/evm-smart-contracts/main/docs/audit/OpenZeppelin_V2.pdf) | [OpenZeppelin](https://www.openzeppelin.com) | 13.12.2024 |
+| V2 Release       | `LBTC`, `BasculeV2`, `bridge`, `consortium`, `factory`, `libs`, `pmm` | [pdf](https://raw.githubusercontent.com/lombard-finance/evm-smart-contracts/main/docs/audit/Veridise_V2.pdf)     | [Veridise](https://veridise.com)             | 17.10.2024 |
