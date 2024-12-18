@@ -529,7 +529,6 @@ describe('Bridge', function () {
                         await CCIPRouter.getAddress(),
                         [], // no allowlist
                         await CCIPRMN.getAddress(), // will do work of rmn as well,
-                        false,
                     ],
                     false
                 );
@@ -553,7 +552,6 @@ describe('Bridge', function () {
                         await CCIPRouter.getAddress(),
                         [], // no allowlist
                         await CCIPRMN.getAddress(), // will do work of rmn as well
-                        false,
                     ],
                     false
                 );

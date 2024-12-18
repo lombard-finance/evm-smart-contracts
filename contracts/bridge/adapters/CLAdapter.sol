@@ -58,8 +58,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         //
         address ccipRouter_,
         address[] memory allowlist_,
-        address rmnProxy_,
-        bool attestationEnable_
+        address rmnProxy_
     ) AbstractAdapter(bridge_) Ownable(_msgSender()) {
         _setExecutionGasLimit(executionGasLimit_);
 
@@ -68,8 +67,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
             ccipRouter_,
             allowlist_,
             rmnProxy_,
-            CLAdapter(this),
-            attestationEnable_
+            CLAdapter(this)
         );
         tokenPool.transferOwnership(_msgSender());
         emit CLTokenPoolDeployed(address(tokenPool));

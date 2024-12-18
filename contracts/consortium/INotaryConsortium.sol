@@ -13,9 +13,6 @@ interface INotaryConsortium {
     /// @dev Error thrown when there are not enough signatures
     error NotEnoughSignatures();
 
-    /// @dev Error thrown when ECDSA signature verification fails
-    error SignatureVerificationFailed(uint256 sigIndx, ECDSA.RecoverError err);
-
     /// @dev Error thrown when unexpected action is used
     error UnexpectedAction(bytes4 action);
 

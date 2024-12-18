@@ -11,7 +11,6 @@ import {CLAdapter} from "./CLAdapter.sol";
 
 contract LombardTokenPool is TokenPool {
     CLAdapter public adapter;
-    bool public isAttestationEnabled;
 
     /// @notice msg.sender gets the ownership of the contract given
     /// token pool implementation
@@ -20,11 +19,9 @@ contract LombardTokenPool is TokenPool {
         address ccipRouter_,
         address[] memory allowlist_,
         address rmnProxy_,
-        CLAdapter adapter_,
-        bool attestationEnable_
+        CLAdapter adapter_
     ) TokenPool(lbtc_, allowlist_, rmnProxy_, ccipRouter_) {
         adapter = adapter_;
-        isAttestationEnabled = attestationEnable_;
     }
 
     /// @notice Burn the token in the pool
@@ -44,12 +41,7 @@ contract LombardTokenPool is TokenPool {
 
         emit Burned(lockOrBurnIn.originalSender, burnedAmount);
 
-        bytes memory destPoolData;
-        if (isAttestationEnabled) {
-            destPoolData = abi.encode(sha256(payload));
-        } else {
-            destPoolData = payload;
-        }
+        bytes memory destPoolData = abi.encode(sha256(payload));
 
         return
             Pool.LockOrBurnOutV1({
@@ -67,18 +59,10 @@ contract LombardTokenPool is TokenPool {
     ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
         _validateReleaseOrMint(releaseOrMintIn);
 
-        uint64 amount;
-        if (isAttestationEnabled) {
-            amount = adapter.initiateWithdrawal(
-                releaseOrMintIn.remoteChainSelector,
-                releaseOrMintIn.offchainTokenData
-            );
-        } else {
-            amount = adapter.initWithdrawalNoSignatures(
-                releaseOrMintIn.remoteChainSelector,
-                releaseOrMintIn.sourcePoolData
-            );
-        }
+        uint64 amount = adapter.initiateWithdrawal(
+            releaseOrMintIn.remoteChainSelector,
+            releaseOrMintIn.offchainTokenData
+        );
 
         emit Minted(msg.sender, releaseOrMintIn.receiver, uint256(amount));
 
