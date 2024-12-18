@@ -81,6 +81,10 @@ describe('LBTC', function () {
         await lbtc.addClaimer(deployer.address);
         await lbtc2.addClaimer(deployer.address);
 
+        // set deployer as operator for lbtc
+        await lbtc.transferOperatorRole(deployer.address);
+        await lbtc2.transferOperatorRole(deployer.address);
+
         // Initialize the permit module
         await lbtc.reinitialize();
         await lbtc2.reinitialize();
@@ -273,17 +277,36 @@ describe('LBTC', function () {
             ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
         });
 
-        it('should set mint fee', async function () {
+        it('transferOperatorRole should be callable by owner', async function () {
+            await expect(lbtc.transferOperatorRole(signer1.address))
+                .to.emit(lbtc, 'OperatorRoleTransferred')
+                .withArgs(deployer.address, signer1.address);
+            expect(await lbtc.operator()).to.be.equal(signer1.address);
+        });
+
+        it('should fail to add operator if not owner', async function () {
+            await expect(
+                lbtc.connect(signer1).transferOperatorRole(signer1.address)
+            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+        });
+
+        it('should fail to add zero address operator', async function () {
+            await expect(
+                lbtc.transferOperatorRole(ethers.ZeroAddress)
+            ).to.revertedWithCustomError(lbtc, 'ZeroAddress');
+        });
+
+        it('should set mint fee by operator', async function () {
             await expect(lbtc.setMintFee(1234))
                 .to.emit(lbtc, 'FeeChanged')
                 .withArgs(0, 1234);
             expect(await lbtc.getMintFee()).to.be.equal(1234);
         });
 
-        it('should fail to set mint fee if not owner', async function () {
+        it('should fail to set mint fee if not operator', async function () {
             await expect(
                 lbtc.connect(signer1).setMintFee(1)
-            ).to.revertedWithCustomError(lbtc, 'OwnableUnauthorizedAccount');
+            ).to.revertedWithCustomError(lbtc, 'UnauthorizedAccount');
         });
 
         it("changeTreasuryAddres() fails if not owner", async function () {

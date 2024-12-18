@@ -176,6 +176,54 @@ const config: HardhatUserConfig = {
             gas: 8_000_000,
         },
 
+        arbitrumSepolia: {
+            loggingEnabled: true,
+            url: vars.get(
+                'ARBITRUM_SEPOLIA_RPC',
+                'https://rpc.ankr.com/arbitrum_sepolia'
+            ),
+            chainId: 421614,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        beraBartio: {
+            loggingEnabled: true,
+            url: vars.get(
+                'BERA_BARTIO_RPC',
+                'https://bartio.rpc.berachain.com'
+            ),
+            chainId: 80084,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        beraCartio: {
+            loggingEnabled: true,
+            url: vars.get(
+                'BERA_CARTIO_RPC',
+                'https://rockbeard-eth-cartio.berachain.com'
+            ),
+            chainId: 80000,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
         // mainnets
         mainnet: {
             loggingEnabled: true,
@@ -243,6 +291,36 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        arbitrum: {
+            loggingEnabled: true,
+            url: vars.get('ARBITRUM_RPC', 'https://rpc.ankr.com/base'),
+            chainId: 42161,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        cornMaizenet: {
+            loggingEnabled: true,
+            url: vars.get(
+                'CORN_MAIZENET_RPC',
+                'https://rpc.ankr.com/corn_maizenet'
+            ),
+            chainId: 21000000,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+            gasPrice: 500000,
+        },
     },
     etherscan: {
         customChains: [
@@ -287,6 +365,22 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://www.oklink.com/xlayer-test', //or https://www.oklink.com/xlayer for mainnet
                 },
             },
+            {
+                network: 'beraBartio',
+                chainId: 80084,
+                urls: {
+                    apiURL: 'https://api.routescan.io/v2/network/testnet/evm/80084/etherscan',
+                    browserURL: 'https://bartio.beratrail.io/',
+                },
+            },
+            {
+                network: 'beraCartio',
+                chainId: 80000,
+                urls: {
+                    apiURL: 'https://api.routescan.io/v2/network/testnet/evm/80000/etherscan',
+                    browserURL: 'https://80000.testnet.routescan.io/',
+                },
+            },
             // mainnets
             {
                 network: 'mantle',
@@ -312,6 +406,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://scrollscan.com/address',
                 },
             },
+            {
+                network: 'cornMaizenet',
+                chainId: 21000000,
+                urls: {
+                    apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan',
+                    browserURL: 'https://cornscan.io/',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -323,7 +425,10 @@ const config: HardhatUserConfig = {
             mantle_testnet: vars.get('MANTLE_API_KEY', ''),
             linea_testnet: vars.get('LINEA_API_KEY', ''),
             okx_testnet: vars.get('OKX_API_KEY', ''),
-
+            baseSepolia: vars.get('BASE_API_KEY', ''),
+            arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
+            beraBartio: 'no',
+            beraCartio: 'no',
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -331,7 +436,9 @@ const config: HardhatUserConfig = {
             zircuit: vars.get('ZIRCUIT_API_KEY', ''),
             linea: vars.get('LINEA_API_KEY', ''),
             mantle: vars.get('MANTLE_API_KEY', ''),
-            baseSepolia: vars.get('BASE_API_KEY', ''),
+            base: vars.get('BASE_API_KEY', ''),
+            arbitrum: vars.get('ARBITRUM_API_KEY', ''),
+            cornMaizenet: 'no',
         },
     },
     sourcify: {

@@ -10,7 +10,7 @@ import {Actions} from "../libs/Actions.sol";
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
 import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
-
+import {RateLimits} from "../libs/RateLimits.sol";
 contract Bridge is
     IBridge,
     Ownable2StepUpgradeable,
@@ -41,6 +41,9 @@ contract Bridge is
         mapping(bytes32 => DestinationConfig) destinations;
         mapping(bytes32 => Deposit) deposits;
         INotaryConsortium consortium;
+        // Rate limits
+        mapping(bytes32 => RateLimits.Data) depositRateLimits;
+        mapping(bytes32 => RateLimits.Data) withdrawRateLimits;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
@@ -107,6 +110,31 @@ contract Bridge is
         return _getBridgeStorage().consortium;
     }
 
+    function lbtc() public view override returns (ILBTC) {
+        return _getBridgeStorage().lbtc;
+    }
+
+    function getAdapterFee(
+        bytes32 toChain,
+        bytes32 toAddress,
+        uint64 amount
+    ) external view returns (uint256) {
+        DestinationConfig memory destConfig = getDestination(toChain);
+        if (destConfig.bridgeContract == bytes32(0)) {
+            return 0;
+        }
+
+        // payload data doesn't matter for fee calculation, only length
+        return
+            destConfig.adapter.getFee(
+                toChain,
+                destConfig.bridgeContract,
+                toAddress,
+                amount,
+                new bytes(228)
+            );
+    }
+
     /// ACTIONS ///
 
     /**
@@ -125,11 +153,11 @@ contract Bridge is
         // validate inputs
         // amount should be validated, because absolute commission can be not set
         if (amount == 0) {
-            revert ZeroAmount();
+            revert Bridge_ZeroAmount();
         }
 
         if (toAddress == bytes32(0)) {
-            revert ZeroAddress();
+            revert Bridge_ZeroAddress();
         }
 
         // it's not necessary to validate `toChain` because destination
@@ -227,7 +255,9 @@ contract Bridge is
     /**
      * @notice Withdraw bridged LBTC
      */
-    function withdraw(bytes calldata payload) external nonReentrant {
+    function withdraw(
+        bytes calldata payload
+    ) external nonReentrant returns (uint64) {
         BridgeStorage storage $ = _getBridgeStorage();
 
         // payload validation
@@ -236,6 +266,12 @@ contract Bridge is
         }
         Actions.DepositBridgeAction memory action = Actions.depositBridge(
             payload[4:]
+        );
+
+        // check rate limits
+        RateLimits.updateLimit(
+            $.withdrawRateLimits[bytes32(action.fromChain)],
+            action.amount
         );
 
         DestinationConfig memory destConf = $.destinations[
@@ -272,6 +308,8 @@ contract Bridge is
             payload,
             action.amount
         );
+
+        return action.amount;
     }
 
     /// ONLY OWNER ///
@@ -367,6 +405,25 @@ contract Bridge is
         $.consortium = newVal;
     }
 
+    function setRateLimits(
+        RateLimits.Config[] memory depositRateLimits,
+        RateLimits.Config[] memory withdrawRateLimits
+    ) external onlyOwner {
+        BridgeStorage storage $ = _getBridgeStorage();
+        for (uint256 i; i < depositRateLimits.length; i++) {
+            RateLimits.setRateLimit(
+                $.depositRateLimits[depositRateLimits[i].chainId],
+                depositRateLimits[i]
+            );
+        }
+        for (uint256 i; i < withdrawRateLimits.length; i++) {
+            RateLimits.setRateLimit(
+                $.withdrawRateLimits[withdrawRateLimits[i].chainId],
+                withdrawRateLimits[i]
+            );
+        }
+    }
+
     /// PRIVATE FUNCTIONS ///
 
     function __Bridge_init(
@@ -386,6 +443,9 @@ contract Bridge is
         uint64 amount
     ) internal returns (uint256, bytes memory) {
         BridgeStorage storage $ = _getBridgeStorage();
+
+        // check rate limits
+        RateLimits.updateLimit($.depositRateLimits[toChain], amount);
 
         // relative fee
         uint256 fee = FeeUtils.getRelativeFee(
@@ -413,13 +473,13 @@ contract Bridge is
         // prepare bridge deposit payload
         bytes memory payload = abi.encodeWithSelector(
             Actions.DEPOSIT_BRIDGE_ACTION,
-            block.chainid,
-            address(this),
+            bytes32(block.chainid),
+            bytes32(uint256(uint160(address(this)))),
             toChain,
             config.bridgeContract,
             toAddress,
             amountWithoutFee,
-            bytes32($.crossChainOperationsNonce++)
+            $.crossChainOperationsNonce++
         );
 
         if (address(config.adapter) != address(0)) {
@@ -440,7 +500,7 @@ contract Bridge is
                 payload
             );
         } else {
-            // burn assets
+            // burn assets if no adapter
             lbtc().burn(fromAddress, amountWithoutFee);
         }
 
@@ -457,7 +517,7 @@ contract Bridge is
 
     function _changeAdapter(bytes32 toChain, IAdapter newAdapter) internal {
         if (address(newAdapter) == address(0)) {
-            revert ZeroAddress();
+            revert Bridge_ZeroAddress();
         }
         DestinationConfig storage conf = _getBridgeStorage().destinations[
             toChain
@@ -490,9 +550,5 @@ contract Bridge is
         if ($.destinations[chain].bridgeContract == bytes32(0)) {
             revert NotValidDestination();
         }
-    }
-
-    function lbtc() public view override returns (ILBTC) {
-        return _getBridgeStorage().lbtc;
     }
 }

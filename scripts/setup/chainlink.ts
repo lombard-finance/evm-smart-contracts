@@ -1,9 +1,8 @@
 import { task } from 'hardhat/config';
-import { ethers } from 'hardhat';
 import { sleep } from '../helpers';
 
 task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
-    .addParam('tokenPool', 'The address of TokenPoolAdapter smart-contract')
+    .addParam('clAdapter', 'The address of chainlink adapter smart-contract')
     .addOptionalParam(
         'lbtc',
         'The address of LBTC smart-contract at remote chain'
@@ -17,11 +16,13 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
-        const { tokenPool, remoteSelector, chain, remotePool, lbtc } = taskArgs;
+        const { clAdapter, remoteSelector, chain, remotePool, lbtc } = taskArgs;
 
-        const adapter = await ethers.getContractAt(
-            'TokenPoolAdapter',
-            tokenPool
+        const adapter = await ethers.getContractAt('CLAdapter', clAdapter);
+
+        const tokenPool = await ethers.getContractAt(
+            'LombardTokenPool',
+            await adapter.tokenPool()
         );
 
         if (remoteSelector && remotePool && lbtc) {
@@ -41,7 +42,7 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                           [lbtc]
                       );
 
-            await adapter.applyChainUpdates([
+            await tokenPool.applyChainUpdates([
                 {
                     remoteChainSelector: remoteSelector,
                     allowed: true,
@@ -79,9 +80,7 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                 remoteSelector
             );
             await r.wait(2);
-            console.log(
-                `Chain ${chain} set for chain selector ${remoteSelector}`
-            );
+            console.log(`Chain ${chain} set for chain selector ${toChainId}`);
 
             await sleep(12_000);
         }
@@ -94,7 +93,7 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                           ['address'],
                           [remotePool]
                       );
-            const r = await adapter.setRemotePool(remoteSelector, toPeer);
+            const r = await tokenPool.setRemotePool(remoteSelector, toPeer);
             await r.wait(2);
             console.log(
                 `Chain selector ${toPeer} set for eid ${remoteSelector}`

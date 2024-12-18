@@ -6,6 +6,8 @@ import { vars } from 'hardhat/config';
 const testEnv = vars.get('LOMBARD_TEST_ENV', 'disabled') === 'enabled';
 
 async function main() {
+    throw Error('deprecated');
+
     const addresses = getAddresses(hardhat.network.name);
 
     if (!addresses.LBTC) {

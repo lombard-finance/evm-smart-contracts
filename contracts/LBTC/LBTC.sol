@@ -28,8 +28,9 @@ contract LBTC is
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
+        /// @dev is keccak256(payload[4:]) used
         /// @custom:oz-renamed-from usedProofs
-        mapping(bytes32 => bool) usedPayloads;
+        mapping(bytes32 => bool) legacyUsedPayloads;
         string name;
         string symbol;
         bool isWithdrawalsEnabled;
@@ -54,12 +55,12 @@ contract LBTC is
         IBascule bascule;
         address pauser;
         mapping(address => bool) minters;
-        address bridge;
         mapping(address => bool) claimers;
-        /// Increments with each cross chain operation and should be part of the payload
-        uint256 crossChainOperationsNonce;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
+        // @dev is sha256(payload) used
+        mapping(bytes32 => bool) usedPayloads;
+        address operator;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -112,6 +113,13 @@ contract LBTC is
         _;
     }
 
+    modifier onlyOperator() {
+        if (_getLBTCStorage().operator != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyOwner {
@@ -136,7 +144,7 @@ contract LBTC is
      * @param fee New fee value
      * @dev zero allowed to disable fee
      */
-    function setMintFee(uint256 fee) external onlyOwner {
+    function setMintFee(uint256 fee) external onlyOperator {
         LBTCStorage storage $ = _getLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
@@ -181,16 +189,6 @@ contract LBTC is
         _updateClaimer(oldClaimer, false);
     }
 
-    function changeBridge(address newBridge) external onlyOwner {
-        if (newBridge == address(0)) {
-            revert ZeroAddress();
-        }
-        LBTCStorage storage $ = _getLBTCStorage();
-        address oldBridge = $.bridge;
-        $.bridge = newBridge;
-        emit BridgeChanged(oldBridge, newBridge);
-    }
-
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
@@ -218,6 +216,13 @@ contract LBTC is
             revert ZeroAddress();
         }
         _transferPauserRole(newPauser);
+    }
+
+    function transferOperatorRole(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) {
+            revert ZeroAddress();
+        }
+        _transferOperatorRole(newOperator);
     }
 
     /// GETTERS ///
@@ -315,6 +320,10 @@ contract LBTC is
 
     function pauser() public view returns (address) {
         return _getLBTCStorage().pauser;
+    }
+
+    function operator() external view returns (address) {
+        return _getLBTCStorage().operator;
     }
 
     function isMinter(address minter) external view returns (bool) {
@@ -457,21 +466,6 @@ contract LBTC is
         }
     }
 
-    // TODO: remove
-    function withdraw(
-        Actions.DepositBridgeAction memory action,
-        bytes32,
-        bytes calldata
-    ) external nonReentrant {
-        LBTCStorage storage $ = _getLBTCStorage();
-        if (_msgSender() != $.bridge) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-
-        // Actually mint
-        _mint(action.recipient, action.amount);
-    }
-
     /**
      * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
@@ -558,9 +552,6 @@ contract LBTC is
     }
 
     function _changeConsortium(address newVal) internal {
-        if (newVal == address(0)) {
-            revert ZeroAddress();
-        }
         LBTCStorage storage $ = _getLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
@@ -570,14 +561,19 @@ contract LBTC is
         address recipient,
         uint256 amountToMint,
         uint256 depositAmount,
-        bytes memory payload,
+        bytes calldata payload,
         bytes calldata proof
     ) internal {
         LBTCStorage storage $ = _getLBTCStorage();
 
-        // check proof validity
+        /// make sure that hash of payload not used before
+        /// need to check new sha256 hash and legacy keccak256 from payload without selector
+        /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
-        if ($.usedPayloads[payloadHash]) {
+        if (
+            $.usedPayloads[payloadHash] ||
+            $.legacyUsedPayloads[keccak256(payload[4:])]
+        ) {
             revert PayloadAlreadyUsed();
         }
         Consortium($.consortium).checkProof(payloadHash, proof);
@@ -645,6 +641,13 @@ contract LBTC is
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
+    }
+
+    function _transferOperatorRole(address newOperator) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        address oldOperator = $.operator;
+        $.operator = newOperator;
+        emit OperatorRoleTransferred(oldOperator, newOperator);
     }
 
     function _mintWithFee(
