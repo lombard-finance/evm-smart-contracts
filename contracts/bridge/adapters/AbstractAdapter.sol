@@ -12,6 +12,7 @@ import {IBridge, ILBTC} from "../IBridge.sol";
  */
 abstract contract AbstractAdapter is IAdapter, Context {
     error Adapter_ZeroAddress();
+    error Adapter_AddressIsEOA();
 
     error NotBridge();
 
@@ -20,6 +21,7 @@ abstract contract AbstractAdapter is IAdapter, Context {
     IBridge public override bridge;
 
     constructor(IBridge bridge_) {
+        _notZero(address(bridge_));
         bridge = bridge_;
     }
 

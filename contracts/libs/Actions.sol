@@ -12,12 +12,12 @@ library Actions {
 
     struct DepositBridgeAction {
         uint256 fromChain;
-        address fromContract;
+        bytes32 fromContract;
         uint256 toChain;
         address toContract;
         address recipient;
         uint64 amount;
-        bytes32 uniqueActionData;
+        uint256 nonce;
     }
 
     struct ValSetAction {
@@ -72,6 +72,9 @@ library Actions {
     /// @dev Error thrown when zero fee is used
     error ZeroFee();
 
+    /// @dev Error thrown when payload length is too big
+    error PayloadTooLarge();
+
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
     // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
@@ -105,6 +108,9 @@ library Actions {
     /// at least one Byzantine fault.
     uint256 private constant MIN_VALIDATOR_SET_SIZE = 1;
 
+    /// @dev A constant representing the number of bytes for a slot of information in a payload.
+    uint256 internal constant ABI_SLOT_SIZE = 32;
+
     /**
      * @notice Returns decoded deposit btc msg
      * @dev Message should not contain the selector
@@ -113,6 +119,8 @@ library Actions {
     function depositBtc(
         bytes memory payload
     ) internal view returns (DepositBtcAction memory) {
+        if (payload.length != ABI_SLOT_SIZE * 5) revert PayloadTooLarge();
+
         (
             uint256 toChain,
             address recipient,
@@ -142,17 +150,19 @@ library Actions {
     function depositBridge(
         bytes memory payload
     ) internal view returns (DepositBridgeAction memory) {
+        if (payload.length != ABI_SLOT_SIZE * 7) revert PayloadTooLarge();
+
         (
             uint256 fromChain,
-            address fromContract,
+            bytes32 fromContract,
             uint256 toChain,
             address toContract,
             address recipient,
             uint64 amount,
-            bytes32 uniqueActionData
+            uint256 nonce
         ) = abi.decode(
                 payload,
-                (uint256, address, uint256, address, address, uint64, bytes32)
+                (uint256, bytes32, uint256, address, address, uint64, uint256)
             );
 
         if (toChain != block.chainid) {
@@ -173,7 +183,7 @@ library Actions {
                 toContract,
                 recipient,
                 amount,
-                uniqueActionData
+                nonce
             );
     }
 
@@ -195,6 +205,17 @@ library Actions {
                 payload,
                 (uint256, bytes[], uint256[], uint256, uint256)
             );
+
+        // Since dynamic arrays can variably insert more slots of data for things such as data length,
+        // offset etc., we will just encode the received variables again and check for a length match.
+        bytes memory reEncodedPayload = abi.encode(
+            epoch,
+            pubKeys,
+            weights,
+            weightThreshold,
+            height
+        );
+        if (reEncodedPayload.length != payload.length) revert PayloadTooLarge();
 
         if (
             pubKeys.length < MIN_VALIDATOR_SET_SIZE ||
@@ -233,6 +254,10 @@ library Actions {
             if (_pubKeys[i].length == 65) {
                 bytes memory data = _pubKeys[i];
 
+                // Ensure that first byte of pubkey is 0x04
+                if (_pubKeys[i][0] != 0x04)
+                    revert InvalidPublicKey(_pubKeys[i]);
+
                 // create a new array with length - 1 (excluding the first 0x04 byte)
                 bytes memory result = new bytes(data.length - 1);
 
@@ -267,6 +292,8 @@ library Actions {
     function feeApproval(
         bytes memory payload
     ) internal view returns (FeeApprovalAction memory) {
+        if (payload.length != ABI_SLOT_SIZE * 2) revert PayloadTooLarge();
+
         (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
 
         if (block.timestamp > expiry) {

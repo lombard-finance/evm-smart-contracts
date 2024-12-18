@@ -182,7 +182,11 @@ export async function getSignersWithPrivateKeys(
     });
 }
 
-export async function init(burnCommission: number, owner: string) {
+export async function init(
+    burnCommission: number,
+    treasury: string,
+    owner: string
+) {
     const consortium = await deployContract<Consortium>('ConsortiumMock', [
         owner,
     ]);
@@ -190,6 +194,7 @@ export async function init(burnCommission: number, owner: string) {
     const lbtc = await deployContract<LBTCMock>('LBTCMock', [
         await consortium.getAddress(),
         burnCommission,
+        treasury,
         owner,
     ]);
 

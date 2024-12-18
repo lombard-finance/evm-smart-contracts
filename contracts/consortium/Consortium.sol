@@ -50,9 +50,13 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
     /// @notice Sets the initial validator set from any epoch
     /// @param _initialValSet - The initial list of validators
-    function setInitalValidatorSet(
+    function setInitialValidatorSet(
         bytes calldata _initialValSet
     ) external onlyOwner {
+        // Payload validation
+        if (bytes4(_initialValSet) != Actions.NEW_VALSET)
+            revert UnexpectedAction(bytes4(_initialValSet));
+
         ConsortiumStorage storage $ = _getConsortiumStorage();
 
         Actions.ValSetAction memory action = Actions.validateValSet(
@@ -100,7 +104,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
         // check proof
         bytes32 payloadHash = sha256(payload);
-        this.checkProof(payloadHash, proof);
+        checkProof(payloadHash, proof);
 
         if (action.epoch != $.epoch + 1) revert InvalidEpoch();
 
@@ -177,9 +181,15 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
         uint256 weight = 0;
         uint256[] storage weights = $.validatorSet[$.epoch].weights;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length; ++i) {
             // each signature preset R || S values
             // V is missed, because validators use Cosmos SDK keyring which is not signing in eth style
+            // We only check signatures which are the expected 64 bytes long - we are expecting
+            // a signatures array with the same amount of items as there are validators, but not all
+            // validators will need to sign for a proof to be valid, so validators who have not signed
+            // will have their corresponding signature set to 0 bytes.
+            // In case of a malformed signature (i.e. length isn't 0 bytes but also isn't 64 bytes)
+            // this signature will be discarded.
             if (signatures[i].length == 64) {
                 // split signature by R and S values
                 bytes memory sig = signatures[i];
@@ -199,7 +209,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
                     // revert if bad signature
                     if (err != ECDSA.RecoverError.NoError) {
-                        revert SignatureVerificationFailed(i, err);
+                        continue;
                     }
 
                     // if signer doesn't match try V = 28
@@ -211,11 +221,11 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                             s
                         );
                         if (err != ECDSA.RecoverError.NoError) {
-                            revert SignatureVerificationFailed(i, err);
+                            continue;
                         }
 
                         if (signer != validators[i]) {
-                            revert WrongSignatureReceived(signatures[i]);
+                            continue;
                         }
                     }
                     // signature accepted
@@ -224,10 +234,6 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                         weight += weights[i];
                     }
                 }
-            }
-
-            unchecked {
-                ++i;
             }
         }
         if (weight < $.validatorSet[$.epoch].weightThreshold) {

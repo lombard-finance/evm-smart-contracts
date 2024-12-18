@@ -60,7 +60,7 @@ describe('Consortium', function () {
                 NEW_VALSET
             );
 
-            await lombard.setInitalValidatorSet(initialValset);
+            await lombard.setInitialValidatorSet(initialValset);
         });
 
         it('should set the correct threshold', async function () {
@@ -107,7 +107,7 @@ describe('Consortium', function () {
                 NEW_VALSET
             );
             await expect(
-                lombard.setInitalValidatorSet(payload)
+                lombard.setInitialValidatorSet(payload)
             ).to.revertedWithCustomError(lombard, 'ValSetAlreadySet');
         });
 
@@ -220,7 +220,7 @@ describe('Consortium', function () {
                 await lombard.checkProof(data.payloadHash, data.proof);
             });
 
-            it('should revert on invalid signatures', async function () {
+            it('should not succeed on invalid signatures', async function () {
                 const data = await signDepositBridgePayload(
                     [signer3, signer1, signer2],
                     [true, true, false],
@@ -268,34 +268,7 @@ describe('Consortium', function () {
 
                 await expect(
                     lombard.checkProof(ethers.sha256(payload), data.proof)
-                ).to.be.revertedWithCustomError(
-                    lombard,
-                    'WrongSignatureReceived'
-                );
-            });
-
-            it('should revert on invalid ECDSA signature', async function () {
-                const data = await signDepositBridgePayload(
-                    [signer3, signer1, signer2],
-                    [true, true, true],
-                    1n,
-                    signer1.address,
-                    1n,
-                    signer2.address,
-                    signer3.address,
-                    10
-                );
-
-                // replace first 2 bytes of last signature to have an invalid s (in the upper half of the curve)
-                data.proof =
-                    data.proof.slice(0, -64) + 'ffff' + data.proof.slice(-62);
-
-                await expect(
-                    lombard.checkProof(data.payloadHash, data.proof)
-                ).to.be.revertedWithCustomError(
-                    lombard,
-                    'SignatureVerificationFailed'
-                );
+                ).to.be.revertedWithCustomError(lombard, 'NotEnoughSignatures');
             });
         });
     });
@@ -323,7 +296,7 @@ describe('Consortium with real data', function () {
     });
 
     it('should set initial ValSet', async function () {
-        await expect(consortium.setInitalValidatorSet(initialValset))
+        await expect(consortium.setInitialValidatorSet(initialValset))
             .to.emit(consortium, 'ValidatorSetUpdated')
             .withArgs(
                 2,

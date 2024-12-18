@@ -43,7 +43,11 @@ describe('StakeAndBake', function () {
             await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
 
         stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
@@ -63,8 +67,6 @@ describe('StakeAndBake', function () {
                 [],
                 false
             );
-
-        await lbtc.changeTreasuryAddress(treasury.address);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);
@@ -221,6 +223,10 @@ describe('StakeAndBake', function () {
                 fee,
                 snapshotTimestamp + 100
             );
+            const approval2 = getPayloadForAction(
+                [fee, snapshotTimestamp + 100],
+                'feeApproval'
+            );
 
             // set max fee
             await lbtc.setMintFee(fee);
@@ -269,7 +275,7 @@ describe('StakeAndBake', function () {
                         depositPayload: depositPayload2,
                         mintPayload: data2.payload,
                         proof: data2.proof,
-                        feePayload: approval,
+                        feePayload: approval2,
                         userSignature: userSignature2,
                     },
                 ])

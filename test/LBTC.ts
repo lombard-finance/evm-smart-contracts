@@ -50,11 +50,19 @@ describe('LBTC', function () {
 
         const burnCommission = 1000;
 
-        const result = await init(burnCommission, deployer.address);
+        const result = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc = result.lbtc;
         consortium = result.consortium;
 
-        const result2 = await init(burnCommission, deployer.address);
+        const result2 = await init(
+            burnCommission,
+            treasury.address,
+            deployer.address
+        );
         lbtc2 = result2.lbtc;
         consortium2 = result2.consortium;
 
@@ -69,9 +77,6 @@ describe('LBTC', function () {
             ],
             false
         );
-
-        await lbtc.changeTreasuryAddress(treasury.address);
-        await lbtc2.changeTreasuryAddress(treasury.address);
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);
@@ -165,16 +170,6 @@ describe('LBTC', function () {
             await expect(lbtc.connect(signer1).unpause())
                 .to.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
                 .withArgs(signer1.address);
-        });
-
-        it('changeNameAndSymbol', async function () {
-            const newName = 'NEW_NAME';
-            const newSymbol = 'NEW_SYMBOL';
-            await expect(lbtc.changeNameAndSymbol(newName, newSymbol))
-                .to.emit(lbtc, 'NameAndSymbolChanged')
-                .withArgs(newName, newSymbol);
-            expect(await lbtc.name()).to.be.eq(newName);
-            expect(await lbtc.symbol()).to.be.eq(newSymbol);
         });
 
         it('toggleWithdrawals() enables or disables burn', async function () {
@@ -679,7 +674,7 @@ describe('LBTC', function () {
                 txId: defaultTxId,
                 signatureTxId: defaultTxId,
                 interface: () => newConsortium,
-                customError: 'WrongSignatureReceived',
+                customError: 'NotEnoughSignatures',
                 params: () => [],
             };
             let defaultProof: string;
@@ -694,7 +689,7 @@ describe('LBTC', function () {
                     [1, [signer1.publicKey, signer2.publicKey], [1, 1], 2, 1],
                     NEW_VALSET
                 );
-                await newConsortium.setInitalValidatorSet(valset);
+                await newConsortium.setInitialValidatorSet(valset);
                 const data = await signDepositBtcPayload(
                     defaultArgs.signers(),
                     defaultArgs.signatures,
@@ -777,7 +772,7 @@ describe('LBTC', function () {
                     ...defaultArgs,
                     name: 'unknown validator set',
                     signers: () => [signer1, deployer],
-                    customError: 'WrongSignatureReceived',
+                    customError: 'NotEnoughSignatures',
                 },
                 {
                     ...defaultArgs,

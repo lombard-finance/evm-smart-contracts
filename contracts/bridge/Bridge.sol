@@ -49,7 +49,6 @@ contract Bridge is
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Bridge")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
-    uint16 private constant MAX_COMMISSION = 100_00; // 100.00%
 
     /// PUBLIC FUNCTIONS ///
 
@@ -199,14 +198,10 @@ contract Bridge is
             payload[4:]
         );
 
-        // extra checks
-        if (
-            destConf.bridgeContract !=
-            bytes32(uint256(uint160(action.fromContract)))
-        ) {
+        if (destConf.bridgeContract != action.fromContract) {
             revert UnknownOriginContract(
                 bytes32(action.fromChain),
-                bytes32(uint256(uint160(action.fromContract)))
+                action.fromContract
             );
         }
 
@@ -234,7 +229,17 @@ contract Bridge is
             payload[4:]
         );
 
-        // TODO: verify action
+        // Ensure that fromContract matches the bridgeContract
+        DestinationConfig memory destConf = getDestination(
+            bytes32(action.fromChain)
+        );
+
+        if (destConf.bridgeContract != action.fromContract) {
+            revert UnknownOriginContract(
+                bytes32(action.fromChain),
+                action.fromContract
+            );
+        }
 
         bytes32 payloadHash = sha256(payload);
         BridgeStorage storage $ = _getBridgeStorage();
@@ -268,6 +273,9 @@ contract Bridge is
             payload[4:]
         );
 
+        // Validate toContract
+        if (action.toContract != address(this)) revert NotValidDestination();
+
         // check rate limits
         RateLimits.updateLimit(
             $.withdrawRateLimits[bytes32(action.fromChain)],
@@ -277,6 +285,9 @@ contract Bridge is
         DestinationConfig memory destConf = $.destinations[
             bytes32(action.fromChain)
         ];
+        if (destConf.bridgeContract == bytes32(0)) {
+            revert UnknownDestination();
+        }
 
         bytes32 payloadHash = sha256(payload);
         Deposit storage depositData = $.deposits[payloadHash];
@@ -362,10 +373,13 @@ contract Bridge is
 
         BridgeStorage storage $ = _getBridgeStorage();
         delete $.destinations[toChain];
+        delete $.depositRateLimits[toChain];
+        delete $.withdrawRateLimits[toChain];
 
         emit DepositAbsoluteCommissionChanged(0, toChain);
         emit DepositRelativeCommissionChanged(0, toChain);
         emit BridgeDestinationRemoved(toChain);
+        emit RateLimitsChanged(toChain, 0, 0);
     }
 
     function changeDepositAbsoluteCommission(
@@ -400,6 +414,7 @@ contract Bridge is
     }
 
     function changeConsortium(INotaryConsortium newVal) external onlyOwner {
+        if (address(newVal) == address(0)) revert Bridge_ZeroAddress();
         BridgeStorage storage $ = _getBridgeStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
@@ -411,15 +426,43 @@ contract Bridge is
     ) external onlyOwner {
         BridgeStorage storage $ = _getBridgeStorage();
         for (uint256 i; i < depositRateLimits.length; i++) {
+            DestinationConfig memory destConf = $.destinations[
+                depositRateLimits[i].chainId
+            ];
+            if (destConf.bridgeContract == bytes32(0)) {
+                revert UnknownDestination();
+            }
+
+            RateLimits.checkRateLimitSanity(depositRateLimits[i].limit);
+
             RateLimits.setRateLimit(
                 $.depositRateLimits[depositRateLimits[i].chainId],
                 depositRateLimits[i]
             );
+            emit RateLimitsChanged(
+                depositRateLimits[i].chainId,
+                depositRateLimits[i].limit,
+                depositRateLimits[i].window
+            );
         }
         for (uint256 i; i < withdrawRateLimits.length; i++) {
+            DestinationConfig memory destConf = $.destinations[
+                withdrawRateLimits[i].chainId
+            ];
+            if (destConf.bridgeContract == bytes32(0)) {
+                revert UnknownDestination();
+            }
+
+            RateLimits.checkRateLimitSanity(withdrawRateLimits[i].limit);
+
             RateLimits.setRateLimit(
                 $.withdrawRateLimits[withdrawRateLimits[i].chainId],
                 withdrawRateLimits[i]
+            );
+            emit RateLimitsChanged(
+                withdrawRateLimits[i].chainId,
+                withdrawRateLimits[i].limit,
+                withdrawRateLimits[i].window
             );
         }
     }
@@ -483,10 +526,15 @@ contract Bridge is
         );
 
         if (address(config.adapter) != address(0)) {
-            // transfer assets to adapter
+            // transfer assets to bridge
             SafeERC20.safeTransferFrom(
                 IERC20(address(lbtc())),
                 fromAddress,
+                address(this),
+                amountWithoutFee
+            );
+            // Approve spending by adapter
+            IERC20(address(lbtc())).approve(
                 address(config.adapter),
                 amountWithoutFee
             );
@@ -509,6 +557,7 @@ contract Bridge is
     }
 
     function _changeTreasury(address treasury_) internal {
+        if (treasury_ == address(0)) revert Bridge_ZeroAddress();
         BridgeStorage storage $ = _getBridgeStorage();
         address previousTreasury = $.treasury;
         $.treasury = treasury_;
@@ -525,14 +574,6 @@ contract Bridge is
         address previousAdapter = address(conf.adapter);
         conf.adapter = IAdapter(newAdapter);
         emit AdapterChanged(previousAdapter, newAdapter);
-    }
-
-    function _calcRelativeFee(
-        uint64 amount,
-        uint16 commission
-    ) internal pure returns (uint256 fee) {
-        return
-            Math.mulDiv(amount, commission, MAX_COMMISSION, Math.Rounding.Ceil);
     }
 
     function _getBridgeStorage()

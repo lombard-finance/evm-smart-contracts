@@ -26,26 +26,11 @@ function chainlinkAdapterTask(taskName: string) {
             'Execution gas limit on destination chain',
             300_000n.toString()
         )
-        .addFlag('enableAttestation')
         .setAction(async (taskArgs, hre) => {
-            const {
-                admin,
-                bridge,
-                router,
-                rmn,
-                allowlist,
-                gasLimit,
-                enableAttestation,
-            } = taskArgs;
+            const { admin, bridge, router, rmn, allowlist, gasLimit } =
+                taskArgs;
 
-            const args = [
-                bridge,
-                gasLimit,
-                router,
-                allowlist,
-                rmn,
-                enableAttestation,
-            ];
+            const args = [bridge, gasLimit, router, allowlist, rmn];
 
             const adapter = await hre.ethers.deployContract('CLAdapter', args);
             await adapter.waitForDeployment();
@@ -66,7 +51,6 @@ function chainlinkAdapterTask(taskName: string) {
                     allowlist,
                     rmn,
                     await adapter.getAddress(),
-                    enableAttestation,
                 ],
                 // force: true,
             });

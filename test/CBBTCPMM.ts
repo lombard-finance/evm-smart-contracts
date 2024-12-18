@@ -46,6 +46,7 @@ describe('CBBTCPMM', function () {
         lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
             ethers.hexlify(ethers.randomBytes(20)),
             1000, // not relevant for CBBTC tests
+            deployer.address, // not relevant for CBBTC tests, but can not be zero
             deployer.address,
         ]);
         pmm = await deploy<CBBTCPMM>('CBBTCPMM', 'CBBTCPMM', [

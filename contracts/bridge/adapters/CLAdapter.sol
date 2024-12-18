@@ -9,13 +9,16 @@ import {IBridge} from "../IBridge.sol";
 import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
 import {LombardTokenPool} from "./TokenPool.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20 as OZIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title CCIP bridge adapter
  * @author Lombard.finance
  * @notice CLAdapter present an intermediary to enforce TokenPool compatibility
  */
-contract CLAdapter is AbstractAdapter, Ownable {
+contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     error CLZeroChain();
     error CLZeroChanSelector();
     error CLAttemptToOverrideChainSelector();
@@ -23,6 +26,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
     error CLRefundFailed(address, uint256);
     error CLUnauthorizedTokenPool(address);
     error ZeroPayload();
+    error ReceiverTooBig();
+    error AmountOverflow();
 
     event CLChainSelectorSet(bytes32, uint64);
     event CLTokenPoolDeployed(address);
@@ -36,6 +41,15 @@ contract CLAdapter is AbstractAdapter, Ownable {
     uint256 internal _lastBurnedAmount;
     bytes internal _lastPayload;
 
+    mapping(address => uint256) public refunds;
+
+    modifier onlyTokenPool() {
+        if (address(tokenPool) != _msgSender()) {
+            revert CLUnauthorizedTokenPool(_msgSender());
+        }
+        _;
+    }
+
     /// @notice msg.sender gets the ownership of the contract given
     /// token pool implementation
     constructor(
@@ -44,8 +58,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
         //
         address ccipRouter_,
         address[] memory allowlist_,
-        address rmnProxy_,
-        bool attestationEnable_
+        address rmnProxy_
     ) AbstractAdapter(bridge_) Ownable(_msgSender()) {
         _setExecutionGasLimit(executionGasLimit_);
 
@@ -54,14 +67,22 @@ contract CLAdapter is AbstractAdapter, Ownable {
             ccipRouter_,
             allowlist_,
             rmnProxy_,
-            CLAdapter(this),
-            attestationEnable_
+            CLAdapter(this)
         );
         tokenPool.transferOwnership(_msgSender());
         emit CLTokenPoolDeployed(address(tokenPool));
     }
 
     /// USER ACTIONS ///
+
+    function withdrawRefund() external nonReentrant {
+        uint256 refundAm = refunds[_msgSender()];
+        refunds[_msgSender()] = 0;
+        (bool success, ) = payable(_msgSender()).call{value: refundAm}("");
+        if (!success) {
+            revert CLRefundFailed(_msgSender(), refundAm);
+        }
+    }
 
     function getFee(
         bytes32 _toChain,
@@ -85,8 +106,17 @@ contract CLAdapter is AbstractAdapter, Ownable {
         uint64 remoteChainSelector,
         bytes calldata receiver,
         uint256 amount
-    ) external returns (uint256 lastBurnedAmount, bytes memory lastPayload) {
-        _onlyTokenPool();
+    )
+        external
+        onlyTokenPool
+        returns (uint256 lastBurnedAmount, bytes memory lastPayload)
+    {
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            amount
+        );
 
         if (_lastPayload.length > 0) {
             // just return if already initiated
@@ -95,6 +125,8 @@ contract CLAdapter is AbstractAdapter, Ownable {
             _lastPayload = new bytes(0);
             _lastBurnedAmount = 0;
         } else {
+            if (receiver.length > 32) revert ReceiverTooBig();
+            if (amount >= 2 ** 64) revert AmountOverflow();
             IERC20(address(lbtc())).approve(address(bridge), amount);
             (lastBurnedAmount, lastPayload) = bridge.deposit(
                 getChain[remoteChainSelector],
@@ -114,6 +146,16 @@ contract CLAdapter is AbstractAdapter, Ownable {
         uint256 _amount,
         bytes memory _payload
     ) external payable virtual override {
+        _onlyBridge();
+
+        // transfer assets from bridge
+        SafeERC20.safeTransferFrom(
+            OZIERC20(address(lbtc())),
+            _msgSender(),
+            address(this),
+            _amount
+        );
+
         // if deposit was initiated by adapter do nothing
         if (fromAddress == address(this)) {
             return;
@@ -139,10 +181,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
         }
         if (msg.value > fee) {
             uint256 refundAm = msg.value - fee;
-            (bool success, ) = payable(fromAddress).call{value: refundAm}("");
-            if (!success) {
-                revert CLRefundFailed(fromAddress, refundAm);
-            }
+            refunds[fromAddress] += refundAm;
         }
 
         IERC20(address(lbtc())).approve(router, _amount);
@@ -153,9 +192,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
     function initWithdrawalNoSignatures(
         uint64 remoteSelector,
         bytes calldata onChainData
-    ) external returns (uint64) {
-        _onlyTokenPool();
-
+    ) external onlyTokenPool returns (uint64) {
         _receive(getChain[remoteSelector], onChainData);
         return bridge.withdraw(onChainData);
     }
@@ -163,9 +200,7 @@ contract CLAdapter is AbstractAdapter, Ownable {
     function initiateWithdrawal(
         uint64 remoteSelector,
         bytes calldata offChainData
-    ) external returns (uint64) {
-        _onlyTokenPool();
-
+    ) external onlyTokenPool returns (uint64) {
         (bytes memory payload, bytes memory proof) = abi.decode(
             offChainData,
             (bytes, bytes)
@@ -197,19 +232,10 @@ contract CLAdapter is AbstractAdapter, Ownable {
             amount: _amount
         });
 
-        bytes memory data;
-        if (!tokenPool.isAttestationEnabled()) {
-            // we should send payload if not attestations expected
-            if (_payload.length == 0) {
-                revert ZeroPayload();
-            }
-            data = _payload;
-        }
-
         return
             Client.EVM2AnyMessage({
                 receiver: _receiver,
-                data: data,
+                data: "",
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
                     Client.EVMExtraArgsV2({
@@ -222,12 +248,6 @@ contract CLAdapter is AbstractAdapter, Ownable {
     }
 
     function _onlyOwner() internal view override onlyOwner {}
-
-    function _onlyTokenPool() internal view {
-        if (address(tokenPool) != _msgSender()) {
-            revert CLUnauthorizedTokenPool(_msgSender());
-        }
-    }
 
     function _setExecutionGasLimit(uint128 newVal) internal {
         emit ExecutionGasLimitSet(getExecutionGasLimit, newVal);

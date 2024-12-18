@@ -99,6 +99,12 @@ interface IBridge is IConsortiumConsumer {
         bytes32 indexed payloadHash
     );
 
+    event RateLimitsChanged(
+        bytes32 indexed chainId,
+        uint256 limit,
+        uint256 window
+    );
+
     /// @notice Emitted when the treasury is changed.
     event TreasuryChanged(address previousTreasury, address newTreasury);
 

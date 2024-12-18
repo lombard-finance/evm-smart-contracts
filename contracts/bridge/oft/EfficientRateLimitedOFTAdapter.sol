@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {OFTAdapter} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {EfficientRateLimiter} from "./EfficientRateLimiter.sol";
+import {RateLimits} from "../../libs/RateLimits.sol";
 
 /**
  * @title OFT Adapter contract with EfficientRateLimiter
@@ -16,13 +17,13 @@ abstract contract EfficientRateLimitedOFTAdapter is
      * It allows configuration of rate limits either for outbound or inbound directions.
      * This method is designed to be called by contract admins for updating the system's rate limiting behavior.
      *
-     * @param _rateLimitConfigs An array of `RateLimitConfig` structs that specify the new rate limit settings.
+     * @param _rateLimitConfigs An array of `RateLimits.Config` structs that specify the new rate limit settings.
      * Each struct includes an endpoint ID, the limit value, and the window duration.
      * @param direction The direction (`Outbound` or `Inbound`) specifies whether the endpoint ID passed should be considered a dstEid or srcEid.
      * This parameter determines which set of rate limits (outbound or inbound) will be updated for each endpoint.
      */
     function setRateLimits(
-        RateLimitConfig[] calldata _rateLimitConfigs,
+        RateLimits.Config[] calldata _rateLimitConfigs,
         RateLimitDirection direction
     ) external onlyOwner {
         _setRateLimits(_rateLimitConfigs, direction);
@@ -39,13 +40,19 @@ abstract contract EfficientRateLimitedOFTAdapter is
         override
         returns (uint256 amountSentLD, uint256 amountReceivedLD)
     {
+        (amountSentLD, amountReceivedLD) = super._debit(
+            _from,
+            _amountLD,
+            _minAmountLD,
+            _dstEid
+        );
         // Check and update the rate limit based on the destination endpoint ID (dstEid) and the amount in local decimals.
         _checkAndUpdateRateLimit(
             _dstEid,
-            _amountLD,
+            amountSentLD,
             RateLimitDirection.Outbound
         );
-        return super._debit(_from, _amountLD, _minAmountLD, _dstEid);
+        return (amountSentLD, amountReceivedLD);
     }
 
     function _credit(
@@ -59,6 +66,7 @@ abstract contract EfficientRateLimitedOFTAdapter is
             _amountLD,
             RateLimitDirection.Inbound
         );
-        return super._credit(_to, _amountLD, _srcEid);
+        amountReceivedLD = super._credit(_to, _amountLD, _srcEid);
+        return amountReceivedLD;
     }
 }

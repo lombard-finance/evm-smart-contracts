@@ -11,3 +11,4 @@ export * from './partner-vault';
 export * from './stake-and-bake';
 export * from './teller-mock';
 export * from './teller-depositor';
+export * from './partner-vault';
