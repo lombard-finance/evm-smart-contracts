@@ -160,7 +160,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
     /// @dev Checks that `_proof` is correct
     /// @param _payloadHash data to be signed
-    /// @param _proof encoding of (validators, weights, signatures)
+    /// @param _proof encoding of signatures array
     /// @dev Negative weight means that the validator did not sign, any positive weight means that the validator signed
     function _checkProof(
         bytes32 _payloadHash,
