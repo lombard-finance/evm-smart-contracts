@@ -12,7 +12,7 @@ import { sleep, verify } from '../helpers';
  */
 function chainlinkAdapterTask(taskName: string) {
     task(taskName, 'Deploys the TokenPoolAdapter contract')
-        .addOptionalParam('admin', 'The address of the owner')
+        .addOptionalParam('admin', 'The address of the owner', 'self')
         .addParam('router', 'The chainlink ccip router')
         .addParam('bridge', 'Bridge to set adapter on')
         .addParam('rmn', 'The address of the RmnProxy')
@@ -27,10 +27,21 @@ function chainlinkAdapterTask(taskName: string) {
             300_000n.toString()
         )
         .setAction(async (taskArgs, hre) => {
-            const { admin, bridge, router, rmn, allowlist, gasLimit } =
-                taskArgs;
+            const {
+                admin: adminArg,
+                bridge,
+                router,
+                rmn,
+                allowlist,
+                gasLimit,
+            } = taskArgs;
 
             const args = [bridge, gasLimit, router, allowlist, rmn];
+
+            const [signer] = await hre.ethers.getSigners();
+            let admin = hre.ethers.isAddress(adminArg)
+                ? adminArg
+                : await signer.getAddress();
 
             const adapter = await hre.ethers.deployContract('CLAdapter', args);
             await adapter.waitForDeployment();
