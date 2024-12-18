@@ -47,7 +47,7 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
             hre.ethers.zeroPadValue(hre.ethers.ZeroAddress, 32)
         ) {
             console.log(`Removing existing destination ${existingDest}`);
-            await bridge.removeDestination(toChainId);
+            await (await bridge.removeDestination(toChainId)).wait(2);
         }
         console.log(`Adding destination to ${toChainId}`);
 

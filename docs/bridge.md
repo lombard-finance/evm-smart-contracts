@@ -20,10 +20,20 @@ const destChainId = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [CHAIN
 const destReceiver = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [RECEIVER]);
 ```
 
-### Get fees
+### Get native fees
 `fee` presented in blockchain native currency (e.g. ETH)
 ```typescript
 const fee = await bridge.getAdapterFee(destChainId, destReceiver, amount);
+```
+
+### Calculate LBTC fee
+
+```typescript
+const absFee = await getDepositAbsoluteCommission(destChainId);
+const relFee = Math.ceil(amount / await getDepositRelativeCommission(destChainId)) * 10000;
+
+// lbtcFee is fee chardged, bridged amount will be amount - lbtcFee
+const lbtcFee = absFee + relFee;
 ```
 
 ### Approve
