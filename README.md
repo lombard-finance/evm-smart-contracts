@@ -106,5 +106,3 @@ Find the latest audit reports in [docs/audit](https://github.com/lombard-finance
 ## Misc
 
 Follow [docs](https://github.com/lombard-finance/evm-smart-contracts/tree/main/docs) in more in-depth study of contracts.
-
-1. 
