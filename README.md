@@ -7,10 +7,6 @@
     <img alt="Ethers" src="https://img.shields.io/badge/^6.4.0-ethers-darkblue">
 </div>
 
-<div>
-    <img alt="Page cover image" src="https://docs.lombard.finance/~gitbook/image?url=https%3A%2F%2F2727780006-files.gitbook.io%2F%7E%2Ffiles%2Fv0%2Fb%2Fgitbook-x-prod.appspot.com%2Fo%2Fspaces%252FshysQ5d1rHU8C0eDQoLF%252Fuploads%252FR5w80vSnwar9rZZVywo7%252FGitbook%2520cover.png%3Falt%3Dmedia%26token%3Dab258017-4138-4430-8e63-d17ecd35f7b6&amp;width=1248&amp;dpr=4&amp;quality=100&amp;sign=16bc71e&amp;sv=2"/>
-</div>
-
 # Lombard Finance EVM smart-contracts
 [Website](https://www.lombard.finance/) | [Docs](https://docs.lombard.finance/)
 
