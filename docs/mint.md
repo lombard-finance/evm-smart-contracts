@@ -29,7 +29,7 @@ There are different methods to mint LBTC.
 
 ### Function: `mint(address to, uint256 amount)`
 > **IMPORTANT**: Only allowed for whitelisted minters such as PMM modules.
-> 
+
 Mint LBTC to the specified address without proof and payload.
 
 **Example:**
@@ -39,6 +39,54 @@ await lbtc.mint[address,amount](toAddress, amount)
 ```
 
 ### Function: `batchMint(address[] calldata to,uint256[] calldata amount)`
-> **IMPORTANT**: Only allowed for whitelisted minters such as PMM modules.
+Batched `mint(address to, uint256 amount)`
 
-Mint LBTC to the specified address without proof and payload.
+### Function: `batchMint(bytes[] calldata payload, bytes[] calldata proof)`
+
+Batched `mint(bytes calldata payload, bytes calldata proof)`
+
+### Function: `mintWithFee(bytes calldata mintPayload, bytes calldata proof, bytes calldata feePayload, bytes calldata userSignature)`
+> **IMPORTANT**: Only allowed for whitelisted claimers.
+
+Grants ability to special `claimer` to mint `LBTC` using a notarized `DEPOSIT_BTC_ACTION` and charge fees for that.
+The possible fee is set in two places (inside smart-contract and typed message), the smart-contract choose the lowest of them.
+
+**Example:**
+
+```typescript
+const [fields, domainName, version, chainId, verifyingContract, salt, extensions] = await lbtc.eip712Domain();
+
+export async function signFeeTypedMessage(
+  signer: HardhatEthersSigner,
+  fee: BigNumberish,
+  expiry: BigNumberish,
+) {
+  const domain = {
+    name: domainName,
+    version: version,
+    chainId: chainId,
+    verifyingContract: verifyingContract,
+  };
+  const types = {
+    feeApproval: [
+      { name: 'chainId', type: 'uint256' },
+      { name: 'fee', type: 'uint256' },
+      { name: 'expiry', type: 'uint256' },
+    ],
+  };
+  const message = { chainId, fee, expiry };
+
+  return signer.signTypedData(domain, types, message);
+};
+
+await lbtc.mintWithFee(actionPayload, proof, feePayload,
+  await signFeeTypedMessage(
+    defaultArgs.mintRecipient(),
+    await lbtc.getAddress(),
+    snapshotTimestamp
+  )
+);
+```
+### Function: `batchMintWithFee(bytes[] calldata mintPayload, bytes[] calldata proof, bytes[] calldata feePayload, bytes[] calldata userSignature)`
+
+Batched `mintWithFee(bytes calldata mintPayload, bytes calldata proof, bytes calldata feePayload, bytes calldata userSignature)`
