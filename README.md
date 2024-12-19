@@ -2,7 +2,7 @@
     <img alt="Lombard" src="https://img.shields.io/badge/v2-version?label=Lombard&labelColor=62C9B9&color=white"/>
     <img alt="Solidity" src="https://img.shields.io/badge/0.8.24-solidity-purple">
     <img alt="Node.js" src="https://img.shields.io/badge/>=18-node.js-green">
-    <img alt="TypeScript" src="https://img.shields.io/badge/>=4.5.0-typescript-green">
+    <img alt="TypeScript" src="https://img.shields.io/badge/>=4.5.0-typescript-blue">
     <img alt="Hardhat" src="https://img.shields.io/badge/^2.22.12-hardhat-yellow">
     <img alt="Ethers" src="https://img.shields.io/badge/^6.4.0-ethers-darkblue">
 </div>
