@@ -99,6 +99,13 @@ else
     swellAdapter=$(cat .swell_adapter)
 fi
 
+echo "Setting Swell OFT Adapter as minter on LBTC"
+
+if [ ! -f .swell_minter ]; then
+    yarn hardhat setup-oft-add-minter --lbtc swellLbtc --adapter swellAdapter
+    touch .swell_minter
+fi
+
 echo "Setting peer on Swell"
 
 if [ ! -f swell_peer_set ]; then

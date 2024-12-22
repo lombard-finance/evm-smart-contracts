@@ -276,3 +276,15 @@ task('setup-oft-transfer-ownership', 'Call `transferOwnership` on smart-contract
         const adapter = await ethers.getContractAt('OFTAdapter', target);
         await adapter.transferOwnership(owner);
     });
+
+task('setup-oft-add-minter', 'Call `addMinter` on LTBC for OFT Adapter')
+    .addParam('lbtc', 'The address of the LBTC contract')
+    .addParam('adapter', 'The address of the OFT Adapter')
+    .setAction(async (taskArgs, hre, network) => {
+        const { ethers } = hre;
+
+        const { lbtc, adapter } = taskArgs;
+
+        const lbtc = await ethers.getContractAt('LBTC', lbtc);
+        await lbtc.addMinter(adapter);
+    });
