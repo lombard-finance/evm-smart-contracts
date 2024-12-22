@@ -251,3 +251,28 @@ task('setup-oft-set-delegate', 'Call `setDelegate` on smart-contract')
         const adapter = await ethers.getContractAt('OFTAdapter', target);
         await adapter.setDelegate(delegate);
     });
+
+task('setup-oft-set-peer', 'Call `setPeer` on smart-contract')
+    .addParam('target', 'The address of the smart-contract')
+    .addParam('eid', 'The eid of the peer endpoint')
+    .addParam('peer', 'The address of the peer')
+    .setAction(async (taskArgs, hre, network) => {
+        const { ethers } = hre;
+
+        const { target, eid, delegate } = taskArgs;
+
+        const adapter = await ethers.getContractAt('OFTadapter', target);
+        await adapter.setPeer(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
+    });
+
+task('setup-oft-transfer-ownership', 'Call `transferOwnership` on smart-contract')
+    .addParam('target', 'The address of the smart-contract')
+    .addParam('owner', 'The address of the new owner')
+    .setAction(async (taskArgs, hre, network) => {
+        const { ethers } = hre;
+
+        const { target, owner } = taskArgs;
+
+        const adapter = await ethers.getContractAt('OFTAdapter', target);
+        await adapter.transferOwnership(owner);
+    });

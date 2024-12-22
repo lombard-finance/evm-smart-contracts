@@ -321,6 +321,22 @@ const config: HardhatUserConfig = {
             gas: 8_000_000,
             gasPrice: 500000,
         },
+        swell: {
+            loggingEnabled: true,
+            url: vars.get(
+                'SWELL_RPC',
+                'https://explorer.swellnetwork.io/api'
+            ),
+            chainId: 1923,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
     },
     etherscan: {
         customChains: [
@@ -414,6 +430,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://cornscan.io/',
                 },
             },
+            {
+                network: 'swell',
+                chainId: 1923,
+                urls: {
+                    apiURL: 'https://explorer.swellnetwork.io/api',
+                    browserURL: 'https://explorer.swellnetwork.io/',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -439,6 +463,7 @@ const config: HardhatUserConfig = {
             base: vars.get('BASE_API_KEY', ''),
             arbitrum: vars.get('ARBITRUM_API_KEY', ''),
             cornMaizenet: 'no',
+            swell: 'no',
         },
     },
     sourcify: {
