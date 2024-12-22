@@ -177,8 +177,11 @@ task(
         );
 
         const limits = eids.split(',').map((eid: string) => {
-            const e = BigInt(eid);
-            return { eid: e, limit, window };
+            const e = ethers.AbiCoder.defaultAbiCoder().encode(
+                ['uint32'],
+                [eid]
+            );
+            return { chainId: e, limit, window };
         });
 
         if (populate) {
@@ -259,9 +262,9 @@ task('setup-oft-set-peer', 'Call `setPeer` on smart-contract')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
-        const { target, eid, delegate } = taskArgs;
+        const { target, eid, peer } = taskArgs;
 
-        const adapter = await ethers.getContractAt('OFTadapter', target);
+        const adapter = await ethers.getContractAt('OFTAdapter', target);
         await adapter.setPeer(
             eid,
             ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer])
