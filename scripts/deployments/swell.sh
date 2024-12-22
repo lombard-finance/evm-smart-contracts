@@ -3,16 +3,12 @@
 set -ex
 
 # Process command line arguments
-mainnetDeployer=
-swellDeployer=
+deployer=
 
 while [ $# -gt 0 ]; do
     case "$1" in
-    --mainnet-deployer=*)
-        mainnetDeployer="${1#*=}"
-        ;;
-    --swell-deployer=*)
-        swellDeployer="${1#*=}"
+    --deployer=*)
+        deployer="${1#*=}"
         ;;
     *)
         echo "Unknown arg $1"
@@ -21,13 +17,8 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [ -z "${mainnetDeployer}" ]; then
-    echo "Mainnet deployer not set! Please set it with --mainnet-deployer."
-    exit
-fi
-
-if [ -z "${swellDeployer}" ]; then
-    echo "Swell deployer not set! Please set it with --swell-deployer."
+if [ -z "${deployer}" ]; then
+    echo "Deployer not set! Please set it with --deployer."
     exit
 fi
 
@@ -36,7 +27,7 @@ ethAdapter=
 
 # ETH Mainnet side
 if [ ! -f .eth_adapter ]; then
-    yarn hardhat deploy-oft --admin mainnetDeployer --lz-endpoint 30101 --lbtc 0x8236a87084f8B84306f72007F36F2618A5634494 --network mainnet
+    yarn hardhat deploy-oft --admin deployer --lz-endpoint 30101 --lbtc 0x8236a87084f8B84306f72007F36F2618A5634494 --network mainnet
 
     echo 'Please copy and paste the proxy address of the deployed OFT adapter.'
     read -p '> ' ethAdapter
@@ -67,7 +58,7 @@ echo "Deploying consortium on Swell"
 swellConsortium=
 
 if [ ! -f .swell_consortium ]; then
-    yarn hardhat deploy-consortium --admin swellDeployer --proxy-factory-addr swellProxy --network swell
+    yarn hardhat deploy-consortium --admin deployer --proxy-factory-addr swellProxy --network swell
 
     echo 'Please copy and paste the proxy address of the Swell consortium contract.'
     read -p '> ' swellConsortium
@@ -82,7 +73,7 @@ echo "Deploying LBTC on Swell"
 swellLbtc=
 
 if [ ! -f .swell_lbtc ]; then
-    yarn hardhat deploy-lbtc --consortium swellConsortium --burnCommission 10000 --treasury swellDeployer --admin swellDeployer --proxy-factory-addr swellProxy --network swell
+    yarn hardhat deploy-lbtc --consortium swellConsortium --burnCommission 10000 --treasury deployer --admin deployer --proxy-factory-addr swellProxy --network swell
 
     echo 'Please copy and paste the proxy address of the Swell LBTC contract.'
     read -p '> ' swellLbtc
@@ -97,7 +88,7 @@ echo "Deploying burn & mint OFT adapter on Swell"
 swellAdapter=
 
 if [ ! -f .swell_adapter ]; then
-    yarn hardhat deploy-oft --admin swellDeployer --lz-endpoint 30335 --lbtc swellLbtc --burn-mint --network swell
+    yarn hardhat deploy-oft --admin deployer --lz-endpoint 30335 --lbtc swellLbtc --burn-mint --network swell
 
     echo 'Please copy and paste the proxy address of the deployed OFT adapter.'
     read -p '> ' swellAdapter
