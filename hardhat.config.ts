@@ -325,7 +325,7 @@ const config: HardhatUserConfig = {
             loggingEnabled: true,
             url: vars.get(
                 'SWELL_RPC',
-                'https://explorer.swellnetwork.io/api'
+                'https://rpc.ankr.com/swell'
             ),
             chainId: 1923,
             accounts: [
