@@ -17,7 +17,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [ -z "${deployer}" ]; then
+if [ -z "$deployer" ]; then
     echo "Deployer not set! Please set it with --deployer."
     exit
 fi
