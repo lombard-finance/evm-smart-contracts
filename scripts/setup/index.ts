@@ -6,3 +6,4 @@ export * from './treasury';
 export * from './layerzero';
 export * from './chainlink';
 export * from './owner';
+export * from './minter';

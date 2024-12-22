@@ -262,10 +262,16 @@ task('setup-oft-set-peer', 'Call `setPeer` on smart-contract')
         const { target, eid, delegate } = taskArgs;
 
         const adapter = await ethers.getContractAt('OFTadapter', target);
-        await adapter.setPeer(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
+        await adapter.setPeer(
+            eid,
+            ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer])
+        );
     });
 
-task('setup-oft-transfer-ownership', 'Call `transferOwnership` on smart-contract')
+task(
+    'setup-oft-transfer-ownership',
+    'Call `transferOwnership` on smart-contract'
+)
     .addParam('target', 'The address of the smart-contract')
     .addParam('owner', 'The address of the new owner')
     .setAction(async (taskArgs, hre, network) => {
@@ -275,16 +281,4 @@ task('setup-oft-transfer-ownership', 'Call `transferOwnership` on smart-contract
 
         const adapter = await ethers.getContractAt('OFTAdapter', target);
         await adapter.transferOwnership(owner);
-    });
-
-task('setup-oft-add-minter', 'Call `addMinter` on LTBC for OFT Adapter')
-    .addParam('lbtc', 'The address of the LBTC contract')
-    .addParam('adapter', 'The address of the OFT Adapter')
-    .setAction(async (taskArgs, hre, network) => {
-        const { ethers } = hre;
-
-        const { lbtc, adapter } = taskArgs;
-
-        const lbtcContract = await ethers.getContractAt('LBTC', lbtc);
-        await lbtcContract.addMinter(adapter);
     });

@@ -339,10 +339,7 @@ const config: HardhatUserConfig = {
         },
         swell: {
             loggingEnabled: true,
-            url: vars.get(
-                'SWELL_RPC',
-                'https://rpc.ankr.com/swell'
-            ),
+            url: vars.get('SWELL_RPC', 'https://rpc.ankr.com/swell'),
             chainId: 1923,
             accounts: [
                 vars.get(
