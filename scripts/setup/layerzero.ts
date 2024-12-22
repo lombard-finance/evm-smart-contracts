@@ -285,6 +285,6 @@ task('setup-oft-add-minter', 'Call `addMinter` on LTBC for OFT Adapter')
 
         const { lbtc, adapter } = taskArgs;
 
-        const lbtc = await ethers.getContractAt('LBTC', lbtc);
-        await lbtc.addMinter(adapter);
+        const lbtcContract = await ethers.getContractAt('LBTC', lbtc);
+        await lbtcContract.addMinter(adapter);
     });
