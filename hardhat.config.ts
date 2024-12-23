@@ -343,7 +343,7 @@ const config: HardhatUserConfig = {
             chainId: 1923,
             accounts: [
                 vars.get(
-                    'DEPLOYER_SK',
+                    'DEPLOYER_SWELL_SK',
                     '0x0000000000000000000000000000000000000000000000000000000000000001'
                 ),
             ],
