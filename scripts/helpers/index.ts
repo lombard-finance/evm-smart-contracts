@@ -1,6 +1,9 @@
 import { BigNumberish, ContractTransaction } from 'ethers';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 import { DEFAULT_PROXY_FACTORY } from './constants';
+import { ITimelockController } from '../../typechain-types';
+import Ethers from '@typechain/ethers-v6';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 type TAddressesWithNetwork = {
     [k: string]: TAddresses;
@@ -40,43 +43,48 @@ export async function verify(run: any, address: string, options: any = {}) {
     } catch (e) {
         console.error(`Verification failed: ${e}`);
     }
+
+    console.log('\n');
 }
 
 export async function schedule(
-    ethers: any,
-    {
-        timelockAddr,
-        transaction,
-        predecessor,
-        salt,
-        delay,
-    }: {
-        timelockAddr: string;
-        transaction: ContractTransaction;
-        predecessor?: BytesLike;
-        salt?: BytesLike;
-        delay?: BigNumberish;
-    }
+    hre: HardhatRuntimeEnvironment,
+    timelock: ITimelockController,
+    transaction: ContractTransaction,
+    predecessor?: BytesLike,
+    salt?: BytesLike,
+    delay?: BigNumberish
 ) {
-    const timelock = await ethers.getContractAt(
-        'ITimelockController',
-        timelockAddr
-    );
+    delay = delay || (await timelock.getMinDelay());
 
-    if (!delay) {
-        delay = await timelock.getMinDelay();
-    }
-
-    const res = await timelock.schedule(
+    return await timelock.schedule(
         transaction.to,
         transaction.value || '0',
         transaction.data,
-        predecessor || ethers.ZeroHash,
-        salt || ethers.ZeroHash,
+        predecessor || hre.ethers.ZeroHash,
+        salt || hre.ethers.ZeroHash,
         delay
     );
-    await res.wait();
-    console.log(res.hash);
+}
+
+export async function populateSchedule(
+    hre: HardhatRuntimeEnvironment,
+    timelock: ITimelockController,
+    transaction: ContractTransaction,
+    predecessor?: BytesLike,
+    salt?: BytesLike,
+    delay?: BigNumberish
+) {
+    delay = delay || (await timelock.getMinDelay());
+
+    return await timelock.schedule.populateTransaction(
+        transaction.to,
+        transaction.value || '0',
+        transaction.data,
+        predecessor || hre.ethers.ZeroHash,
+        salt || hre.ethers.ZeroHash,
+        delay
+    );
 }
 
 export async function getProxyFactoryAt(
