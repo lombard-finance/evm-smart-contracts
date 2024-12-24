@@ -267,7 +267,7 @@ const config: HardhatUserConfig = {
         },
         bsc: {
             loggingEnabled: true,
-            url: vars.get('MAINNET_RPC', 'https://bsc-rpc.publicnode.com'),
+            url: vars.get('BSC_RPC', 'https://bsc-rpc.publicnode.com'),
             chainId: 56,
             accounts: [
                 vars.get(
