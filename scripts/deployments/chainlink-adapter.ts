@@ -39,7 +39,7 @@ function chainlinkAdapterTask(taskName: string) {
             const args = [bridge, gasLimit, router, allowlist, rmn];
 
             const [signer] = await hre.ethers.getSigners();
-            let admin = hre.ethers.isAddress(adminArg)
+            const admin = hre.ethers.isAddress(adminArg)
                 ? adminArg
                 : await signer.getAddress();
 
