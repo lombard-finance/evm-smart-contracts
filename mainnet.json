@@ -1,0 +1,75 @@
+{
+  "mainnet": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "admin": {
+      "Owner": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
+      "TimeLock": "0x055E84e7FE8955E2781010B866f10Ef6E1E77e59"
+    },
+    "deprecated": {
+      "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
+      "Consortium": "0xed6d647e2f81e5262101aff72c4a7bcdcfd780e0"
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0x8236a87084f8B84306f72007F36F2618A5634494"
+    },
+    "chainlink": {}
+  },
+  "bsc": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000038",
+    "admin": {
+      "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
+      "TimeLock": "0x055E84e7FE8955E2781010B866f10Ef6E1E77e59"
+    },
+    "deprecated": {
+      "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
+      "Consortium": "0x1c600B19C7A5d397BEaaf03ea3646898f1E2D02e"
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
+    },
+    "BTCB": {
+      "BTCB": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
+      "BTCBPMM": "0xE4ff44a615dF38e37cdF475833c1d57774CC9D4A"
+    },
+    "chainlink": {
+      "ChainSelector": "11344663589394136015",
+      "Router": "0x34B03Cb9086d7D758AC55af71584F81A598759FE",
+      "RMN": "0x9e09697842194f77d315E0907F1Bda77922e8f84",
+      "CLAdapter": "0xc409f4a25065e64ea754dda4fa8c3ea6544fcf2f",
+      "LombardTokenPool": "0xc088F240e43efa00e28Dc30Fc00e70EfB15b72B9"
+    }
+  },
+  "base": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000002105",
+    "admin": {
+      "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
+      "TimeLock": "",
+      "Pauser": "0x36915D0439A789Ec98A8D751248b98fC88275D33"
+    },
+    "deprecated": {
+      "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
+      "Consortium": "0x1c600B19C7A5d397BEaaf03ea3646898f1E2D02e"
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
+    },
+    "CBBTC": {
+      "CBBTC": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+      "CBBTCPMM": "0x92c01FC0F59857c6E920EdFf1139904b2Bb74c7c"
+    },
+    "chainlink": {
+      "ChainSelector": "15971525489660198786",
+      "Router": "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
+      "RMN": "0xC842c69d54F83170C42C4d556B4F6B2ca53Dd3E8",
+      "CLAdapter": "0x379e827bd39559f55a1ddf6b6b8458626c39203e",
+      "LombardTokenPool": "0x03DAE4b8A096392E6eB4a4c062E7876704Fb1635"
+    }
+  }
+}
