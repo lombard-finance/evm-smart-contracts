@@ -555,17 +555,15 @@ contract LBTC is
         /// need to check new sha256 hash and legacy keccak256 from payload without selector
         /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
-        if (
-            $.usedPayloads[payloadHash] ||
-            $.legacyUsedPayloads[keccak256(payload[4:])]
-        ) {
+        bytes32 legacyHash = keccak256(payload[4:]);
+        if ($.usedPayloads[payloadHash] || $.legacyUsedPayloads[legacyHash]) {
             revert PayloadAlreadyUsed();
         }
         Consortium($.consortium).checkProof(payloadHash, proof);
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, payloadHash, depositAmount);
+        _confirmDeposit($, legacyHash, depositAmount);
 
         // Actually mint
         _mint(recipient, amountToMint);
