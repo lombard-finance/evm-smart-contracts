@@ -1,5 +1,7 @@
 import { task } from 'hardhat/config';
 import { sleep } from '../helpers';
+import type { BigNumberish } from 'ethers';
+import { RateLimiter } from '../../typechain-types/contracts/bridge/adapters/TokenPoolAdapter';
 
 task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
     .addParam('clAdapter', 'The address of chainlink adapter smart-contract')
@@ -107,24 +109,17 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
 
 task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
     .addParam('clAdapter', 'The address of chainlink adapter smart-contract')
-    .addParam('lbtc', 'The address of LBTC smart-contract at remote chain')
     .addParam('remoteSelector', 'Remote chain selector of destination chain')
-    .addParam('remotePool', 'The address of remote token pool')
     .addOptionalParam('inboundLimitRate')
     .addOptionalParam('inboundLimitCap')
     .addOptionalParam('outboundLimitRate')
     .addOptionalParam('outboundLimitCap')
-    .addFlag('disable', 'Disable pathway')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
         const {
             clAdapter,
             remoteSelector,
-            remotePool,
-            lbtc,
-
-            disable: disableArg,
 
             inboundLimitRate,
             inboundLimitCap,
@@ -140,40 +135,19 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
             await adapter.tokenPool()
         );
 
-        const remotePoolAddress =
-            remotePool.length != 42
-                ? remotePool
-                : hre.ethers.AbiCoder.defaultAbiCoder().encode(
-                      ['address'],
-                      [remotePool]
-                  );
-
-        const lbtcEncoded =
-            lbtc.length != 42
-                ? lbtc
-                : hre.ethers.AbiCoder.defaultAbiCoder().encode(
-                      ['address'],
-                      [lbtc]
-                  );
-
-        await tokenPool.applyChainUpdates([
+        await tokenPool.setChainRateLimiterConfig(
+            remoteSelector,
             {
-                remoteChainSelector: remoteSelector,
-                allowed: !disableArg,
-                remotePoolAddress,
-                remoteTokenAddress: lbtcEncoded,
-                inboundRateLimiterConfig: {
-                    isEnabled: inboundLimitRate && inboundLimitCap,
-                    rate: inboundLimitRate || 0,
-                    capacity: inboundLimitCap || 0,
-                },
-                outboundRateLimiterConfig: {
-                    isEnabled: outboundLimitRate && outboundLimitCap,
-                    rate: outboundLimitRate || 0,
-                    capacity: outboundLimitCap || 0,
-                },
+                isEnabled: outboundLimitRate && outboundLimitCap,
+                capacity: outboundLimitCap,
+                rate: outboundLimitRate,
             },
-        ]);
+            {
+                isEnabled: inboundLimitRate && inboundLimitCap,
+                capacity: inboundLimitCap,
+                rate: inboundLimitRate,
+            }
+        );
 
         console.log(
             `Chain update applied chain for selector ${remoteSelector}`
