@@ -121,7 +121,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
 
     /// @notice Returns the validator for a given epoch
     /// @param epoch the epoch to get the threshold for
-    function getValidatoSet(
+    function getValidatorSet(
         uint256 epoch
     ) external view returns (ValidatorSet memory) {
         return _getConsortiumStorage().validatorSet[epoch];
