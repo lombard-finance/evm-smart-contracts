@@ -30,10 +30,15 @@ export function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function verify(run: any, address: string, options: any = {}) {
+export async function verify(
+    run: any,
+    address: string,
+    options: any = {},
+    delay = 13_000
+) {
     console.log(`Going to verify...`);
 
-    await sleep(12_000);
+    await sleep(delay);
 
     try {
         await run('verify:verify', {
