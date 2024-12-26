@@ -237,6 +237,22 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        swellSepolia: {
+            loggingEnabled: true,
+            url: vars.get(
+                'SWELL_SEPOLIA_RPC',
+                'https://rpc.ankr.com/swell_sepolia'
+            ),
+            chainId: 1924,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
         // mainnets
         mainnet: {
             loggingEnabled: true,
@@ -334,6 +350,19 @@ const config: HardhatUserConfig = {
             gas: 8_000_000,
             gasPrice: 500000,
         },
+        swell: {
+            loggingEnabled: true,
+            url: vars.get('SWELL_RPC', 'https://rpc.ankr.com/swell'),
+            chainId: 1923,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
     },
     etherscan: {
         customChains: [
@@ -394,6 +423,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://80000.testnet.routescan.io/',
                 },
             },
+            {
+                network: 'swell_testnet',
+                chainId: 1924,
+                urls: {
+                    apiURL: 'https://swell-testnet-explorer.alt.technology/api/',
+                    browserURL: 'https://swell-testnet-explorer.alt.technology',
+                },
+            },
             // mainnets
             {
                 network: 'mantle',
@@ -427,6 +464,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://cornscan.io/',
                 },
             },
+            {
+                network: 'swell',
+                chainId: 1923,
+                urls: {
+                    apiURL: 'https://explorer.swellnetwork.io/api/',
+                    browserURL: 'https://explorer.swellnetwork.io/',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -442,6 +487,7 @@ const config: HardhatUserConfig = {
             arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
             beraBartio: 'no',
             beraCartio: 'no',
+            swell_testnet: 'no',
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -452,6 +498,7 @@ const config: HardhatUserConfig = {
             base: vars.get('BASE_API_KEY', ''),
             arbitrum: vars.get('ARBITRUM_API_KEY', ''),
             cornMaizenet: 'no',
+            swell: 'no',
         },
     },
     sourcify: {
