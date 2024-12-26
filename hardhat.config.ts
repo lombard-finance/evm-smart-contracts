@@ -224,6 +224,19 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        cronosTestnet: {
+            loggingEnabled: true,
+            url: vars.get('CRONOS_TESTNET_RPC', 'https://evm-t3.cronos.org'),
+            chainId: 338,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
         // mainnets
         mainnet: {
             loggingEnabled: true,
