@@ -1,6 +1,6 @@
 import { task } from 'hardhat/config';
 import { verify } from '../helpers';
-import * as readline from 'node:readline';
+import * as readline from 'node:readline/promises';
 
 task('deploy-proxy-factory', 'Deploys the ProxyFactory contract').setAction(
     async (_, hre) => {
@@ -18,13 +18,12 @@ task('deploy-proxy-factory', 'Deploys the ProxyFactory contract').setAction(
             console.error(
                 `Signer address (${await signer.getAddress()}) nonce ${nonce} > 0`
             );
-            rl.question('Do you want to proceed? [Y/n]: ', (ans) => {
-                if (!ans.includes('Y')) {
-                    console.log('Terminating deploy...');
-                    process.exit();
-                }
-                rl.close();
-            });
+            const ans = await rl.question('Do you want to proceed? [Y/n]: ');
+            if (!ans.includes('Y')) {
+                console.log('Terminating deploy...');
+                process.exit();
+            }
+            rl.close();
         }
 
         const factory = await ethers.deployContract('ProxyFactory');
