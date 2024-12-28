@@ -31,7 +31,7 @@ task('deploy-timelock', 'Deploys the LombardTimeLock contract')
             }
         });
 
-        console.log(`exectutors: ${JSON.stringify(executors, null, 2)}`);
+        console.log(`executors: ${JSON.stringify(executors, null, 2)}`);
         console.log(`proposers: ${JSON.stringify(proposers, null, 2)}`);
 
         const constructorArguments = [minDelay, proposers, executors];
