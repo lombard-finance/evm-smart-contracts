@@ -114,12 +114,14 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
     .addOptionalParam('inboundLimitCap')
     .addOptionalParam('outboundLimitRate')
     .addOptionalParam('outboundLimitCap')
+    .addFlag('populate')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
         const {
             clAdapter,
             remoteSelector,
+            populate,
 
             inboundLimitRate,
             inboundLimitCap,
@@ -134,6 +136,25 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
             'LombardTokenPool',
             await adapter.tokenPool()
         );
+
+        if (populate) {
+            const rawTx =
+                await tokenPool.setChainRateLimiterConfig.populateTransaction(
+                    remoteSelector,
+                    {
+                        isEnabled: outboundLimitRate && outboundLimitCap,
+                        capacity: outboundLimitCap,
+                        rate: outboundLimitRate,
+                    },
+                    {
+                        isEnabled: inboundLimitRate && inboundLimitCap,
+                        capacity: inboundLimitCap,
+                        rate: inboundLimitRate,
+                    }
+                );
+            console.log(`Tx: ${JSON.stringify(rawTx, null, 2)}`);
+            return;
+        }
 
         await tokenPool.setChainRateLimiterConfig(
             remoteSelector,
