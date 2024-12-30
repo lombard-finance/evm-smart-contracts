@@ -2,8 +2,21 @@
 pragma solidity 0.8.24;
 
 interface IDepositNotarizationBlacklist {
-    event Blacklisted(bytes32 txId, uint32 vout);
+    event Blacklisted(
+        bytes32 indexed txId,
+        uint32 indexed vout,
+        address indexed operator
+    );
+    event Cleared(
+        bytes32 indexed txId,
+        uint32 indexed vout,
+        address indexed operator
+    );
 
     function isBlacklisted(bytes32 txId, uint32 vout) external returns (bool);
     function addToBlacklist(bytes32 txId, uint32[] calldata vouts) external;
+    function removeFromBlacklist(
+        bytes32 txId,
+        uint32[] calldata vouts
+    ) external;
 }
