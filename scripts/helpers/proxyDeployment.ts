@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { verify, getProxyFactoryAt, getProxySalt } from './index';
 
-import {CustomRuntimeEnvironment} from '../cre';
+import { CustomRuntimeEnvironment } from '../cre';
 
 export async function proxyDeployment(
     contract: string,
@@ -14,11 +14,19 @@ export async function proxyDeployment(
     const cre = new CustomRuntimeEnvironment(hre);
 
     const implementationAddress = await cre.deployImplementation(contract);
-    const implementationContractFactory = await ethers.getContractFactory(contract);
+    const implementationContractFactory =
+        await ethers.getContractFactory(contract);
 
-    const initData = implementationContractFactory.interface.encodeFunctionData('initialize', args);
+    const initData = implementationContractFactory.interface.encodeFunctionData(
+        'initialize',
+        args
+    );
 
-    const proxyAddress = await cre.deployTransparentProxy(admin, implementationAddress, initData);
+    const proxyAddress = await cre.deployTransparentProxy(
+        admin,
+        implementationAddress,
+        initData
+    );
     console.log('Proxy address:', proxyAddress);
 
     const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxyAddress);

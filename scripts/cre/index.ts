@@ -48,12 +48,24 @@ export class CustomRuntimeEnvironment {
         return addr;
     }
 
-    async deployTransparentProxy(admin: string, implementation: string, initData: BytesLike): Promise<string> {
-        console.log(`Deploying transparent upgradeable proxy for implementation at ${implementation}`);
-        const contractFactory = await this.hre.ethers.getContractFactory("TransparentUpgradeableProxy");
-        const contractInstance = await contractFactory.deploy(implementation, admin, initData)
+    async deployTransparentProxy(
+        admin: string,
+        implementation: string,
+        initData: BytesLike
+    ): Promise<string> {
+        console.log(
+            `Deploying transparent upgradeable proxy for implementation at ${implementation}`
+        );
+        const contractFactory = await this.hre.ethers.getContractFactory(
+            'TransparentUpgradeableProxy'
+        );
+        const contractInstance = await contractFactory.deploy(
+            implementation,
+            admin,
+            initData
+        );
         await contractInstance.waitForDeployment();
-        const proxyAddress = await contractInstance.getAddress()
+        const proxyAddress = await contractInstance.getAddress();
         console.log(
             `New transparent upgradeable proxy for ${implementation} deployed at ${proxyAddress}`
         );
