@@ -116,8 +116,13 @@ export function getProxySalt(
  * @param {Array} args - arguments to pass to the function
  * @returns {string} - hex encoded data field
  */
-export function getTransactionData(hre: HardhatRuntimeEnvironment, functionSignature: string, args: any[]): string {
-    const functionFragment = hre.ethers.FunctionFragment.from(functionSignature);
+export function getTransactionData(
+    hre: HardhatRuntimeEnvironment,
+    functionSignature: string,
+    args: any[]
+): string {
+    const functionFragment =
+        hre.ethers.FunctionFragment.from(functionSignature);
     const iface = new hre.ethers.Interface([functionFragment]);
     return iface.encodeFunctionData(functionFragment.name, args);
 }
