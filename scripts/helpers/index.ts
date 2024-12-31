@@ -109,3 +109,15 @@ export function getProxySalt(
 ) {
     return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}`);
 }
+
+/**
+ * Computes data for calling a method on a contract
+ * @param {string} functionSignature - method signature in solidity selector format "functionName(uint256)".
+ * @param {Array} args - arguments to pass to the function
+ * @returns {string} - hex encoded data field
+ */
+export function getTransactionData(hre: HardhatRuntimeEnvironment, functionSignature: string, args: any[]): string {
+    const functionFragment = hre.ethers.FunctionFragment.from(functionSignature);
+    const iface = new hre.ethers.Interface([functionFragment]);
+    return iface.encodeFunctionData(functionFragment.name, args);
+}
