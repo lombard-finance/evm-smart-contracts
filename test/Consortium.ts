@@ -39,11 +39,26 @@ describe('Consortium', function () {
         });
     });
 
-    it('should revert if not validator set is set', async function () {
+    it('checkProof :: should revert if not validator set is set', async function () {
         // Empty proof should bypass check if not properly handled
         // Message is not relevant for this test
         await expect(
             lombard.checkProof(ethers.randomBytes(32), '0x')
+        ).to.be.revertedWithCustomError(lombard, 'NoValidatorSet');
+    });
+
+    it('setNextValidatorSet :: should revert if no initial validator set', async function () {
+        const { payload, proof } = await signNewValSetPayload(
+            [signer3, signer1, signer2],
+            [true, true, false],
+            0,
+            [signer1.publicKey, signer2.publicKey],
+            [1, 1],
+            2,
+            1
+        );
+        await expect(
+            lombard.setNextValidatorSet(payload, proof)
         ).to.be.revertedWithCustomError(lombard, 'NoValidatorSet');
     });
 
@@ -64,7 +79,7 @@ describe('Consortium', function () {
         });
 
         it('should set the correct threshold', async function () {
-            const validatorSet = await lombard.getValidatoSet(10);
+            const validatorSet = await lombard.getValidatorSet(10);
             expect(validatorSet.weightThreshold).to.equal(2);
             expect(validatorSet.weights).to.deep.equal([1, 1, 1]);
             expect(validatorSet.validators).to.deep.equal([
@@ -92,7 +107,7 @@ describe('Consortium', function () {
                 .to.emit(lombard, 'ValidatorSetUpdated')
                 .withArgs(11, [signer1.address, signer2.address], [1, 2], 3);
 
-            const validatorSet = await lombard.getValidatoSet(11);
+            const validatorSet = await lombard.getValidatorSet(11);
             expect(validatorSet.weightThreshold).to.equal(3);
             expect(validatorSet.weights).to.deep.equal([1, 2]);
             expect(validatorSet.validators).to.deep.equal([
