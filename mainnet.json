@@ -12,6 +12,12 @@
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "LBTC": "0x8236a87084f8B84306f72007F36F2618A5634494"
+
+    },
+    "fbtc": {
+      "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
+      "FBTC": "0xC96dE26018A54D51c097160568752c4E3BD6C364",
+      "LockedFBTC": "0xfe4EcD930A1282325aeF8e946f17c0E25744de45"
     },
     "chainlink": {}
   },
