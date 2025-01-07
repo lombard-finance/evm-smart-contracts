@@ -62,7 +62,7 @@ await stakeAndBake.removeDepositor(vaultAddress);
 
 **Method:** `stakeAndBake(StakeAndBakeData calldata data)`
 
-**Description:** Performs automint for a user, and immediately sends his LBTC into a given vault, and returns the vault's shares to the user.
+**Description:** Performs mint for a user, and immediately sends his LBTC into a given vault, and returns the vault's shares to the user. Funds should be permitted to be transferred to the `StakeAndBake` contract, or there should be an outstanding allowance to the `StakeAndBake` contract in order to make this function work.
 
 **Parameter layout:**
 
@@ -82,14 +82,10 @@ struct StakeAndBakeData {
     bytes mintPayload;
     /// @notice proof Signature of the consortium approving the mint
     bytes proof;
-    /// @notice feePayload Contents of the fee approval signed by the user
-    bytes feePayload;
-    /// @notice userSignature Signature of the user to allow Fee
-    bytes userSignature;
 }
 ```
 
-The lower 4 fields are identical to the parameters for the `_mintWithFee` functionality on `LBTC`. The first address should point at the vault the user wishes to deposit in, and the second address should be the user address.
+The lower 2 fields are identical to the parameters for the `mint` functionality on `LBTC`. The first address should point at the vault the user wishes to deposit in, and the second address should be the user address.
 
 The layout for `permitLayout` is as follows:
 
@@ -152,8 +148,6 @@ await stakeAndBake.batchStakeAndBake([
         depositPayload: depositPayload1,
         mintPayload: data.payload1,
         proof: data.proof1,
-        feePayload: approval1,
-        userSignature: userSignature1,
     },
     {
         vault: await teller.getAddress(),
@@ -162,8 +156,6 @@ await stakeAndBake.batchStakeAndBake([
         depositPayload: depositPayload2,
         mintPayload: data.payload2,
         proof: data.proof2,
-        feePayload: approval2,
-        userSignature: userSignature2,
     }
 ])
 ```
