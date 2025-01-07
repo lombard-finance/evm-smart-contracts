@@ -37,7 +37,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
 
         // Take the owner's LBTC.
         ERC20(depositAsset).safeTransferFrom(
-            owner,
+            msg.sender,
             address(this),
             depositAmount
         );
