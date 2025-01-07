@@ -198,6 +198,56 @@ describe('StakeAndBake', function () {
                     depositValue - 50
                 );
         });
+        it('should work with allowance', async function () {
+            await lbtc
+                .connect(signer2)
+                .approve(await stakeAndBake.getAddress(), value);
+            await lbtc.setMintFee(fee);
+            await expect(
+                stakeAndBake.stakeAndBake({
+                    vault: await teller.getAddress(),
+                    owner: signer2.address,
+                    permitPayload: ethers.randomBytes(64),
+                    depositPayload: depositPayload,
+                    mintPayload: data.payload,
+                    proof: data.proof,
+                })
+            )
+                .to.emit(lbtc, 'MintProofConsumed')
+                .withArgs(signer2.address, data.payloadHash, data.payload)
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer2.address, value)
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    signer2.address,
+                    await stakeAndBake.getAddress(),
+                    value
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    await stakeAndBake.getAddress(),
+                    treasury.address,
+                    fee
+                )
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(
+                    await stakeAndBake.getAddress(),
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    depositValue
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    ethers.ZeroAddress,
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    depositValue - 50
+                )
+                .to.emit(teller, 'Transfer')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress(),
+                    signer2.address,
+                    depositValue - 50
+                );
+        });
         it('should batch stake and bake properly with the correct setup', async function () {
             // NB for some reason trying to do this in a loop and passing around arrays of parameters
             // makes the test fail, so i'm doing it the ugly way here

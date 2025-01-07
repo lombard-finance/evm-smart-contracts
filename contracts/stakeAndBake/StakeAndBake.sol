@@ -120,16 +120,15 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         uint256 amount = action.amount;
 
         // We check if we can simply use transferFrom.
-        if (_allowance(data.owner, address(depositor)) < amount) {
-            // Otherwise, we permit the depositor to transfer the minted value.
+        // Otherwise, we permit the depositor to transfer the minted value.
+        if (_allowance(data.owner) < amount)
             _performPermit(data.permitPayload, data.owner);
-        }
 
         _takeMintedLbtc(data.owner, amount);
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = _getLbtcMaximumFee();
-        _transferFee(data.owner, feeAmount);
+        _transferFee(feeAmount);
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
@@ -174,12 +173,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         $.lbtc.mint(mintPayload, proof);
     }
 
-    function _allowance(
-        address owner,
-        address depositor
-    ) private view returns (uint256) {
+    function _allowance(address owner) private view returns (uint256) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.lbtc.allowance(owner, depositor);
+        return $.lbtc.allowance(owner, address(this));
     }
 
     function _takeMintedLbtc(address owner, uint256 amount) private {
@@ -192,7 +188,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         return $.lbtc.getMintFee();
     }
 
-    function _transferFee(address owner, uint256 amount) private {
+    function _transferFee(uint256 amount) private {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         address treasury = $.lbtc.getTreasury();
         $.lbtc.transfer(treasury, amount);
