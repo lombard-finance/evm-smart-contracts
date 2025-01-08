@@ -84,21 +84,25 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Calculate the fee to be paid for CCIP message routing.
+     * @dev Ignores _toContract and _payload, because they're not a part of CCIP message.
+     * @param _toChain Chain id of destination chain.
+     * @param _toAddress Recipient address.
+     * @param _amount The amount of LBTC to bridge.
+     * @return The fee in native currency for CCIP message routing.
+     */
     function getFee(
         bytes32 _toChain,
-        bytes32,
+        bytes32 /* _toContract, */,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes memory _payload
+        bytes memory /* _payload */
     ) public view override returns (uint256) {
         return
             IRouterClient(tokenPool.getRouter()).getFee(
                 getRemoteChainSelector[_toChain],
-                _buildCCIPMessage(
-                    abi.encodePacked(_toAddress),
-                    _amount,
-                    _payload
-                )
+                _buildCCIPMessage(abi.encodePacked(_toAddress), _amount)
             );
     }
 
@@ -168,8 +172,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
 
         Client.EVM2AnyMessage memory message = _buildCCIPMessage(
             abi.encodePacked(_toAddress),
-            _amount,
-            _payload
+            _amount
         );
 
         address router = tokenPool.getRouter();
@@ -221,8 +224,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
 
     function _buildCCIPMessage(
         bytes memory _receiver,
-        uint256 _amount,
-        bytes memory _payload
+        uint256 _amount
     ) private view returns (Client.EVM2AnyMessage memory) {
         // Set the token amounts
         Client.EVMTokenAmount[]
