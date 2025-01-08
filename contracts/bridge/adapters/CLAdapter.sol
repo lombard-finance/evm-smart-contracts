@@ -220,7 +220,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         /// and would be replaced during manual execution.
         /// Bypass other payload checks against CCIP message
         /// because payload can only be generated in deposit transaction
-        if (bytes32(payloadHash[:32]) != sha256(offchainData)) {
+        if (bytes32(payloadHash[:32]) != sha256(payload)) {
             revert CLPayloadMismatch();
         }
 
