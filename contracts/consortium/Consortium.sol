@@ -207,7 +207,7 @@ contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
                     (address signer, ECDSA.RecoverError err, ) = ECDSA
                         .tryRecover(_payloadHash, 27, r, s);
 
-                    // revert if bad signature
+                    // ignore if bad signature
                     if (err != ECDSA.RecoverError.NoError) {
                         continue;
                     }
