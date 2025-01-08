@@ -12,8 +12,8 @@
       "ChainSelector": "7717148896336251131",
       "Router": "0xb9531b46fE8808fB3659e39704953c2B1112DD43",
       "RMN": "0x8607115fd037d4f182b0eBaEC3cF08Df67080d05",
-      "CLAdapter": "0xdb2973e0Aa5A5D979Ce928716e250Ea10798d5E0",
-      "LombardTokenPool": "0x6DD27FfEf860b54C8291856AFDEDB3E5e9D4c68e"
+      "CLAdapter": "0xd1524cd0c7c638ff663203c20C27b83CC1b70021",
+      "LombardTokenPool": "0x1c32a78AF69f60Fcf7989383f89920216a9Ae0AA"
     }
   },
   "btcTestnet": {
@@ -39,8 +39,8 @@
       "ChainSelector": "10344971235874465080",
       "Router": "0xD3b06cEbF099CE7DA4AcCf578aaebFDBd6e88a93",
       "RMN": "0x99360767a4705f68CcCb9533195B761648d6d807",
-      "CLAdapter": "0xEBA34F6b1aCcFC2cf075220e161656481Bfa63dE",
-      "LombardTokenPool": "0x5bcB0336169A9E011513E934F67e9d00D5230CF8"
+      "CLAdapter": "0x84Ad0dAcD195ebCFB7059Dee1A36903e76919eBa",
+      "LombardTokenPool": "0x204ae9A27C2eC4D7B2c0f56447f7e15912B37783"
     }
   }
 }
