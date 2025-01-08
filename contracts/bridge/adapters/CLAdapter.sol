@@ -28,6 +28,8 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     error ZeroPayload();
     error ReceiverTooBig();
     error AmountOverflow();
+    error CLPayloadMismatch();
+    error CLWrongPayloadHashLength();
 
     event CLChainSelectorSet(bytes32, uint64);
     event CLTokenPoolDeployed(address);
@@ -202,12 +204,23 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
 
     function initiateWithdrawal(
         uint64 remoteSelector,
-        bytes calldata offChainData
+        bytes calldata payloadHash,
+        bytes calldata offchainData
     ) external onlyTokenPool returns (uint64) {
+        if (payloadHash.length != 32) {
+            revert CLWrongPayloadHashLength();
+        }
+
         (bytes memory payload, bytes memory proof) = abi.decode(
-            offChainData,
+            offchainData,
             (bytes, bytes)
         );
+
+        /// verify hash, because payload from offchainData is untrusted
+        /// and would be replaced during manual execution
+        if (bytes32(payloadHash[:32]) != sha256(offchainData)) {
+            revert CLPayloadMismatch();
+        }
 
         _receive(getChain[remoteSelector], payload);
         bridge.authNotary(payload, proof);
