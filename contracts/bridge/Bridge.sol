@@ -114,7 +114,7 @@ contract Bridge is
     }
 
     /**
-     * @notice Calculates adapter fees
+     * @notice Calculates adapter fees.
      * @param toChain Chain id of destination chain.
      * @param toAddress Recipient address.
      * @param amount The amount of LBTC to bridge.
@@ -125,8 +125,14 @@ contract Bridge is
         bytes32 toAddress,
         uint64 amount
     ) external view returns (uint256) {
+        // return 0 if destination not set
         DestinationConfig memory destConfig = getDestination(toChain);
         if (destConfig.bridgeContract == bytes32(0)) {
+            return 0;
+        }
+
+        // return 0 if adapter not set
+        if (address(destConfig.adapter) == address(0)) {
             return 0;
         }
 
