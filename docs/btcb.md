@@ -2,7 +2,7 @@
 
 ## Overview
 
-The BTCBPMM (BTCB Private Market Maker) contract allows users to swap BTCB for LBTC and manages the amount of BTCB that can be staked.
+The BTCBPMM (BTCB Private Market Maker) contract allows users to swap BTCB for LBTC and manages the amount of LBTC that can be obtained through this contract.
 
 ## Key Methods
 
