@@ -53,7 +53,7 @@
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000002105",
     "admin": {
       "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
-      "TimeLock": "",
+      "TimeLock": "0xf1fc1bE000Db6fa2193aB75E461a5603400d031F",
       "Pauser": "0x36915D0439A789Ec98A8D751248b98fC88275D33"
     },
     "deprecated": {
