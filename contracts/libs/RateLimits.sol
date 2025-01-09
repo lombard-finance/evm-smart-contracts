@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 library RateLimits {
     /**
      * @notice Rate Limit struct.
-     * @param amountInFlight Current amount within the rate limit window.
+     * @param amountInFlight The amount in the current window.
      * @param lastUpdated Timestamp representing the last time the rate limit was checked or updated.
      * @param limit This represents the maximum allowed amount within a given window.
      * @param window Defines the duration of the rate limiting window.
@@ -28,12 +28,10 @@ library RateLimits {
         uint256 window;
     }
 
-    /**
-     * @notice Error that is thrown when an amount exceeds the rate_limit for a given direction.
-     */
+    /// @notice Error that is thrown when an amount exceeds the rate_limit.
     error RateLimitExceeded();
 
-    /// @notice Emitted when a rate limit seems to be malformed.
+    /// @notice Error that is thrown when a rate limit seems to be malformed.
     error MalformedRateLimit();
 
     function setRateLimit(Data storage rl, Config memory config) internal {
@@ -62,14 +60,13 @@ library RateLimits {
     }
 
     /**
-     * @dev Calculates the current amount in flight and the available capacity based on the rate limit configuration and time elapsed.
-     * This function applies a linear decay model to compute how much of the 'amountInFlight' remains based on the time elapsed since the last update.
+     * @notice Checks current amount in flight and amount that can be sent for a given rate limit window.
      * @param _amountInFlight The total amount that was in flight at the last update.
-     * @param _lastUpdated The timestamp (in seconds) when the last update occurred.
-     * @param _limit The maximum allowable amount within the specified window.
-     * @param _window The time window (in seconds) for which the limit applies.
-     * @return currentAmountInFlight The decayed amount of in-flight based on the elapsed time since lastUpdated. If the time since lastUpdated exceeds the window, it returns zero.
-     * @return amountCanBeSent The amount of capacity available for new activity. If the time since lastUpdated exceeds the window, it returns the full limit.
+     * @param _lastUpdated Timestamp representing the last time the rate limit was checked or updated.
+     * @param _limit The maximum allowable amount within the specified window
+     * @param _window Defines the duration of the rate limiting window.
+     * @return currentAmountInFlight The amount in the current window.
+     * @return amountCanBeSent The amount that can be sent.
      */
     function availableAmountToSend(
         uint256 _amountInFlight,
@@ -96,6 +93,13 @@ library RateLimits {
         }
     }
 
+    /**
+     * @notice Verifies whether the specified amount falls within the rate limit constraints.
+     * On successful verification, it updates amountInFlight and lastUpdated. If the amount exceeds
+     * the rate limit, the operation reverts.
+     * @param rl The rate limits to update.
+     * @param _amount The amount to check and apply for rate limit constraints.
+     */
     function updateLimit(Data storage rl, uint256 _amount) internal {
         (
             uint256 currentAmountInFlight,
