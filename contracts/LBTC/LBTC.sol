@@ -399,7 +399,18 @@ contract LBTC is
             revert InvalidInputLength();
         }
 
+        LBTCStorage storage $ = _getLBTCStorage();
         for (uint256 i; i < payload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(payload[i]);
+            if (
+                $.usedPayloads[payloadHash] ||
+                $.legacyUsedPayloads[keccak256(payload[i][4:])]
+            ) {
+                emit BatchMintSkipped(payloadHash, payload[i]);
+                continue;
+            }
+
             mint(payload[i], proof[i]);
         }
     }
@@ -445,6 +456,16 @@ contract LBTC is
 
         LBTCStorage storage $ = _getLBTCStorage();
         for (uint256 i; i < mintPayload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(mintPayload[i]);
+            if (
+                $.usedPayloads[payloadHash] ||
+                $.legacyUsedPayloads[keccak256(mintPayload[i][4:])]
+            ) {
+                emit BatchMintSkipped(payloadHash, mintPayload[i]);
+                continue;
+            }
+
             _mintWithFee(
                 mintPayload[i],
                 proof[i],
