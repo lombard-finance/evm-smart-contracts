@@ -76,6 +76,9 @@ library BitcoinUtils {
         ) {
             // witness v0 and v1 has a cheaper payment formula
             spendCost += WITNESS_INPUT_SIZE;
+            // The current addition creates a discrepancy of 1, and our final value should be 98 bytes.
+            // Thus, we add 1 here.
+            spendCost += 1;
         } else {
             spendCost += NON_WITNESS_INPUT_SIZE;
         }
