@@ -13,7 +13,7 @@ interface IDepositNotarizationBlacklist {
         address indexed operator
     );
 
-    function isBlacklisted(bytes32 txId, uint32 vout) external returns (bool);
+    function isBlacklisted(bytes32 txId, uint32 vout) external view returns (bool);
     function addToBlacklist(bytes32 txId, uint32[] calldata vouts) external;
     function removeFromBlacklist(
         bytes32 txId,
