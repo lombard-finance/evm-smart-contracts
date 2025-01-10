@@ -10,8 +10,8 @@ task(
         'the account to set as initial default admin of the blacklist contract'
     )
     .addParam(
-        'proxyAdmin',
-        'the account to set as admin of the proxy in charge of contract upgrades'
+        'proxyOwner',
+        'the account in charge of contract upgrades to set as admin of the proxy'
     )
     .setAction(async (taskArgs, hre) => {
         const { admin, proxyAdmin } = taskArgs;
