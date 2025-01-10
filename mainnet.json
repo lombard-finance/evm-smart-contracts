@@ -24,8 +24,8 @@
       "ChainSelector": "5009297550715157269",
       "Router": "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
       "RMN": "0x411dE17f12D1A34ecC7F45f49844626267c75e81",
-      "CLAdapter": "",
-      "LombardTokenPool": ""
+      "CLAdapter": "0x2298d44CFDa0ceAfE7F5Ef5FD587B67d7b9b1Fbb",
+      "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
     }
   },
   "bsc": {
