@@ -207,7 +207,7 @@ describe('StakeAndBake', function () {
                 stakeAndBake.stakeAndBake({
                     vault: await teller.getAddress(),
                     owner: signer2.address,
-                    permitPayload: ethers.randomBytes(64),
+                    permitPayload: permitPayload,
                     depositPayload: depositPayload,
                     mintPayload: data.payload,
                     proof: data.proof,

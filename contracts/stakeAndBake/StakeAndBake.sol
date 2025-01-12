@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {LBTC} from "../LBTC/LBTC.sol";
+import {ILBTC} from "../LBTC/ILBTC.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
@@ -92,8 +93,16 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @notice Mint LBTC and stake directly into a given vault in batches.
      */
     function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         for (uint256 i; i < data.length; ) {
-            stakeAndBake(data[i]);
+            bytes32 payloadHash = sha256(data[i].mintPayload);
+            bytes32 legacyPayloadHash = keccak256(data[i].mintPayload[4:]);
+            if ($.lbtc.isPayloadUsed(payloadHash, legacyPayloadHash)) {
+                emit ILBTC.BatchMintSkipped(payloadHash, data[i].mintPayload);
+            } else {
+                stakeAndBake(data[i]);
+            }
+
             unchecked {
                 i++;
             }
@@ -105,38 +114,65 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @param data The bundled data needed to execute this function
      */
     function stakeAndBake(StakeAndBakeData calldata data) public nonReentrant {
-        IDepositor depositor = _getDepositor(data.vault);
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+
+        IDepositor depositor = $.depositors[data.vault];
         if (address(depositor) == address(0)) {
             revert VaultNotFound();
         }
 
         // First, mint the LBTC and send to owner.
-        _mint(data.mintPayload, data.proof);
+        $.lbtc.mint(data.mintPayload, data.proof);
 
         // Check how much we minted.
         Actions.DepositBtcAction memory action = Actions.depositBtc(
             data.mintPayload[4:]
         );
         uint256 amount = action.amount;
+        (
+            uint256 permitAmount,
+            uint256 deadline,
+            uint8 v,
+            bytes32 r,
+            bytes32 s
+        ) = abi.decode(
+                data.permitPayload,
+                (uint256, uint256, uint8, bytes32, bytes32)
+            );
 
         // We check if we can simply use transferFrom.
         // Otherwise, we permit the depositor to transfer the minted value.
-        if (_allowance(data.owner) < amount)
-            _performPermit(data.permitPayload, data.owner);
+        if ($.lbtc.allowance(data.owner, address(this)) < permitAmount)
+            $.lbtc.permit(
+                data.owner,
+                address(this),
+                permitAmount,
+                deadline,
+                v,
+                r,
+                s
+            );
 
-        _takeMintedLbtc(data.owner, amount);
+        $.lbtc.transferFrom(data.owner, address(this), permitAmount);
 
         // Take the current maximum fee from the user.
-        uint256 feeAmount = _getLbtcMaximumFee();
-        _transferFee(feeAmount);
+        uint256 feeAmount = $.lbtc.getMintFee();
+        $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        uint256 remainingAmount = amount - feeAmount;
-        _allowToVault(address(depositor), remainingAmount);
+        uint256 remainingAmount = permitAmount - feeAmount;
+        if (remainingAmount != 0) {
+            $.lbtc.approve(address(depositor), remainingAmount);
 
-        // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(data.vault, data.owner, data.depositPayload);
+            // Finally, deposit LBTC to the given `vault`.
+            depositor.deposit(data.vault, data.owner, data.depositPayload);
+        }
+    }
+
+    function getStakeAndBakeFee() public view returns (uint256) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.lbtc.getMintFee();
     }
 
     function _getStakeAndBakeStorage()
@@ -147,55 +183,5 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         assembly {
             $.slot := STAKE_AND_BAKE_STORAGE_LOCATION
         }
-    }
-
-    function _getDepositor(
-        address vault
-    ) private view returns (IDepositor depositor) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.depositors[vault];
-    }
-
-    function _performPermit(
-        bytes calldata permitPayload,
-        address owner
-    ) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-
-        (uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) = abi
-            .decode(permitPayload, (uint256, uint256, uint8, bytes32, bytes32));
-
-        $.lbtc.permit(owner, address(this), value, deadline, v, r, s);
-    }
-
-    function _mint(bytes calldata mintPayload, bytes calldata proof) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc.mint(mintPayload, proof);
-    }
-
-    function _allowance(address owner) private view returns (uint256) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.lbtc.allowance(owner, address(this));
-    }
-
-    function _takeMintedLbtc(address owner, uint256 amount) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc.transferFrom(owner, address(this), amount);
-    }
-
-    function _getLbtcMaximumFee() private view returns (uint256) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.lbtc.getMintFee();
-    }
-
-    function _transferFee(uint256 amount) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        address treasury = $.lbtc.getTreasury();
-        $.lbtc.transfer(treasury, amount);
-    }
-
-    function _allowToVault(address depositor, uint256 amount) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc.approve(depositor, amount);
     }
 }

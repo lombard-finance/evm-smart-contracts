@@ -399,14 +399,11 @@ contract LBTC is
             revert InvalidInputLength();
         }
 
-        LBTCStorage storage $ = _getLBTCStorage();
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
-            if (
-                $.usedPayloads[payloadHash] ||
-                $.legacyUsedPayloads[keccak256(payload[i][4:])]
-            ) {
+            bytes32 legacyPayloadHash = keccak256(payload[i][4:]);
+            if (isPayloadUsed(payloadHash, legacyPayloadHash)) {
                 emit BatchMintSkipped(payloadHash, payload[i]);
                 continue;
             }
@@ -454,14 +451,11 @@ contract LBTC is
             revert InvalidInputLength();
         }
 
-        LBTCStorage storage $ = _getLBTCStorage();
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
-            if (
-                $.usedPayloads[payloadHash] ||
-                $.legacyUsedPayloads[keccak256(mintPayload[i][4:])]
-            ) {
+            bytes32 legacyPayloadHash = keccak256(mintPayload[i][4:]);
+            if (isPayloadUsed(payloadHash, legacyPayloadHash)) {
                 emit BatchMintSkipped(payloadHash, mintPayload[i]);
                 continue;
             }
@@ -525,6 +519,22 @@ contract LBTC is
      */
     function burn(address from, uint256 amount) external override onlyMinter {
         _burn(from, amount);
+    }
+
+    /**
+     * @dev Returns whether a minting payload has been used already
+     *
+     * @param payloadHash The minting payload hash
+     * @param legacyPayloadHash The legacy minting payload hash
+     */
+    function isPayloadUsed(
+        bytes32 payloadHash,
+        bytes32 legacyPayloadHash
+    ) public view returns (bool) {
+        LBTCStorage storage $ = _getLBTCStorage();
+        return
+            $.usedPayloads[payloadHash] ||
+            $.legacyUsedPayloads[legacyPayloadHash];
     }
 
     /// PRIVATE FUNCTIONS ///
