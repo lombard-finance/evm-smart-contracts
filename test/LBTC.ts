@@ -730,7 +730,7 @@ describe('LBTC', function () {
                     signatureRecipient: () => {
                         return { address: ethers.ZeroAddress };
                     },
-                    customError: 'ZeroAddress',
+                    customError: 'Actions_ZeroAddress',
                     interface: () => lbtc,
                 },
                 {
