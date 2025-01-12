@@ -38,3 +38,39 @@ jobs:
 
             - name: Check formatting
               run: yarn format:check
+
+    tuf_on_ci_signing:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: '18.17.0'
+
+            - name: Cache node modules
+              uses: actions/cache@v3
+              env:
+                  cache-name: cache-node-modules
+              with:
+                  path: ~/.npm
+                  key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-build-${{ env.cache-name }}-
+                      ${{ runner.os }}-build-
+                      ${{ runner.os }}-
+
+            - name: Install dependencies
+              run: yarn install --frozen-lockfile
+
+            - name: Initialize TUF
+              run: tuf init --repository /tmp/tuf-repo
+
+            - name: Sign artifacts
+              run: yarn tuf-sign
+
+            - name: Verify signatures
+              run: tuf verify --repository /tmp/tuf-repo --artifact path/to/artifact

@@ -7,7 +7,8 @@
   "scripts": {
     "format": "prettier --write './**/*.{sol,ts,js}'",
     "format:check": "prettier --check './**/*.{sol,ts,js}'",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "tuf-sign": "tuf sign --repository /tmp/tuf-repo --artifact path/to/artifact"
   },
   "devDependencies": {
     "@chainlink/contracts-ccip": "^1.5.0",
@@ -48,7 +49,8 @@
     "ts-node": ">=8.0.0",
     "typechain": "^8.3.0",
     "typescript": ">=4.5.0",
-    "web3": "^1.10.0"
+    "web3": "^1.10.0",
+    "@theupdateframework/tuf-cli": "^1.0.0"
   },
   "resolutions": {
     "@openzeppelin/contracts": "^5.0.2"
