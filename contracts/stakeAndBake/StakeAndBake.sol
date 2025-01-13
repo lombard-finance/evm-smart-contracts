@@ -99,16 +99,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @notice Mint LBTC and stake directly into a given vault in batches.
      */
     function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         for (uint256 i; i < data.length; ) {
-            bytes32 payloadHash = sha256(data[i].mintPayload);
-            bytes32 legacyPayloadHash = keccak256(data[i].mintPayload[4:]);
-            if ($.lbtc.isPayloadUsed(payloadHash, legacyPayloadHash)) {
-                emit ILBTC.BatchMintSkipped(payloadHash, data[i].mintPayload);
-            } else {
-                try this.stakeAndBake(data[i]) {} catch {
-                    emit BatchStakeAndBakeReverted(data[i].owner, data[i]);
-                }
+            try this.stakeAndBake(data[i]) {} catch {
+                emit BatchStakeAndBakeReverted(data[i].owner, data[i]);
             }
 
             unchecked {
