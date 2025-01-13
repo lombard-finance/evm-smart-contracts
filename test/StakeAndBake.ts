@@ -54,6 +54,7 @@ describe('StakeAndBake', function () {
         stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
             await lbtc.getAddress(),
             deployer.address,
+            operator.address,
             1,
         ]);
 
@@ -69,11 +70,6 @@ describe('StakeAndBake', function () {
                 [],
                 false
             );
-
-        await stakeAndBake.grantRole(
-            '0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929',
-            operator
-        );
 
         // mock minter for lbtc
         await lbtc.addMinter(deployer.address);

@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import {LBTC} from "../LBTC/LBTC.sol";
 import {ILBTC} from "../LBTC/ILBTC.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
 import {Actions} from "../libs/Actions.sol";
@@ -14,7 +14,7 @@ import {Actions} from "../libs/Actions.sol";
  * @author Lombard.Finance
  * @notice This contract is a part of the Lombard.Finance protocol
  */
-contract StakeAndBake is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
+contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev error thrown when batched stake and bake has mismatching lengths
     error InvalidInputLength();
     /// @dev error thrown when stake and bake is attempted with an unknown vault address
@@ -23,6 +23,8 @@ contract StakeAndBake is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     error IncorrectPermitAmount();
     /// @dev error thrown when the remaining amount after taking a fee is zero
     error ZeroDepositAmount();
+    /// @dev error thrown when an unauthorized account calls an operator only function
+    error UnauthorizedAccount(address account);
 
     event DepositorAdded(address indexed vault, address indexed depositor);
     event DepositorRemoved(address indexed vault);
@@ -49,10 +51,9 @@ contract StakeAndBake is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     struct StakeAndBakeStorage {
         LBTC lbtc;
         mapping(address => IDepositor) depositors;
+        address operator;
         uint256 fee;
     }
-
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant STAKE_AND_BAKE_STORAGE_LOCATION =
@@ -64,26 +65,35 @@ contract StakeAndBake is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
         _disableInitializers();
     }
 
+    modifier onlyOperator() {
+        if (_getStakeAndBakeStorage().operator != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     function initialize(
         address lbtc_,
         address owner_,
-        uint256 fee
+        address operator_,
+        uint256 fee_
     ) external initializer {
-        __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, owner_);
+        __Ownable_init(owner_);
+        __Ownable2Step_init();
 
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.lbtc = LBTC(lbtc_);
-        $.fee = fee;
+        $.fee = fee_;
+        $.operator = operator_;
     }
 
     /**
      * @notice Sets the claiming fee
      * @param fee The fee to set
      */
-    function setFee(uint256 fee) external onlyRole(OPERATOR_ROLE) {
+    function setFee(uint256 fee) external onlyOperator {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         uint256 oldFee = $.fee;
         $.fee = fee;
@@ -96,10 +106,7 @@ contract StakeAndBake is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
      * @param vault The address of the vault we wish to be able to deposit to
      * @param depositor The address of the depositor abstraction we use to deposit to the vault
      */
-    function addDepositor(
-        address vault,
-        address depositor
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addDepositor(address vault, address depositor) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(depositor);
         emit DepositorAdded(vault, depositor);
@@ -110,9 +117,7 @@ contract StakeAndBake is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
      * functionality for it.
      * @param vault The address of the vault we wish to remove from the internal mapping
      */
-    function removeDepositor(
-        address vault
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeDepositor(address vault) external onlyOwner {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(address(0));
         emit DepositorRemoved(vault);
