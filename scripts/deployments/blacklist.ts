@@ -14,11 +14,11 @@ task(
         'the account in charge of contract upgrades to set as admin of the proxy'
     )
     .setAction(async (taskArgs, hre) => {
-        const { admin, proxyAdmin } = taskArgs;
+        const { admin, proxyOwner } = taskArgs;
         await proxyDeployment(
             'DepositNotarizationBlacklist',
             [admin],
-            proxyAdmin,
+            proxyOwner,
             hre
         );
     });
