@@ -21,9 +21,15 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     error VaultNotFound();
     /// @dev error thrown when the permit amount is not corresponding to the mint amount
     error IncorrectPermitAmount();
+    /// @dev error thrown when the remaining amount after taking a fee is zero
+    error ZeroDepositAmount();
 
     event DepositorAdded(address indexed vault, address indexed depositor);
     event DepositorRemoved(address indexed vault);
+    event BatchStakeAndBakeReverted(
+        address indexed owner,
+        StakeAndBakeData data
+    );
 
     struct StakeAndBakeData {
         /// @notice vault Address of the vault we will deposit the minted LBTC to
@@ -100,7 +106,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
             if ($.lbtc.isPayloadUsed(payloadHash, legacyPayloadHash)) {
                 emit ILBTC.BatchMintSkipped(payloadHash, data[i].mintPayload);
             } else {
-                stakeAndBake(data[i]);
+                try this.stakeAndBake(data[i]) {} catch {
+                    emit BatchStakeAndBakeReverted(data[i].owner, data[i]);
+                }
             }
 
             unchecked {
@@ -113,7 +121,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @notice Mint LBTC and stake directly into a given vault.
      * @param data The bundled data needed to execute this function
      */
-    function stakeAndBake(StakeAndBakeData calldata data) public nonReentrant {
+    function stakeAndBake(
+        StakeAndBakeData calldata data
+    ) external nonReentrant {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         IDepositor depositor = $.depositors[data.vault];
@@ -124,11 +134,6 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         // First, mint the LBTC and send to owner.
         $.lbtc.mint(data.mintPayload, data.proof);
 
-        // Check how much we minted.
-        Actions.DepositBtcAction memory action = Actions.depositBtc(
-            data.mintPayload[4:]
-        );
-        uint256 amount = action.amount;
         (
             uint256 permitAmount,
             uint256 deadline,
@@ -159,18 +164,18 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         uint256 feeAmount = $.lbtc.getMintFee();
         $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
 
+        uint256 remainingAmount = permitAmount - feeAmount;
+        if (remainingAmount == 0) revert ZeroDepositAmount();
+
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        uint256 remainingAmount = permitAmount - feeAmount;
-        if (remainingAmount != 0) {
-            $.lbtc.approve(address(depositor), remainingAmount);
+        $.lbtc.approve(address(depositor), remainingAmount);
 
-            // Finally, deposit LBTC to the given `vault`.
-            depositor.deposit(data.vault, data.owner, data.depositPayload);
-        }
+        // Finally, deposit LBTC to the given `vault`.
+        depositor.deposit(data.vault, data.owner, data.depositPayload);
     }
 
-    function getStakeAndBakeFee() public view returns (uint256) {
+    function getStakeAndBakeFee() external view returns (uint256) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         return $.lbtc.getMintFee();
     }
