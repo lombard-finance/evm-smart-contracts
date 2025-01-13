@@ -25,6 +25,8 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     error ZeroDepositAmount();
     /// @dev error thrown when an unauthorized account calls an operator only function
     error UnauthorizedAccount(address account);
+    /// @dev error thrown when operator is changed to zero address
+    error ZeroAddress();
 
     event DepositorAdded(address indexed vault, address indexed depositor);
     event DepositorRemoved(address indexed vault);
@@ -33,6 +35,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         StakeAndBakeData data
     );
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event OperatorRoleTransferred(
+        address indexed previousOperator,
+        address indexed newOperator
+    );
 
     struct StakeAndBakeData {
         /// @notice vault Address of the vault we will deposit the minted LBTC to
@@ -209,6 +215,16 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     function getStakeAndBakeFee() external view returns (uint256) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         return $.lbtc.getMintFee();
+    }
+
+    function transferOperatorRole(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) {
+            revert ZeroAddress();
+        }
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        address oldOperator = $.operator;
+        $.operator = newOperator;
+        emit OperatorRoleTransferred(oldOperator, newOperator);
     }
 
     function _getStakeAndBakeStorage()

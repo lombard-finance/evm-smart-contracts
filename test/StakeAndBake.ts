@@ -152,6 +152,20 @@ describe('StakeAndBake', function () {
             );
         });
 
+        it('should allow owner to change operator', async function () {
+            await expect(stakeAndBake.transferOperatorRole(signer2.address))
+                .to.emit(stakeAndBake, 'OperatorRoleTransferred')
+                .withArgs(operator.address, signer2.address);
+        });
+
+        it('should not allow anyone else to change operator', async function () {
+            await expect(
+                stakeAndBake
+                    .connect(signer2)
+                    .transferOperatorRole(signer2.address)
+            ).to.be.reverted;
+        });
+
         it('should allow operator to change the fee', async function () {
             await expect(stakeAndBake.connect(operator).setFee(2))
                 .to.emit(stakeAndBake, 'FeeChanged')
