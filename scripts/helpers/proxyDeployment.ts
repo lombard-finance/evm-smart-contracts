@@ -32,6 +32,12 @@ export async function proxyDeployment(
     const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxyAddress);
     console.log('Proxy admin:', proxyAdmin);
 
+    await verify(run, proxyAdmin, {
+        contract:
+            '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin',
+        constructorArguments: [admin],
+    });
+
     await verify(run, proxyAddress, {
         contract:
             '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy',
