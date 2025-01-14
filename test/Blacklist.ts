@@ -154,8 +154,8 @@ describe('DepositNotarizationBlacklist', function () {
                 .true;
         });
 
-        it('Should behave in idempotent manner', async function () {
-            const { blacklist, blacklistAdder, blacklistRemover } =
+        it('Should revert if already blacklisted', async function () {
+            const { blacklist, blacklistAdder } =
                 await loadFixture(deployBlacklist);
 
             const blockTxId = hre.ethers.sha256(new Uint8Array([1]));
@@ -169,31 +169,50 @@ describe('DepositNotarizationBlacklist', function () {
             expect(await blacklist.isBlacklisted(blockTxId, blockedVout)).to.be
                 .true;
 
-            // Add to blacklist again
-            await blacklistByAdder.addToBlacklist(blockTxId, [blockedVout]);
+            // Check revert on adding again
+            await expect(
+                blacklistByAdder.addToBlacklist(blockTxId, [blockedVout])
+            )
+                .to.revertedWithCustomError(blacklist, 'AlreadyBlacklisted')
+                .withArgs(blockTxId, blockedVout);
+        });
 
-            // Check call was idempotent
+        it('Should revert if already cleared', async function () {
+            const { blacklist, blacklistAdder, blacklistRemover } =
+                await loadFixture(deployBlacklist);
+
+            const blockTxId = hre.ethers.sha256(new Uint8Array([1]));
+            const blockedVout = 0;
+
+            // Check initial state is as expected
+            expect(await blacklist.isBlacklisted(blockTxId, blockedVout)).to.be
+                .false;
+
+            // Revert on remove from blacklist on initial cleared state
+            const blacklistByRemover = blacklist.connect(blacklistRemover);
+            await expect(
+                blacklistByRemover.removeFromBlacklist(blockTxId, [blockedVout])
+            )
+                .to.revertedWithCustomError(blacklist, 'AlreadyCleared')
+                .withArgs(blockTxId, blockedVout);
+
+            // Add and remove
+            const blacklistByAdder = blacklist.connect(blacklistAdder);
+            await blacklistByAdder.addToBlacklist(blockTxId, [blockedVout]);
             expect(await blacklist.isBlacklisted(blockTxId, blockedVout)).to.be
                 .true;
-
-            // Remove from blacklist
-            const blacklistByRemover = blacklist.connect(blacklistRemover);
             await blacklistByRemover.removeFromBlacklist(blockTxId, [
                 blockedVout,
             ]);
-
-            // Check state was set properly
             expect(await blacklist.isBlacklisted(blockTxId, blockedVout)).to.be
                 .false;
 
-            // Remove from blacklist again
-            await blacklistByRemover.removeFromBlacklist(blockTxId, [
-                blockedVout,
-            ]);
-
-            // Check call was idempotent
-            expect(await blacklist.isBlacklisted(blockTxId, blockedVout)).to.be
-                .false;
+            // Revert on clearing again
+            await expect(
+                blacklistByRemover.removeFromBlacklist(blockTxId, [blockedVout])
+            )
+                .to.revertedWithCustomError(blacklist, 'AlreadyCleared')
+                .withArgs(blockTxId, blockedVout);
         });
     });
 });

@@ -13,6 +13,9 @@ interface IDepositNotarizationBlacklist {
         address indexed operator
     );
 
+    error AlreadyCleared(bytes32 txId, uint32 vout);
+    error AlreadyBlacklisted(bytes32 txId, uint32 vout);
+
     function isBlacklisted(
         bytes32 txId,
         uint32 vout
