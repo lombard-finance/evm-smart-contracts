@@ -60,6 +60,9 @@ contract DepositNotarizationBlacklist is
         uint32[] calldata vouts
     ) external onlyRole(ADD_BLACKLIST_ROLE) {
         for (uint i = 0; i < vouts.length; i++) {
+            if (_blacklist[txId][vouts[i]]) {
+                revert AlreadyBlacklisted(txId, vouts[i]);
+            }
             _blacklist[txId][vouts[i]] = true;
             emit Blacklisted(txId, vouts[i], msg.sender);
         }
@@ -75,6 +78,9 @@ contract DepositNotarizationBlacklist is
         uint32[] calldata vouts
     ) external onlyRole(REMOVE_BLACKLIST_ROLE) {
         for (uint i = 0; i < vouts.length; i++) {
+            if (!_blacklist[txId][vouts[i]]) {
+                revert AlreadyCleared(txId, vouts[i]);
+            }
             _blacklist[txId][vouts[i]] = false;
             emit Cleared(txId, vouts[i], msg.sender);
         }
