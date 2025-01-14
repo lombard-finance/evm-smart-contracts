@@ -71,7 +71,8 @@
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
+      "DepositNotarizationBlacklist": "0xdf0D1818C5276aD63Ce73E20223657d4920E5e82"
     },
     "CBBTC": {
       "CBBTC": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
