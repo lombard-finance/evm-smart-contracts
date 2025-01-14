@@ -1,7 +1,6 @@
 {
   "holesky": {
     "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
-
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",

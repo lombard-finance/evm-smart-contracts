@@ -1,4 +1,6 @@
-# Notarization Blacklist
+# Consortium
+
+## Notarization Blacklist
 
 This is a simple on-chain storage to track blacklisted transaction outputs that made a
 deposit to a Lombard-managed deposit address and must not be notarized to create new LBTCs.
