@@ -10,7 +10,14 @@ import { getTransactionData } from '../helpers';
 const IGNORE_SCOPE_LIST: string[] = [
     'admin', // ignored, because used as source of possible admins
 ];
-const IGNORE_CONTRACT_LIST = ['ThresholdKey', 'BTCB', 'Router', 'RMN', 'CBBTC'];
+const IGNORE_CONTRACT_LIST = [
+    'ThresholdKey',
+    'BTCB',
+    'Router',
+    'RMN',
+    'CBBTC',
+    'FBTC',
+];
 
 const RULESET: Array<Rule> = [
     checkOwnable,
