@@ -2,7 +2,6 @@ import { BigNumberish, ContractTransaction } from 'ethers';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 import { DEFAULT_PROXY_FACTORY } from './constants';
 import { ITimelockController } from '../../typechain-types';
-import Ethers from '@typechain/ethers-v6';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 type TAddressesWithNetwork = {
@@ -108,4 +107,40 @@ export function getProxySalt(
     contractName: string
 ) {
     return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}`);
+}
+
+/**
+ * Computes data for calling a method on a contract
+ * @param {string} functionSignature - method signature in solidity selector format "functionName(uint256)".
+ * @param {Array} args - arguments to pass to the function
+ * @returns {string} - hex encoded data field
+ */
+export function getTransactionData(
+    hre: HardhatRuntimeEnvironment,
+    functionSignature: string,
+    args: any[]
+): string {
+    const functionFragment =
+        hre.ethers.FunctionFragment.from(functionSignature);
+    const iface = new hre.ethers.Interface([functionFragment]);
+    return iface.encodeFunctionData(functionFragment.name, args);
+}
+
+export function checkEIP165InterfaceId(
+    id: string,
+    contract: string,
+    chain: string,
+    hre: HardhatRuntimeEnvironment
+): Promise<boolean> {
+    const provider = new hre.ethers.JsonRpcProvider(
+        hre.config.networks[chain].url
+    );
+    const data = getTransactionData(hre, 'supportsInterface(bytes4)', [id]);
+    return provider.send('eth_call', [
+        {
+            to: contract,
+            data: data,
+        },
+        'latest',
+    ]) as Promise<boolean>;
 }
