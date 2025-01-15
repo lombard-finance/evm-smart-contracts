@@ -30,6 +30,9 @@ jobs:
             - name: Install dependencies
               run: yarn install --frozen-lockfile
 
+            - name: Compile contracts
+              run: yarn hardhat compile
+
             - name: Check Ethereum
               run: yarn hardhat ownership check --network mainnet
 

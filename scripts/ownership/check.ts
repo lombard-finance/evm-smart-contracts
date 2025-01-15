@@ -56,9 +56,6 @@ export async function check(
 
             const contractAddr = contracts[contractName];
             if (!hre.ethers.isAddress(contractAddr)) {
-                console.warn(
-                    `value (${contractAddr}) of ${contractName} not EVM address`
-                );
                 continue;
             }
 
