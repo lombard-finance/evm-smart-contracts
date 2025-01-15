@@ -113,6 +113,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @param depositor The address of the depositor abstraction we use to deposit to the vault
      */
     function addDepositor(address vault, address depositor) external onlyOwner {
+        if (depositor == address(0)) revert ZeroAddress();
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.depositors[vault] = IDepositor(depositor);
         emit DepositorAdded(vault, depositor);
