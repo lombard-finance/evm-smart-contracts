@@ -2,10 +2,15 @@ import { ownershipScope } from './index';
 import * as fs from 'node:fs';
 import { HardhatRuntimeEnvironment, RunSuperFunction } from 'hardhat/types';
 import path from 'node:path';
-import { Contract } from 'ethers';
+import { Contract, ContractEvent } from 'ethers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { string } from 'hardhat/internal/core/params/argumentTypes';
 import { getTransactionData } from '../helpers';
+import type { ContractEventName } from 'ethers/src.ts/contract/types';
+import type { BlockTag } from 'ethers/src.ts/providers';
+import { EventLog } from 'ethers/src.ts/contract/wrappers';
+import { Log } from 'ethers/src.ts/providers/provider';
+import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
 
 const IGNORE_SCOPE_LIST: string[] = [
     'admin', // ignored, because used as source of possible admins
@@ -153,7 +158,7 @@ async function checkOwnable2Step(
 }
 
 async function checkAccessControlAdmin(
-    hre: HardhatRuntimeEnvironment,
+    { ethers }: HardhatRuntimeEnvironment,
     contract: Contract,
     admins: AdminList
 ) {
@@ -164,13 +169,23 @@ async function checkAccessControlAdmin(
         return;
 
     // it's enough to check only address who get the role
-    const events = await contract.queryFilter(contract.getEvent('RoleGranted'));
+    const events = await queryEventsSafe(
+        'RoleGranted',
+        contract,
+        ethers.provider
+    );
 
     const list: { [key: string]: boolean } = {};
 
     for (const event of events) {
         const e = event as unknown as { args: Array<string> };
         list[e.args[1]] = true;
+    }
+
+    if (Object.keys(list).length === 0) {
+        console.log(
+            '\t\tno RoleGranted events found, skip AccessControl check'
+        );
     }
 
     for (const addr in list) {
@@ -195,4 +210,32 @@ async function checkAccessControlAdmin(
                 console.log(`\t📛\tunknown ${addr} has admin role`);
         }
     }
+}
+
+async function queryEventsSafe(
+    event: string,
+    contract: Contract,
+    provider: HardhatEthersProvider
+) {
+    let events;
+    try {
+        events = await contract.queryFilter(contract.getEvent(event));
+    } catch (e: any) {
+        const res = /block range: (\d+)/.exec(e);
+
+        if (!res || res.length < 2) {
+            throw e;
+        }
+
+        const range = Number(res[1]);
+        // in this case check latest possible
+        const latest = await provider.getBlockNumber();
+        events = await contract.queryFilter(
+            contract.getEvent(event),
+            latest - range,
+            latest
+        );
+    }
+
+    return events || [];
 }
