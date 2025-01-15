@@ -31,7 +31,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     event DepositorAdded(address indexed vault, address indexed depositor);
     event DepositorRemoved(address indexed vault);
     event BatchStakeAndBakeReverted(
-        address indexed owner,
+        bytes32 indexed dataHash,
         StakeAndBakeData data
     );
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
@@ -135,11 +135,9 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBake(data[i]) {} catch {
-                Actions.DepositBtcAction memory action = Actions.depositBtc(
-                    data[i].mintPayload[4:]
-                );
-                address owner = action.recipient;
-                emit BatchStakeAndBakeReverted(owner, data[i]);
+                bytes memory encodedData = abi.encode(data[i].vault, data[i].permitPayload, data[i].depositPayload, data[i].mintPayload, data[i].proof);
+                bytes32 dataHash = sha256(encodedData);
+                emit BatchStakeAndBakeReverted(dataHash, data[i]);
             }
 
             unchecked {
