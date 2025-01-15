@@ -44,7 +44,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
 
         // Give the vault the needed allowance.
         address vault = destination(teller);
-        ERC20(depositAsset).approve(vault, depositAmount);
+        ERC20(depositAsset).safeIncreaseAllowance(vault, depositAmount);
 
         // Deposit and obtain vault shares.
         uint256 shares = ITeller(teller).deposit(
