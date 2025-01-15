@@ -199,7 +199,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
-        $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
+        if (feeAmount > 0) $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
 
         uint256 remainingAmount = permitAmount - feeAmount;
         if (remainingAmount == 0) revert ZeroDepositAmount();
