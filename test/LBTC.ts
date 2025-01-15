@@ -614,11 +614,9 @@ describe('LBTC', function () {
                         // report deposit
                         const reportId = ethers.zeroPadValue('0x01', 32);
                         await expect(
-                            bascule
-                                .connect(reporter)
-                                .reportDeposits(reportId, [
-                                    ethers.sha256(data.payload),
-                                ])
+                            bascule.connect(reporter).reportDeposits(reportId, [
+                                ethers.keccak256('0x' + data.payload.slice(10)), // use legacy hash
+                            ])
                         )
                             .to.emit(bascule, 'DepositsReported')
                             .withArgs(reportId, 1);
@@ -732,7 +730,7 @@ describe('LBTC', function () {
                     signatureRecipient: () => {
                         return { address: ethers.ZeroAddress };
                     },
-                    customError: 'ZeroAddress',
+                    customError: 'Actions_ZeroAddress',
                     interface: () => lbtc,
                 },
                 {

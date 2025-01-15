@@ -113,23 +113,36 @@ contract Bridge is
         return _getBridgeStorage().lbtc;
     }
 
+    /**
+     * @notice Calculates adapter fees.
+     * @param toChain Chain id of destination chain.
+     * @param toAddress Recipient address.
+     * @param amount The amount of LBTC to bridge.
+     * @return The fee in native currency paid to adapter.
+     */
     function getAdapterFee(
         bytes32 toChain,
         bytes32 toAddress,
         uint64 amount
     ) external view returns (uint256) {
+        // return 0 if destination not set
         DestinationConfig memory destConfig = getDestination(toChain);
         if (destConfig.bridgeContract == bytes32(0)) {
             return 0;
         }
 
-        // payload data doesn't matter for fee calculation, only length
+        // return 0 if adapter not set
+        if (address(destConfig.adapter) == address(0)) {
+            return 0;
+        }
+
         return
             destConfig.adapter.getFee(
                 toChain,
                 destConfig.bridgeContract,
                 toAddress,
                 amount,
+                // for some adapters payload length would affect fees
                 new bytes(228)
             );
     }
