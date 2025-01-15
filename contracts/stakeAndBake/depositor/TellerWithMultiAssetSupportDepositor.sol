@@ -43,7 +43,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         );
 
         // Give the vault the needed allowance.
-        address vault = this.destination(teller);
+        address vault = destination(teller);
         ERC20(depositAsset).approve(vault, depositAmount);
 
         // Deposit and obtain vault shares.
@@ -60,7 +60,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     /**
      * @notice Retrieves the final vault address. Used for granting allowance to the right address.
      */
-    function destination(address teller) external returns (address) {
+    function destination(address teller) public returns (address) {
         bytes4 selector = bytes4(keccak256(bytes("vault()")));
         (bool success, bytes memory result) = teller.call(
             abi.encodeWithSelector(selector)
