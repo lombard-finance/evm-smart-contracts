@@ -22,6 +22,7 @@ const IGNORE_CONTRACT_LIST = [
     'RMN',
     'CBBTC',
     'FBTC',
+    'LockedFBTC',
 ];
 
 const RULESET: Array<Rule> = [
