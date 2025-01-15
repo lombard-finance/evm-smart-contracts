@@ -194,7 +194,7 @@ async function checkAccessControlAdmin(
                 console.log(`\t✅\ttimelock has admin role`);
                 break;
             case addr === admins.Owner:
-                console.log(`\t❓\towner has admin role`);
+                console.log(`\t❓\tmultisig has admin role`);
                 break;
             case addr === admins.Deployer:
                 console.log(`\t⚠️\tdeployer has admin role`);
