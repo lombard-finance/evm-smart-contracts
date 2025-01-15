@@ -33,23 +33,5 @@ jobs:
             - name: Compile contracts
               run: yarn hardhat compile
 
-    ethereum:
-        needs: setup-env
-        runs-on: [self-hosted]
-        steps:
-          - name: Check Ethereum
-            run: yarn hardhat ownership check --network mainnet
-
-    base:
-        needs: setup-env
-        runs-on: [self-hosted]
-        steps:
-          - name: Check Base
-            run: yarn hardhat ownership check --network base
-
-    bsc:
-        needs: setup-env
-        runs-on: [self-hosted]
-        steps:
-          - name: Check BSC
-            run: yarn hardhat ownership check --network bsc
+            - name: Check
+              run: for net in mainnet base bsc; do yarn hardhat ownership check --network $net; done

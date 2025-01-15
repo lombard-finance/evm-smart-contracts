@@ -6,6 +6,7 @@ import 'hardhat-gas-reporter';
 import 'hardhat-deploy';
 
 import './scripts';
+import './tasks';
 
 const config: HardhatUserConfig = {
     gasReporter: {

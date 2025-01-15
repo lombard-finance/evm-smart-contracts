@@ -1,15 +1,7 @@
-import { ownershipScope } from './index';
 import * as fs from 'node:fs';
 import { HardhatRuntimeEnvironment, RunSuperFunction } from 'hardhat/types';
 import path from 'node:path';
-import { Contract, ContractEvent } from 'ethers';
-import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { string } from 'hardhat/internal/core/params/argumentTypes';
-import { getTransactionData } from '../helpers';
-import type { ContractEventName } from 'ethers/src.ts/contract/types';
-import type { BlockTag } from 'ethers/src.ts/providers';
-import { EventLog } from 'ethers/src.ts/contract/wrappers';
-import { Log } from 'ethers/src.ts/providers/provider';
+import { Contract } from 'ethers';
 import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
 
 const IGNORE_SCOPE_LIST: string[] = [
