@@ -61,12 +61,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
      * @notice Retrieves the final vault address. Used for granting allowance to the right address.
      */
     function destination(address teller) public returns (address) {
-        bytes4 selector = bytes4(keccak256(bytes("vault()")));
-        (bool success, bytes memory result) = teller.call(
-            abi.encodeWithSelector(selector)
-        );
-        require(success);
-        return abi.decode(result, (address));
+        return ITeller(teller).vault();
     }
 }
 
@@ -81,4 +76,6 @@ interface ITeller {
         uint256 depositAmount,
         uint256 minimumMint
     ) external returns (uint256);
+
+    function vault() external view returns (address);
 }
