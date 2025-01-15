@@ -214,7 +214,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
     function getStakeAndBakeFee() external view returns (uint256) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.lbtc.getMintFee();
+        return $.fee;
     }
 
     function transferOperatorRole(address newOperator) external onlyOwner {
