@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-    test:
+    setup-env:
         runs-on: [self-hosted]
 
         steps:
@@ -33,11 +33,23 @@ jobs:
             - name: Compile contracts
               run: yarn hardhat compile
 
+    ethereum:
+      needs: setup-env
+      runs-on: [self-hosted]
+      steps:
             - name: Check Ethereum
               run: yarn hardhat ownership check --network mainnet
 
-            - name: Check Base
-              run: yarn hardhat ownership check --network base
+    base:
+      needs: setup-env
+      runs-on: [self-hosted]
+      steps:
+        - name: Check Base
+          run: yarn hardhat ownership check --network base
 
-            - name: Check BSC
-              run: yarn hardhat ownership check --network bsc
+    bsc:
+      needs: setup-env
+      runs-on: [self-hosted]
+      steps:
+        - name: Check BSC
+          run: yarn hardhat ownership check --network bsc
