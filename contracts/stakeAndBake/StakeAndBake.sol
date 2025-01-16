@@ -41,6 +41,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         address indexed previousOperator,
         address indexed newOperator
     );
+    event ClaimerRoleTransferred(
+        address indexed previousClaimer,
+        address indexed newClaimer
+    );
 
     struct StakeAndBakeData {
         /// @notice vault Address of the vault we will deposit the minted LBTC to
@@ -60,6 +64,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         LBTC lbtc;
         mapping(address => IDepositor) depositors;
         address operator;
+        address claimer;
         uint256 fee;
     }
 
@@ -82,10 +87,18 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         _;
     }
 
+    modifier onlyClaimer() {
+        if (_getStakeAndBakeStorage().claimer != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     function initialize(
         address lbtc_,
         address owner_,
         address operator_,
+        address claimer_,
         uint256 fee_
     ) external initializer {
         __ReentrancyGuard_init();
@@ -97,6 +110,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         $.lbtc = LBTC(lbtc_);
         $.fee = fee_;
         $.operator = operator_;
+        $.claimer = claimer_;
     }
 
     /**
@@ -138,10 +152,18 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /**
      * @notice Mint LBTC and stake directly into a given vault in batches.
      */
-    function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
+    function batchStakeAndBake(
+        StakeAndBakeData[] calldata data
+    ) external onlyClaimer {
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBake(data[i]) {} catch {
-                bytes memory encodedData = abi.encode(data[i].vault, data[i].permitPayload, data[i].depositPayload, data[i].mintPayload, data[i].proof);
+                bytes memory encodedData = abi.encode(
+                    data[i].vault,
+                    data[i].permitPayload,
+                    data[i].depositPayload,
+                    data[i].mintPayload,
+                    data[i].proof
+                );
                 bytes32 dataHash = sha256(encodedData);
                 emit BatchStakeAndBakeReverted(dataHash, data[i]);
             }
@@ -158,7 +180,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant {
+    ) external nonReentrant onlyClaimer {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         IDepositor depositor = $.depositors[data.vault];
@@ -229,6 +251,16 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         address oldOperator = $.operator;
         $.operator = newOperator;
         emit OperatorRoleTransferred(oldOperator, newOperator);
+    }
+
+    function transferClaimerRole(address newClaimer) external onlyOwner {
+        if (newClaimer == address(0)) {
+            revert ZeroAddress();
+        }
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        address oldClaimer = $.claimer;
+        $.claimer = newClaimer;
+        emit ClaimerRoleTransferred(oldClaimer, newClaimer);
     }
 
     function _getStakeAndBakeStorage()
