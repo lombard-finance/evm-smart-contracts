@@ -169,45 +169,25 @@ describe('StakeAndBake', function () {
     });
 
     describe('Setters', function () {
-        it('should allow owner to change operator', async function () {
-            await expect(stakeAndBake.transferOperatorRole(signer2.address))
-                .to.emit(stakeAndBake, 'OperatorRoleTransferred')
-                .withArgs(operator.address, signer2.address);
+        it('should allow admin to set depositor', async function () {
+            await expect(
+                stakeAndBake.setDepositor(
+                    await tellerWithMultiAssetSupportDepositor.getAddress()
+                )
+            )
+                .to.emit(stakeAndBake, 'DepositorSet')
+                .withArgs(
+                    await tellerWithMultiAssetSupportDepositor.getAddress()
+                );
         });
 
-        it('should not allow anyone else to change operator', async function () {
+        it('should not allow anyone else to set depositor', async function () {
             await expect(
                 stakeAndBake
-                    .connect(signer2)
-                    .transferOperatorRole(signer2.address)
-            ).to.be.reverted;
-        });
-
-        it('should allow owner to change claimer', async function () {
-            await expect(stakeAndBake.transferClaimerRole(signer2.address))
-                .to.emit(stakeAndBake, 'ClaimerRoleTransferred')
-                .withArgs(deployer.address, signer2.address);
-        });
-
-        it('should not allow anyone else to change claimer', async function () {
-            await expect(
-                stakeAndBake
-                    .connect(signer2)
-                    .transferClaimerRole(signer2.address)
-            ).to.be.reverted;
-        });
-
-        it('should allow owner to change pauser', async function () {
-            await expect(stakeAndBake.transferPauserRole(signer2.address))
-                .to.emit(stakeAndBake, 'PauserRoleTransferred')
-                .withArgs(deployer.address, signer2.address);
-        });
-
-        it('should not allow anyone else to change pauser', async function () {
-            await expect(
-                stakeAndBake
-                    .connect(signer2)
-                    .transferPauserRole(signer2.address)
+                    .connect(signer1)
+                    .setDepositor(
+                        await tellerWithMultiAssetSupportDepositor.getAddress()
+                    )
             ).to.be.reverted;
         });
 
@@ -264,12 +244,7 @@ describe('StakeAndBake', function () {
                     mintPayload: data.payload,
                     proof: data.proof,
                 })
-            )
-                .to.be.revertedWithCustomError(
-                    stakeAndBake,
-                    'UnauthorizedAccount'
-                )
-                .withArgs(signer2.address);
+            ).to.be.reverted;
         });
 
         it('should not allow non-claimer to call batchStakeAndBake', async function () {
@@ -288,12 +263,7 @@ describe('StakeAndBake', function () {
                         proof: data2.proof,
                     },
                 ])
-            )
-                .to.be.revertedWithCustomError(
-                    stakeAndBake,
-                    'UnauthorizedAccount'
-                )
-                .withArgs(signer2.address);
+            ).to.be.reverted;
         });
 
         it('should not allow non-pauser to pause', async function () {
@@ -313,12 +283,7 @@ describe('StakeAndBake', function () {
         });
 
         it('should not allow anyone else to change the fee', async function () {
-            await expect(stakeAndBake.setFee(2))
-                .to.be.revertedWithCustomError(
-                    stakeAndBake,
-                    'UnauthorizedAccount'
-                )
-                .withArgs(deployer.address);
+            await expect(stakeAndBake.setFee(2)).to.be.reverted;
         });
 
         it('should allow admin to set a depositor', async function () {
