@@ -17,8 +17,6 @@ import {Actions} from "../libs/Actions.sol";
 contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev error thrown when batched stake and bake has mismatching lengths
     error InvalidInputLength();
-    /// @dev error thrown when stake and bake is attempted with an unknown vault address
-    error VaultNotFound();
     /// @dev error thrown when the permit amount is not corresponding to the mint amount
     error IncorrectPermitAmount();
     /// @dev error thrown when the remaining amount after taking a fee is zero
@@ -29,9 +27,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     error ZeroAddress();
     /// @dev error thrown when fee is attempted to be set above hardcoded maximum
     error FeeGreaterThanMaximum();
+    /// @dev error thrown when no depositor is set
+    error NoDepositorSet();
 
-    event DepositorAdded(address indexed vault, address indexed depositor);
-    event DepositorRemoved(address indexed vault);
+    event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(
         bytes32 indexed dataHash,
         StakeAndBakeData data
@@ -47,8 +46,6 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     );
 
     struct StakeAndBakeData {
-        /// @notice vault Address of the vault we will deposit the minted LBTC to
-        address vault;
         /// @notice permitPayload Contents of permit approval signed by the user
         bytes permitPayload;
         /// @notice depositPayload Contains the parameters needed to complete a deposit
@@ -62,10 +59,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
     struct StakeAndBakeStorage {
         LBTC lbtc;
-        mapping(address => IDepositor) depositors;
+        IDepositor depositor;
         address operator;
-        address claimer;
         uint256 fee;
+        address claimer;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
@@ -94,12 +91,19 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         _;
     }
 
+    modifier depositorSet() {
+        if (address(_getStakeAndBakeStorage().depositor) == address(0)) {
+            revert NoDepositorSet();
+        }
+        _;
+    }
+
     function initialize(
         address lbtc_,
         address owner_,
         address operator_,
-        address claimer_,
-        uint256 fee_
+        uint256 fee_,
+        address claimer_
     ) external initializer {
         __ReentrancyGuard_init();
 
@@ -126,27 +130,14 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Add a depositor to the internal mapping, allowing the contract to
-     * `stakeAndBake` to it.
-     * @param vault The address of the vault we wish to be able to deposit to
+     * @notice Sets a depositor, allowing the contract to `stakeAndBake` to it.
      * @param depositor The address of the depositor abstraction we use to deposit to the vault
      */
-    function addDepositor(address vault, address depositor) external onlyOwner {
+    function setDepositor(address depositor) external onlyOwner {
         if (depositor == address(0)) revert ZeroAddress();
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.depositors[vault] = IDepositor(depositor);
-        emit DepositorAdded(vault, depositor);
-    }
-
-    /**
-     * @notice Remove a depositor from the internal mapping, removing `stakeAndBake`
-     * functionality for it.
-     * @param vault The address of the vault we wish to remove from the internal mapping
-     */
-    function removeDepositor(address vault) external onlyOwner {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.depositors[vault] = IDepositor(address(0));
-        emit DepositorRemoved(vault);
+        $.depositor = IDepositor(depositor);
+        emit DepositorSet(depositor);
     }
 
     /**
@@ -158,7 +149,6 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBake(data[i]) {} catch {
                 bytes memory encodedData = abi.encode(
-                    data[i].vault,
                     data[i].permitPayload,
                     data[i].depositPayload,
                     data[i].mintPayload,
@@ -180,13 +170,8 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyClaimer {
+    ) external nonReentrant onlyClaimer depositorSet {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-
-        IDepositor depositor = $.depositors[data.vault];
-        if (address(depositor) == address(0)) {
-            revert VaultNotFound();
-        }
 
         // First, mint the LBTC and send to owner.
         $.lbtc.mint(data.mintPayload, data.proof);
@@ -232,15 +217,30 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        $.lbtc.approve(address(depositor), remainingAmount);
+        $.lbtc.approve(address($.depositor), remainingAmount);
 
-        // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(owner, remainingAmount, data.depositPayload);
+        // Finally, deposit LBTC to the given vault.
+        $.depositor.deposit(owner, remainingAmount, data.depositPayload);
     }
 
     function getStakeAndBakeFee() external view returns (uint256) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         return $.fee;
+    }
+
+    function getStakeAndBakeOperator() external view returns (address) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.operator;
+    }
+
+    function getStakeAndBakeClaimer() external view returns (address) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.claimer;
+    }
+
+    function getStakeAndBakeDepositor() external view returns (address) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return address($.depositor);
     }
 
     function transferOperatorRole(address newOperator) external onlyOwner {
