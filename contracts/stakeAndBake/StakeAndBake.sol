@@ -27,6 +27,8 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     error UnauthorizedAccount(address account);
     /// @dev error thrown when operator is changed to zero address
     error ZeroAddress();
+    /// @dev error thrown when fee is attempted to be set above hardcoded maximum
+    error FeeGreaterThanMaximum();
 
     event DepositorAdded(address indexed vault, address indexed depositor);
     event DepositorRemoved(address indexed vault);
@@ -65,6 +67,8 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     bytes32 private constant STAKE_AND_BAKE_STORAGE_LOCATION =
         0xd0321c9642a0f7a5931cd62db04cb9e2c0d32906ef8824eece128a7ad5e4f500;
 
+    uint256 public constant MAXIMUM_FEE = 100000;
+
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -100,6 +104,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @param fee The fee to set
      */
     function setFee(uint256 fee) external onlyOperator {
+        if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum();
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         uint256 oldFee = $.fee;
         $.fee = fee;
