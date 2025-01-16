@@ -19,22 +19,25 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     error ZeroAssets();
     error ApproveFailed();
 
+    address public immutable teller;
+    address public immutable depositAsset;
+
+    constructor(address teller_, address depositAsset_) {
+        teller = teller_;
+        depositAsset = depositAsset_;
+    }
+
     /**
      * @notice Deposit function.
-     * @param teller The address of the BoringVault's associated teller
      * @param owner The address of the user who will receive the shares
+     * @param depositAmount The amount of tokens to deposit to the vault
      * @param depositPayload The ABI encoded parameters for the vault deposit function
      */
     function deposit(
-        address teller,
         address owner,
+        uint256 depositAmount,
         bytes calldata depositPayload
     ) external nonReentrant {
-        (address depositAsset, uint256 depositAmount) = abi.decode(
-            depositPayload,
-            (address, uint256)
-        );
-
         // Take the owner's LBTC.
         ERC20(depositAsset).safeTransferFrom(
             msg.sender,
@@ -43,7 +46,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         );
 
         // Give the vault the needed allowance.
-        address vault = destination(teller);
+        address vault = destination();
         ERC20(depositAsset).safeIncreaseAllowance(vault, depositAmount);
 
         // Deposit and obtain vault shares.
@@ -60,7 +63,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     /**
      * @notice Retrieves the final vault address. Used for granting allowance to the right address.
      */
-    function destination(address teller) public returns (address) {
+    function destination() public returns (address) {
         return ITeller(teller).vault();
     }
 }
