@@ -5,6 +5,7 @@ import {LBTC} from "../LBTC/LBTC.sol";
 import {ILBTC} from "../LBTC/ILBTC.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
 import {Actions} from "../libs/Actions.sol";
 
@@ -14,7 +15,11 @@ import {Actions} from "../libs/Actions.sol";
  * @author Lombard.Finance
  * @notice This contract is a part of the Lombard.Finance protocol
  */
-contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
+contract StakeAndBake is
+    Ownable2StepUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
+{
     /// @dev error thrown when batched stake and bake has mismatching lengths
     error InvalidInputLength();
     /// @dev error thrown when the permit amount is not corresponding to the mint amount
@@ -44,6 +49,10 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         address indexed previousClaimer,
         address indexed newClaimer
     );
+    event PauserRoleTransferred(
+        address indexed previousPauser,
+        address indexed newPauser
+    );
 
     struct StakeAndBakeData {
         /// @notice permitPayload Contents of permit approval signed by the user
@@ -63,6 +72,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         address operator;
         uint256 fee;
         address claimer;
+        address pauser;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
@@ -91,6 +101,13 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         _;
     }
 
+    modifier onlyPauser() {
+        if (_getStakeAndBakeStorage().pauser != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
     modifier depositorSet() {
         if (address(_getStakeAndBakeStorage().depositor) == address(0)) {
             revert NoDepositorSet();
@@ -103,9 +120,12 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         address owner_,
         address operator_,
         uint256 fee_,
-        address claimer_
+        address claimer_,
+        address pauser_
     ) external initializer {
         __ReentrancyGuard_init();
+
+        __Pausable_init();
 
         __Ownable_init(owner_);
         __Ownable2Step_init();
@@ -115,6 +135,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         $.fee = fee_;
         $.operator = operator_;
         $.claimer = claimer_;
+        $.pauser = pauser_;
     }
 
     /**
@@ -145,7 +166,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      */
     function batchStakeAndBake(
         StakeAndBakeData[] calldata data
-    ) external onlyClaimer {
+    ) external onlyClaimer depositorSet whenNotPaused {
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBake(data[i]) {} catch {
                 bytes memory encodedData = abi.encode(
@@ -170,7 +191,7 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyClaimer depositorSet {
+    ) external nonReentrant onlyClaimer depositorSet whenNotPaused {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC and send to owner.
@@ -261,6 +282,24 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         address oldClaimer = $.claimer;
         $.claimer = newClaimer;
         emit ClaimerRoleTransferred(oldClaimer, newClaimer);
+    }
+
+    function transferPauserRole(address newPauser) external onlyOwner {
+        if (newPauser == address(0)) {
+            revert ZeroAddress();
+        }
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        address oldPauser = $.pauser;
+        $.pauser = newPauser;
+        emit PauserRoleTransferred(oldPauser, newPauser);
+    }
+
+    function pause() external onlyPauser {
+        _pause();
+    }
+
+    function unpause() external onlyPauser {
+        _unpause();
     }
 
     function _getStakeAndBakeStorage()
