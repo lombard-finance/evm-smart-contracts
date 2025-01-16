@@ -1,5 +1,6 @@
-import { scope } from 'hardhat/config';
+import { scope, task } from 'hardhat/config';
 import { check } from './check';
+import { transferOwnership } from './transfer';
 
 export const ownershipScope = scope('ownership');
 
@@ -11,3 +12,9 @@ ownershipScope
         'mainnet.json'
     )
     .setAction(check);
+
+ownershipScope
+    .task('transfer', 'Call `transferOwnership` on smart-contract')
+    .addPositionalParam('target', 'The address of smart-contract')
+    .addPositionalParam('owner', 'The address to be owner')
+    .setAction(transferOwnership);
