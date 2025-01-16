@@ -31,7 +31,7 @@ contract StakeAndBake is
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(
-        bytes32 indexed dataHash,
+        uint256 indexed index,
         StakeAndBakeData data
     );
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
@@ -55,7 +55,7 @@ contract StakeAndBake is
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    bytes32 public constant FEE_OPERATOR_ROLE = keccak256("FEE_OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
@@ -90,7 +90,7 @@ contract StakeAndBake is
         __AccessControl_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, owner_);
-        _grantRole(OPERATOR_ROLE, operator_);
+        _grantRole(FEE_OPERATOR_ROLE, operator_);
         _grantRole(PAUSER_ROLE, pauser_);
         _grantRole(CLAIMER_ROLE, claimer_);
 
@@ -107,7 +107,7 @@ contract StakeAndBake is
      * @notice Sets the claiming fee
      * @param fee The fee to set
      */
-    function setFee(uint256 fee) external onlyRole(OPERATOR_ROLE) {
+    function setFee(uint256 fee) external onlyRole(FEE_OPERATOR_ROLE) {
         if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum();
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         uint256 oldFee = $.fee;
@@ -136,14 +136,7 @@ contract StakeAndBake is
     ) external onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBake(data[i]) {} catch {
-                bytes memory encodedData = abi.encode(
-                    data[i].permitPayload,
-                    data[i].depositPayload,
-                    data[i].mintPayload,
-                    data[i].proof
-                );
-                bytes32 dataHash = sha256(encodedData);
-                emit BatchStakeAndBakeReverted(dataHash, data[i]);
+                emit BatchStakeAndBakeReverted(i, data[i]);
             }
 
             unchecked {
