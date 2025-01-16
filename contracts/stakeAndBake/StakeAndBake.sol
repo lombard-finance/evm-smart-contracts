@@ -133,7 +133,7 @@ contract StakeAndBake is
      */
     function batchStakeAndBake(
         StakeAndBakeData[] calldata data
-    ) external onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
+    ) external onlyRole(CLAIMER_ROLE) whenNotPaused {
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBake(data[i]) {} catch {
                 emit BatchStakeAndBakeReverted(i, data[i]);

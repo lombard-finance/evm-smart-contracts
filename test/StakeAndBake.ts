@@ -202,25 +202,6 @@ describe('StakeAndBake', function () {
                 })
             ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
         });
-
-        it('should not allow calling batchStakeAndBake without a set depositor', async function () {
-            await expect(
-                stakeAndBake.batchStakeAndBake([
-                    {
-                        permitPayload: permitPayload,
-                        depositPayload: depositPayload,
-                        mintPayload: data.payload,
-                        proof: data.proof,
-                    },
-                    {
-                        permitPayload: permitPayload2,
-                        depositPayload: depositPayload2,
-                        mintPayload: data2.payload,
-                        proof: data2.proof,
-                    },
-                ])
-            ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
-        });
     });
 
     describe('Stake and Bake', function () {
