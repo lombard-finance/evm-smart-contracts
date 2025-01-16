@@ -18,13 +18,23 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
     error ApproveFailed();
+    error UnauthorizedAccount(address account);
 
     address public immutable teller;
     address public immutable depositAsset;
+    address public immutable stakeAndBake;
 
-    constructor(address teller_, address depositAsset_) {
+    constructor(address teller_, address depositAsset_, address stakeAndBake_) {
         teller = teller_;
         depositAsset = depositAsset_;
+        stakeAndBake = stakeAndBake_;
+    }
+
+    modifier onlyStakeAndBake() {
+        if (stakeAndBake != msg.sender) {
+            revert UnauthorizedAccount(msg.sender);
+        }
+        _;
     }
 
     /**
@@ -32,12 +42,13 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
      * @param owner The address of the user who will receive the shares
      * @param depositAmount The amount of tokens to deposit to the vault
      * @param depositPayload The ABI encoded parameters for the vault deposit function
+     * @dev depositPayload is unused for this specific vault
      */
     function deposit(
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external nonReentrant {
+    ) external nonReentrant onlyStakeAndBake {
         // Take the owner's LBTC.
         ERC20(depositAsset).safeTransferFrom(
             msg.sender,
