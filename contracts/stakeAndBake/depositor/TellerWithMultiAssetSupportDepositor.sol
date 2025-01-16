@@ -42,13 +42,15 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
      * @param owner The address of the user who will receive the shares
      * @param depositAmount The amount of tokens to deposit to the vault
      * @param depositPayload The ABI encoded parameters for the vault deposit function
-     * @dev depositPayload is unused for this specific vault
+     * @dev depositPayload encodes the minimumMint for the teller
      */
     function deposit(
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
     ) external nonReentrant onlyStakeAndBake {
+        uint256 minimumMint = abi.decode(depositPayload, (uint256));
+
         // Take the owner's LBTC.
         ERC20(depositAsset).safeTransferFrom(
             msg.sender,
@@ -64,7 +66,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         uint256 shares = ITeller(teller).deposit(
             ERC20(depositAsset),
             depositAmount,
-            0
+            minimumMint
         );
 
         // Transfer vault shares to owner.
