@@ -3,6 +3,8 @@ import { HardhatRuntimeEnvironment, RunSuperFunction } from 'hardhat/types';
 import path from 'node:path';
 import { Contract } from 'ethers';
 import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
+import { AddressList, RuleFunc } from './types';
+import { AdminBucket } from './admin-bucket';
 
 const IGNORE_SCOPE_LIST: string[] = [
     'admin', // ignored, because used as source of possible admins
@@ -17,15 +19,11 @@ const IGNORE_CONTRACT_LIST = [
     'LockedFBTC',
 ];
 
-const RULESET: Array<Rule> = [
+const RULESET: Array<RuleFunc> = [
     checkOwnable,
     checkOwnable2Step,
     checkAccessControlAdmin,
 ];
-
-interface AddressList {
-    [key: string]: any;
-}
 
 export async function check(
     taskArgs: any,
@@ -43,10 +41,7 @@ export async function check(
         throw new Error(`no addresses found for ${hre.network.name}`);
     }
 
-    const admins = addressList['admin'];
-    if (!admins) {
-        throw new Error(`no admins found for ${hre.network.name}`);
-    }
+    const adminBucket = new AdminBucket(addressList['admin']);
 
     for (const scope in addressList) {
         if (IGNORE_SCOPE_LIST.includes(scope)) continue;
@@ -81,52 +76,41 @@ export async function check(
 
             for (const f of RULESET) {
                 // console.log(`Running ${f.name} rule`);
-                await f(hre, contract, admins);
+                await f(hre, contract, adminBucket);
             }
         }
     }
 }
 
-type AdminList = {
-    TimeLock: string; // LombardTimelock contract
-    Owner: string; // Gnosis Safe wallet
-    Deployer: string; // EOA deployer
-};
-
 // rules
-type Rule = (
-    hre: HardhatRuntimeEnvironment,
-    contract: Contract,
-    admins: AdminList
-) => Promise<void>;
 
 async function checkOwnable(
     { ethers }: HardhatRuntimeEnvironment,
     contract: Contract,
-    admins: AdminList
+    admins: AdminBucket
 ) {
     if (!contract.interface.hasFunction('owner')) return;
     const owner = await contract['owner']();
 
     switch (true) {
-        case owner === admins.TimeLock:
+        case admins.isTimelock(owner):
             console.log(`\t✅\towner is timelock`);
             break;
-        case owner === admins.Owner:
+        case admins.isMultisig(owner):
             console.log(`\t❓\towner is multisig`);
             break;
-        case owner === admins.Deployer:
-            console.log(`\t⚠️\towner is deployer`);
+        case admins.isDeployer(owner):
+            console.log(`\t⚠️\towner ${owner} is deployer`);
             break;
         default:
-            console.log(`\t📛\towner is unknown ${owner}`);
+            console.log(`\t📛\towner ${owner} is unknown`);
     }
 }
 
 async function checkOwnable2Step(
     { ethers }: HardhatRuntimeEnvironment,
     contract: Contract,
-    admins: AdminList
+    admins: AdminBucket
 ) {
     if (!contract.interface.hasFunction('pendingOwner')) return;
 
@@ -136,24 +120,24 @@ async function checkOwnable2Step(
         case pendingOwner === ethers.ZeroAddress:
             console.log(`\t✅\tno pending owner`);
             break;
-        case pendingOwner === admins.TimeLock:
+        case admins.isTimelock(pendingOwner):
             console.log(`\t🔄\tpendingOwner is timelock`);
             break;
-        case pendingOwner === admins.Owner:
+        case admins.isMultisig(pendingOwner):
             console.log(`\t❓\tpendingOwner is multisig`);
             break;
-        case pendingOwner === admins.Deployer:
-            console.log(`\t⚠️\tpendingOwner is deployer`);
+        case admins.isDeployer(pendingOwner):
+            console.log(`\t⚠️\tpendingOwner ${pendingOwner} is deployer`);
             break;
         default:
-            console.log(`\t📛\tpendingOwner is unknown ${pendingOwner}`);
+            console.log(`\t📛\tpendingOwner ${pendingOwner} is unknown`);
     }
 }
 
 async function checkAccessControlAdmin(
     { ethers }: HardhatRuntimeEnvironment,
     contract: Contract,
-    admins: AdminList
+    admins: AdminBucket
 ) {
     if (
         !contract.interface.hasFunction('DEFAULT_ADMIN_ROLE') ||
@@ -190,14 +174,14 @@ async function checkAccessControlAdmin(
         if (!hasRole) continue;
 
         switch (true) {
-            case addr === admins.TimeLock:
+            case admins.isTimelock(addr):
                 console.log(`\t✅\ttimelock has admin role`);
                 break;
-            case addr === admins.Owner:
+            case admins.isMultisig(addr):
                 console.log(`\t❓\tmultisig has admin role`);
                 break;
-            case addr === admins.Deployer:
-                console.log(`\t⚠️\tdeployer has admin role`);
+            case admins.isDeployer(addr):
+                console.log(`\t⚠️\tdeployer ${addr} has admin role`);
                 break;
             default:
                 console.log(`\t📛\tunknown ${addr} has admin role`);

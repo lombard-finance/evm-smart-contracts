@@ -4,7 +4,7 @@
     "admin": {
       "Owner": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
       "TimeLock": "0x055E84e7FE8955E2781010B866f10Ef6E1E77e59",
-      "Deployer": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "deprecated": {
       "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
@@ -34,7 +34,7 @@
     "admin": {
       "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
       "TimeLock": "0x055E84e7FE8955E2781010B866f10Ef6E1E77e59",
-      "Deployer": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "deprecated": {
       "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
@@ -64,7 +64,7 @@
       "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
       "TimeLock": "0xf1fc1bE000Db6fa2193aB75E461a5603400d031F",
       "Pauser": "0x36915D0439A789Ec98A8D751248b98fC88275D33",
-      "Deployer": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "deprecated": {
       "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
