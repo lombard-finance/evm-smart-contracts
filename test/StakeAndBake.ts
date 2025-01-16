@@ -31,6 +31,7 @@ describe('StakeAndBake', function () {
         signer2: Signer,
         signer3: Signer,
         operator: Signer,
+        pauser: Signer,
         treasury: Signer;
     let stakeAndBake: StakeAndBake;
     let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
@@ -49,7 +50,7 @@ describe('StakeAndBake', function () {
     const depositValue = 10000;
 
     before(async function () {
-        [deployer, signer1, signer2, signer3, operator, treasury] =
+        [deployer, signer1, signer2, signer3, operator, pauser, treasury] =
             await getSignersWithPrivateKeys();
 
         const burnCommission = 1000;
@@ -66,7 +67,7 @@ describe('StakeAndBake', function () {
             operator.address,
             1,
             deployer.address,
-            deployer.address,
+            pauser.address,
         ]);
 
         teller = await deployContract<TellerWithMultiAssetSupportMock>(
@@ -271,7 +272,7 @@ describe('StakeAndBake', function () {
         });
 
         it('should not allow non-pauser to unpause', async function () {
-            await stakeAndBake.pause();
+            await stakeAndBake.connect(pauser).pause();
             await expect(stakeAndBake.connect(signer2).unpause()).to.be
                 .reverted;
         });
@@ -296,6 +297,15 @@ describe('StakeAndBake', function () {
             await expect(
                 stakeAndBake.connect(signer1).setDepositor(signer1.address)
             ).to.be.reverted;
+        });
+
+        it('should allow pauser to pause', async function () {
+            await expect(stakeAndBake.connect(pauser).pause());
+        });
+
+        it('should allow admin to unpause', async function () {
+            await expect(stakeAndBake.connect(pauser).pause());
+            await expect(stakeAndBake.unpause());
         });
 
         it('should stake and bake properly with the correct setup', async function () {
@@ -497,7 +507,7 @@ describe('StakeAndBake', function () {
         });
 
         it('should not allow stakeAndBake when paused', async function () {
-            await stakeAndBake.pause();
+            await stakeAndBake.connect(pauser).pause();
             await expect(
                 stakeAndBake.stakeAndBake({
                     permitPayload: permitPayload,
@@ -509,7 +519,7 @@ describe('StakeAndBake', function () {
         });
 
         it('should not allow batchStakeAndBake when paused', async function () {
-            await stakeAndBake.pause();
+            await stakeAndBake.connect(pauser).pause();
             await expect(
                 stakeAndBake.batchStakeAndBake([
                     {
