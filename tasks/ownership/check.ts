@@ -22,6 +22,7 @@ const IGNORE_CONTRACT_LIST = [
 const RULESET: Array<RuleFunc> = [
     checkOwnable,
     checkOwnable2Step,
+    checkProxyAdminOwnership,
     checkAccessControlAdmin,
 ];
 
@@ -131,6 +132,35 @@ async function checkOwnable2Step(
             break;
         default:
             console.log(`\t📛\tpendingOwner ${pendingOwner} is unknown`);
+    }
+}
+
+async function checkProxyAdminOwnership(
+    { ethers, upgrades }: HardhatRuntimeEnvironment,
+    contract: Contract,
+    admins: AdminBucket
+) {
+    const proxyAdminAddr = await upgrades.erc1967.getAdminAddress(
+        await contract.getAddress()
+    );
+    if (proxyAdminAddr === ethers.ZeroAddress) return;
+
+    const proxyAdmin = await ethers.getContractAt('Ownable', proxyAdminAddr);
+
+    const owner = await proxyAdmin.owner();
+
+    switch (true) {
+        case admins.isTimelock(owner):
+            console.log(`\t✅\tproxy admin owner is timelock`);
+            break;
+        case admins.isMultisig(owner):
+            console.log(`\t❓\tproxy admin owner is multisig`);
+            break;
+        case admins.isDeployer(owner):
+            console.log(`\t⚠️\tproxy admin owner ${owner} is deployer`);
+            break;
+        default:
+            console.log(`\t📛\tproxy admin owner ${owner} is unknown`);
     }
 }
 
