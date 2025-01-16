@@ -18,22 +18,38 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
     error ApproveFailed();
+    error UnauthorizedAccount(address account);
+
+    address public immutable teller;
+    address public immutable depositAsset;
+    address public immutable stakeAndBake;
+
+    constructor(address teller_, address depositAsset_, address stakeAndBake_) {
+        teller = teller_;
+        depositAsset = depositAsset_;
+        stakeAndBake = stakeAndBake_;
+    }
+
+    modifier onlyStakeAndBake() {
+        if (stakeAndBake != msg.sender) {
+            revert UnauthorizedAccount(msg.sender);
+        }
+        _;
+    }
 
     /**
      * @notice Deposit function.
-     * @param teller The address of the BoringVault's associated teller
      * @param owner The address of the user who will receive the shares
+     * @param depositAmount The amount of tokens to deposit to the vault
      * @param depositPayload The ABI encoded parameters for the vault deposit function
+     * @dev depositPayload encodes the minimumMint for the teller
      */
     function deposit(
-        address teller,
         address owner,
+        uint256 depositAmount,
         bytes calldata depositPayload
-    ) external nonReentrant {
-        (address depositAsset, uint256 depositAmount) = abi.decode(
-            depositPayload,
-            (address, uint256)
-        );
+    ) external nonReentrant onlyStakeAndBake {
+        uint256 minimumMint = abi.decode(depositPayload, (uint256));
 
         // Take the owner's LBTC.
         ERC20(depositAsset).safeTransferFrom(
@@ -43,14 +59,14 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         );
 
         // Give the vault the needed allowance.
-        address vault = this.destination(teller);
-        ERC20(depositAsset).approve(vault, depositAmount);
+        address vault = destination();
+        ERC20(depositAsset).safeIncreaseAllowance(vault, depositAmount);
 
         // Deposit and obtain vault shares.
         uint256 shares = ITeller(teller).deposit(
             ERC20(depositAsset),
             depositAmount,
-            0
+            minimumMint
         );
 
         // Transfer vault shares to owner.
@@ -60,13 +76,8 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     /**
      * @notice Retrieves the final vault address. Used for granting allowance to the right address.
      */
-    function destination(address teller) external returns (address) {
-        bytes4 selector = bytes4(keccak256(bytes("vault()")));
-        (bool success, bytes memory result) = teller.call(
-            abi.encodeWithSelector(selector)
-        );
-        require(success);
-        return abi.decode(result, (address));
+    function destination() public returns (address) {
+        return ITeller(teller).vault();
     }
 }
 
@@ -81,4 +92,6 @@ interface ITeller {
         uint256 depositAmount,
         uint256 minimumMint
     ) external returns (uint256);
+
+    function vault() external view returns (address);
 }
