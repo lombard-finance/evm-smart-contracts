@@ -20,10 +20,6 @@ contract StakeAndBake is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
-    /// @dev error thrown when batched stake and bake has mismatching lengths
-    error InvalidInputLength();
-    /// @dev error thrown when the permit amount is not corresponding to the mint amount
-    error IncorrectPermitAmount();
     /// @dev error thrown when the remaining amount after taking a fee is zero
     error ZeroDepositAmount();
     /// @dev error thrown when an unauthorized account calls an operator only function
@@ -96,6 +92,18 @@ contract StakeAndBake is
 
     modifier onlyClaimer() {
         if (_getStakeAndBakeStorage().claimer != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    /// @dev In the case we call batchStakeAndBake, stakeAndBake will be called from address(this)
+    /// so we need a separate modifier for this case.
+    modifier onlyClaimerOrSelf() {
+        if (
+            _getStakeAndBakeStorage().claimer != _msgSender() &&
+            address(this) != _msgSender()
+        ) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
@@ -191,7 +199,7 @@ contract StakeAndBake is
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyClaimer depositorSet whenNotPaused {
+    ) external nonReentrant onlyClaimerOrSelf depositorSet whenNotPaused {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC and send to owner.
