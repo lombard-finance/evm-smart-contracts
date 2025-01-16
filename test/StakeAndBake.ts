@@ -56,6 +56,8 @@ describe('StakeAndBake', function () {
             deployer.address,
             operator.address,
             1,
+            deployer.address,
+            deployer.address,
         ]);
 
         teller = await deployContract<TellerWithMultiAssetSupportMock>(
@@ -67,15 +69,13 @@ describe('StakeAndBake', function () {
         tellerWithMultiAssetSupportDepositor =
             await deployContract<TellerWithMultiAssetSupportDepositor>(
                 'TellerWithMultiAssetSupportDepositor',
-                [],
+                [
+                    await teller.getAddress(),
+                    await lbtc.getAddress(),
+                    await stakeAndBake.getAddress(),
+                ],
                 false
             );
-
-        // mock minter for lbtc
-        await lbtc.addMinter(deployer.address);
-
-        // set stake and bake as claimer for lbtc
-        await lbtc.addClaimer(await stakeAndBake.getAddress());
 
         // set deployer as operator
         await lbtc.transferOperatorRole(deployer.address);
@@ -83,18 +83,14 @@ describe('StakeAndBake', function () {
         // Initialize the permit module
         await lbtc.reinitialize();
 
-        // Add BoringVaultDepositor as a depositor on the StakeAndBake contract
+        // set depositor to stake and bake
         await expect(
-            stakeAndBake.addDepositor(
-                await teller.getAddress(),
+            stakeAndBake.setDepositor(
                 await tellerWithMultiAssetSupportDepositor.getAddress()
             )
         )
-            .to.emit(stakeAndBake, 'DepositorAdded')
-            .withArgs(
-                await teller.getAddress(),
-                await tellerWithMultiAssetSupportDepositor.getAddress()
-            );
+            .to.emit(stakeAndBake, 'DepositorSet')
+            .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
 
         snapshot = await takeSnapshot();
         snapshotTimestamp = (await ethers.provider.getBlock('latest'))!
@@ -146,10 +142,7 @@ describe('StakeAndBake', function () {
             );
 
             // make a deposit payload for the boringvault
-            depositPayload = encode(
-                ['address', 'uint256'],
-                [await lbtc.getAddress(), depositValue]
-            );
+            depositPayload = encode(['uint256'], [depositValue]);
         });
 
         it('should allow owner to change operator', async function () {
@@ -176,38 +169,21 @@ describe('StakeAndBake', function () {
             await expect(stakeAndBake.setFee(2)).to.be.reverted;
         });
 
-        it('should allow admin to add a depositor', async function () {
-            await expect(
-                stakeAndBake.addDepositor(signer1.address, signer2.address)
-            )
-                .to.emit(stakeAndBake, 'DepositorAdded')
-                .withArgs(signer1.address, signer2.address);
-        });
-
-        it('should not allow anyone else to add a depositor', async function () {
-            await expect(
-                stakeAndBake
-                    .connect(signer1)
-                    .addDepositor(signer1.address, signer2.address)
-            ).to.be.reverted;
-        });
-
-        it('should allow admin to remove a depositor', async function () {
-            await expect(stakeAndBake.removeDepositor(signer1.address))
-                .to.emit(stakeAndBake, 'DepositorRemoved')
+        it('should allow admin to set a depositor', async function () {
+            await expect(stakeAndBake.setDepositor(signer1.address))
+                .to.emit(stakeAndBake, 'DepositorSet')
                 .withArgs(signer1.address);
         });
 
-        it('should not allow anyone else to remove a depositor', async function () {
+        it('should not allow anyone else to set a depositor', async function () {
             await expect(
-                stakeAndBake.connect(signer1).removeDepositor(signer1.address)
+                stakeAndBake.connect(signer1).setDepositor(signer1.address)
             ).to.be.reverted;
         });
 
         it('should stake and bake properly with the correct setup', async function () {
             await expect(
                 stakeAndBake.stakeAndBake({
-                    vault: await teller.getAddress(),
                     permitPayload: permitPayload,
                     depositPayload: depositPayload,
                     mintPayload: data.payload,
@@ -254,10 +230,8 @@ describe('StakeAndBake', function () {
             await lbtc
                 .connect(signer2)
                 .approve(await stakeAndBake.getAddress(), value);
-            await lbtc.setMintFee(fee);
             await expect(
                 stakeAndBake.stakeAndBake({
-                    vault: await teller.getAddress(),
                     permitPayload: permitPayload,
                     depositPayload: depositPayload,
                     mintPayload: data.payload,
@@ -312,9 +286,6 @@ describe('StakeAndBake', function () {
                 encode(['uint256'], [0]) // txid
             );
 
-            // set max fee
-            await lbtc.setMintFee(fee);
-
             // create permit payload
             const block = await ethers.provider.getBlock('latest');
             const timestamp = block!.timestamp;
@@ -336,21 +307,16 @@ describe('StakeAndBake', function () {
             );
 
             // make a deposit payload for the boringvault
-            const depositPayload2 = encode(
-                ['address', 'uint256'],
-                [await lbtc.getAddress(), depositValue]
-            );
+            const depositPayload2 = encode(['uint256'], [depositValue]);
             await expect(
                 stakeAndBake.batchStakeAndBake([
                     {
-                        vault: await teller.getAddress(),
                         permitPayload: permitPayload,
                         depositPayload: depositPayload,
                         mintPayload: data.payload,
                         proof: data.proof,
                     },
                     {
-                        vault: await teller.getAddress(),
                         permitPayload: permitPayload2,
                         depositPayload: depositPayload2,
                         mintPayload: data2.payload,
@@ -428,29 +394,16 @@ describe('StakeAndBake', function () {
                 );
         });
 
-        it('should revert when an unknown depositor is invoked', async function () {
+        it('should revert when a zero depositor address is set', async function () {
             await expect(
-                stakeAndBake.removeDepositor(await teller.getAddress())
-            )
-                .to.emit(stakeAndBake, 'DepositorRemoved')
-                .withArgs(await teller.getAddress());
-
-            await expect(
-                stakeAndBake.stakeAndBake({
-                    vault: await teller.getAddress(),
-                    permitPayload: permitPayload,
-                    depositPayload: depositPayload,
-                    mintPayload: data.payload,
-                    proof: data.proof,
-                })
-            ).to.be.revertedWithCustomError(stakeAndBake, 'VaultNotFound');
+                stakeAndBake.setDepositor(ethers.ZeroAddress)
+            ).to.be.revertedWithCustomError(stakeAndBake, 'ZeroAddress');
         });
 
         it('should revert when remaining amount is zero', async function () {
             await stakeAndBake.connect(operator).setFee(10001);
             await expect(
                 stakeAndBake.stakeAndBake({
-                    vault: await teller.getAddress(),
                     permitPayload: permitPayload,
                     depositPayload: depositPayload,
                     mintPayload: data.payload,
