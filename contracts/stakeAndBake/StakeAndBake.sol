@@ -2,9 +2,11 @@
 pragma solidity 0.8.24;
 
 import {LBTC} from "../LBTC/LBTC.sol";
+import {ILBTC} from "../LBTC/ILBTC.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
+import {Actions} from "../libs/Actions.sol";
 
 /**
  * @title Convenience contract for users who wish to
@@ -17,15 +19,30 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
     error InvalidInputLength();
     /// @dev error thrown when stake and bake is attempted with an unknown vault address
     error VaultNotFound();
+    /// @dev error thrown when the permit amount is not corresponding to the mint amount
+    error IncorrectPermitAmount();
+    /// @dev error thrown when the remaining amount after taking a fee is zero
+    error ZeroDepositAmount();
+    /// @dev error thrown when an unauthorized account calls an operator only function
+    error UnauthorizedAccount(address account);
+    /// @dev error thrown when operator is changed to zero address
+    error ZeroAddress();
 
     event DepositorAdded(address indexed vault, address indexed depositor);
     event DepositorRemoved(address indexed vault);
+    event BatchStakeAndBakeReverted(
+        address indexed owner,
+        StakeAndBakeData data
+    );
+    event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event OperatorRoleTransferred(
+        address indexed previousOperator,
+        address indexed newOperator
+    );
 
     struct StakeAndBakeData {
         /// @notice vault Address of the vault we will deposit the minted LBTC to
         address vault;
-        /// @notice owner Address of the user staking and baking
-        address owner;
         /// @notice permitPayload Contents of permit approval signed by the user
         bytes permitPayload;
         /// @notice depositPayload Contains the parameters needed to complete a deposit
@@ -34,16 +51,14 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         bytes mintPayload;
         /// @notice proof Signature of the consortium approving the mint
         bytes proof;
-        /// @notice feePayload Contents of the fee approval signed by the user
-        bytes feePayload;
-        /// @notice userSignature Signature of the user to allow Fee
-        bytes userSignature;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
     struct StakeAndBakeStorage {
         LBTC lbtc;
         mapping(address => IDepositor) depositors;
+        address operator;
+        uint256 fee;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
@@ -56,14 +71,39 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address lbtc_, address owner_) external initializer {
+    modifier onlyOperator() {
+        if (_getStakeAndBakeStorage().operator != _msgSender()) {
+            revert UnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    function initialize(
+        address lbtc_,
+        address owner_,
+        address operator_,
+        uint256 fee_
+    ) external initializer {
+        __ReentrancyGuard_init();
+
         __Ownable_init(owner_);
         __Ownable2Step_init();
 
-        __ReentrancyGuard_init();
-
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.lbtc = LBTC(lbtc_);
+        $.fee = fee_;
+        $.operator = operator_;
+    }
+
+    /**
+     * @notice Sets the claiming fee
+     * @param fee The fee to set
+     */
+    function setFee(uint256 fee) external onlyOperator {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        uint256 oldFee = $.fee;
+        $.fee = fee;
+        emit FeeChanged(oldFee, fee);
     }
 
     /**
@@ -94,7 +134,14 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      */
     function batchStakeAndBake(StakeAndBakeData[] calldata data) external {
         for (uint256 i; i < data.length; ) {
-            stakeAndBake(data[i]);
+            try this.stakeAndBake(data[i]) {} catch {
+                Actions.DepositBtcAction memory action = Actions.depositBtc(
+                    data[i].mintPayload[4:]
+                );
+                address owner = action.recipient;
+                emit BatchStakeAndBakeReverted(owner, data[i]);
+            }
+
             unchecked {
                 i++;
             }
@@ -105,27 +152,79 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
      * @notice Mint LBTC and stake directly into a given vault.
      * @param data The bundled data needed to execute this function
      */
-    function stakeAndBake(StakeAndBakeData calldata data) public nonReentrant {
-        IDepositor depositor = _getDepositor(data.vault);
+    function stakeAndBake(
+        StakeAndBakeData calldata data
+    ) external nonReentrant {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+
+        IDepositor depositor = $.depositors[data.vault];
         if (address(depositor) == address(0)) {
             revert VaultNotFound();
         }
 
         // First, mint the LBTC and send to owner.
-        _mintWithFee(
-            data.mintPayload,
-            data.proof,
-            data.feePayload,
-            data.userSignature
-        );
+        $.lbtc.mint(data.mintPayload, data.proof);
 
-        // Next, we permit the depositor to transfer the minted value.
+        (
+            uint256 permitAmount,
+            uint256 deadline,
+            uint8 v,
+            bytes32 r,
+            bytes32 s
+        ) = abi.decode(
+                data.permitPayload,
+                (uint256, uint256, uint8, bytes32, bytes32)
+            );
+
+        // Check the recipient.
+        Actions.DepositBtcAction memory action = Actions.depositBtc(
+            data.mintPayload[4:]
+        );
+        address owner = action.recipient;
+
+        // We check if we can simply use transferFrom.
+        // Otherwise, we permit the depositor to transfer the minted value.
+        if ($.lbtc.allowance(owner, address(this)) < permitAmount)
+            $.lbtc.permit(
+                owner,
+                address(this),
+                permitAmount,
+                deadline,
+                v,
+                r,
+                s
+            );
+
+        $.lbtc.transferFrom(owner, address(this), permitAmount);
+
+        // Take the current maximum fee from the user.
+        uint256 feeAmount = $.fee;
+        $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
+
+        uint256 remainingAmount = permitAmount - feeAmount;
+        if (remainingAmount == 0) revert ZeroDepositAmount();
+
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        _performPermit(data.permitPayload, data.owner, address(depositor));
+        $.lbtc.approve(address(depositor), remainingAmount);
 
         // Finally, deposit LBTC to the given `vault`.
-        depositor.deposit(data.vault, data.owner, data.depositPayload);
+        depositor.deposit(data.vault, owner, data.depositPayload);
+    }
+
+    function getStakeAndBakeFee() external view returns (uint256) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.lbtc.getMintFee();
+    }
+
+    function transferOperatorRole(address newOperator) external onlyOwner {
+        if (newOperator == address(0)) {
+            revert ZeroAddress();
+        }
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        address oldOperator = $.operator;
+        $.operator = newOperator;
+        emit OperatorRoleTransferred(oldOperator, newOperator);
     }
 
     function _getStakeAndBakeStorage()
@@ -136,35 +235,5 @@ contract StakeAndBake is Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
         assembly {
             $.slot := STAKE_AND_BAKE_STORAGE_LOCATION
         }
-    }
-
-    function _getDepositor(
-        address vault
-    ) private view returns (IDepositor depositor) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.depositors[vault];
-    }
-
-    function _performPermit(
-        bytes calldata permitPayload,
-        address owner,
-        address depositor
-    ) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-
-        (uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) = abi
-            .decode(permitPayload, (uint256, uint256, uint8, bytes32, bytes32));
-
-        $.lbtc.permit(owner, depositor, value, deadline, v, r, s);
-    }
-
-    function _mintWithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) private {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc.mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 }

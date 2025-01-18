@@ -5,7 +5,6 @@ import { create3 } from '../helpers/create3Deployment';
 /*
  * After deployment:
  * 1. Set depositor
- * 2. Set StakeAndBake as claimer with LBTC
  */
 
 task('deploy-stake-and-bake', 'Deploys the StakeAndBake contract')

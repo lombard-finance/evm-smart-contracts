@@ -1,5 +1,4 @@
 import { task } from 'hardhat/config';
-import { sleep } from '../helpers';
 
 task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
     .addParam('target', 'The address of bridge smart-contract')
@@ -13,6 +12,7 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
         '0x0000000000000000000000000000000000000000'
     )
     .addFlag('requireConsortium', 'Use if consortium required for destination')
+    .addFlag('populate', 'Show transaction data and do not broadcast')
     .setAction(async (taskArgs, hre, network) => {
         const {
             target,
@@ -22,6 +22,7 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
             absCommission,
             adapter,
             requireConsortium,
+            populate,
         } = taskArgs;
 
         const toChainId = chainId.includes('0x')
@@ -47,20 +48,41 @@ task('setup-add-destination', 'Call `addDestination` on bridge smart-contract')
             hre.ethers.zeroPadValue(hre.ethers.ZeroAddress, 32)
         ) {
             console.log(`Removing existing destination ${existingDest}`);
-            await (await bridge.removeDestination(toChainId)).wait(2);
+            if (populate) {
+                const txData =
+                    await bridge.removeDestination.populateTransaction(
+                        toChainId
+                    );
+                console.log(
+                    `removeDestination: ${JSON.stringify(txData, null, 2)}`
+                );
+            } else {
+                await (await bridge.removeDestination(toChainId)).wait(2);
+            }
         }
         console.log(`Adding destination to ${toChainId}`);
 
-        await sleep(12_000);
-
-        await bridge.addDestination(
-            toChainId,
-            toContract,
-            relCommission,
-            absCommission,
-            adapter,
-            requireConsortium
-        );
+        if (populate) {
+            const txData = await bridge.addDestination.populateTransaction(
+                toChainId,
+                toContract,
+                relCommission,
+                absCommission,
+                adapter,
+                requireConsortium
+            );
+            console.log(`addDestination: ${JSON.stringify(txData, null, 2)}`);
+        } else {
+            const tx = await bridge.addDestination(
+                toChainId,
+                toContract,
+                relCommission,
+                absCommission,
+                adapter,
+                requireConsortium
+            );
+            await tx.wait(2);
+        }
     });
 
 task('setup-bridge-rate-limits', 'Set rate limits')
@@ -68,10 +90,11 @@ task('setup-bridge-rate-limits', 'Set rate limits')
     .addParam('chainId', 'The 32 bytes chain id')
     .addParam('window', 'Rate limit window', '43200')
     .addParam('limit', 'Rate limit amount', (1e8).toString())
+    .addFlag('populate', 'Show transaction data and do not broadcast')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
-        const { bridge, chainId, window, limit } = taskArgs;
+        const { bridge, chainId, window, limit, populate } = taskArgs;
 
         const toChainId = chainId.includes('0x')
             ? chainId
@@ -81,20 +104,43 @@ task('setup-bridge-rate-limits', 'Set rate limits')
               );
 
         const bridgeContract = await ethers.getContractAt('Bridge', bridge);
-        await bridgeContract.setRateLimits(
-            [
-                {
-                    chainId: toChainId,
-                    limit: limit,
-                    window: window,
-                },
-            ],
-            [
-                {
-                    chainId: toChainId,
-                    limit: limit,
-                    window: window,
-                },
-            ]
-        );
+
+        if (populate) {
+            const txData =
+                await bridgeContract.setRateLimits.populateTransaction(
+                    [
+                        {
+                            chainId: toChainId,
+                            limit: limit,
+                            window: window,
+                        },
+                    ],
+                    [
+                        {
+                            chainId: toChainId,
+                            limit: limit,
+                            window: window,
+                        },
+                    ]
+                );
+            console.log(`setRateLimits: ${JSON.stringify(txData, null, 2)}`);
+        } else {
+            const tx = await bridgeContract.setRateLimits(
+                [
+                    {
+                        chainId: toChainId,
+                        limit: limit,
+                        window: window,
+                    },
+                ],
+                [
+                    {
+                        chainId: toChainId,
+                        limit: limit,
+                        window: window,
+                    },
+                ]
+            );
+            await tx.wait(2);
+        }
     });

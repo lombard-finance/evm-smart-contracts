@@ -12,6 +12,7 @@ import {
 import {
     takeSnapshot,
     SnapshotRestorer,
+    time,
 } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
     getSignersWithPrivateKeys,
@@ -26,7 +27,6 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { bridge } from '../typechain-types/contracts';
 
 const aChainSelector = 1;
 const bChainSelector = 2;
@@ -424,20 +424,21 @@ describe('Bridge', function () {
             });
 
             it('should fail to withdraw if rate limit is exceeded', async function () {
-                await lbtcSource
-                    .connect(signer1)
-                    .approve(await bridgeSource.getAddress(), AMOUNT);
-                await bridgeSource
-                    .connect(signer1)
-                    .deposit(
-                        CHAIN_ID,
-                        encode(['address'], [signer2.address]),
-                        AMOUNT
-                    );
+                const bridgeLimit = AMOUNT / 2n;
 
-                const amountWithoutFee = AMOUNT - AMOUNT / 10n;
+                await bridgeDestination.setRateLimits(
+                    [],
+                    [
+                        {
+                            chainId: CHAIN_ID,
+                            limit: bridgeLimit,
+                            window: 900,
+                        },
+                    ]
+                );
 
-                const data = await signDepositBridgePayload(
+                // create payload with above limit
+                let data = await signDepositBridgePayload(
                     [signer1],
                     [true],
                     CHAIN_ID,
@@ -445,7 +446,7 @@ describe('Bridge', function () {
                     CHAIN_ID,
                     await bridgeDestination.getAddress(),
                     signer2.address,
-                    amountWithoutFee
+                    bridgeLimit + 1n
                 );
 
                 await expect(
@@ -456,19 +457,153 @@ describe('Bridge', function () {
                     .to.emit(bridgeDestination, 'PayloadNotarized')
                     .withArgs(signer2.address, ethers.sha256(data.payload));
 
+                await expect(
+                    bridgeDestination.connect(signer2).withdraw(data.payload)
+                ).to.be.revertedWithCustomError(
+                    bridgeDestination,
+                    'RateLimitExceeded'
+                );
+            });
+
+            it('should not allow to withdraw above limit after half of window', async function () {
+                const bridgeLimit = AMOUNT / 2n;
+
                 await bridgeDestination.setRateLimits(
                     [],
                     [
                         {
                             chainId: CHAIN_ID,
-                            limit: amountWithoutFee - 1n,
-                            window: 1,
+                            limit: bridgeLimit,
+                            window: 1800,
                         },
                     ]
                 );
 
+                // create payload equal to limit
+                let data = await signDepositBridgePayload(
+                    [signer1],
+                    [true],
+                    CHAIN_ID,
+                    await bridgeSource.getAddress(),
+                    CHAIN_ID,
+                    await bridgeDestination.getAddress(),
+                    signer2.address,
+                    bridgeLimit
+                );
+
+                await expect(
+                    bridgeDestination
+                        .connect(signer2)
+                        .authNotary(data.payload, data.proof)
+                )
+                    .to.emit(bridgeDestination, 'PayloadNotarized')
+                    .withArgs(signer2.address, ethers.sha256(data.payload));
+
                 await expect(
                     bridgeDestination.connect(signer2).withdraw(data.payload)
+                ).to.emit(bridgeDestination, 'WithdrawFromBridge');
+
+                await time.increase(900);
+
+                // create payload equal to limit
+                data = await signDepositBridgePayload(
+                    [signer1],
+                    [true],
+                    CHAIN_ID,
+                    await bridgeSource.getAddress(),
+                    CHAIN_ID,
+                    await bridgeDestination.getAddress(),
+                    signer2.address,
+                    bridgeLimit,
+                    1
+                );
+
+                await expect(
+                    bridgeDestination
+                        .connect(signer2)
+                        .authNotary(data.payload, data.proof)
+                )
+                    .to.emit(bridgeDestination, 'PayloadNotarized')
+                    .withArgs(signer2.address, ethers.sha256(data.payload));
+
+                await expect(
+                    bridgeDestination.connect(signer2).withdraw(data.payload)
+                ).to.be.revertedWithCustomError(
+                    bridgeDestination,
+                    'RateLimitExceeded'
+                );
+            });
+
+            it('should fail to deposit if rate limit is exceeded', async function () {
+                const bridgeLimit = AMOUNT / 2n;
+                await lbtcSource.mintTo(signer2, AMOUNT);
+                await lbtcSource
+                    .connect(signer2)
+                    .approve(await bridgeSource.getAddress(), AMOUNT);
+
+                await bridgeSource.setRateLimits(
+                    [
+                        {
+                            chainId: CHAIN_ID,
+                            limit: bridgeLimit,
+                            window: 1800,
+                        },
+                    ],
+                    []
+                );
+
+                await expect(
+                    bridgeSource
+                        .connect(signer2)
+                        .deposit(
+                            CHAIN_ID,
+                            encode(['address'], [signer2.address]),
+                            bridgeLimit + 1n
+                        )
+                ).to.be.revertedWithCustomError(
+                    bridgeSource,
+                    'RateLimitExceeded'
+                );
+            });
+
+            it('should not allow to deposit above limit after half of window', async function () {
+                const bridgeLimit = AMOUNT / 2n;
+                await lbtcSource.mintTo(signer2, AMOUNT);
+                await lbtcSource
+                    .connect(signer2)
+                    .approve(await bridgeSource.getAddress(), AMOUNT);
+
+                await bridgeSource.setRateLimits(
+                    [
+                        {
+                            chainId: CHAIN_ID,
+                            limit: bridgeLimit,
+                            window: 1800,
+                        },
+                    ],
+                    []
+                );
+
+                await expect(
+                    bridgeSource
+                        .connect(signer2)
+                        .deposit(
+                            CHAIN_ID,
+                            encode(['address'], [signer2.address]),
+                            bridgeLimit
+                        )
+                ).to.emit(bridgeSource, 'DepositToBridge');
+
+                await time.increase(900);
+
+                await expect(
+                    bridgeSource
+                        .connect(signer2)
+                        .deposit(
+                            CHAIN_ID,
+                            encode(['address'], [signer2.address]),
+                            bridgeLimit
+                        )
                 ).to.be.revertedWithCustomError(
                     bridgeDestination,
                     'RateLimitExceeded'

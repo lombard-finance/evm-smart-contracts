@@ -11,9 +11,22 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0x8236a87084f8B84306f72007F36F2618A5634494"
+      "LBTC": "0x8236a87084f8B84306f72007F36F2618A5634494",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
     },
-    "chainlink": {}
+    "fbtc": {
+      "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
+      "FBTC": "0xC96dE26018A54D51c097160568752c4E3BD6C364",
+      "LockedFBTC": "0xfe4EcD930A1282325aeF8e946f17c0E25744de45"
+    },
+    "chainlink": {
+      "ChainSelector": "5009297550715157269",
+      "Router": "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
+      "RMN": "0x411dE17f12D1A34ecC7F45f49844626267c75e81",
+      "CLAdapter": "0x2298d44CFDa0ceAfE7F5Ef5FD587B67d7b9b1Fbb",
+      "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
+    }
   },
   "bsc": {
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000000038",
@@ -39,15 +52,15 @@
       "ChainSelector": "11344663589394136015",
       "Router": "0x34B03Cb9086d7D758AC55af71584F81A598759FE",
       "RMN": "0x9e09697842194f77d315E0907F1Bda77922e8f84",
-      "CLAdapter": "0xc409f4a25065e64ea754dda4fa8c3ea6544fcf2f",
-      "LombardTokenPool": "0xc088F240e43efa00e28Dc30Fc00e70EfB15b72B9"
+      "CLAdapter": "0xf1fc1be000db6fa2193ab75e461a5603400d031f",
+      "LombardTokenPool": "0x75BEafC5E96aD88B4BD0Ae44a56FebCAD64FE11F"
     }
   },
   "base": {
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000002105",
     "admin": {
       "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
-      "TimeLock": "",
+      "TimeLock": "0xf1fc1bE000Db6fa2193aB75E461a5603400d031F",
       "Pauser": "0x36915D0439A789Ec98A8D751248b98fC88275D33"
     },
     "deprecated": {
@@ -68,8 +81,8 @@
       "ChainSelector": "15971525489660198786",
       "Router": "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
       "RMN": "0xC842c69d54F83170C42C4d556B4F6B2ca53Dd3E8",
-      "CLAdapter": "0x379e827bd39559f55a1ddf6b6b8458626c39203e",
-      "LombardTokenPool": "0x03DAE4b8A096392E6eB4a4c062E7876704Fb1635"
+      "CLAdapter": "0x35df1153b69b245a12336b8ed5c12f1cb8279916",
+      "LombardTokenPool": "0x84166eAf4530994C565E6aCC774a6950Ce8c88aA"
     }
   }
 }
