@@ -24,5 +24,5 @@ interface IDepositor {
     /**
      * @notice Retrieves the final vault address. Used for granting `permit` to the right address.
      */
-    function destination() external returns (address);
+    function destination() external view returns (address);
 }
