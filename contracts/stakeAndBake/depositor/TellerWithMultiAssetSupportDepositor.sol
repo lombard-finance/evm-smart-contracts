@@ -76,7 +76,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     /**
      * @notice Retrieves the final vault address. Used for granting allowance to the right address.
      */
-    function destination() public returns (address) {
+    function destination() public view returns (address) {
         return ITeller(teller).vault();
     }
 }
