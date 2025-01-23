@@ -63,14 +63,12 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         ERC20(depositAsset).safeIncreaseAllowance(vault, depositAmount);
 
         // Deposit and obtain vault shares.
-        uint256 shares = ITeller(teller).deposit(
+        uint256 shares = ITeller(teller).bulkDeposit(
             ERC20(depositAsset),
             depositAmount,
-            minimumMint
+            minimumMint,
+            owner
         );
-
-        // Transfer vault shares to owner.
-        ERC20(vault).safeTransfer(owner, shares);
     }
 
     /**
@@ -91,6 +89,13 @@ interface ITeller {
         ERC20 depositAsset,
         uint256 depositAmount,
         uint256 minimumMint
+    ) external returns (uint256);
+
+    function bulkDeposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address to
     ) external returns (uint256);
 
     function vault() external view returns (address);
