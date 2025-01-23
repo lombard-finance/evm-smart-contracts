@@ -31,4 +31,18 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
         _mint(msg.sender, depositAmount - 50);
         return depositAmount - 50;
     }
+
+    function bulkDeposit(
+        ERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address to
+    ) external returns (uint256) {
+        // Transfer assets in
+        depositAsset.transferFrom(_msgSender(), address(this), depositAmount);
+
+        // Mint shares. We mock a 50 satoshi premium.
+        _mint(to, depositAmount - 50);
+        return depositAmount - 50;
+    }
 }

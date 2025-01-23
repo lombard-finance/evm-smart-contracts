@@ -323,12 +323,6 @@ describe('StakeAndBake', function () {
                 .to.emit(teller, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
                     signer2.address,
                     depositValue - 50
                 );
@@ -371,12 +365,6 @@ describe('StakeAndBake', function () {
                 .to.emit(teller, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
                     signer2.address,
                     depositValue - 50
                 );
@@ -424,12 +412,6 @@ describe('StakeAndBake', function () {
                 .to.emit(teller, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
                     signer2.address,
                     depositValue - 50
                 )
@@ -458,12 +440,6 @@ describe('StakeAndBake', function () {
                 .to.emit(teller, 'Transfer')
                 .withArgs(
                     ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
                     signer2.address,
                     depositValue - 50
                 );
