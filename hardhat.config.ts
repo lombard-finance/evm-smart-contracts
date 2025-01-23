@@ -364,6 +364,19 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        berachain: {
+            loggingEnabled: true,
+            url: vars.get('BERACHAIN_RPC'),
+            chainId: 80094,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
     },
     etherscan: {
         customChains: [
@@ -473,6 +486,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://explorer.swellnetwork.io/',
                 },
             },
+            {
+                network: 'berachain',
+                chainId: 80094,
+                urls: {
+                    apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan',
+                    browserURL: 'https://80094.routescan.io/',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -500,6 +521,7 @@ const config: HardhatUserConfig = {
             arbitrum: vars.get('ARBITRUM_API_KEY', ''),
             cornMaizenet: 'no',
             swell: 'no',
+            berachain: 'no',
         },
     },
     sourcify: {
