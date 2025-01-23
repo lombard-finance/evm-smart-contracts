@@ -11,7 +11,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract TellerWithMultiAssetSupportMock is ERC20 {
     using FixedPointMathLib for uint256;
 
-    error AmountBelowMinimumMint();
+    error AmountBelowMinimumMint(uint256 minimumMint, uint256 shares);
 
     struct Asset {
         bool allowDeposits;
@@ -20,7 +20,6 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
     }
 
     address public immutable vault;
-    uint256 public constant premium = 50;
     mapping(ERC20 => Asset) public assetData;
 
     constructor(address lbtc) ERC20("Staked LBTC", "LBTCv") {
@@ -43,7 +42,7 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
             1e4
         );
         if (shares < minimumMint) {
-            revert AmountBelowMinimumMint();
+            revert AmountBelowMinimumMint(minimumMint, shares);
         }
 
         // Transfer assets in
@@ -64,13 +63,12 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
             1e4
         );
         if (shares < minimumMint) {
-            revert AmountBelowMinimumMint();
+            revert AmountBelowMinimumMint(minimumMint, shares);
         }
 
         // Transfer assets in
         depositAsset.transferFrom(_msgSender(), address(this), depositAmount);
 
-        // Mint shares. We mock a 50 satoshi premium.
         _mint(to, shares);
         return shares;
     }
@@ -336,19 +334,5 @@ library FixedPointMathLib {
             // return 0 instead of reverting if y is zero.
             z := add(gt(mod(x, y), 0), div(x, y))
         }
-    }
-
-    function bulkDeposit(
-        ERC20 depositAsset,
-        uint256 depositAmount,
-        uint256 minimumMint,
-        address to
-    ) external returns (uint256) {
-        // Transfer assets in
-        depositAsset.transferFrom(_msgSender(), address(this), depositAmount);
-
-        // Mint shares. We mock a 50 satoshi premium.
-        _mint(to, depositAmount - 50);
-        return depositAmount - 50;
     }
 }
