@@ -377,6 +377,19 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        sonic: {
+            loggingEnabled: true,
+            url: vars.get('SONIC_RPC', 'https://rpc.ankr.com/sonic_mainnet'),
+            chainId: 146,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
     },
     etherscan: {
         customChains: [
@@ -494,6 +507,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://80094.routescan.io/',
                 },
             },
+            {
+                network: 'sonic',
+                chainId: 146,
+                urls: {
+                    apiURL: 'https://api.sonicscan.org/api',
+                    browserURL: 'https://sonicscan.org',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -522,6 +543,7 @@ const config: HardhatUserConfig = {
             cornMaizenet: 'no',
             swell: 'no',
             berachain: 'no',
+            sonic: vars.get('SONIC_API_KEY', ''),
         },
     },
     sourcify: {
