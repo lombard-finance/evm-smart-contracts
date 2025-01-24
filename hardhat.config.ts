@@ -254,6 +254,22 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        sonicTestnet: {
+            loggingEnabled: true,
+            url: vars.get(
+                'SONIC_TESTNET_RPC',
+                'https://rpc.ankr.com/sonic_blaze_testnet'
+            ),
+            chainId: 57054,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
         // mainnets
         mainnet: {
             loggingEnabled: true,
@@ -458,6 +474,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://swell-testnet-explorer.alt.technology',
                 },
             },
+            {
+                network: 'sonicTestnet',
+                chainId: 57054,
+                urls: {
+                    apiURL: 'https://testnet.sonicscan.org/api',
+                    browserURL: 'https://testnet.sonicscan.org',
+                },
+            },
             // mainnets
             {
                 network: 'mantle',
@@ -531,6 +555,7 @@ const config: HardhatUserConfig = {
             beraBartio: 'no',
             beraCartio: 'no',
             swell_testnet: 'no',
+            sonicTestnet: 'no',
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
