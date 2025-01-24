@@ -36,5 +36,7 @@ task('deploy-proxy-factory', 'Deploys the ProxyFactory contract')
         const res = await factory.waitForDeployment();
         console.log('ProxyFactory address', await res.getAddress());
 
-        await verify(run, await factory.getAddress());
+        await verify(hre.run, await factory.getAddress(), {
+            constructorArguments: [admin, deployer],
+        });
     });
