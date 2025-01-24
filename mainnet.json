@@ -88,5 +88,37 @@
       "CLAdapter": "0x35df1153b69b245a12336b8ed5c12f1cb8279916",
       "LombardTokenPool": "0x84166eAf4530994C565E6aCC774a6950Ce8c88aA"
     }
+  },
+  "berachain": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000138de",
+    "admin": {
+      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
+    },
+    "layerZero": {
+      "eth_EfficientRateLimitedOFTAdapter": "0x1290A6b480f7eF14925229fdB66f5680aD8F44AD",
+      "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
+    }
+  },
+  "sonic": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000092",
+    "admin": {
+      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
+    },
+    "layerZero": {
+      "eth_EfficientRateLimitedOFTAdapter": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd",
+      "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
+    }
   }
 }
