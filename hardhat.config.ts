@@ -382,7 +382,7 @@ const config: HardhatUserConfig = {
         },
         berachain: {
             loggingEnabled: true,
-            url: vars.get('BERACHAIN_RPC'),
+            url: vars.get('BERACHAIN_RPC', ''),
             chainId: 80094,
             accounts: [
                 vars.get(
