@@ -177,13 +177,13 @@ task(
         );
 
         const limits = eids.split(',').map((eid: string) => {
-            // const e = ethers.AbiCoder.defaultAbiCoder().encode(
-            //     ['uint32'],
-            //     [eid]
-            // );
-            // return { chainId: e, limit, window };
-            const e = BigInt(eid);
-            return { eid: e, limit, window };
+            const e = ethers.AbiCoder.defaultAbiCoder().encode(
+                ['uint32'],
+                [eid]
+            );
+            return { chainId: e, limit, window };
+            //const e = BigInt(eid);
+            //return { eid: e, limit, window };
         });
 
         if (populate) {
