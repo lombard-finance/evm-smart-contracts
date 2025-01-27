@@ -29,8 +29,10 @@
       "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
     },
     "layerZero": {
-      "EfficientRateLimitedOFTAdapter_berachain": "0x1290A6b480f7eF14925229fdB66f5680aD8F44AD",
-      "EfficientRateLimitedOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd"
+      "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
+      "LBTCOFTAdapter_swell": "0x37E92d760a15231e652a2C502182a6b44c7510c0",
+      "LBTCOFTAdapter_berachain": "0x1290A6b480f7eF14925229fdB66f5680aD8F44AD",
+      "LBTCOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd"
     }
   },
   "bsc": {
