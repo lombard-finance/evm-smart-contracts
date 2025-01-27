@@ -98,7 +98,7 @@
   "berachain": {
     "chainId": "0x00000000000000000000000000000000000000000000000000000000000138de",
     "admin": {
-      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "Owner": "",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
@@ -113,7 +113,7 @@
   "sonic": {
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000000092",
     "admin": {
-      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "Owner": "",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
