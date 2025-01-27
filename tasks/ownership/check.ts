@@ -68,8 +68,10 @@ export async function check(
                 continue;
             }
 
+            const contractArtifactName = contractName.split('_')[0];
+
             const contract = await hre.ethers.getContractAt(
-                contractName,
+                contractArtifactName,
                 contracts[contractName]
             );
 
