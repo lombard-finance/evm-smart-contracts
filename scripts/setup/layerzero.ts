@@ -177,13 +177,16 @@ task(
         );
 
         const limits = eids.split(',').map((eid: string) => {
-            // const e = ethers.AbiCoder.defaultAbiCoder().encode(
-            //     ['uint32'],
-            //     [eid]
-            // );
-            // return { chainId: e, limit, window };
-            const e = BigInt(eid);
-            return { eid: e, limit, window };
+            const e = ethers.AbiCoder.defaultAbiCoder().encode(
+                ['uint32'],
+                [eid]
+            );
+            // `chainId` here is bad naming, it should be an EID instead of a chainId, but the
+            // struct that we use in solidity to encode the arguments uses the name chainId.
+            // So in any case, this is always EID.
+            return { chainId: e, limit, window };
+            //const e = BigInt(eid);
+            //return { eid: e, limit, window };
         });
 
         if (populate) {
