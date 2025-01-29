@@ -28,6 +28,10 @@
       "CLAdapter": "0x2298d44CFDa0ceAfE7F5Ef5FD587B67d7b9b1Fbb",
       "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
     },
+    "stakeAndBake": {
+        "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+        "TellerWithMultiAssetSupportDepositor": "0xf70BECa8d49ae12002Bf251DB1229FfAD3aC541C"
+    },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
       "LBTCOFTAdapter_swell": "0x37E92d760a15231e652a2C502182a6b44c7510c0",
@@ -62,6 +66,10 @@
       "RMN": "0x9e09697842194f77d315E0907F1Bda77922e8f84",
       "CLAdapter": "0xf1fc1be000db6fa2193ab75e461a5603400d031f",
       "LombardTokenPool": "0x75BEafC5E96aD88B4BD0Ae44a56FebCAD64FE11F"
+    },
+    "stakeAndBake": {
+        "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+        "TellerWithMultiAssetSupportDepositor": "0xBb92c89608cFAbdAb47aAFb0954D98f13576AD68"
     }
   },
   "base": {
