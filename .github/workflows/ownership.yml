@@ -34,4 +34,7 @@ jobs:
               run: yarn hardhat compile
 
             - name: Check
-              run: for net in mainnet base bsc; do yarn hardhat ownership check --network $net; done
+              run: for net in mainnet base bsc berachain sonic; do yarn hardhat ownership check --network $net; done
+
+            - name: Check community chains
+              run: for net in swell cornMaizenet; do yarn hardhat ownership check mainnet-external.json --network $net; done
