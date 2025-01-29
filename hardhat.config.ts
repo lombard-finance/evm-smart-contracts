@@ -270,6 +270,22 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        morphHolesky: {
+            loggingEnabled: true,
+            url: vars.get(
+                'MORPH_HOLESKY_RPC',
+                'https://rpc-quicknode-holesky.morphl2.io'
+            ),
+            chainId: 2810,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
         // mainnets
         mainnet: {
             loggingEnabled: true,
@@ -406,6 +422,19 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
+        morph: {
+            loggingEnabled: true,
+            url: vars.get('MORPH_RPC', 'https://rpc-quicknode.morphl2.io'),
+            chainId: 2818,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
     },
     etherscan: {
         customChains: [
@@ -482,6 +511,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://testnet.sonicscan.org',
                 },
             },
+            {
+                network: 'morphHolesky',
+                chainId: 2810,
+                urls: {
+                    apiURL: 'https://explorer-api-holesky.morphl2.io/api/v2/',
+                    browserURL: 'https://explorer-holesky.morphl2.io/',
+                },
+            },
             // mainnets
             {
                 network: 'mantle',
@@ -539,6 +576,14 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://sonicscan.org',
                 },
             },
+            {
+                network: 'morph',
+                chainId: 2818,
+                urls: {
+                    apiURL: 'https://morphscan.org/api/v2/network/mainnet/evm/2818/etherscan',
+                    browserURL: 'https://morphscan.org',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -569,6 +614,7 @@ const config: HardhatUserConfig = {
             swell: 'no',
             berachain: 'no',
             sonic: vars.get('SONIC_API_KEY', ''),
+            morph: 'no',
         },
     },
     sourcify: {
