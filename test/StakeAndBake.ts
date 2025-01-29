@@ -47,7 +47,8 @@ describe('StakeAndBake', function () {
     let depositPayload2;
     const value = 10001;
     const fee = 1;
-    const depositValue = 10000;
+    const premium = 100;
+    const depositValue = 9900;
 
     before(async function () {
         [deployer, signer1, signer2, signer3, operator, pauser, treasury] =
@@ -72,7 +73,7 @@ describe('StakeAndBake', function () {
 
         teller = await deployContract<TellerWithMultiAssetSupportMock>(
             'TellerWithMultiAssetSupportMock',
-            [],
+            [await lbtc.getAddress()],
             false
         );
 
@@ -318,20 +319,10 @@ describe('StakeAndBake', function () {
                 .withArgs(
                     await stakeAndBake.getAddress(),
                     await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue
+                    depositValue + premium
                 )
                 .to.emit(teller, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    signer2.address,
-                    depositValue - 50
-                );
+                .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
         });
 
         it('should work with allowance', async function () {
@@ -366,20 +357,10 @@ describe('StakeAndBake', function () {
                 .withArgs(
                     await stakeAndBake.getAddress(),
                     await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue
+                    depositValue + premium
                 )
                 .to.emit(teller, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    signer2.address,
-                    depositValue - 50
-                );
+                .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
         });
 
         it('should batch stake and bake properly with the correct setup', async function () {
@@ -419,20 +400,10 @@ describe('StakeAndBake', function () {
                 .withArgs(
                     await stakeAndBake.getAddress(),
                     await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue
+                    depositValue + premium
                 )
                 .to.emit(teller, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    signer2.address,
-                    depositValue - 50
-                )
+                .withArgs(ethers.ZeroAddress, signer2.address, depositValue)
                 .to.emit(lbtc, 'MintProofConsumed')
                 .withArgs(signer3.address, data2.payloadHash, data2.payload)
                 .to.emit(lbtc, 'Transfer')
@@ -453,20 +424,10 @@ describe('StakeAndBake', function () {
                 .withArgs(
                     await stakeAndBake.getAddress(),
                     await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue
+                    depositValue + premium
                 )
                 .to.emit(teller, 'Transfer')
-                .withArgs(
-                    ethers.ZeroAddress,
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    depositValue - 50
-                )
-                .to.emit(teller, 'Transfer')
-                .withArgs(
-                    await tellerWithMultiAssetSupportDepositor.getAddress(),
-                    signer2.address,
-                    depositValue - 50
-                );
+                .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
         });
 
         it('should revert when a zero depositor address is set', async function () {
