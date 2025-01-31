@@ -30,13 +30,14 @@
     },
     "stakeAndBake": {
         "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
-        "TellerWithMultiAssetSupportDepositor": "0xf70BECa8d49ae12002Bf251DB1229FfAD3aC541C"
+        "TellerWithMultiAssetSupportDepositor": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
       "LBTCOFTAdapter_swell": "0x37E92d760a15231e652a2C502182a6b44c7510c0",
       "LBTCOFTAdapter_berachain": "0x1290A6b480f7eF14925229fdB66f5680aD8F44AD",
-      "LBTCOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd"
+      "LBTCOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd",
+      "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E"
     }
   },
   "bsc": {
@@ -106,7 +107,7 @@
   "berachain": {
     "chainId": "0x00000000000000000000000000000000000000000000000000000000000138de",
     "admin": {
-      "Owner": "",
+      "Owner": "0x6877f7217B61CdE9265A90175092878Dd7cc5017",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
@@ -121,7 +122,7 @@
   "sonic": {
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000000092",
     "admin": {
-      "Owner": "",
+      "Owner": "0x2B8C70bFB1CCc21b9efDc461e7d950524C6d0f12",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
@@ -132,5 +133,19 @@
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
     }
+  },
+  "morph": {
+      "chainId": "0x0000000000000000000000000000000000000000000000000000000000000b02",
+      "admin": {
+          "Owner": "",
+          "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+      },
+      "lombard": {
+          "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+          "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+      },
+      "layerZero": {
+          "LBTCBurnMintOFTAdapter": "0x2e1871Fc8ac793dCf2A74Ce004eE21D913763565"
+      }
   }
 }
