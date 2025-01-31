@@ -25,7 +25,7 @@ contract StakeAndBake is
     /// @dev error thrown when operator is changed to zero address
     error ZeroAddress();
     /// @dev error thrown when fee is attempted to be set above hardcoded maximum
-    error FeeGreaterThanMaximum();
+    error FeeGreaterThanMaximum(uint256 fee);
     /// @dev error thrown when no depositor is set
     error NoDepositorSet();
     /// @dev error thrown when collecting funds from user fails
@@ -37,7 +37,7 @@ contract StakeAndBake is
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(uint256 indexed index, string message);
-    event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event FeeChanged(uint256 newFee);
 
     struct StakeAndBakeData {
         /// @notice permitPayload Contents of permit approval signed by the user
@@ -88,7 +88,7 @@ contract StakeAndBake is
         address claimer_,
         address pauser_
     ) external initializer {
-        if (fee_ > MAXIMUM_FEE) revert FeeGreaterThanMaximum();
+        if (fee_ > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee_);
 
         __ReentrancyGuard_init();
         __Pausable_init();
@@ -113,11 +113,10 @@ contract StakeAndBake is
      * @param fee The fee to set
      */
     function setFee(uint256 fee) external onlyRole(FEE_OPERATOR_ROLE) {
-        if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum();
+        if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee);
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        uint256 oldFee = $.fee;
         $.fee = fee;
-        emit FeeChanged(oldFee, fee);
+        emit FeeChanged(fee);
     }
 
     /**
