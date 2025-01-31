@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IDepositor} from "./IDepositor.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -13,7 +13,7 @@ import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSu
  * @notice This contract is part of the Lombard.Finance protocol
  */
 contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
-    using SafeERC20 for ERC20;
+    using SafeERC20 for IERC20;
 
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
@@ -21,11 +21,11 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     error UnauthorizedAccount(address account);
 
     ITeller public immutable teller;
-    ERC20 public immutable depositAsset;
+    IERC20 public immutable depositAsset;
     address public immutable stakeAndBake;
     address public immutable vault;
 
-    constructor(ITeller teller_, ERC20 depositAsset_, address stakeAndBake_) {
+    constructor(ITeller teller_, IERC20 depositAsset_, address stakeAndBake_) {
         teller = teller_;
         depositAsset = depositAsset_;
         stakeAndBake = stakeAndBake_;
@@ -55,18 +55,14 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         uint256 minimumMint = abi.decode(depositPayload, (uint256));
 
         // Take the owner's LBTC.
-        ERC20(depositAsset).safeTransferFrom(
-            msg.sender,
-            address(this),
-            depositAmount
-        );
+        depositAsset.safeTransferFrom(msg.sender, address(this), depositAmount);
 
         // Give the vault the needed allowance.
-        ERC20(depositAsset).safeIncreaseAllowance(vault, depositAmount);
+        depositAsset.safeIncreaseAllowance(vault, depositAmount);
 
         // Deposit and obtain vault shares.
-        uint256 shares = ITeller(teller).bulkDeposit(
-            ERC20(depositAsset),
+        uint256 shares = teller.bulkDeposit(
+            depositAsset,
             depositAmount,
             minimumMint,
             owner
@@ -81,13 +77,13 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
  */
 interface ITeller {
     function deposit(
-        ERC20 depositAsset,
+        IERC20 depositAsset,
         uint256 depositAmount,
         uint256 minimumMint
     ) external returns (uint256);
 
     function bulkDeposit(
-        ERC20 depositAsset,
+        IERC20 depositAsset,
         uint256 depositAmount,
         uint256 minimumMint,
         address to
