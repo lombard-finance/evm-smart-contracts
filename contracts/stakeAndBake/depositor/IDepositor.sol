@@ -20,9 +20,4 @@ interface IDepositor {
         uint256 depositAmount,
         bytes calldata depositPayload
     ) external;
-
-    /**
-     * @notice Retrieves the final vault address. Used for granting `permit` to the right address.
-     */
-    function destination() external view returns (address);
 }

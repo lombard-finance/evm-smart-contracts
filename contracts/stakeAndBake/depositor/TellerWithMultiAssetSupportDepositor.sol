@@ -20,14 +20,17 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     error ApproveFailed();
     error UnauthorizedAccount(address account);
 
-    address public immutable teller;
-    address public immutable depositAsset;
+    ITeller public immutable teller;
+    ERC20 public immutable depositAsset;
     address public immutable stakeAndBake;
+    address public immutable vault;
 
-    constructor(address teller_, address depositAsset_, address stakeAndBake_) {
+    constructor(ITeller teller_, ERC20 depositAsset_, address stakeAndBake_) {
         teller = teller_;
         depositAsset = depositAsset_;
         stakeAndBake = stakeAndBake_;
+        address vault_ = teller.vault();
+        vault = vault_;
     }
 
     modifier onlyStakeAndBake() {
@@ -59,7 +62,6 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         );
 
         // Give the vault the needed allowance.
-        address vault = destination();
         ERC20(depositAsset).safeIncreaseAllowance(vault, depositAmount);
 
         // Deposit and obtain vault shares.
@@ -69,13 +71,6 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
             minimumMint,
             owner
         );
-    }
-
-    /**
-     * @notice Retrieves the final vault address. Used for granting allowance to the right address.
-     */
-    function destination() public view returns (address) {
-        return ITeller(teller).vault();
     }
 }
 
