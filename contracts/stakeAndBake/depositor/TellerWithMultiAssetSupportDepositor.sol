@@ -80,14 +80,14 @@ interface ITeller {
         IERC20 depositAsset,
         uint256 depositAmount,
         uint256 minimumMint
-    ) external returns (uint256);
+    ) external returns (uint256 shares);
 
     function bulkDeposit(
         IERC20 depositAsset,
         uint256 depositAmount,
         uint256 minimumMint,
         address to
-    ) external returns (uint256);
+    ) external returns (uint256 shares);
 
     function vault() external view returns (address);
 }
