@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IDepositor} from "./IDepositor.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {TellerWithMultiAssetSupportMock} from "../../mock/TellerWithMultiAssetSupportMock.sol";
+import {ITeller} from "./ITeller.sol";
 
 /**
  * @title Depositor for the `BoringVault` vault.
@@ -68,26 +69,4 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
             owner
         );
     }
-}
-
-/**
- * @title An interface over the TellerWithMultiAssetSupport contract.
- * @author Lombard.Finance
- * @notice This contract is part of the Lombard.Finance protocol
- */
-interface ITeller {
-    function deposit(
-        IERC20 depositAsset,
-        uint256 depositAmount,
-        uint256 minimumMint
-    ) external returns (uint256 shares);
-
-    function bulkDeposit(
-        IERC20 depositAsset,
-        uint256 depositAmount,
-        uint256 minimumMint,
-        address to
-    ) external returns (uint256 shares);
-
-    function vault() external view returns (address);
 }
