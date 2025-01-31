@@ -157,7 +157,14 @@ contract StakeAndBake is
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused returns (uint256) {
+    )
+        external
+        nonReentrant
+        onlyRole(CLAIMER_ROLE)
+        depositorSet
+        whenNotPaused
+        returns (uint256)
+    {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC.
@@ -223,9 +230,9 @@ contract StakeAndBake is
         return $.fee;
     }
 
-    function getStakeAndBakeDepositor() external view returns (address) {
+    function getStakeAndBakeDepositor() external view returns (IDepositor) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return address($.depositor);
+        return $.depositor;
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {
