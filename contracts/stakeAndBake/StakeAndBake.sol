@@ -32,6 +32,8 @@ contract StakeAndBake is
     error CollectingFundsFailed();
     /// @dev error thrown when sending the fee fails
     error SendingFeeFailed();
+    /// @dev error thrown when approving to the depositor fails
+    error ApprovalFailed();
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(uint256 indexed index, string message);
@@ -207,7 +209,8 @@ contract StakeAndBake is
 
             // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
             // The depositor should then send the staked vault shares back to the `owner`.
-            $.lbtc.approve(address($.depositor), remainingAmount);
+            if (!$.lbtc.approve(address($.depositor), remainingAmount))
+                revert ApprovalFailed();
 
             // Finally, deposit LBTC to the given vault.
             $.depositor.deposit(owner, remainingAmount, data.depositPayload);
