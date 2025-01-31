@@ -202,15 +202,18 @@ contract StakeAndBake is
                 revert SendingFeeFailed();
         }
 
-        uint256 remainingAmount = permitAmount - feeAmount;
-        if (remainingAmount == 0) revert ZeroDepositAmount();
+        if (permitAmount > feeAmount) {
+            uint256 remainingAmount = permitAmount - feeAmount;
 
-        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
-        // The depositor should then send the staked vault shares back to the `owner`.
-        $.lbtc.approve(address($.depositor), remainingAmount);
+            // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
+            // The depositor should then send the staked vault shares back to the `owner`.
+            $.lbtc.approve(address($.depositor), remainingAmount);
 
-        // Finally, deposit LBTC to the given vault.
-        $.depositor.deposit(owner, remainingAmount, data.depositPayload);
+            // Finally, deposit LBTC to the given vault.
+            $.depositor.deposit(owner, remainingAmount, data.depositPayload);
+        } else {
+            revert ZeroDepositAmount();
+        }
     }
 
     function getStakeAndBakeFee() external view returns (uint256) {
