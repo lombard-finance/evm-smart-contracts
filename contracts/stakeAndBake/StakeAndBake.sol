@@ -211,15 +211,7 @@ contract StakeAndBake is
         }
 
         if (permitAmount > feeAmount) {
-            uint256 remainingAmount = permitAmount - feeAmount;
-
-            // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
-            // The depositor should then send the staked vault shares back to the `owner`.
-            if (!$.lbtc.approve(address($.depositor), remainingAmount))
-                revert ApprovalFailed();
-
-            // Finally, deposit LBTC to the given vault.
-            $.depositor.deposit(owner, remainingAmount, data.depositPayload);
+            deposit(permitAmount, feeAmount, owner, data.depositPayload);
         } else {
             revert ZeroDepositAmount();
         }
@@ -241,6 +233,24 @@ contract StakeAndBake is
 
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    function deposit(
+        uint256 permitAmount,
+        uint256 feeAmount,
+        address owner,
+        bytes calldata depositPayload
+    ) internal {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        uint256 remainingAmount = permitAmount - feeAmount;
+
+        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
+        // The depositor should then send the staked vault shares back to the `owner`.
+        if (!$.lbtc.approve(address($.depositor), remainingAmount))
+            revert ApprovalFailed();
+
+        // Finally, deposit LBTC to the given vault.
+        $.depositor.deposit(owner, remainingAmount, depositPayload);
     }
 
     function _getStakeAndBakeStorage()
