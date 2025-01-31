@@ -153,7 +153,7 @@ contract StakeAndBake is
     ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
-        // First, mint the LBTC and send to owner.
+        // First, mint the LBTC.
         $.lbtc.mint(data.mintPayload, data.proof);
 
         (
