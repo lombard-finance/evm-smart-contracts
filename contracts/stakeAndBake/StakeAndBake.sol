@@ -28,6 +28,10 @@ contract StakeAndBake is
     error FeeGreaterThanMaximum();
     /// @dev error thrown when no depositor is set
     error NoDepositorSet();
+    /// @dev error thrown when collecting funds from user fails
+    error CollectingFundsFailed();
+    /// @dev error thrown when sending the fee fails
+    error SendingFeeFailed();
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(uint256 indexed index, string message);
@@ -186,11 +190,15 @@ contract StakeAndBake is
                 s
             );
 
-        $.lbtc.transferFrom(owner, address(this), permitAmount);
+        if (!$.lbtc.transferFrom(owner, address(this), permitAmount))
+            revert CollectingFundsFailed();
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
-        if (feeAmount > 0) $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
+        if (feeAmount > 0) {
+            if (!$.lbtc.transfer($.lbtc.getTreasury(), feeAmount))
+                revert SendingFeeFailed();
+        }
 
         uint256 remainingAmount = permitAmount - feeAmount;
         if (remainingAmount == 0) revert ZeroDepositAmount();
