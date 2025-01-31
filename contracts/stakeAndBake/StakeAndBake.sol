@@ -30,10 +30,7 @@ contract StakeAndBake is
     error NoDepositorSet();
 
     event DepositorSet(address indexed depositor);
-    event BatchStakeAndBakeReverted(
-        uint256 indexed index,
-        StakeAndBakeData data
-    );
+    event BatchStakeAndBakeReverted(uint256 indexed index, string message);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
 
     struct StakeAndBakeData {
@@ -135,8 +132,10 @@ contract StakeAndBake is
         StakeAndBakeData[] calldata data
     ) external onlyRole(CLAIMER_ROLE) whenNotPaused {
         for (uint256 i; i < data.length; ) {
-            try this.stakeAndBake(data[i]) {} catch {
-                emit BatchStakeAndBakeReverted(i, data[i]);
+            try this.stakeAndBake(data[i]) {} catch Error(
+                string memory message
+            ) {
+                emit BatchStakeAndBakeReverted(i, message);
             }
 
             unchecked {
