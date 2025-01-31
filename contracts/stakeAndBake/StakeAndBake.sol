@@ -81,7 +81,7 @@ contract StakeAndBake is
     }
 
     function initialize(
-        address lbtc_,
+        LBTC lbtc_,
         address owner_,
         address operator_,
         uint256 fee_,
@@ -104,7 +104,7 @@ contract StakeAndBake is
         _grantRole(CLAIMER_ROLE, address(this));
 
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc = LBTC(lbtc_);
+        $.lbtc = lbtc_;
         $.fee = fee_;
     }
 
@@ -157,7 +157,7 @@ contract StakeAndBake is
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
+    ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused returns (uint256) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC.
