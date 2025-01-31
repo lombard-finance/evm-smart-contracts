@@ -40,13 +40,13 @@ contract StakeAndBake is
     event FeeChanged(uint256 newFee);
 
     struct StakeAndBakeData {
-        /// @notice permitPayload Contents of permit approval signed by the user
+        /// @notice Contents of permit approval signed by the user
         bytes permitPayload;
-        /// @notice depositPayload Contains the parameters needed to complete a deposit
+        /// @notice Contains the parameters needed to complete a deposit
         bytes depositPayload;
-        /// @notice mintPayload The message with the stake data
+        /// @notice The message with the stake data
         bytes mintPayload;
-        /// @notice proof Signature of the consortium approving the mint
+        /// @notice Signature of the consortium approving the mint
         bytes proof;
     }
 
