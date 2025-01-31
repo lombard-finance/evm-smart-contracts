@@ -86,6 +86,8 @@ contract StakeAndBake is
         address claimer_,
         address pauser_
     ) external initializer {
+        if (fee_ > MAXIMUM_FEE) revert FeeGreaterThanMaximum();
+
         __ReentrancyGuard_init();
         __Pausable_init();
         __AccessControl_init();
