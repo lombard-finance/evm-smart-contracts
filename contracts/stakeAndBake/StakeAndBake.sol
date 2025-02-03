@@ -34,6 +34,8 @@ contract StakeAndBake is
     error SendingFeeFailed();
     /// @dev error thrown when approving to the depositor fails
     error ApprovalFailed();
+    /// @dev error thrown when stakeAndBakeInternal is called by anyone other than self
+    error CallerNotSelf(address caller);
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(uint256 indexed index, string message);
@@ -137,9 +139,9 @@ contract StakeAndBake is
      */
     function batchStakeAndBake(
         StakeAndBakeData[] calldata data
-    ) external onlyRole(CLAIMER_ROLE) whenNotPaused {
+    ) external onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
         for (uint256 i; i < data.length; ) {
-            try this.stakeAndBake(data[i]) {} catch Error(
+            try this.stakeAndBakeInternal(data[i]) {} catch Error(
                 string memory message
             ) {
                 emit BatchStakeAndBakeReverted(i, message);
@@ -151,20 +153,60 @@ contract StakeAndBake is
         }
     }
 
+    function stakeAndBakeInternal(StakeAndBakeData calldata data) external {
+        if (_msgSender() != address(this)) {
+            revert CallerNotSelf(_msgSender());
+        }
+        _stakeAndBake(data);
+    }
+
     /**
      * @notice Mint LBTC and stake directly into a given vault.
      * @param data The bundled data needed to execute this function
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    )
-        external
-        nonReentrant
-        onlyRole(CLAIMER_ROLE)
-        depositorSet
-        whenNotPaused
-        returns (uint256)
-    {
+    ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
+        _stakeAndBake(data);
+    }
+
+    function getStakeAndBakeFee() external view returns (uint256) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.fee;
+    }
+
+    function getStakeAndBakeDepositor() external view returns (IDepositor) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.depositor;
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
+    function deposit(
+        uint256 permitAmount,
+        uint256 feeAmount,
+        address owner,
+        bytes calldata depositPayload
+    ) internal {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        uint256 remainingAmount = permitAmount - feeAmount;
+
+        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
+        // The depositor should then send the staked vault shares back to the `owner`.
+        if (!$.lbtc.approve(address($.depositor), remainingAmount))
+            revert ApprovalFailed();
+
+        // Finally, deposit LBTC to the given vault.
+        $.depositor.deposit(owner, remainingAmount, depositPayload);
+    }
+
+    function _stakeAndBake(StakeAndBakeData calldata data) internal {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC.
@@ -215,42 +257,6 @@ contract StakeAndBake is
         } else {
             revert ZeroDepositAmount();
         }
-    }
-
-    function getStakeAndBakeFee() external view returns (uint256) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.fee;
-    }
-
-    function getStakeAndBakeDepositor() external view returns (IDepositor) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.depositor;
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
-    }
-
-    function deposit(
-        uint256 permitAmount,
-        uint256 feeAmount,
-        address owner,
-        bytes calldata depositPayload
-    ) internal {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        uint256 remainingAmount = permitAmount - feeAmount;
-
-        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
-        // The depositor should then send the staked vault shares back to the `owner`.
-        if (!$.lbtc.approve(address($.depositor), remainingAmount))
-            revert ApprovalFailed();
-
-        // Finally, deposit LBTC to the given vault.
-        $.depositor.deposit(owner, remainingAmount, depositPayload);
     }
 
     function _getStakeAndBakeStorage()
