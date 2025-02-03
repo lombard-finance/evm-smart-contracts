@@ -262,7 +262,7 @@ describe('StakeAndBake', function () {
         it('should allow operator to change the fee', async function () {
             await expect(stakeAndBake.connect(operator).setFee(2))
                 .to.emit(stakeAndBake, 'FeeChanged')
-                .withArgs(1, 2);
+                .withArgs(2);
         });
 
         it('should not allow anyone else to change the fee', async function () {
