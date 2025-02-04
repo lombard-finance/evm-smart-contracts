@@ -40,6 +40,7 @@ contract StakeAndBake is
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(uint256 indexed index, string message);
     event FeeChanged(uint256 newFee);
+    event GasLimitChanged(uint256 newGasLimit);
 
     struct StakeAndBakeData {
         /// @notice Contents of permit approval signed by the user
@@ -57,6 +58,7 @@ contract StakeAndBake is
         LBTC lbtc;
         IDepositor depositor;
         uint256 fee;
+        uint256 gasLimit;
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -88,7 +90,8 @@ contract StakeAndBake is
         address operator_,
         uint256 fee_,
         address claimer_,
-        address pauser_
+        address pauser_,
+        uint256 gasLimit_
     ) external initializer {
         if (fee_ > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee_);
 
@@ -108,6 +111,7 @@ contract StakeAndBake is
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.lbtc = lbtc_;
         $.fee = fee_;
+        $.gasLimit = gasLimit_;
     }
 
     /**
@@ -119,6 +123,18 @@ contract StakeAndBake is
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.fee = fee;
         emit FeeChanged(fee);
+    }
+
+    /**
+     * @notice Sets the maximum gas limit for a batch stake and bake call
+     * @param gasLimit The gas limit to set
+     */
+    function setGetLimit(
+        uint256 gasLimit
+    ) external onlyRole(FEE_OPERATOR_ROLE) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        $.gasLimit = gasLimit;
+        emit GasLimitChanged(gasLimit);
     }
 
     /**
@@ -140,10 +156,11 @@ contract StakeAndBake is
     function batchStakeAndBake(
         StakeAndBakeData[] calldata data
     ) external onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         for (uint256 i; i < data.length; ) {
-            try this.stakeAndBakeInternal(data[i]) {} catch Error(
-                string memory message
-            ) {
+            try
+                this.stakeAndBakeInternal{gas: $.gasLimit}(data[i])
+            {} catch Error(string memory message) {
                 emit BatchStakeAndBakeReverted(i, message);
             }
 

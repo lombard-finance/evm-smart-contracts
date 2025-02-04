@@ -69,6 +69,7 @@ describe('StakeAndBake', function () {
             1,
             deployer.address,
             pauser.address,
+            1_000_000,
         ]);
 
         teller = await deployContract<TellerWithMultiAssetSupportMock>(
