@@ -5,5 +5,3 @@ export * from './pauser';
 export * from './treasury';
 export * from './layerzero';
 export * from './chainlink';
-export * from './transfer-admin';
-export * from './transfer-ownership';

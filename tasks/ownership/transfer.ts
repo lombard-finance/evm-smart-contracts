@@ -6,8 +6,10 @@ export async function transferOwnership(
 ) {
     const { ethers } = hre;
 
-    const contract = await ethers.getContractAt('IOwnable', taskArgs.target);
-    const tx = await contract.transferOwnership(taskArgs.target);
+    const { owner, target } = taskArgs;
+
+    const contract = await ethers.getContractAt('IOwnable', target);
+    const tx = await contract.transferOwnership(owner);
     await tx.wait(2);
     console.log(`tx hash: ${tx.hash}`);
 }
