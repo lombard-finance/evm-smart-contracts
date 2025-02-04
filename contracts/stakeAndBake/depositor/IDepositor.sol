@@ -19,5 +19,5 @@ interface IDepositor {
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external;
+    ) external returns (bytes memory);
 }

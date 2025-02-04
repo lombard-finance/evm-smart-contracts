@@ -155,12 +155,21 @@ contract StakeAndBake is
      */
     function batchStakeAndBake(
         StakeAndBakeData[] calldata data
-    ) external onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
+    )
+        external
+        onlyRole(CLAIMER_ROLE)
+        depositorSet
+        whenNotPaused
+        returns (bytes[] memory)
+    {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        bytes[] memory ret = new bytes[](data.length);
         for (uint256 i; i < data.length; ) {
-            try
-                this.stakeAndBakeInternal{gas: $.gasLimit}(data[i])
-            {} catch Error(string memory message) {
+            try this.stakeAndBakeInternal{gas: $.gasLimit}(data[i]) returns (
+                bytes memory b
+            ) {
+                ret[i] = b;
+            } catch Error(string memory message) {
                 emit BatchStakeAndBakeReverted(i, message);
             }
 
@@ -168,13 +177,17 @@ contract StakeAndBake is
                 i++;
             }
         }
+
+        return ret;
     }
 
-    function stakeAndBakeInternal(StakeAndBakeData calldata data) external {
+    function stakeAndBakeInternal(
+        StakeAndBakeData calldata data
+    ) external returns (bytes memory) {
         if (_msgSender() != address(this)) {
             revert CallerNotSelf(_msgSender());
         }
-        _stakeAndBake(data);
+        return _stakeAndBake(data);
     }
 
     /**
@@ -183,8 +196,15 @@ contract StakeAndBake is
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
-        _stakeAndBake(data);
+    )
+        external
+        nonReentrant
+        onlyRole(CLAIMER_ROLE)
+        depositorSet
+        whenNotPaused
+        returns (bytes memory)
+    {
+        return _stakeAndBake(data);
     }
 
     function getStakeAndBakeFee() external view returns (uint256) {
@@ -210,7 +230,7 @@ contract StakeAndBake is
         uint256 feeAmount,
         address owner,
         bytes calldata depositPayload
-    ) internal {
+    ) internal returns (bytes memory) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         uint256 remainingAmount = permitAmount - feeAmount;
 
@@ -220,10 +240,12 @@ contract StakeAndBake is
             revert ApprovalFailed();
 
         // Finally, deposit LBTC to the given vault.
-        $.depositor.deposit(owner, remainingAmount, depositPayload);
+        return $.depositor.deposit(owner, remainingAmount, depositPayload);
     }
 
-    function _stakeAndBake(StakeAndBakeData calldata data) internal {
+    function _stakeAndBake(
+        StakeAndBakeData calldata data
+    ) internal returns (bytes memory) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC.
@@ -270,7 +292,7 @@ contract StakeAndBake is
         }
 
         if (permitAmount > feeAmount) {
-            deposit(permitAmount, feeAmount, owner, data.depositPayload);
+            return deposit(permitAmount, feeAmount, owner, data.depositPayload);
         } else {
             revert ZeroDepositAmount();
         }

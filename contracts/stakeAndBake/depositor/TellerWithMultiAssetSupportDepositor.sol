@@ -52,7 +52,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external nonReentrant onlyStakeAndBake {
+    ) external nonReentrant onlyStakeAndBake returns (bytes memory) {
         uint256 minimumMint = abi.decode(depositPayload, (uint256));
 
         // Take the owner's LBTC.
@@ -68,5 +68,8 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
             minimumMint,
             owner
         );
+
+        bytes memory ret = abi.encode(shares);
+        return ret;
     }
 }
