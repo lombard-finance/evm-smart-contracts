@@ -138,6 +138,47 @@ task('setup-endpoint-config', 'Configure LayerZero endpoint')
     });
 
 task(
+    'setup-oft-enforced-options',
+    'Sets the enforced options on the OFT adapter'
+)
+    .addParam('eid', 'Eid of the remote chain')
+    .addParam('msgType', 'msgType of the option to set')
+    .addParam('gas', 'gas value of lzReceive')
+    .addParam('oappAddress', 'The address of OFTAdapter')
+    .addFlag('populate', 'Populate raw tx')
+    .setAction(async (taskArgs, { ethers }, network) => {
+        const { eid, msgType, gas, oappAddress, populate } = taskArgs;
+
+        const oftAdapter = await ethers.getContractAt(
+            'EfficientRateLimitedOFTAdapter',
+            oappAddress
+        );
+
+        const opts = Options.newOptions().addExecutorLzReceiveOption(
+            200_000,
+            0
+        );
+
+        const enforcedOptions = {
+            eid: eid,
+            msgType: msgType, // SEND
+            options: opts.toHex(),
+        };
+
+        if (populate) {
+            const tx = await oftAdapter.setEnforcedOptions.populateTransaction([
+                enforcedOptions,
+            ]);
+            console.log('Raw transaction:\n', JSON.stringify(tx, null, 2));
+        } else {
+            // Send the transaction
+            const tx = await oftAdapter.setEnforcedOptions([enforcedOptions]);
+            console.log('Transaction sent:', tx.hash);
+            await tx.wait();
+        }
+    });
+
+task(
     'setup-oft-rate-limits',
     'Configure EfficientRateLimitedOFTAdapter rate limits'
 )
