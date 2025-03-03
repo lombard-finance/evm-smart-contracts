@@ -43,7 +43,7 @@ contract IBCVoucher is
         _disableInitializers();
     }
 
-    function initialize(ILBTC _lbtc, address admin) external initializer {
+    function initialize(ILBTC _lbtc, address admin, uint256 _fee, address _treasury) external initializer {
         __ERC20_init("", "");
         __ERC20Pausable_init();
         __ReentrancyGuard_init();
@@ -52,6 +52,10 @@ contract IBCVoucher is
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         __IBCVoucher_init("IBC compatible LBTC Voucher", "iLBTCv", _lbtc);
+
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        $.fee = _fee;
+        $.treasury = _treasury;
     }
 
     function __IBCVoucher_init(
@@ -88,8 +92,8 @@ contract IBCVoucher is
         uint256 fee = $.fee;
 
         IERC20(address(_lbtc)).safeTransferFrom(from, address(this), amount);
-        if amount <= fee {
-            revert AmountTooLow;
+        if (amount <= fee) {
+            revert AmountTooLow();
         }
         uint256 amountAfterFee = amount - fee;
 
@@ -144,11 +148,11 @@ contract IBCVoucher is
         emit FeeUpdated($.fee);
     }
 
-    function treasury() external view returns (address) {
+    function getTreasury() external view returns (address) {
         return _getIBCVoucherStorage().treasury;
     }
 
-    function fee() external view returns (address) {
+    function getFee() external view returns (uint256) {
         return _getIBCVoucherStorage().fee;
     }
 
