@@ -26,8 +26,8 @@ contract IBCVoucher is
         string name;
         string symbol;
         ILBTC lbtc;
-        uint256 fee; // TODO: setter/getter
-        address treasury; // TODO: setter/getter
+        uint256 fee;
+        address treasury;
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -88,7 +88,9 @@ contract IBCVoucher is
         uint256 fee = $.fee;
 
         IERC20(address(_lbtc)).safeTransferFrom(from, address(this), amount);
-        // TODO: check amount above fee
+        if amount <= fee {
+            revert AmountTooLow;
+        }
         uint256 amountAfterFee = amount - fee;
 
         IERC20(address(_lbtc)).safeTransfer($.treasury, fee);
@@ -126,6 +128,28 @@ contract IBCVoucher is
 
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    function setTreasuryAddress(
+        address newTreasury
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        $.treasury = newTreasury;
+        emit TreasuryUpdated($.treasury);
+    }
+
+    function setFee(uint256 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        $.fee = newFee;
+        emit FeeUpdated($.fee);
+    }
+
+    function treasury() external view returns (address) {
+        return _getIBCVoucherStorage().treasury;
+    }
+
+    function fee() external view returns (address) {
+        return _getIBCVoucherStorage().fee;
     }
 
     function lbtc() external view returns (address) {

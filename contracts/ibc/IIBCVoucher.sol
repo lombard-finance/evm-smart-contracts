@@ -15,6 +15,10 @@ interface IIBCVoucher {
         address indexed to,
         uint256 amount
     );
+    event TreasuryUpdated(address indexed newTreasury);
+    event FeeUpdated(uint256 fee);
+
+    error AmountTooLow();
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval
