@@ -76,14 +76,28 @@ contract IBCVoucher is
 
     function wrap(
         uint256 amount
-    ) external override whenNotPaused nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+    )
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        onlyRole(RELAYER_ROLE)
+        returns (uint256)
+    {
         return _wrap(_msgSender(), _msgSender(), amount);
     }
 
     function wrapTo(
         address recipient,
         uint256 amount
-    ) external override whenNotPaused nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+    )
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        onlyRole(RELAYER_ROLE)
+        returns (uint256)
+    {
         return _wrap(_msgSender(), recipient, amount);
     }
 
