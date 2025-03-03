@@ -2,9 +2,10 @@
 pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20Upgradeable, ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IIBCVoucher} from "./IIBCVoucher.sol";
 import {ILBTC} from "../LBTC/ILBTC.sol";
 
@@ -14,11 +15,12 @@ import {ILBTC} from "../LBTC/ILBTC.sol";
 /// @notice The contracts is a part of Lombard.Finace protocol
 contract IBCVoucher is
     IIBCVoucher,
-    ERC20Upgradeable,
     ERC20PausableUpgradeable,
     ReentrancyGuardUpgradeable,
     AccessControlUpgradeable
 {
+    using SafeERC20 for IERC20;
+
     /// @custom:storage-location erc7201:lombardfinance.storage.IBCVoucher
     struct IBCVoucherStorage {
         string name;
@@ -63,20 +65,20 @@ contract IBCVoucher is
         $.lbtc = _lbtc;
     }
 
-    function get(
+    function wrap(
         uint256 amount
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
-        return _get(_msgSender(), _msgSender(), amount);
+        return _wrap(_msgSender(), _msgSender(), amount);
     }
 
-    function getTo(
+    function wrapTo(
         address recipient,
         uint256 amount
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
-        return _get(_msgSender(), recipient, amount);
+        return _wrap(_msgSender(), recipient, amount);
     }
 
-    function _get(
+    function _wrap(
         address from,
         address recipient,
         uint256 amount
@@ -85,11 +87,11 @@ contract IBCVoucher is
         ILBTC _lbtc = $.lbtc;
         uint256 fee = $.fee;
 
-        IERC20(address(_lbtc)).transferFrom(from, address(this), amount);
+        IERC20(address(_lbtc)).safeTransferFrom(from, address(this), amount);
         // TODO: check amount above fee
         uint256 amountAfterFee = amount - fee;
 
-        IERC20(address(_lbtc)).transfer($.treasury, fee);
+        IERC20(address(_lbtc)).safeTransfer($.treasury, fee);
         _lbtc.burn(amountAfterFee);
         _mint(recipient, amountAfterFee);
 
@@ -166,12 +168,12 @@ contract IBCVoucher is
         }
     }
 
-    /// @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+    /// @dev Override of the _update function to satisfy ERC20PausableUpgradeable
     function _update(
         address from,
         address to,
         uint256 value
-    ) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+    ) internal virtual override(ERC20PausableUpgradeable) {
         super._update(from, to, value);
     }
 }
