@@ -43,7 +43,12 @@ contract IBCVoucher is
         _disableInitializers();
     }
 
-    function initialize(ILBTC _lbtc, address admin, uint256 _fee, address _treasury) external initializer {
+    function initialize(
+        ILBTC _lbtc,
+        address admin,
+        uint256 _fee,
+        address _treasury
+    ) external initializer {
         __ERC20_init("", "");
         __ERC20Pausable_init();
         __ReentrancyGuard_init();
@@ -71,14 +76,14 @@ contract IBCVoucher is
 
     function wrap(
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+    ) external override whenNotPaused nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
         return _wrap(_msgSender(), _msgSender(), amount);
     }
 
     function wrapTo(
         address recipient,
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+    ) external override whenNotPaused nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
         return _wrap(_msgSender(), recipient, amount);
     }
 
@@ -107,14 +112,14 @@ contract IBCVoucher is
 
     function spend(
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) {
+    ) external override whenNotPaused nonReentrant onlyRole(RELAYER_ROLE) {
         _spend(_msgSender(), _msgSender(), amount);
     }
 
     function spendTo(
         address recipient,
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) {
+    ) external override whenNotPaused nonReentrant onlyRole(RELAYER_ROLE) {
         _spend(_msgSender(), recipient, amount);
     }
 
