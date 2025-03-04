@@ -56,22 +56,28 @@ contract IBCVoucher is
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        __IBCVoucher_init("IBC compatible LBTC Voucher", "iLBTCv", _lbtc);
-
-        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
-        $.fee = _fee;
-        $.treasury = _treasury;
+        __IBCVoucher_init(
+            "IBC compatible LBTC Voucher",
+            "iLBTCv",
+            _lbtc,
+            _fee,
+            _treasury
+        );
     }
 
     function __IBCVoucher_init(
         string memory _name,
         string memory _symbol,
-        ILBTC _lbtc
+        ILBTC _lbtc,
+        uint256 _fee,
+        address _treasury
     ) internal onlyInitializing {
         _changeNameAndSymbol(_name, _symbol);
 
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         $.lbtc = _lbtc;
+        _setFee(_fee);
+        _setTreasuryAddress(_treasury);
     }
 
     function wrap(
@@ -142,12 +148,24 @@ contract IBCVoucher is
     function setTreasuryAddress(
         address newTreasury
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTreasuryAddress(newTreasury);
+    }
+
+    function _setTreasuryAddress(address newTreasury) internal {
+        if (newTreasury == address(0)) {
+            revert ZeroAddress();
+        }
+
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         $.treasury = newTreasury;
         emit TreasuryUpdated($.treasury);
     }
 
     function setFee(uint256 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setFee(newFee);
+    }
+
+    function _setFee(uint256 newFee) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         $.fee = newFee;
         emit FeeUpdated($.fee);

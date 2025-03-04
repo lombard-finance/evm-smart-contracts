@@ -19,6 +19,7 @@ interface IIBCVoucher {
     event FeeUpdated(uint256 fee);
 
     error AmountTooLow();
+    error ZeroAddress();
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval
