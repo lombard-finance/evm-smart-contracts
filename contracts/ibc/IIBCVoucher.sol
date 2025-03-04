@@ -44,4 +44,7 @@ interface IIBCVoucher {
     /// @param recipient Recipient of LBTC
     /// @param amount Amount of Voucher
     function spendTo(address recipient, uint256 amount) external;
+
+    /// @notice Returns the current wrapping fee
+    function getFee() external view returns (uint256);
 }
