@@ -128,6 +128,11 @@ describe('IBCVoucher', function () {
                 .withArgs(ethers.ZeroAddress, signer1.address, amount - fee)
                 .to.emit(ibcVoucher, 'VoucherMinted')
                 .withArgs(signer1.address, signer1.address, fee, amount - fee);
+
+            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
+            expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(
+                amount - fee
+            );
         });
 
         it('should allow a relayer to wrap LBTC to a given address', async function () {
@@ -157,6 +162,11 @@ describe('IBCVoucher', function () {
                 .withArgs(ethers.ZeroAddress, signer2.address, amount - fee)
                 .to.emit(ibcVoucher, 'VoucherMinted')
                 .withArgs(signer1.address, signer2.address, fee, amount - fee);
+
+            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
+            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
+                amount - fee
+            );
         });
 
         it('should not allow to wrap with amount equal to or below fee amount', async function () {
@@ -197,6 +207,9 @@ describe('IBCVoucher', function () {
                 .withArgs(ethers.ZeroAddress, signer1.address, amount)
                 .to.emit(ibcVoucher, 'VoucherSpent')
                 .withArgs(signer1.address, signer1.address, amount);
+
+            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
+            expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
         });
 
         it('should allow a relayer to spend voucher to a given address', async function () {
@@ -209,6 +222,9 @@ describe('IBCVoucher', function () {
                 .withArgs(ethers.ZeroAddress, signer2.address, amount)
                 .to.emit(ibcVoucher, 'VoucherSpent')
                 .withArgs(signer1.address, signer2.address, amount);
+
+            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
+            expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
         });
     });
 
@@ -223,9 +239,18 @@ describe('IBCVoucher', function () {
             await lbtc
                 .connect(signer1)
                 .approve(await ibcVoucher.getAddress(), amount + fee);
-            await ibcVoucher
-                .connect(signer1)
-                .wrapTo(signer2.address, amount + fee);
+            await expect(
+                ibcVoucher
+                    .connect(signer1)
+                    .wrapTo(signer2.address, amount + fee)
+            )
+                .to.emit(ibcVoucher, 'VoucherMinted')
+                .withArgs(signer1.address, signer2.address, fee, amount);
+
+            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
+            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
+                amount
+            );
         });
 
         it('should not allow just anyone to wrap LBTC', async function () {
@@ -267,6 +292,10 @@ describe('IBCVoucher', function () {
 
     describe('Pausing', function () {
         beforeEach(async function () {
+            await expect(
+                lbtc['mint(address, uint256)'](deployer.address, amount)
+            );
+            await lbtc.approve(await ibcVoucher.getAddress(), amount);
             await ibcVoucher.grantRole(
                 await ibcVoucher.PAUSER_ROLE(),
                 deployer.address
@@ -275,7 +304,7 @@ describe('IBCVoucher', function () {
         });
 
         it('should disallow `wrap` when paused', async function () {
-            await expect(ibcVoucher.wrap(100)).to.be.revertedWithCustomError(
+            await expect(ibcVoucher.wrap(amount)).to.be.revertedWithCustomError(
                 ibcVoucher,
                 'EnforcedPause'
             );
@@ -283,20 +312,19 @@ describe('IBCVoucher', function () {
 
         it('should disallow `wrapTo` when paused', async function () {
             await expect(
-                ibcVoucher.wrapTo(signer2.address, 100)
+                ibcVoucher.wrapTo(signer2.address, amount)
             ).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
         });
 
         it('should disallow `spend` when paused', async function () {
-            await expect(ibcVoucher.spend(100)).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'EnforcedPause'
-            );
+            await expect(
+                ibcVoucher.spend(amount)
+            ).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
         });
 
         it('should disallow `spendTo` when paused', async function () {
             await expect(
-                ibcVoucher.spendTo(signer2.address, 100)
+                ibcVoucher.spendTo(signer2.address, amount)
             ).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
         });
     });
