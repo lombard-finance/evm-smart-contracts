@@ -116,16 +116,14 @@ contract IBCVoucher is
         return amountAfterFee;
     }
 
-    function spend(
-        uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) {
+    function spend(uint256 amount) external override nonReentrant {
         _spend(_msgSender(), _msgSender(), amount);
     }
 
     function spendTo(
         address recipient,
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) {
+    ) external override nonReentrant {
         _spend(_msgSender(), recipient, amount);
     }
 

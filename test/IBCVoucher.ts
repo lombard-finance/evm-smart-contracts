@@ -196,35 +196,37 @@ describe('IBCVoucher', function () {
             await lbtc
                 .connect(signer1)
                 .approve(await ibcVoucher.getAddress(), amount + fee);
-            await ibcVoucher.connect(signer1).wrap(amount + fee);
+            await ibcVoucher
+                .connect(signer1)
+                .wrapTo(signer2.address, amount + fee);
         });
 
-        it('should allow a relayer to spend voucher', async function () {
-            await expect(ibcVoucher.connect(signer1).spend(amount))
+        it('should allow anyone to spend voucher', async function () {
+            await expect(ibcVoucher.connect(signer2).spend(amount))
                 .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer1.address, ethers.ZeroAddress, amount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer1.address, amount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer1.address, signer1.address, amount);
-
-            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
-        });
-
-        it('should allow a relayer to spend voucher to a given address', async function () {
-            await expect(
-                ibcVoucher.connect(signer1).spendTo(signer2.address, amount)
-            )
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer1.address, ethers.ZeroAddress, amount)
+                .withArgs(signer2.address, ethers.ZeroAddress, amount)
                 .to.emit(lbtc, 'Transfer')
                 .withArgs(ethers.ZeroAddress, signer2.address, amount)
                 .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer1.address, signer2.address, amount);
+                .withArgs(signer2.address, signer2.address, amount);
 
             expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
+            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(0);
+        });
+
+        it('should allow anyone to spend voucher to a given address', async function () {
+            await expect(
+                ibcVoucher.connect(signer2).spendTo(signer3.address, amount)
+            )
+                .to.emit(ibcVoucher, 'Transfer')
+                .withArgs(signer2.address, ethers.ZeroAddress, amount)
+                .to.emit(lbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, signer3.address, amount)
+                .to.emit(ibcVoucher, 'VoucherSpent')
+                .withArgs(signer2.address, signer3.address, amount);
+
+            expect(await lbtc.balanceOf(signer3.address)).to.be.equal(amount);
+            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(0);
         });
     });
 
@@ -265,24 +267,6 @@ describe('IBCVoucher', function () {
         it('should not allow just anyone to wrap LBTC to a given address', async function () {
             await expect(
                 ibcVoucher.connect(signer2).wrapTo(signer1.address, amount)
-            ).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'AccessControlUnauthorizedAccount'
-            );
-        });
-
-        it('should not allow just anyone to spend voucher', async function () {
-            await expect(
-                ibcVoucher.connect(signer2).spend(amount)
-            ).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'AccessControlUnauthorizedAccount'
-            );
-        });
-
-        it('should not allow just anyone to spend voucher to a given address', async function () {
-            await expect(
-                ibcVoucher.connect(signer2).spendTo(signer1.address, amount)
             ).to.be.revertedWithCustomError(
                 ibcVoucher,
                 'AccessControlUnauthorizedAccount'
