@@ -14,14 +14,12 @@ task('deploy-voucher', 'Deploys the IBCVoucher contract')
         DEFAULT_PROXY_FACTORY
     )
     .setAction(async (taskArgs, hre, network) => {
-        const { ethers } = hre;
-
         const { ledgerNetwork, lbtc, admin, treasury, fee, proxyFactoryAddr } =
             taskArgs;
 
         await create3(
             'IBCVoucher',
-            [lbtc, admin, treasury, fee],
+            [lbtc, admin, fee, treasury],
             proxyFactoryAddr,
             ledgerNetwork,
             admin,

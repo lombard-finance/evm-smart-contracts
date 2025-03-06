@@ -10,7 +10,8 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
       "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
-      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc"
+      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc",
+      "IBCVoucher": "0x8f2403f14d0ca553273b7d55013e499194f9ec78"
     },
     "chainlink": {
       "ChainSelector": "",
