@@ -60,6 +60,12 @@ describe('IBCVoucher', function () {
             signer1.address
         );
 
+        // Give signer1 operator role
+        await ibcVoucher.grantRole(
+            await ibcVoucher.OPERATOR_ROLE(),
+            signer1.address
+        );
+
         // IBC Voucher needs to be minter
         await lbtc.addMinter(await ibcVoucher.getAddress());
 

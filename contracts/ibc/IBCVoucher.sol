@@ -2,9 +2,7 @@
 pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -19,8 +17,7 @@ contract IBCVoucher is
     IIBCVoucher,
     ERC20PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    AccessControlUpgradeable,
-    ERC20PermitUpgradeable
+    AccessControlUpgradeable
 {
     using SafeERC20 for IERC20;
 
@@ -35,6 +32,7 @@ contract IBCVoucher is
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -133,7 +131,7 @@ contract IBCVoucher is
     function spendFrom(
         address owner,
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) {
+    ) external override nonReentrant onlyRole(OPERATOR_ROLE) {
         _spend(owner, owner, amount);
     }
 
@@ -141,7 +139,7 @@ contract IBCVoucher is
         address owner,
         address recipient,
         uint256 amount
-    ) external override nonReentrant onlyRole(RELAYER_ROLE) {
+    ) external override nonReentrant onlyRole(OPERATOR_ROLE) {
         _spend(owner, recipient, amount);
     }
 
@@ -240,7 +238,7 @@ contract IBCVoucher is
         address from,
         address to,
         uint256 value
-    ) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+    ) internal virtual override(ERC20PausableUpgradeable) {
         super._update(from, to, value);
     }
 }
