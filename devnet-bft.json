@@ -1,0 +1,115 @@
+{
+  "sepolia": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "CLAdapter": "0x2Cc0b3D2E8B412C9A4D52035E7c015E4718fF90E",
+      "LombardTokenPool": "0x267d40f64ECc4d95F3e8b2237Df5f37b10812C25"
+    },
+    "stakeAndBake": {
+      "StakeAndBake": "0xF738524337409b7dB922666DC1986E391a7552bf",
+      "TellerWithMultiAssetSupportDepositor": "0x3C507A66bdfdd3853150ee80c49B2297Be34E5b0"
+    },
+    "layerZero": {
+      "LBTCOFTAdapter_beraBartio": "0xe3748bF0Ec0A76767539eE28610B3367e35fe2C2",
+      "LBTCOFTAdapter_beraCartio": "0x33a4663C5D5F25e5f93F95A88b0FE8A202064AFE",
+    }
+  },
+  "linea_testnet": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000e705",
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x2456fb71AFe06b29e99e7aC28797d41585eCF3C8"
+    }
+  },
+  "baseSepolia": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000014a34",
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "CLAdapter": "0xAE7Fc0AfF675EF0F258BE89BC8c44D3A2A61057C",
+      "LombardTokenPool": "0x3F2ae41B33A893072cB5F5E4a0F45AeE6FF02540"
+    }
+  },
+  "arbitrumSepolia": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000066eee",
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x1977013acaf27856ac8048C42EE2ed0134d53895"
+    }
+  },
+  "beraBartio": {
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x1977013acaf27856ac8048C42EE2ed0134d53895"
+    }
+  },
+  "beraCartio": {
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xdDb368251Ef7C814Bc3afF3Cb8e36F8dC3f54eca",
+      "LBTC": "0x73a58b73018c1a417534232529b57b99132b13D2",
+      "Consortium": "0x27E051581b0CfF9219D841106C203CA2D35eD37f"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0xED7bfd5C1790576105Af4649817f6d35A75CD818"
+    }
+  }
+}
