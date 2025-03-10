@@ -42,7 +42,7 @@ contract IBCVoucher is
     bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    uint256 private constant RATIO_MULTIPLIER = 1e10; // Granular enough to count rate limit flows per sat.
+    uint256 public constant RATIO_MULTIPLIER = 1e10; // Granular enough to count rate limit flows per sat.
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -100,7 +100,7 @@ contract IBCVoucher is
 
         RateLimit memory rateLimit = RateLimit({
             supplyAtUpdate: totalSupply,
-            threshold: threshold,
+            threshold: threshold / totalSupply,
             flow: 0,
             lastUpdated: block.timestamp,
             window: window
