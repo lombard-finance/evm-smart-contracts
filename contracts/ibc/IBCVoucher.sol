@@ -119,7 +119,6 @@ contract IBCVoucher is
         uint64 window
     ) internal {
         uint256 totalSupply = totalSupply();
-
         if (totalSupply == 0) {
             revert ZeroSupply();
         }
@@ -211,7 +210,7 @@ contract IBCVoucher is
                 revert RateLimitExceeded();
             }
 
-            $.rateLimit.limit += uint64(amount);
+            $.rateLimit.flow += uint64(amount);
         }
 
         _burn(from, amount);

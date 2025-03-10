@@ -396,11 +396,12 @@ describe('IBCVoucher', function () {
             );
 
             expect(await ibcVoucher.totalSupply()).to.be.equal(amount);
+
+            // 10% of total supply
+            await ibcVoucher.setRateLimit(10, oneDay);
         });
 
         it('should allow `spend` within the limit', async function () {
-            // 10% of total supply
-            await expect(ibcVoucher.setRateLimit(10, oneDay));
             expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
 
             // Should be able to `spend` 10 sats
@@ -423,9 +424,6 @@ describe('IBCVoucher', function () {
         });
 
         it('should abort `spend` over the limit', async function () {
-            // 10% of total supply
-            await expect(ibcVoucher.setRateLimit(10, oneDay));
-
             // Should not be able to `spend` 11 sats
             await expect(
                 ibcVoucher.connect(signer2).spend(spendAmount + 1)
@@ -433,8 +431,6 @@ describe('IBCVoucher', function () {
         });
 
         it('should reset after window', async function () {
-            // 10% of total supply
-            await expect(ibcVoucher.setRateLimit(10, oneDay));
             expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
 
             // Should be able to `spend` 10 sats
