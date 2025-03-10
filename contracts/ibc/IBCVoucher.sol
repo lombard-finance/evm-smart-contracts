@@ -20,13 +20,14 @@ contract IBCVoucher is
 {
     using SafeERC20 for IERC20;
 
+    /// @notice Simplified implementation of IBC rate limits: https://github.com/cosmos/ibc-apps/tree/modules/rate-limiting/v8.0.0/modules/rate-limiting
     struct RateLimit {
-        uint256 supplyAtUpdate;
+        uint64 supplyAtUpdate;
         uint256 threshold; // Identical to IBC rate limit spec, this threshold is a percentage of the supply.
         uint256 ratio;
         uint256 flow;
-        uint256 lastUpdated;
-        uint256 window; // Window denominated in hours.
+        uint64 lastUpdated;
+        uint64 window; // Window denominated in hours.
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.IBCVoucher
@@ -92,19 +93,32 @@ contract IBCVoucher is
         _setTreasuryAddress(_treasury);
     }
 
+    /// @notice Sets a rate limit for unwrapping the IBC Voucher.
+    /// @param threshold The rate limit threshold in whole percentage points.
+    /// @param window The rate limit window in hours.
     function setRateLimit(
         uint256 threshold,
-        uint256 window
+        uint64 window
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (threshold == 0) {
+            revert ZeroThreshold();
+        }
+
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
-        uint256 totalSupply = IERC20(address($.lbtc)).totalSupply();
+        uint256 totalSupply = this.totalSupply();
+
+        if (totalSupply == 0) {
+            revert ZeroSupply();
+        }
+
+        uint256 multipliedThreshold = threshold * RATIO_MULTIPLIER;
 
         RateLimit memory rateLimit = RateLimit({
-            supplyAtUpdate: totalSupply,
-            threshold: threshold,
-            ratio: threshold / totalSupply,
+            supplyAtUpdate: uint64(totalSupply),
+            threshold: multipliedThreshold,
+            ratio: multipliedThreshold / totalSupply,
             flow: 0,
-            lastUpdated: block.timestamp,
+            lastUpdated: uint64(block.timestamp),
             window: window
         });
 
@@ -116,11 +130,11 @@ contract IBCVoucher is
         uint256 totalSupply = IERC20(address($.lbtc)).totalSupply();
 
         RateLimit memory rateLimit = RateLimit({
-            supplyAtUpdate: totalSupply,
+            supplyAtUpdate: uint64(totalSupply),
             threshold: $.rateLimit.threshold,
             ratio: $.rateLimit.threshold / totalSupply,
             flow: 0,
-            lastUpdated: block.timestamp,
+            lastUpdated: uint64(block.timestamp),
             window: $.rateLimit.window
         });
 
@@ -272,6 +286,17 @@ contract IBCVoucher is
     /// Because LBTC represents BTC we use the same decimals.
     function decimals() public view virtual override returns (uint8) {
         return 8;
+    }
+
+    function leftoverAmount() public view returns (uint256) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        uint256 fullAmount = $.rateLimit.ratio / RATIO_MULTIPLIER;
+        uint256 swapped = $.rateLimit.flow / RATIO_MULTIPLIER;
+        return fullAmount - swapped;
+    }
+
+    function rateLimitConfig() public view returns (RateLimit memory) {
+        return _getIBCVoucherStorage().rateLimit;
     }
 
     function _changeNameAndSymbol(

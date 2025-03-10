@@ -377,27 +377,42 @@ describe('IBCVoucher', function () {
         const spendAmount = 10;
 
         beforeEach(async function () {
-            await lbtc['mint(address, uint256)'](signer1.address, amount);
-
-            // 10% of total supply
-            await ibcVoucher.setRateLimit(
-                BigInt(10) * (await ibcVoucher.RATIO_MULTIPLIER()),
-                oneDay
-            );
+            await lbtc['mint(address, uint256)'](signer1.address, amount + fee);
 
             // Now we wrap some LBTC to unwrap later.
             await lbtc
                 .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), amount);
+                .approve(await ibcVoucher.getAddress(), amount + fee);
             await expect(
-                ibcVoucher.connect(signer1).wrapTo(signer2.address, amount)
+                ibcVoucher
+                    .connect(signer1)
+                    .wrapTo(signer2.address, amount + fee)
             )
                 .to.emit(ibcVoucher, 'VoucherMinted')
-                .withArgs(signer1.address, signer2.address, fee, amount - fee);
+                .withArgs(signer1.address, signer2.address, fee, amount);
 
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - fee
+                amount
             );
+
+            // 10% of total supply
+            await ibcVoucher.setRateLimit(10, oneDay);
+
+            const rateLimit = await ibcVoucher.rateLimitConfig();
+            expect(rateLimit.supplyAtUpdate == amount);
+            expect(
+                rateLimit.threshold ==
+                    BigInt(spendAmount) * (await ibcVoucher.RATIO_MULTIPLIER())
+            );
+            expect(
+                rateLimit.ratio ==
+                    (BigInt(spendAmount) *
+                        (await ibcVoucher.RATIO_MULTIPLIER())) /
+                        BigInt(amount)
+            );
+            expect(rateLimit.flow == 0);
+            expect(rateLimit.lastUpdated == amount);
+            expect(rateLimit.window == oneDay);
         });
 
         it('should allow `spend` within the limit', async function () {
@@ -414,7 +429,7 @@ describe('IBCVoucher', function () {
                 spendAmount
             );
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - fee - spendAmount
+                amount - spendAmount
             );
         });
 
@@ -439,7 +454,7 @@ describe('IBCVoucher', function () {
                 spendAmount
             );
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - fee - spendAmount
+                amount - spendAmount
             );
 
             // Fast forward one day
@@ -460,7 +475,7 @@ describe('IBCVoucher', function () {
                 spendAmount + secondSpend
             );
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - fee - spendAmount - secondSpend
+                amount - spendAmount - secondSpend
             );
         });
     });
