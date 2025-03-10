@@ -395,27 +395,14 @@ describe('IBCVoucher', function () {
                 amount
             );
 
-            // 10% of total supply
-            await ibcVoucher.setRateLimit(10, oneDay);
-
-            const rateLimit = await ibcVoucher.rateLimitConfig();
-            expect(rateLimit.supplyAtUpdate == amount);
-            expect(
-                rateLimit.threshold ==
-                    BigInt(spendAmount) * (await ibcVoucher.RATIO_MULTIPLIER())
-            );
-            expect(
-                rateLimit.ratio ==
-                    (BigInt(spendAmount) *
-                        (await ibcVoucher.RATIO_MULTIPLIER())) /
-                        BigInt(amount)
-            );
-            expect(rateLimit.flow == 0);
-            expect(rateLimit.lastUpdated == amount);
-            expect(rateLimit.window == oneDay);
+            expect(await ibcVoucher.totalSupply()).to.be.equal(amount);
         });
 
         it('should allow `spend` within the limit', async function () {
+            // 10% of total supply
+            await expect(ibcVoucher.setRateLimit(10, oneDay));
+            expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
+
             // Should be able to `spend` 10 sats
             await expect(ibcVoucher.connect(signer2).spend(spendAmount))
                 .to.emit(ibcVoucher, 'Transfer')
@@ -431,9 +418,14 @@ describe('IBCVoucher', function () {
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
                 amount - spendAmount
             );
+
+            expect(await ibcVoucher.leftoverAmount()).to.be.equal(0);
         });
 
         it('should abort `spend` over the limit', async function () {
+            // 10% of total supply
+            await expect(ibcVoucher.setRateLimit(10, oneDay));
+
             // Should not be able to `spend` 11 sats
             await expect(
                 ibcVoucher.connect(signer2).spend(spendAmount + 1)
@@ -441,6 +433,10 @@ describe('IBCVoucher', function () {
         });
 
         it('should reset after window', async function () {
+            // 10% of total supply
+            await expect(ibcVoucher.setRateLimit(10, oneDay));
+            expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
+
             // Should be able to `spend` 10 sats
             await expect(ibcVoucher.connect(signer2).spend(spendAmount))
                 .to.emit(ibcVoucher, 'Transfer')
@@ -457,11 +453,13 @@ describe('IBCVoucher', function () {
                 amount - spendAmount
             );
 
+            expect(await ibcVoucher.leftoverAmount()).to.be.equal(0);
+
             // Fast forward one day
             await time.increase(oneDay + 1);
 
             // Our total supply has changed, so our `spendAmount` will also change which we will account for here.
-            const totalSupply = await lbtc.totalSupply();
+            const totalSupply = await ibcVoucher.totalSupply();
             const secondSpend = Number(totalSupply) / 10;
             await expect(ibcVoucher.connect(signer2).spend(secondSpend))
                 .to.emit(ibcVoucher, 'Transfer')

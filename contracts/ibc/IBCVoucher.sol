@@ -23,9 +23,9 @@ contract IBCVoucher is
     /// @notice Simplified implementation of IBC rate limits: https://github.com/cosmos/ibc-apps/tree/modules/rate-limiting/v8.0.0/modules/rate-limiting
     struct RateLimit {
         uint64 supplyAtUpdate;
-        uint256 threshold; // Identical to IBC rate limit spec, this threshold is a percentage of the supply.
-        uint256 ratio;
-        uint256 flow;
+        uint8 threshold; // Identical to IBC rate limit spec, this threshold is a percentage of the supply.
+        uint64 limit;
+        uint64 flow;
         uint64 lastUpdated;
         uint64 window; // Window denominated in hours.
     }
@@ -44,7 +44,7 @@ contract IBCVoucher is
     bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    uint256 public constant RATIO_MULTIPLIER = 1e10; // Granular enough to count rate limit flows per sat.
+    uint256 public constant RATIO_MULTIPLIER = 100;
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -97,48 +97,41 @@ contract IBCVoucher is
     /// @param threshold The rate limit threshold in whole percentage points.
     /// @param window The rate limit window in hours.
     function setRateLimit(
-        uint256 threshold,
+        uint8 threshold,
         uint64 window
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         if (threshold == 0) {
             revert ZeroThreshold();
         }
 
+        setRateLimit_($, threshold, window);
+    }
+
+    function resetRateLimit() internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
-        uint256 totalSupply = this.totalSupply();
+        setRateLimit_($, $.rateLimit.threshold, $.rateLimit.window);
+    }
+
+    function setRateLimit_(
+        IBCVoucherStorage storage $,
+        uint8 threshold,
+        uint64 window
+    ) internal {
+        uint256 totalSupply = totalSupply();
 
         if (totalSupply == 0) {
             revert ZeroSupply();
         }
 
-        uint256 multipliedThreshold = threshold * RATIO_MULTIPLIER;
-
-        RateLimit memory rateLimit = RateLimit({
-            supplyAtUpdate: uint64(totalSupply),
-            threshold: multipliedThreshold,
-            ratio: multipliedThreshold / totalSupply,
-            flow: 0,
-            lastUpdated: uint64(block.timestamp),
-            window: window
-        });
-
-        $.rateLimit = rateLimit;
-    }
-
-    function resetRateLimit() internal {
-        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
-        uint256 totalSupply = IERC20(address($.lbtc)).totalSupply();
-
-        RateLimit memory rateLimit = RateLimit({
-            supplyAtUpdate: uint64(totalSupply),
-            threshold: $.rateLimit.threshold,
-            ratio: $.rateLimit.threshold / totalSupply,
-            flow: 0,
-            lastUpdated: uint64(block.timestamp),
-            window: $.rateLimit.window
-        });
-
-        $.rateLimit = rateLimit;
+        $.rateLimit.supplyAtUpdate = uint64(totalSupply);
+        $.rateLimit.threshold = threshold;
+        $.rateLimit.limit = uint64(
+            (threshold * totalSupply) / RATIO_MULTIPLIER
+        );
+        $.rateLimit.flow = 0;
+        $.rateLimit.lastUpdated = uint64(block.timestamp);
+        $.rateLimit.window = window;
     }
 
     function wrap(
@@ -206,19 +199,19 @@ contract IBCVoucher is
     function _spend(address from, address recipient, uint256 amount) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
 
-        if (block.timestamp - $.rateLimit.lastUpdated > $.rateLimit.window) {
-            resetRateLimit();
-        }
-
         if ($.rateLimit.window != 0) {
+            if (
+                block.timestamp - $.rateLimit.lastUpdated > $.rateLimit.window
+            ) {
+                resetRateLimit();
+            }
+
             // Check that spend doesn't exceed rate limit.
-            uint256 amountRatio = (amount * RATIO_MULTIPLIER) /
-                $.rateLimit.supplyAtUpdate;
-            if (amountRatio + $.rateLimit.flow > $.rateLimit.ratio) {
+            if (amount + $.rateLimit.flow > $.rateLimit.limit) {
                 revert RateLimitExceeded();
             }
 
-            $.rateLimit.flow += amountRatio;
+            $.rateLimit.limit += uint64(amount);
         }
 
         _burn(from, amount);
@@ -290,9 +283,7 @@ contract IBCVoucher is
 
     function leftoverAmount() public view returns (uint256) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
-        uint256 fullAmount = $.rateLimit.ratio / RATIO_MULTIPLIER;
-        uint256 swapped = $.rateLimit.flow / RATIO_MULTIPLIER;
-        return fullAmount - swapped;
+        return $.rateLimit.limit - $.rateLimit.flow;
     }
 
     function rateLimitConfig() public view returns (RateLimit memory) {
