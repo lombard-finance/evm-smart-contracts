@@ -9,7 +9,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IIBCVoucher} from "./IIBCVoucher.sol";
 import {ILBTC} from "../LBTC/ILBTC.sol";
 
-/// TODO: IBC like rate limits
 /// @title ERC20 intermediary token
 /// @author Lombard.Finance
 /// @notice The contracts is a part of Lombard.Finace protocol
@@ -21,6 +20,14 @@ contract IBCVoucher is
 {
     using SafeERC20 for IERC20;
 
+    struct RateLimit {
+        uint256 supplyAtUpdate;
+        uint256 threshold; // Identical to IBC rate limit spec, this threshold is a percentage of the supply.
+        uint256 flow;
+        uint256 lastUpdated;
+        uint256 window; // Window denominated in hours.
+    }
+
     /// @custom:storage-location erc7201:lombardfinance.storage.IBCVoucher
     struct IBCVoucherStorage {
         string name;
@@ -28,11 +35,14 @@ contract IBCVoucher is
         ILBTC lbtc;
         uint256 fee;
         address treasury;
+        RateLimit rateLimit;
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+
+    uint256 private constant RATIO_MULTIPLIER = 1e10; // Granular enough to count rate limit flows per sat.
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -79,6 +89,39 @@ contract IBCVoucher is
         $.lbtc = _lbtc;
         _setFee(_fee);
         _setTreasuryAddress(_treasury);
+    }
+
+    function setRateLimit(
+        uint256 threshold,
+        uint256 window
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        uint256 totalSupply = IERC20(address($.lbtc)).totalSupply();
+
+        RateLimit memory rateLimit = RateLimit({
+            supplyAtUpdate: totalSupply,
+            threshold: threshold,
+            flow: 0,
+            lastUpdated: block.timestamp,
+            window: window
+        });
+
+        $.rateLimit = rateLimit;
+    }
+
+    function resetRateLimit() internal {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        uint256 totalSupply = IERC20(address($.lbtc)).totalSupply();
+
+        RateLimit memory rateLimit = RateLimit({
+            supplyAtUpdate: totalSupply,
+            threshold: $.rateLimit.threshold,
+            flow: 0,
+            lastUpdated: block.timestamp,
+            window: $.rateLimit.window
+        });
+
+        $.rateLimit = rateLimit;
     }
 
     function wrap(
@@ -145,6 +188,21 @@ contract IBCVoucher is
 
     function _spend(address from, address recipient, uint256 amount) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+
+        if (block.timestamp - $.rateLimit.lastUpdated > $.rateLimit.window) {
+            resetRateLimit();
+        }
+
+        if ($.rateLimit.window != 0) {
+            // Check that spend doesn't exceed rate limit.
+            uint256 amountRatio = (amount * RATIO_MULTIPLIER) /
+                $.rateLimit.supplyAtUpdate;
+            if (amountRatio + $.rateLimit.flow > $.rateLimit.threshold) {
+                revert RateLimitExceeded();
+            }
+
+            $.rateLimit.flow += amountRatio;
+        }
 
         _burn(from, amount);
         $.lbtc.mint(recipient, amount);

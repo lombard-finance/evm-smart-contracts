@@ -20,6 +20,7 @@ interface IIBCVoucher {
 
     error AmountTooLow();
     error ZeroAddress();
+    error RateLimitExceeded();
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval
