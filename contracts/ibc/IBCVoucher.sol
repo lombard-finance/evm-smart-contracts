@@ -23,6 +23,7 @@ contract IBCVoucher is
     struct RateLimit {
         uint256 supplyAtUpdate;
         uint256 threshold; // Identical to IBC rate limit spec, this threshold is a percentage of the supply.
+        uint256 ratio;
         uint256 flow;
         uint256 lastUpdated;
         uint256 window; // Window denominated in hours.
@@ -100,7 +101,8 @@ contract IBCVoucher is
 
         RateLimit memory rateLimit = RateLimit({
             supplyAtUpdate: totalSupply,
-            threshold: threshold / totalSupply,
+            threshold: threshold,
+            ratio: threshold / totalSupply,
             flow: 0,
             lastUpdated: block.timestamp,
             window: window
@@ -116,6 +118,7 @@ contract IBCVoucher is
         RateLimit memory rateLimit = RateLimit({
             supplyAtUpdate: totalSupply,
             threshold: $.rateLimit.threshold,
+            ratio: $.rateLimit.threshold / totalSupply,
             flow: 0,
             lastUpdated: block.timestamp,
             window: $.rateLimit.window
@@ -197,7 +200,7 @@ contract IBCVoucher is
             // Check that spend doesn't exceed rate limit.
             uint256 amountRatio = (amount * RATIO_MULTIPLIER) /
                 $.rateLimit.supplyAtUpdate;
-            if (amountRatio + $.rateLimit.flow > $.rateLimit.threshold) {
+            if (amountRatio + $.rateLimit.flow > $.rateLimit.ratio) {
                 revert RateLimitExceeded();
             }
 

@@ -446,7 +446,8 @@ describe('IBCVoucher', function () {
             await time.increase(oneDay + 1);
 
             // Our total supply has changed, so our `spendAmount` will also change which we will account for here.
-            const secondSpend = 1;
+            const totalSupply = await lbtc.totalSupply();
+            const secondSpend = Number(totalSupply) / 10;
             await expect(ibcVoucher.connect(signer2).spend(secondSpend))
                 .to.emit(ibcVoucher, 'Transfer')
                 .withArgs(signer2.address, ethers.ZeroAddress, secondSpend)
