@@ -47,7 +47,6 @@ contract IBCVoucher is
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     uint256 public constant RATIO_MULTIPLIER = 10000;
-    uint256 public constant ONE_DAY = 86400; // One day in seconds.
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -101,26 +100,28 @@ contract IBCVoucher is
     /// @param window The rate limit window in hours.
     function setRateLimit(
         uint16 threshold,
-        uint64 window
+        uint64 window,
+        uint64 startTime
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         if (threshold == 0) {
             revert ZeroThreshold();
         }
 
-        _setRateLimit($, threshold, window, 0);
+        _setRateLimit($, threshold, window, 0, startTime);
     }
 
     function resetRateLimit(uint64 epoch) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
-        _setRateLimit($, $.rateLimit.threshold, $.rateLimit.window, epoch);
+        _setRateLimit($, $.rateLimit.threshold, $.rateLimit.window, epoch, 0);
     }
 
     function _setRateLimit(
         IBCVoucherStorage storage $,
         uint16 threshold,
         uint64 window,
-        uint64 epoch
+        uint64 epoch,
+        uint64 startTime
     ) internal {
         uint256 totalSupply = totalSupply();
         if (totalSupply == 0) {
@@ -138,7 +139,7 @@ contract IBCVoucher is
         $.rateLimit.epoch = epoch;
 
         if (epoch == 0) {
-            $.rateLimit.startTime = uint64(block.timestamp);
+            $.rateLimit.startTime = startTime;
         }
 
         emit RateLimitUpdated(
@@ -169,7 +170,7 @@ contract IBCVoucher is
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         if ($.rateLimit.window != 0) {
             uint64 epoch = uint64(
-                (block.timestamp - $.rateLimit.startTime) / ONE_DAY
+                (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
             );
             if (epoch > $.rateLimit.epoch) {
                 resetRateLimit(epoch);
@@ -229,7 +230,7 @@ contract IBCVoucher is
 
         if ($.rateLimit.window != 0) {
             uint64 epoch = uint64(
-                (block.timestamp - $.rateLimit.startTime) / ONE_DAY
+                (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
             );
             if (epoch > $.rateLimit.epoch) {
                 resetRateLimit(epoch);
@@ -321,10 +322,10 @@ contract IBCVoucher is
     function leftoverAmount() public view returns (uint256) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         uint64 epoch = uint64(
-            (block.timestamp - $.rateLimit.startTime) / ONE_DAY
+            (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
         );
         if (epoch > $.rateLimit.epoch) {
-            return 0;
+            return $.rateLimit.limit;
         }
 
         if ($.rateLimit.inflow < $.rateLimit.outflow) {

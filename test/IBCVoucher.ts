@@ -398,7 +398,7 @@ describe('IBCVoucher', function () {
             expect(await ibcVoucher.totalSupply()).to.be.equal(amount);
 
             // 10% of total supply
-            await ibcVoucher.setRateLimit(1000, oneDay);
+            await ibcVoucher.setRateLimit(1000, oneDay, snapshotTimestamp);
         });
 
         it('should allow `spend` within the limit', async function () {
