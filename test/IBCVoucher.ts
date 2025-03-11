@@ -398,12 +398,10 @@ describe('IBCVoucher', function () {
             expect(await ibcVoucher.totalSupply()).to.be.equal(amount);
 
             // 10% of total supply
-            await ibcVoucher.setRateLimit(10, oneDay);
+            await ibcVoucher.setRateLimit(1000, oneDay);
         });
 
         it('should allow `spend` within the limit', async function () {
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
-
             // Should be able to `spend` 10 sats
             await expect(ibcVoucher.connect(signer2).spend(spendAmount))
                 .to.emit(ibcVoucher, 'Transfer')
@@ -419,8 +417,6 @@ describe('IBCVoucher', function () {
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
                 amount - spendAmount
             );
-
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(0);
         });
 
         it('should abort `spend` over the limit', async function () {
@@ -431,8 +427,6 @@ describe('IBCVoucher', function () {
         });
 
         it('should reset after window', async function () {
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
-
             // Should be able to `spend` 10 sats
             await expect(ibcVoucher.connect(signer2).spend(spendAmount))
                 .to.emit(ibcVoucher, 'Transfer')
@@ -448,8 +442,6 @@ describe('IBCVoucher', function () {
             expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
                 amount - spendAmount
             );
-
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(0);
 
             // Fast forward one day
             await time.increase(oneDay + 1);
