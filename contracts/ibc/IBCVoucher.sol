@@ -329,7 +329,7 @@ contract IBCVoucher is
         }
 
         if ($.rateLimit.inflow < $.rateLimit.outflow) {
-            return 0;
+            return $.rateLimit.limit;
         }
 
         return $.rateLimit.limit - ($.rateLimit.inflow - $.rateLimit.outflow);
