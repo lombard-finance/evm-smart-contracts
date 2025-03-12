@@ -53,7 +53,7 @@ describe('IBCVoucher', function () {
   describe('Setters', function () {
     beforeEach(async function () {
       await snapshot.restore();
-    });
+  });
 
     it('Name', async function () {
       expect(await ibcVoucher.name()).to.be.eq('IBC compatible LBTC Voucher');
