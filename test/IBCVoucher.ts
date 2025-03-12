@@ -387,8 +387,7 @@ describe('IBCVoucher', function () {
     })
 
     it('should reset after window', async function () {
-
-
+      const spendAmount = await ibcVoucher.leftoverAmount();
       // Our total supply has changed, so our `spendAmount` will also change which we will account for here.
       const totalSupply = await ibcVoucher.totalSupply();
       const secondSpend = totalSupply / 10n;
