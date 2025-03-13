@@ -306,7 +306,8 @@ describe('IBCVoucher', function () {
       await ibcVoucher.connect(relayer).wrap(amount);
     });
 
-    it('admin can pause', async function () {
+    it('admin can be pauser', async function () {
+      await ibcVoucher.connect(admin).grantRole(await ibcVoucher.PAUSER_ROLE(), admin.address);
       await expect(ibcVoucher.connect(admin).pause()).to.emit(ibcVoucher, 'Paused').withArgs(admin.address);
       expect(await ibcVoucher.paused()).to.be.true;
     });
