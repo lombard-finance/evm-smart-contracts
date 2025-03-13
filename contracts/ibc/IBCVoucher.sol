@@ -128,6 +128,10 @@ contract IBCVoucher is
             revert ZeroSupply();
         }
 
+        if (window == 0) {
+            revert ZeroWindow();
+        }
+
         $.rateLimit.supplyAtUpdate = uint64(totalSupply);
         $.rateLimit.threshold = threshold;
         $.rateLimit.limit = uint64(
@@ -139,6 +143,9 @@ contract IBCVoucher is
         $.rateLimit.epoch = epoch;
 
         if (epoch == 0) {
+            if (startTime > block.timestamp) {
+                revert FutureStartTime(startTime, block.timestamp);
+            }
             $.rateLimit.startTime = startTime;
         }
 
