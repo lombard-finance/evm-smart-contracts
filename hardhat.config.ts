@@ -398,7 +398,7 @@ const config: HardhatUserConfig = {
         },
         berachain: {
             loggingEnabled: true,
-            url: vars.get('BERACHAIN_RPC', ''),
+            url: vars.get('BERACHAIN_RPC', 'https://rpc.berachain.com'),
             chainId: 80094,
             accounts: [
                 vars.get(
@@ -564,8 +564,8 @@ const config: HardhatUserConfig = {
                 network: 'berachain',
                 chainId: 80094,
                 urls: {
-                    apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan',
-                    browserURL: 'https://80094.routescan.io/',
+                    apiURL: 'https://api.berascan.com/api',
+                    browserURL: 'https://berascan.com',
                 },
             },
             {
@@ -612,7 +612,7 @@ const config: HardhatUserConfig = {
             arbitrum: vars.get('ARBITRUM_API_KEY', ''),
             cornMaizenet: 'no',
             swell: 'no',
-            berachain: 'no',
+            berachain: vars.get('BERACHAIN_API_KEY', ''),
             sonic: vars.get('SONIC_API_KEY', ''),
             morph: 'no',
         },
