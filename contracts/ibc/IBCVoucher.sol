@@ -239,7 +239,7 @@ contract IBCVoucher is
             // Check that spend doesn't exceed rate limit.
             uint64 newInflow = uint64(amount) + $.rateLimit.inflow;
             if (newInflow >= $.rateLimit.outflow) {
-                if (amount + $.rateLimit.inflow > $.rateLimit.limit) {
+                if (newInflow - $.rateLimit.outflow > $.rateLimit.limit) {
                     revert RateLimitExceeded(
                         $.rateLimit.limit,
                         $.rateLimit.inflow,
@@ -319,7 +319,7 @@ contract IBCVoucher is
         return 8;
     }
 
-    function leftoverAmount() public view returns (uint256) {
+    function leftoverAmount() public view returns (uint64) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         uint64 epoch = uint64(
             (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
@@ -328,11 +328,8 @@ contract IBCVoucher is
             return $.rateLimit.limit;
         }
 
-        if ($.rateLimit.inflow < $.rateLimit.outflow) {
-            return $.rateLimit.limit;
-        }
-
-        return $.rateLimit.limit - ($.rateLimit.inflow - $.rateLimit.outflow);
+        int64 netFlow = int64($.rateLimit.inflow) - int64($.rateLimit.outflow);
+        return uint64(int64($.rateLimit.limit) - netFlow);
     }
 
     function rateLimitConfig() public view returns (RateLimit memory) {
