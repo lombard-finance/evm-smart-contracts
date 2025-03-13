@@ -129,9 +129,9 @@ contract StakeAndBake is
      * @notice Sets the maximum gas limit for a batch stake and bake call
      * @param gasLimit The gas limit to set
      */
-    function setGetLimit(
+    function setGasLimit(
         uint256 gasLimit
-    ) external onlyRole(FEE_OPERATOR_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
         $.gasLimit = gasLimit;
         emit GasLimitChanged(gasLimit);
@@ -225,7 +225,7 @@ contract StakeAndBake is
         _unpause();
     }
 
-    function deposit(
+    function _deposit(
         uint256 permitAmount,
         uint256 feeAmount,
         address owner,
@@ -292,7 +292,8 @@ contract StakeAndBake is
         }
 
         if (permitAmount > feeAmount) {
-            return deposit(permitAmount, feeAmount, owner, data.depositPayload);
+            return
+                _deposit(permitAmount, feeAmount, owner, data.depositPayload);
         } else {
             revert ZeroDepositAmount();
         }
