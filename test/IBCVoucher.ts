@@ -67,6 +67,10 @@ describe('IBCVoucher', function () {
       expect(await ibcVoucher.decimals()).to.be.eq(8n);
     });
 
+    it('LBTC', async function () {
+      expect(await ibcVoucher.lbtc()).to.be.eq(await lbtc.getAddress());
+    })
+
     it('should allow admin to set treasury', async function () {
       await expect(ibcVoucher.connect(admin).setTreasuryAddress(signer1.address))
         .to.emit(ibcVoucher, 'TreasuryUpdated')
@@ -260,6 +264,10 @@ describe('IBCVoucher', function () {
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount);
     });
 
+    it('pause: rejects when called by not pauser', async function () {
+      await expect(ibcVoucher.connect(signer1).unpause()).to.be.rejectedWith('AccessControlUnauthorizedAccount');
+    })
+
     it('pauser can pause', async function () {
       await expect(ibcVoucher.connect(pauser).pause()).to.emit(ibcVoucher, 'Paused').withArgs(pauser.address);
       expect(await ibcVoucher.paused()).to.be.true;
@@ -297,14 +305,23 @@ describe('IBCVoucher', function () {
 
       await ibcVoucher.connect(relayer).wrap(amount);
     });
+
+    it('admin can pause', async function () {
+      await expect(ibcVoucher.connect(admin).pause()).to.emit(ibcVoucher, 'Paused').withArgs(admin.address);
+      expect(await ibcVoucher.paused()).to.be.true;
+    });
   });
 
   describe('Rate limits', function () {
     let outflow = 0n;
+    let inflow = 0n;
+    let rateLimit = 0n;
     let rateLimitPercent = 1000n;
+    let RATIO_MULTIPLIER = 0n;
 
     before(async function () {
       await snapshot.restore();
+      RATIO_MULTIPLIER = await ibcVoucher.RATIO_MULTIPLIER();
       await ibcVoucher.connect(admin).setFee(0n);
       await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, 10000_0000);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), 10000_0000);
@@ -318,34 +335,34 @@ describe('IBCVoucher', function () {
 
     it('setRateLimit: admin can set rate limit when supply > 0', async function () {
       const amount = 1000n;
-      outflow += amount;
       await ibcVoucher.connect(relayer).wrapTo(signer1.address, amount);
       expect(await ibcVoucher.totalSupply()).to.be.eq(amount);
+      rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
 
-      await ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, await time.latest());
-      const expectedLeftover =
-        ((await ibcVoucher.totalSupply()) * rateLimitPercent) / (await ibcVoucher.RATIO_MULTIPLIER());
-      console.log('Expected leftover:', expectedLeftover);
+      const startTime = await time.latest();
+      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, startTime))
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
 
-      expect(await ibcVoucher.leftoverAmount()).to.be.equal(expectedLeftover);
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const initialLeftover = await ibcVoucher.leftoverAmount();
+      console.log('Initial leftover:', initialLeftover);
+
+      expect(initialLeftover).to.be.equal(rateLimit);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(amount);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(0n);
+      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.startTime).to.be.eq(startTime);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(0n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
 
-    it('leftoverAmount updates on wrap', async function () {
-      const amount = 1000n;
-      const totalSupplyBefore = await ibcVoucher.totalSupply();
-
-      outflow += amount;
-      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount)).to.emit(
-        ibcVoucher,
-        'RateLimitOutflowIncreased'
-      );
-      // .withArgs(outflow, amount);
-      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
-
-      const expectedLeftover = (totalSupplyBefore * rateLimitPercent) / (await ibcVoucher.RATIO_MULTIPLIER()) + amount;
-      console.log('Expected leftover:', expectedLeftover);
-
-      expect(await ibcVoucher.leftoverAmount()).to.be.equal(expectedLeftover);
+    it('setRateLimit: rejects when called by not admin', async function () {
+      await expect(
+        ibcVoucher.connect(signer1).setRateLimit(rateLimitPercent, oneDay, await time.latest())
+      ).to.be.revertedWithCustomError(ibcVoucher, 'AccessControlUnauthorizedAccount');
     });
 
     it('spend: rejects when amount > leftover and leftover > 0', async function () {
@@ -357,55 +374,213 @@ describe('IBCVoucher', function () {
       );
     });
 
-    it('spend: can spend all leftover', async function () {
-      const amount = await ibcVoucher.leftoverAmount();
-      await expect(amount).to.be.gt(0n);
+    it('leftoverAmount increases by wrap amount', async function () {
+      const amount = 1000n;
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+
+      outflow += amount;
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
+        .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
+        .withArgs(outflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
+
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after wrap:', leftoverAfter);
+
+      expect(leftoverAfter - leftoverBefore).to.be.equal(amount);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
+    });
+
+    it('spend: can partially spend leftover', async function () {
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      await expect(leftoverBefore).to.be.gt(0n);
+      const amount = leftoverBefore / 2n;
       const ibcBalanceBefore = await ibcVoucher.balanceOf(signer1);
 
+      inflow += amount;
       await expect(ibcVoucher.connect(signer1).spend(amount))
-        .to.emit(ibcVoucher, 'Transfer')
-        .withArgs(signer1.address, ethers.ZeroAddress, amount)
-        .to.emit(lbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer1.address, amount)
-        .to.emit(ibcVoucher, 'VoucherSpent')
-        .withArgs(signer1.address, signer1.address, amount);
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
-      expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
-      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(ibcBalanceBefore - amount);
-      console.log(await ibcVoucher.rateLimitConfig());
-      expect(await ibcVoucher.leftoverAmount()).to.be.equal(0n);
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
+
+      expect(ibcBalanceBefore - (await ibcVoucher.balanceOf(signer1.address))).to.be.equal(amount);
+      expect(leftoverBefore - leftoverAfter).to.be.equal(amount);
     });
 
-    it('spend: rejects when leftover is 0 for the epoch', async function () {
-      await expect(ibcVoucher.connect(signer1).spend(1n)).to.be.revertedWithCustomError(
-        ibcVoucher,
-        'RateLimitExceeded'
-      );
+    it('spend: can spend all leftover', async function () {
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      await expect(leftoverBefore).to.be.gt(0n);
+      const amount = leftoverBefore;
+      const ibcBalanceBefore = await ibcVoucher.balanceOf(signer1);
+
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer1).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
+
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
+
+      expect(ibcBalanceBefore - (await ibcVoucher.balanceOf(signer1.address))).to.be.equal(amount);
+      expect(leftoverAfter).to.be.equal(0n);
     });
 
-    it('leftover is updated after the epoch is over', async function () {
-      await time.increase(oneDay + 1);
+    it('leftover resets by the beginning of new epoch', async function () {
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      await time.increaseTo(Number(rateLimitConfig.startTime) + oneDay + 1);
+      rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
+      outflow = 0n;
+      inflow = 0n;
+
       console.log(await ibcVoucher.leftoverAmount());
+      expect(await ibcVoucher.leftoverAmount()).to.be.eq(rateLimit);
     });
 
-    it('should reset after window', async function () {
-      const initialBalance = await lbtc.balanceOf(signer1.address);
-      const initialVoucherBalance = await ibcVoucher.balanceOf(signer1.address);
-      const spendAmount = await ibcVoucher.leftoverAmount();
-      // Our total supply has changed, so our `spendAmount` will also change which we will account for here.
-      const totalSupply = await ibcVoucher.totalSupply();
-      const secondSpend = totalSupply / 10n;
-      await expect(ibcVoucher.connect(signer1).spend(secondSpend))
-        .to.emit(ibcVoucher, 'Transfer')
-        .withArgs(signer1.address, ethers.ZeroAddress, secondSpend)
-        .to.emit(lbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer1.address, secondSpend)
-        .to.emit(ibcVoucher, 'VoucherSpent')
-        .withArgs(signer1.address, signer1.address, secondSpend);
+    it('first wrap in the epoch resets rate limit', async function () {
+      const amount = 1000n;
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
 
-      expect(await lbtc.balanceOf(signer1.address)).to.be.equal(initialBalance + secondSpend);
-      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(initialVoucherBalance - secondSpend);
-      expect(await ibcVoucher.leftoverAmount()).to.be.equal(0n);
+      outflow += amount;
+      rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer2.address, amount))
+        .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
+        .withArgs(outflow, amount)
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
+
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after wrap:', leftoverAfter);
+
+      expect(leftoverAfter).to.be.equal(rateLimit + outflow);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(0n);
+      expect(rateLimitConfig.outflow).to.be.eq(outflow);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(1n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
+
+    it('spend: can partially spend leftover', async function () {
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      await expect(leftoverBefore).to.be.gt(0n);
+      const ibcBalanceBefore = await ibcVoucher.balanceOf(signer2);
+      const amount = ibcBalanceBefore;
+
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer2).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
+
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
+
+      expect(ibcBalanceBefore - (await ibcVoucher.balanceOf(signer2.address))).to.be.equal(amount);
+      expect(leftoverBefore - leftoverAfter).to.be.equal(amount);
+    });
+
+    it('first spend in the epoch resets rate limit', async function () {
+      const rateLimitConfigBefore = await ibcVoucher.rateLimitConfig();
+      await time.increaseTo(Number(rateLimitConfigBefore.startTime) + oneDay * 2 + 1);
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+      rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
+      outflow = 0n;
+      inflow = 0n;
+
+      const amount = rateLimit;
+
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer1).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
+
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
+
+      expect(leftoverAfter).to.be.equal(0n);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore - amount);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(inflow);
+      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(2n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
+    });
+
+    it('wrap to increase leftover', async function () {
+      const amount = 1000n;
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+
+      outflow += amount;
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
+        .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
+        .withArgs(outflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
+
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after wrap:', leftoverAfter);
+
+      expect(leftoverAfter - leftoverBefore).to.be.equal(amount);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
+    })
+
+    it('change rate limit threshold', async function () {
+      rateLimitPercent = 2000n;
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+      rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
+
+      const startTime = await time.latest();
+      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, startTime))
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
+
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const newLeftover = await ibcVoucher.leftoverAmount();
+      console.log('Total supply:', totalSupplyBefore);
+      console.log('New leftover:', newLeftover);
+
+      expect(newLeftover).to.be.equal(rateLimit);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(0n);
+      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.startTime).to.be.eq(startTime);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(0n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
+    });
+
+    it('setRateLimit: rejects when start time in the future', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, await time.latest() + 100)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'FutureStartTime');
+    })
+
+    it('setRateLimit: rejects when window is 0', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, 0n, await time.latest() - 1)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroWindow');
+    })
+
+    it('setRateLimit: rejects when threshold is 0', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(0n, oneDay, await time.latest() - 1)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroThreshold');
+    })
+
+
   });
 });

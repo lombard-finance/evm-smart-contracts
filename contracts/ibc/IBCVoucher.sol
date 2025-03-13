@@ -332,7 +332,7 @@ contract IBCVoucher is
             (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
         );
         if (epoch > $.rateLimit.epoch) {
-            return $.rateLimit.limit;
+            return uint64($.rateLimit.threshold * totalSupply() / RATIO_MULTIPLIER);
         }
 
         int64 netFlow = int64($.rateLimit.inflow) - int64($.rateLimit.outflow);
