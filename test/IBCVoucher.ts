@@ -69,7 +69,7 @@ describe('IBCVoucher', function () {
 
     it('LBTC', async function () {
       expect(await ibcVoucher.lbtc()).to.be.eq(await lbtc.getAddress());
-    })
+    });
 
     it('should allow admin to set treasury', async function () {
       await expect(ibcVoucher.connect(admin).setTreasuryAddress(signer1.address))
@@ -266,7 +266,7 @@ describe('IBCVoucher', function () {
 
     it('pause: rejects when called by not pauser', async function () {
       await expect(ibcVoucher.connect(signer1).unpause()).to.be.rejectedWith('AccessControlUnauthorizedAccount');
-    })
+    });
 
     it('pauser can pause', async function () {
       await expect(ibcVoucher.connect(pauser).pause()).to.emit(ibcVoucher, 'Paused').withArgs(pauser.address);
@@ -326,12 +326,6 @@ describe('IBCVoucher', function () {
       await ibcVoucher.connect(admin).setFee(0n);
       await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, 10000_0000);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), 10000_0000);
-    });
-
-    it('setRateLimit: rejects when supply is 0', async function () {
-      await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, await time.latest())
-      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroSupply');
     });
 
     it('setRateLimit: admin can set rate limit when supply > 0', async function () {
@@ -536,7 +530,7 @@ describe('IBCVoucher', function () {
 
       expect(leftoverAfter - leftoverBefore).to.be.equal(amount);
       expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
-    })
+    });
 
     it('change rate limit threshold', async function () {
       rateLimitPercent = 2000n;
@@ -566,22 +560,20 @@ describe('IBCVoucher', function () {
 
     it('setRateLimit: rejects when start time in the future', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, await time.latest() + 100)
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, (await time.latest()) + 100)
       ).to.be.revertedWithCustomError(ibcVoucher, 'FutureStartTime');
-    })
+    });
 
     it('setRateLimit: rejects when window is 0', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, 0n, await time.latest() - 1)
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, 0n, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroWindow');
-    })
+    });
 
     it('setRateLimit: rejects when threshold is 0', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(0n, oneDay, await time.latest() - 1)
+        ibcVoucher.connect(admin).setRateLimit(0n, oneDay, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroThreshold');
-    })
-
-
+    });
   });
 });

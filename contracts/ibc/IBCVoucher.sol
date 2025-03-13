@@ -111,7 +111,7 @@ contract IBCVoucher is
         _setRateLimit($, threshold, window, 0, startTime);
     }
 
-    function resetRateLimit(uint64 epoch) internal {
+    function _resetRateLimit(uint64 epoch) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         _setRateLimit($, $.rateLimit.threshold, $.rateLimit.window, epoch, 0);
     }
@@ -124,10 +124,6 @@ contract IBCVoucher is
         uint64 startTime
     ) internal {
         uint256 totalSupply = totalSupply();
-        if (totalSupply == 0) {
-            revert ZeroSupply();
-        }
-
         if (window == 0) {
             revert ZeroWindow();
         }
@@ -180,7 +176,7 @@ contract IBCVoucher is
                 (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
             );
             if (epoch > $.rateLimit.epoch) {
-                resetRateLimit(epoch);
+                _resetRateLimit(epoch);
             }
 
             // Calculate net flow, so wrapping would reduce our flow.
@@ -240,7 +236,7 @@ contract IBCVoucher is
                 (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
             );
             if (epoch > $.rateLimit.epoch) {
-                resetRateLimit(epoch);
+                _resetRateLimit(epoch);
             }
 
             // Check that spend doesn't exceed rate limit.
@@ -326,17 +322,25 @@ contract IBCVoucher is
         return 8;
     }
 
-    function leftoverAmount() public view returns (uint64) {
+    function leftoverAmount() public view returns (uint128) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         uint64 epoch = uint64(
             (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
         );
         if (epoch > $.rateLimit.epoch) {
-            return uint64($.rateLimit.threshold * totalSupply() / RATIO_MULTIPLIER);
+            return
+                uint128(
+                    ($.rateLimit.threshold * totalSupply()) / RATIO_MULTIPLIER
+                );
         }
 
-        int64 netFlow = int64($.rateLimit.inflow) - int64($.rateLimit.outflow);
-        return uint64(int64($.rateLimit.limit) - netFlow);
+        int128 netFlow = int64($.rateLimit.inflow) - int64($.rateLimit.outflow);
+        // Our result here should always fit into an unsigned integer.
+        // Since `inflow` and `outflow` are both 64-bit unsigned integers, the maximum value for
+        // `netFlow` is either the `limit` (as `inflow` can not exceed `limit`), or the negation
+        // of the maximum supply of LBTC which fits easily into 64 bits. Therefore, this subtraction
+        // can only range from 0 to the maximum LBTC supply plus the `limit`.
+        return uint128(int128(int64($.rateLimit.limit)) - netFlow);
     }
 
     function rateLimitConfig() public view returns (RateLimit memory) {

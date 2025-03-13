@@ -25,7 +25,6 @@ interface IIBCVoucher {
     error ZeroAddress();
     error RateLimitExceeded(uint64 limit, uint64 flow, uint64 amount);
     error ZeroThreshold();
-    error ZeroSupply();
     error FutureStartTime(uint256 startTime, uint256 blockTimestamp);
     error ZeroWindow();
 
