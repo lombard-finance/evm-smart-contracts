@@ -26,6 +26,8 @@ interface IIBCVoucher {
     error RateLimitExceeded(uint64 limit, uint64 flow, uint64 amount);
     error ZeroThreshold();
     error ZeroSupply();
+    error FutureStartTime(uint256 startTime, uint256 blockTimestamp);
+    error ZeroWindow();
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval

@@ -1,476 +1,587 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import {
-    deployContract,
-    getSignersWithPrivateKeys,
-    Signer,
-    init,
-} from './helpers';
+import { deployContract, init, Signer } from './helpers';
 import { IBCVoucher, LBTCMock } from '../typechain-types';
-import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
-import { time } from '@nomicfoundation/hardhat-network-helpers';
+import { time, SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 
 describe('IBCVoucher', function () {
-    let deployer: Signer,
-        signer1: Signer,
-        signer2: Signer,
-        signer3: Signer,
-        pauser: Signer,
-        treasury: Signer;
-    let ibcVoucher: StakeAndBake;
-    let lbtc: LBTCMock;
-    let snapshot: SnapshotRestorer;
-    let snapshotTimestamp: number;
-    const fee = 10;
-    const amount = 100;
-    const oneDay = 60 * 60 * 24;
+  this.timeout(15_000);
+
+  let deployer: Signer,
+    signer1: Signer,
+    signer2: Signer,
+    admin: Signer,
+    relayer: Signer,
+    operator: Signer,
+    pauser: Signer,
+    treasury: Signer;
+  let ibcVoucher: IBCVoucher;
+  let lbtc: LBTCMock;
+  let snapshot: SnapshotRestorer;
+  const fee = 10n;
+  const amount = 100n;
+  const oneDay = 60 * 60 * 24;
+
+  before(async function () {
+    [deployer, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
+
+    const burnCommission = 1000;
+    const result = await init(burnCommission, treasury.address, admin.address);
+    lbtc = result.lbtc;
+
+    ibcVoucher = await deployContract<IBCVoucher>('IBCVoucher', [
+      await lbtc.getAddress(),
+      admin.address,
+      fee,
+      treasury.address
+    ]);
+
+    // set deployer as minter
+    await lbtc.connect(admin).addMinter(admin.address);
+    // IBC Voucher needs to be minter
+    await lbtc.connect(admin).addMinter(await ibcVoucher.getAddress());
+
+    // Initialize the permit module
+    await lbtc.connect(admin).reinitialize();
+    await ibcVoucher.connect(admin).grantRole(await ibcVoucher.RELAYER_ROLE(), relayer.address);
+    await ibcVoucher.connect(admin).grantRole(await ibcVoucher.OPERATOR_ROLE(), operator.address);
+    await ibcVoucher.connect(admin).grantRole(await ibcVoucher.PAUSER_ROLE(), pauser.address);
+
+    snapshot = await takeSnapshot();
+  });
+
+  describe('Setters', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+    });
+
+    it('Name', async function () {
+      expect(await ibcVoucher.name()).to.be.eq('IBC compatible LBTC Voucher');
+    });
+
+    it('Symbol', async function () {
+      expect(await ibcVoucher.symbol()).to.be.eq('iLBTCv');
+    });
+
+    it('Decimals', async function () {
+      expect(await ibcVoucher.decimals()).to.be.eq(8n);
+    });
+
+    it('LBTC', async function () {
+      expect(await ibcVoucher.lbtc()).to.be.eq(await lbtc.getAddress());
+    })
+
+    it('should allow admin to set treasury', async function () {
+      await expect(ibcVoucher.connect(admin).setTreasuryAddress(signer1.address))
+        .to.emit(ibcVoucher, 'TreasuryUpdated')
+        .withArgs(signer1.address);
+      expect(await ibcVoucher.getTreasury()).to.be.eq(signer1.address);
+    });
+
+    it('should not allow anyone else to set treasury', async function () {
+      await expect(ibcVoucher.connect(signer1).setTreasuryAddress(signer1.address)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('setFee: admin can set fee for wrapping', async function () {
+      await expect(ibcVoucher.connect(admin).setFee(200)).to.emit(ibcVoucher, 'FeeUpdated').withArgs(200);
+      expect(await ibcVoucher.getFee()).to.be.eq(200);
+    });
+
+    it('setFee: rejects when called by not admin', async function () {
+      await expect(ibcVoucher.connect(signer1).setFee(200)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+  });
+
+  describe('Wrapping', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount);
+      await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount);
+    });
+
+    it('should allow a relayer to wrap LBTC', async function () {
+      await expect(ibcVoucher.connect(relayer).wrap(amount))
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(relayer.address, await ibcVoucher.getAddress(), amount)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(await ibcVoucher.getAddress(), treasury.address, fee)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(await ibcVoucher.getAddress(), ethers.ZeroAddress, amount - fee)
+        .to.emit(ibcVoucher, 'Transfer')
+        .withArgs(ethers.ZeroAddress, relayer.address, amount - fee)
+        .to.emit(ibcVoucher, 'VoucherMinted')
+        .withArgs(relayer.address, relayer.address, fee, amount - fee);
+
+      expect(await lbtc.balanceOf(relayer.address)).to.be.equal(0);
+      expect(await lbtc.balanceOf(treasury.address)).to.be.equal(fee);
+      expect(await ibcVoucher.balanceOf(relayer.address)).to.be.equal(amount - fee);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(amount - fee);
+    });
+
+    it('should allow a relayer to wrap LBTC to a given address', async function () {
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(relayer.address, await ibcVoucher.getAddress(), amount)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(await ibcVoucher.getAddress(), treasury.address, fee)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(await ibcVoucher.getAddress(), ethers.ZeroAddress, amount - fee)
+        .to.emit(ibcVoucher, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer1.address, amount - fee)
+        .to.emit(ibcVoucher, 'VoucherMinted')
+        .withArgs(relayer.address, signer1.address, fee, amount - fee);
+
+      expect(await lbtc.balanceOf(relayer.address)).to.be.equal(0);
+      expect(await lbtc.balanceOf(treasury.address)).to.be.equal(fee);
+      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(amount - fee);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(amount - fee);
+    });
+
+    it('should not allow to wrap with amount equal to or below fee amount', async function () {
+      await expect(ibcVoucher.connect(relayer).wrap(fee)).to.be.revertedWithCustomError(ibcVoucher, 'AmountTooLow');
+    });
+
+    it('should not allow to wrapTo with amount equal to or below fee amount', async function () {
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, fee)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AmountTooLow'
+      );
+    });
+  });
+
+  describe('Spending', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount + fee);
+      await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount + fee);
+      await ibcVoucher.connect(relayer).wrapTo(signer1.address, amount + fee);
+    });
+
+    it('should allow anyone to spend voucher', async function () {
+      await expect(ibcVoucher.connect(signer1).spend(amount))
+        .to.emit(ibcVoucher, 'Transfer')
+        .withArgs(signer1.address, ethers.ZeroAddress, amount)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer1.address, amount)
+        .to.emit(ibcVoucher, 'VoucherSpent')
+        .withArgs(signer1.address, signer1.address, amount);
+
+      expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
+      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(0);
+    });
+
+    it('should allow anyone to spend voucher to a given address', async function () {
+      await expect(ibcVoucher.connect(signer1).spendTo(signer2.address, amount))
+        .to.emit(ibcVoucher, 'Transfer')
+        .withArgs(signer1.address, ethers.ZeroAddress, amount)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer2.address, amount)
+        .to.emit(ibcVoucher, 'VoucherSpent')
+        .withArgs(signer1.address, signer2.address, amount);
+
+      expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
+      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(0);
+    });
+
+    it('should allow operator to spendFrom voucher', async function () {
+      await expect(ibcVoucher.connect(operator).spendFrom(signer1.address, amount))
+        .to.emit(ibcVoucher, 'Transfer')
+        .withArgs(signer1.address, ethers.ZeroAddress, amount)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer1.address, amount)
+        .to.emit(ibcVoucher, 'VoucherSpent')
+        .withArgs(signer1.address, signer1.address, amount);
+
+      expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
+      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
+    });
+
+    it('should allow operator to spendFromTo voucher', async function () {
+      await expect(ibcVoucher.connect(operator).spendFromTo(signer1.address, signer2.address, amount))
+        .to.emit(ibcVoucher, 'Transfer')
+        .withArgs(signer1.address, ethers.ZeroAddress, amount)
+        .to.emit(lbtc, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer2.address, amount)
+        .to.emit(ibcVoucher, 'VoucherSpent')
+        .withArgs(signer1.address, signer2.address, amount);
+
+      expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
+      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
+    });
+  });
+
+  describe('Access control', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount + fee);
+      await lbtc.connect(admin)['mint(address, uint256)'](signer1.address, amount);
+      await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount + fee);
+      await ibcVoucher.connect(relayer).wrapTo(signer1.address, amount + fee);
+
+      expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
+      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(amount);
+    });
+
+    it('should not allow just anyone to wrap LBTC', async function () {
+      await expect(ibcVoucher.connect(signer1).wrap(amount)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('should not allow just anyone to wrap LBTC to a given address', async function () {
+      await expect(ibcVoucher.connect(signer1).wrapTo(signer2.address, amount)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('should not allow just anyone to spendFrom LBTC', async function () {
+      await expect(ibcVoucher.connect(signer1).spendFrom(signer1.address, amount)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('should not allow just anyone to spendFromTo LBTC', async function () {
+      await expect(
+        ibcVoucher.connect(signer1).spendFromTo(signer1.address, signer2.address, amount)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'AccessControlUnauthorizedAccount');
+    });
+  });
+
+  describe('Pausing', function () {
+    before(async function () {
+      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount);
+      await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount);
+    });
+
+    it('pause: rejects when called by not pauser', async function () {
+      await expect(ibcVoucher.connect(signer1).unpause()).to.be.rejectedWith('AccessControlUnauthorizedAccount');
+    })
+
+    it('pauser can pause', async function () {
+      await expect(ibcVoucher.connect(pauser).pause()).to.emit(ibcVoucher, 'Paused').withArgs(pauser.address);
+      expect(await ibcVoucher.paused()).to.be.true;
+    });
+
+    it('should disallow `wrap` when paused', async function () {
+      await expect(ibcVoucher.connect(relayer).wrap(amount)).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
+    });
+
+    it('should disallow `wrapTo` when paused', async function () {
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'EnforcedPause'
+      );
+    });
+
+    it('should disallow `spend` when paused', async function () {
+      await expect(ibcVoucher.spend(amount)).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
+    });
+
+    it('should disallow `spendTo` when paused', async function () {
+      await expect(ibcVoucher.spendTo(signer1.address, amount)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'EnforcedPause'
+      );
+    });
+
+    it('pauser can not unpause', async function () {
+      await expect(ibcVoucher.connect(pauser).unpause()).to.be.rejectedWith('AccessControlUnauthorizedAccount');
+    });
+
+    it('admin can unpause', async function () {
+      await expect(ibcVoucher.connect(admin).unpause()).to.emit(ibcVoucher, 'Unpaused').withArgs(admin.address);
+      expect(await ibcVoucher.paused()).to.be.false;
+
+      await ibcVoucher.connect(relayer).wrap(amount);
+    });
+
+    it('admin can be pauser', async function () {
+      await ibcVoucher.connect(admin).grantRole(await ibcVoucher.PAUSER_ROLE(), admin.address);
+      await expect(ibcVoucher.connect(admin).pause()).to.emit(ibcVoucher, 'Paused').withArgs(admin.address);
+      expect(await ibcVoucher.paused()).to.be.true;
+    });
+  });
+
+  describe('Rate limits', function () {
+    let outflow = 0n;
+    let inflow = 0n;
+    let rateLimit = 0n;
+    let rateLimitPercent = 1000n;
+    let RATIO_MULTIPLIER = 0n;
 
     before(async function () {
-        [deployer, signer1, signer2, signer3, pauser, treasury] =
-            await getSignersWithPrivateKeys();
-
-        const burnCommission = 1000;
-        const result = await init(
-            burnCommission,
-            treasury.address,
-            deployer.address
-        );
-        lbtc = result.lbtc;
-
-        ibcVoucher = await deployContract<IBCVoucher>('IBCVoucher', [
-            await lbtc.getAddress(),
-            deployer.address,
-            fee,
-            treasury.address,
-        ]);
-
-        // set deployer as minter
-        await lbtc.addMinter(deployer.address);
-
-        // Initialize the permit module
-        await lbtc.reinitialize();
-
-        await ibcVoucher.grantRole(
-            await ibcVoucher.RELAYER_ROLE(),
-            deployer.address
-        );
-
-        // Give signer1 relayer role
-        await ibcVoucher.grantRole(
-            await ibcVoucher.RELAYER_ROLE(),
-            signer1.address
-        );
-
-        // Give signer1 operator role
-        await ibcVoucher.grantRole(
-            await ibcVoucher.OPERATOR_ROLE(),
-            signer1.address
-        );
-
-        // IBC Voucher needs to be minter
-        await lbtc.addMinter(await ibcVoucher.getAddress());
-
-        snapshot = await takeSnapshot();
-        snapshotTimestamp = (await ethers.provider.getBlock('latest'))!
-            .timestamp;
+      await snapshot.restore();
+      RATIO_MULTIPLIER = await ibcVoucher.RATIO_MULTIPLIER();
+      await ibcVoucher.connect(admin).setFee(0n);
+      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, 10000_0000);
+      await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), 10000_0000);
     });
 
-    afterEach(async function () {
-        // clean the state after each test
-        await snapshot.restore();
+    it('setRateLimit: rejects when supply is 0', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, await time.latest())
+      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroSupply');
     });
 
-    describe('Setters', function () {
-        it('should allow admin to set treasury', async function () {
-            await expect(ibcVoucher.setTreasuryAddress(signer2.address))
-                .to.emit(ibcVoucher, 'TreasuryUpdated')
-                .withArgs(signer2.address);
-        });
+    it('setRateLimit: admin can set rate limit when supply > 0', async function () {
+      const amount = 1000n;
+      await ibcVoucher.connect(relayer).wrapTo(signer1.address, amount);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(amount);
+      rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
 
-        it('should not allow anyone else to set treasury', async function () {
-            await expect(
-                ibcVoucher.connect(signer1).setTreasuryAddress(signer2.address)
-            ).to.be.reverted;
-        });
+      const startTime = await time.latest();
+      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, startTime))
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
 
-        it('should allow admin to set fee', async function () {
-            await expect(ibcVoucher.setFee(200))
-                .to.emit(ibcVoucher, 'FeeUpdated')
-                .withArgs(200);
-        });
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const initialLeftover = await ibcVoucher.leftoverAmount();
+      console.log('Initial leftover:', initialLeftover);
 
-        it('should not allow anyone else to set fee', async function () {
-            await expect(ibcVoucher.connect(signer1).setFee(200)).to.be
-                .reverted;
-        });
+      expect(initialLeftover).to.be.equal(rateLimit);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(amount);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(0n);
+      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.startTime).to.be.eq(startTime);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(0n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
 
-    describe('Wrapping', function () {
-        beforeEach(async function () {
-            await expect(
-                lbtc['mint(address, uint256)'](signer1.address, amount)
-            );
-        });
-
-        it('should allow a relayer to wrap LBTC', async function () {
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), amount);
-            expect(await ibcVoucher.connect(signer1).wrap(amount))
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    signer1.address,
-                    await ibcVoucher.getAddress(),
-                    amount
-                )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(await ibcVoucher.getAddress(), treasury.address, fee)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    await ibcVoucher.getAddress(),
-                    ethers.ZeroAddress,
-                    amount - fee
-                )
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer1.address, amount - fee)
-                .to.emit(ibcVoucher, 'VoucherMinted')
-                .withArgs(signer1.address, signer1.address, fee, amount - fee);
-
-            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
-            expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(
-                amount - fee
-            );
-        });
-
-        it('should allow a relayer to wrap LBTC to a given address', async function () {
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), amount);
-            expect(
-                await ibcVoucher
-                    .connect(signer1)
-                    .wrapTo(signer2.address, amount)
-            )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    signer1.address,
-                    await ibcVoucher.getAddress(),
-                    amount
-                )
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(await ibcVoucher.getAddress(), treasury.address, fee)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(
-                    await ibcVoucher.getAddress(),
-                    ethers.ZeroAddress,
-                    amount - fee
-                )
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer2.address, amount - fee)
-                .to.emit(ibcVoucher, 'VoucherMinted')
-                .withArgs(signer1.address, signer2.address, fee, amount - fee);
-
-            expect(await lbtc.balanceOf(signer1.address)).to.be.equal(0);
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - fee
-            );
-        });
-
-        it('should not allow to wrap with amount equal to or below fee amount', async function () {
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), fee);
-            await expect(
-                ibcVoucher.connect(signer1).wrap(fee)
-            ).to.be.revertedWithCustomError(ibcVoucher, 'AmountTooLow');
-        });
-
-        it('should not allow to wrapTo with amount equal to or below fee amount', async function () {
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), fee);
-            await expect(
-                ibcVoucher.connect(signer1).wrapTo(signer2.address, fee)
-            ).to.be.revertedWithCustomError(ibcVoucher, 'AmountTooLow');
-        });
+    it('setRateLimit: rejects when called by not admin', async function () {
+      await expect(
+        ibcVoucher.connect(signer1).setRateLimit(rateLimitPercent, oneDay, await time.latest())
+      ).to.be.revertedWithCustomError(ibcVoucher, 'AccessControlUnauthorizedAccount');
     });
 
-    describe('Spending', function () {
-        beforeEach(async function () {
-            await expect(
-                lbtc['mint(address, uint256)'](signer1.address, amount + fee)
-            );
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), amount + fee);
-            await ibcVoucher
-                .connect(signer1)
-                .wrapTo(signer2.address, amount + fee);
-        });
-
-        it('should allow anyone to spend voucher', async function () {
-            await expect(ibcVoucher.connect(signer2).spend(amount))
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, amount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer2.address, amount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer2.address, amount);
-
-            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(0);
-        });
-
-        it('should allow anyone to spend voucher to a given address', async function () {
-            await expect(
-                ibcVoucher.connect(signer2).spendTo(signer3.address, amount)
-            )
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, amount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer3.address, amount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer3.address, amount);
-
-            expect(await lbtc.balanceOf(signer3.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(0);
-        });
-
-        it('should allow relayer to spendFrom voucher', async function () {
-            await expect(
-                ibcVoucher.connect(signer1).spendFrom(signer2.address, amount)
-            )
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, amount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer2.address, amount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer2.address, amount);
-
-            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(0);
-        });
-
-        it('should allow relayer to spendFromTo voucher', async function () {
-            await expect(
-                ibcVoucher
-                    .connect(signer1)
-                    .spendFromTo(signer2.address, signer3.address, amount)
-            )
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, amount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer3.address, amount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer3.address, amount);
-
-            expect(await lbtc.balanceOf(signer3.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(0);
-        });
+    it('spend: rejects when amount > leftover and leftover > 0', async function () {
+      const amount = await ibcVoucher.leftoverAmount();
+      await expect(amount).to.be.gt(0n);
+      await expect(ibcVoucher.connect(signer1).spend(amount + 1n)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'RateLimitExceeded'
+      );
     });
 
-    describe('Access control', function () {
-        beforeEach(async function () {
-            await expect(
-                lbtc['mint(address, uint256)'](signer2.address, amount)
-            );
-            await expect(
-                lbtc['mint(address, uint256)'](signer1.address, amount + fee)
-            );
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), amount + fee);
-            await expect(
-                ibcVoucher
-                    .connect(signer1)
-                    .wrapTo(signer2.address, amount + fee)
-            )
-                .to.emit(ibcVoucher, 'VoucherMinted')
-                .withArgs(signer1.address, signer2.address, fee, amount);
+    it('leftoverAmount increases by wrap amount', async function () {
+      const amount = 1000n;
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
 
-            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount
-            );
-        });
+      outflow += amount;
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
+        .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
+        .withArgs(outflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
-        it('should not allow just anyone to wrap LBTC', async function () {
-            await expect(
-                ibcVoucher.connect(signer2).wrap(amount)
-            ).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'AccessControlUnauthorizedAccount'
-            );
-        });
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after wrap:', leftoverAfter);
 
-        it('should not allow just anyone to wrap LBTC to a given address', async function () {
-            await expect(
-                ibcVoucher.connect(signer2).wrapTo(signer1.address, amount)
-            ).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'AccessControlUnauthorizedAccount'
-            );
-        });
-
-        it('should not allow just anyone to spendFrom LBTC', async function () {
-            await expect(
-                ibcVoucher.connect(signer2).spendFrom(signer2.address, amount)
-            ).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'AccessControlUnauthorizedAccount'
-            );
-        });
-
-        it('should not allow just anyone to spendFromTo LBTC', async function () {
-            await expect(
-                ibcVoucher
-                    .connect(signer2)
-                    .spendFromTo(signer2.address, signer1.address, amount)
-            ).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'AccessControlUnauthorizedAccount'
-            );
-        });
+      expect(leftoverAfter - leftoverBefore).to.be.equal(amount);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
     });
 
-    describe('Pausing', function () {
-        beforeEach(async function () {
-            await expect(
-                lbtc['mint(address, uint256)'](deployer.address, amount)
-            );
-            await lbtc.approve(await ibcVoucher.getAddress(), amount);
-            await ibcVoucher.grantRole(
-                await ibcVoucher.PAUSER_ROLE(),
-                deployer.address
-            );
-            await ibcVoucher.pause();
-        });
+    it('spend: can partially spend leftover', async function () {
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      await expect(leftoverBefore).to.be.gt(0n);
+      const amount = leftoverBefore / 2n;
+      const ibcBalanceBefore = await ibcVoucher.balanceOf(signer1);
 
-        it('should disallow `wrap` when paused', async function () {
-            await expect(ibcVoucher.wrap(amount)).to.be.revertedWithCustomError(
-                ibcVoucher,
-                'EnforcedPause'
-            );
-        });
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer1).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
-        it('should disallow `wrapTo` when paused', async function () {
-            await expect(
-                ibcVoucher.wrapTo(signer2.address, amount)
-            ).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
-        });
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
 
-        it('should disallow `spend` when paused', async function () {
-            await expect(
-                ibcVoucher.spend(amount)
-            ).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
-        });
-
-        it('should disallow `spendTo` when paused', async function () {
-            await expect(
-                ibcVoucher.spendTo(signer2.address, amount)
-            ).to.be.revertedWithCustomError(ibcVoucher, 'EnforcedPause');
-        });
+      expect(ibcBalanceBefore - (await ibcVoucher.balanceOf(signer1.address))).to.be.equal(amount);
+      expect(leftoverBefore - leftoverAfter).to.be.equal(amount);
     });
 
-    describe('Rate limits', function () {
-        const spendAmount = 10;
+    it('spend: can spend all leftover', async function () {
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      await expect(leftoverBefore).to.be.gt(0n);
+      const amount = leftoverBefore;
+      const ibcBalanceBefore = await ibcVoucher.balanceOf(signer1);
 
-        beforeEach(async function () {
-            await lbtc['mint(address, uint256)'](signer1.address, amount + fee);
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer1).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
-            // Now we wrap some LBTC to unwrap later.
-            await lbtc
-                .connect(signer1)
-                .approve(await ibcVoucher.getAddress(), amount + fee);
-            await expect(
-                ibcVoucher
-                    .connect(signer1)
-                    .wrapTo(signer2.address, amount + fee)
-            )
-                .to.emit(ibcVoucher, 'VoucherMinted')
-                .withArgs(signer1.address, signer2.address, fee, amount);
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
 
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount
-            );
-
-            expect(await ibcVoucher.totalSupply()).to.be.equal(amount);
-
-            // 10% of total supply
-            await ibcVoucher.setRateLimit(1000, oneDay, snapshotTimestamp);
-        });
-
-        it('should allow `spend` within the limit', async function () {
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
-
-            // Should be able to `spend` 10 sats
-            await expect(ibcVoucher.connect(signer2).spend(spendAmount))
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, spendAmount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer2.address, spendAmount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer2.address, spendAmount);
-
-            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(
-                spendAmount
-            );
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - spendAmount
-            );
-
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(0);
-        });
-
-        it('should abort `spend` over the limit', async function () {
-            // Should not be able to `spend` 11 sats
-            await expect(
-                ibcVoucher.connect(signer2).spend(spendAmount + 1)
-            ).to.be.revertedWithCustomError(ibcVoucher, 'RateLimitExceeded');
-        });
-
-        it('should reset after window', async function () {
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(spendAmount);
-
-            // Should be able to `spend` 10 sats
-            await expect(ibcVoucher.connect(signer2).spend(spendAmount))
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, spendAmount)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer2.address, spendAmount)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer2.address, spendAmount);
-
-            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(
-                spendAmount
-            );
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - spendAmount
-            );
-
-            expect(await ibcVoucher.leftoverAmount()).to.be.equal(0);
-
-            // Fast forward one day
-            await time.increase(oneDay + 1);
-
-            // Our total supply has changed, so our `spendAmount` will also change which we will account for here.
-            const totalSupply = await ibcVoucher.totalSupply();
-            const secondSpend = Number(totalSupply) / 10;
-            await expect(ibcVoucher.connect(signer2).spend(secondSpend))
-                .to.emit(ibcVoucher, 'Transfer')
-                .withArgs(signer2.address, ethers.ZeroAddress, secondSpend)
-                .to.emit(lbtc, 'Transfer')
-                .withArgs(ethers.ZeroAddress, signer2.address, secondSpend)
-                .to.emit(ibcVoucher, 'VoucherSpent')
-                .withArgs(signer2.address, signer2.address, secondSpend);
-
-            expect(await lbtc.balanceOf(signer2.address)).to.be.equal(
-                spendAmount + secondSpend
-            );
-            expect(await ibcVoucher.balanceOf(signer2.address)).to.be.equal(
-                amount - spendAmount - secondSpend
-            );
-        });
+      expect(ibcBalanceBefore - (await ibcVoucher.balanceOf(signer1.address))).to.be.equal(amount);
+      expect(leftoverAfter).to.be.equal(0n);
     });
+
+    it('leftover resets by the beginning of new epoch', async function () {
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      await time.increaseTo(Number(rateLimitConfig.startTime) + oneDay + 1);
+      rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
+      outflow = 0n;
+      inflow = 0n;
+
+      console.log(await ibcVoucher.leftoverAmount());
+      expect(await ibcVoucher.leftoverAmount()).to.be.eq(rateLimit);
+    });
+
+    it('first wrap in the epoch resets rate limit', async function () {
+      const amount = 1000n;
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+
+      outflow += amount;
+      rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer2.address, amount))
+        .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
+        .withArgs(outflow, amount)
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
+
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after wrap:', leftoverAfter);
+
+      expect(leftoverAfter).to.be.equal(rateLimit + outflow);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(0n);
+      expect(rateLimitConfig.outflow).to.be.eq(outflow);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(1n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
+    });
+
+    it('spend: can partially spend leftover', async function () {
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      await expect(leftoverBefore).to.be.gt(0n);
+      const ibcBalanceBefore = await ibcVoucher.balanceOf(signer2);
+      const amount = ibcBalanceBefore;
+
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer2).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
+
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
+
+      expect(ibcBalanceBefore - (await ibcVoucher.balanceOf(signer2.address))).to.be.equal(amount);
+      expect(leftoverBefore - leftoverAfter).to.be.equal(amount);
+    });
+
+    it('first spend in the epoch resets rate limit', async function () {
+      const rateLimitConfigBefore = await ibcVoucher.rateLimitConfig();
+      await time.increaseTo(Number(rateLimitConfigBefore.startTime) + oneDay * 2 + 1);
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+      rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
+      outflow = 0n;
+      inflow = 0n;
+
+      const amount = rateLimit;
+
+      inflow += amount;
+      await expect(ibcVoucher.connect(signer1).spend(amount))
+        .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
+        .withArgs(inflow, amount)
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
+
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after spend:', leftoverAfter);
+
+      expect(leftoverAfter).to.be.equal(0n);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore - amount);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(inflow);
+      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(2n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
+    });
+
+    it('wrap to increase leftover', async function () {
+      const amount = 1000n;
+      const leftoverBefore = await ibcVoucher.leftoverAmount();
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+
+      outflow += amount;
+      await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
+        .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
+        .withArgs(outflow, amount)
+        .to.not.emit(ibcVoucher, 'RateLimitUpdated');
+
+      const leftoverAfter = await ibcVoucher.leftoverAmount();
+      console.log('Leftover after wrap:', leftoverAfter);
+
+      expect(leftoverAfter - leftoverBefore).to.be.equal(amount);
+      expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
+    })
+
+    it('change rate limit threshold', async function () {
+      rateLimitPercent = 2000n;
+      const totalSupplyBefore = await ibcVoucher.totalSupply();
+      rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
+
+      const startTime = await time.latest();
+      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, startTime))
+        .to.emit(ibcVoucher, 'RateLimitUpdated')
+        .withArgs(rateLimit, oneDay, rateLimitPercent);
+
+      const rateLimitConfig = await ibcVoucher.rateLimitConfig();
+      const newLeftover = await ibcVoucher.leftoverAmount();
+      console.log('Total supply:', totalSupplyBefore);
+      console.log('New leftover:', newLeftover);
+
+      expect(newLeftover).to.be.equal(rateLimit);
+      expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
+      expect(rateLimitConfig.limit).to.be.eq(rateLimit);
+      expect(rateLimitConfig.inflow).to.be.eq(0n);
+      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.startTime).to.be.eq(startTime);
+      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.epoch).to.be.eq(0n);
+      expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
+    });
+
+    it('setRateLimit: rejects when start time in the future', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, await time.latest() + 100)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'FutureStartTime');
+    })
+
+    it('setRateLimit: rejects when window is 0', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, 0n, await time.latest() - 1)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroWindow');
+    })
+
+    it('setRateLimit: rejects when threshold is 0', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(0n, oneDay, await time.latest() - 1)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroThreshold');
+    })
+
+
+  });
 });
