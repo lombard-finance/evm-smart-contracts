@@ -1,0 +1,34 @@
+{
+  "swell": {
+    "admin": {
+      "Owner": "0xE6444CD0A7eD89f98634B641faC5a58864F05B60",
+      "TimeLock": "",
+      "Deployer": ["0x9202b09CC197D09B3B022fD681D90C938246E235", "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918"
+    },
+    "community": {
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x7B3784AD646C10A8Ddf42b47a4f4bd9aFD351E54"
+    }
+  },
+  "cornMaizenet": {
+    "admin": {
+      "Owner": "0x51E8F1fF7fE71A8f5F403ee09beb99B1694Ea9bf",
+      "TimeLock": "",
+      "Deployer": ["0xEfD4B4ee208aF17e3a060fC559eb3b9a09A58fAB"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918"
+    },
+    "community": {
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0xfc7B20D9B59A8A466f4fC3d34aA69a7D98e71d7A"
+    }
+  }
+}

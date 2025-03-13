@@ -1,3 +1,4 @@
+export * from './blacklist';
 export * from './bridge';
 export * from './btcb-mock';
 export * from './consortium';
@@ -12,3 +13,6 @@ export * from './stake-and-bake';
 export * from './teller-mock';
 export * from './teller-depositor';
 export * from './partner-vault';
+export * from './timelock';
+export * from './proxy-mock';
+export * from './voucher';

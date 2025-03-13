@@ -1,6 +1,7 @@
 .idea
 node_modules
 .env
+.chainlink
 .DS_Store
 
 # Hardhat files
@@ -16,4 +17,3 @@ node_modules
 /coverage.json
 
 package-lock.json
-.*

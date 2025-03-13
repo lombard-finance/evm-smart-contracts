@@ -1,45 +1,57 @@
-import { ethers, network, run } from 'hardhat';
-import { getAddresses, sleep } from '../helpers';
+import { verify } from '../helpers';
+import { task } from 'hardhat/config';
 
-async function main() {
-    const addresses = getAddresses(network.name);
+task('deploy-timelock', 'Deploys the LombardTimeLock contract')
+    .addParam('executors', 'List of executors divided by comma', '')
+    .addParam('proposers', 'List of proposers divided by comma', '')
+    .addParam('minDelay', 'The minimum timelock delay', 3600n.toString())
 
-    if (!addresses.Owner) {
-        throw Error(`Owner not set for ${network.name}`);
-    }
+    .setAction(async (taskArgs, hre) => {
+        const {
+            executors: executorsArg,
+            proposers: proposersArg,
+            minDelay,
+        } = taskArgs;
 
-    const [deployer] = await ethers.getSigners();
+        let executors =
+            executorsArg.split(',').filter((v: string) => v.length > 0) || [];
 
-    const constructorArguments = [
-        '3600', // 1 hour
-        [await deployer.getAddress(), addresses.Owner],
-        [addresses.Owner],
-    ];
-
-    console.log('going to deploy...');
-    const timelock = await ethers.deployContract(
-        'LombardTimeLock',
-        constructorArguments
-    );
-    await timelock.waitForDeployment();
-
-    console.log(`Deployment address is ${await timelock.getAddress()}`);
-    console.log(`Going to verify...`);
-
-    await sleep(12_000);
-    try {
-        await run('verify:verify', {
-            address: await timelock.getAddress(),
-            contract:
-                'contracts/consortium/LombardTimeLock.sol:LombardTimeLock',
-            constructorArguments,
+        executors.forEach((v: string) => {
+            if (!hre.ethers.isAddress(v)) {
+                throw new Error(`${v} is not address`);
+            }
         });
-    } catch (e) {
-        console.error(`Verification failed: ${e}`);
-    }
-}
 
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+        let proposers =
+            proposersArg.split(',').filter((v: string) => v.length > 0) || [];
+
+        proposers.forEach((v: string) => {
+            if (!hre.ethers.isAddress(v)) {
+                throw new Error(`${v} is not address`);
+            }
+        });
+
+        console.log(`exectutors: ${JSON.stringify(executors, null, 2)}`);
+        console.log(`proposers: ${JSON.stringify(proposers, null, 2)}`);
+
+        const constructorArguments = [minDelay, proposers, executors];
+
+        const timelock = await hre.ethers.deployContract(
+            'LombardTimeLock',
+            constructorArguments
+        );
+        await timelock.waitForDeployment();
+
+        console.log(`Timelock deployed at ${await timelock.getAddress()}`);
+
+        await verify(
+            run,
+            await timelock.getAddress(),
+            {
+                constructorArguments,
+                contract:
+                    'contracts/consortium/LombardTimeLock.sol:LombardTimeLock',
+            },
+            15_000
+        );
+    });

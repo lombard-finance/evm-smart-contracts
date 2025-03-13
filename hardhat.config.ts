@@ -6,6 +6,7 @@ import 'hardhat-gas-reporter';
 import 'hardhat-deploy';
 
 import './scripts';
+import './tasks';
 
 const config: HardhatUserConfig = {
     gasReporter: {
@@ -224,13 +225,58 @@ const config: HardhatUserConfig = {
             timeout: 90_000,
             gas: 8_000_000,
         },
-        swell_testnet: {
+        cronosTestnet: {
+            loggingEnabled: true,
+            url: vars.get('CRONOS_TESTNET_RPC', 'https://evm-t3.cronos.org'),
+            chainId: 338,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        swellSepolia: {
             loggingEnabled: true,
             url: vars.get(
-                'SWELL_TESTNET_RPC',
+                'SWELL_SEPOLIA_RPC',
                 'https://rpc.ankr.com/swell_sepolia'
             ),
             chainId: 1924,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        sonicTestnet: {
+            loggingEnabled: true,
+            url: vars.get(
+                'SONIC_TESTNET_RPC',
+                'https://rpc.ankr.com/sonic_blaze_testnet'
+            ),
+            chainId: 57054,
+            accounts: [
+                vars.get(
+                    'TESTNET_DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        morphHolesky: {
+            loggingEnabled: true,
+            url: vars.get(
+                'MORPH_HOLESKY_RPC',
+                'https://rpc-quicknode-holesky.morphl2.io'
+            ),
+            chainId: 2810,
             accounts: [
                 vars.get(
                     'TESTNET_DEPLOYER_SK',
@@ -283,7 +329,7 @@ const config: HardhatUserConfig = {
         },
         bsc: {
             loggingEnabled: true,
-            url: vars.get('MAINNET_RPC', 'https://bsc-rpc.publicnode.com'),
+            url: vars.get('BSC_RPC', 'https://rpc.ankr.com/bsc'),
             chainId: 56,
             accounts: [
                 vars.get(
@@ -343,7 +389,46 @@ const config: HardhatUserConfig = {
             chainId: 1923,
             accounts: [
                 vars.get(
-                    'DEPLOYER_SWELL_SK',
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        berachain: {
+            loggingEnabled: true,
+            url: vars.get('BERACHAIN_RPC', 'https://rpc.berachain.com'),
+            chainId: 80094,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        sonic: {
+            loggingEnabled: true,
+            url: vars.get('SONIC_RPC', 'https://rpc.ankr.com/sonic_mainnet'),
+            chainId: 146,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
+                    '0x0000000000000000000000000000000000000000000000000000000000000001'
+                ),
+            ],
+            timeout: 90_000,
+            gas: 8_000_000,
+        },
+        morph: {
+            loggingEnabled: true,
+            url: vars.get('MORPH_RPC', 'https://rpc-quicknode.morphl2.io'),
+            chainId: 2818,
+            accounts: [
+                vars.get(
+                    'DEPLOYER_SK',
                     '0x0000000000000000000000000000000000000000000000000000000000000001'
                 ),
             ],
@@ -418,6 +503,22 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://swell-testnet-explorer.alt.technology',
                 },
             },
+            {
+                network: 'sonicTestnet',
+                chainId: 57054,
+                urls: {
+                    apiURL: 'https://testnet.sonicscan.org/api',
+                    browserURL: 'https://testnet.sonicscan.org',
+                },
+            },
+            {
+                network: 'morphHolesky',
+                chainId: 2810,
+                urls: {
+                    apiURL: 'https://explorer-api-holesky.morphl2.io/api/v2/',
+                    browserURL: 'https://explorer-holesky.morphl2.io/',
+                },
+            },
             // mainnets
             {
                 network: 'mantle',
@@ -459,6 +560,30 @@ const config: HardhatUserConfig = {
                     browserURL: 'https://explorer.swellnetwork.io/',
                 },
             },
+            {
+                network: 'berachain',
+                chainId: 80094,
+                urls: {
+                    apiURL: 'https://api.berascan.com/api',
+                    browserURL: 'https://berascan.com',
+                },
+            },
+            {
+                network: 'sonic',
+                chainId: 146,
+                urls: {
+                    apiURL: 'https://api.sonicscan.org/api',
+                    browserURL: 'https://sonicscan.org',
+                },
+            },
+            {
+                network: 'morph',
+                chainId: 2818,
+                urls: {
+                    apiURL: 'https://morphscan.org/api/v2/network/mainnet/evm/2818/etherscan',
+                    browserURL: 'https://morphscan.org',
+                },
+            },
         ],
         apiKey: {
             // testnets
@@ -475,6 +600,7 @@ const config: HardhatUserConfig = {
             beraBartio: 'no',
             beraCartio: 'no',
             swell_testnet: 'no',
+            sonicTestnet: 'no',
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -486,6 +612,9 @@ const config: HardhatUserConfig = {
             arbitrum: vars.get('ARBITRUM_API_KEY', ''),
             cornMaizenet: 'no',
             swell: 'no',
+            berachain: vars.get('BERACHAIN_API_KEY', ''),
+            sonic: vars.get('SONIC_API_KEY', ''),
+            morph: 'no',
         },
     },
     sourcify: {

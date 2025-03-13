@@ -400,6 +400,14 @@ contract LBTC is
         }
 
         for (uint256 i; i < payload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(payload[i]);
+            bytes32 legacyPayloadHash = keccak256(payload[i][4:]);
+            if (isPayloadUsed(payloadHash, legacyPayloadHash)) {
+                emit BatchMintSkipped(payloadHash, payload[i]);
+                continue;
+            }
+
             mint(payload[i], proof[i]);
         }
     }
@@ -443,8 +451,15 @@ contract LBTC is
             revert InvalidInputLength();
         }
 
-        LBTCStorage storage $ = _getLBTCStorage();
         for (uint256 i; i < mintPayload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(mintPayload[i]);
+            bytes32 legacyPayloadHash = keccak256(mintPayload[i][4:]);
+            if (isPayloadUsed(payloadHash, legacyPayloadHash)) {
+                emit BatchMintSkipped(payloadHash, mintPayload[i]);
+                continue;
+            }
+
             _mintWithFee(
                 mintPayload[i],
                 proof[i],
@@ -506,6 +521,22 @@ contract LBTC is
         _burn(from, amount);
     }
 
+    /**
+     * @dev Returns whether a minting payload has been used already
+     *
+     * @param payloadHash The minting payload hash
+     * @param legacyPayloadHash The legacy minting payload hash
+     */
+    function isPayloadUsed(
+        bytes32 payloadHash,
+        bytes32 legacyPayloadHash
+    ) public view returns (bool) {
+        LBTCStorage storage $ = _getLBTCStorage();
+        return
+            $.usedPayloads[payloadHash] ||
+            $.legacyUsedPayloads[legacyPayloadHash];
+    }
+
     /// PRIVATE FUNCTIONS ///
 
     function __LBTC_init(
@@ -555,17 +586,15 @@ contract LBTC is
         /// need to check new sha256 hash and legacy keccak256 from payload without selector
         /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
-        if (
-            $.usedPayloads[payloadHash] ||
-            $.legacyUsedPayloads[keccak256(payload[4:])]
-        ) {
+        bytes32 legacyHash = keccak256(payload[4:]);
+        if ($.usedPayloads[payloadHash] || $.legacyUsedPayloads[legacyHash]) {
             revert PayloadAlreadyUsed();
         }
         Consortium($.consortium).checkProof(payloadHash, proof);
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, payloadHash, depositAmount);
+        _confirmDeposit($, legacyHash, depositAmount);
 
         // Actually mint
         _mint(recipient, amountToMint);

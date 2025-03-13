@@ -1,6 +1,8 @@
 import { BigNumberish, ContractTransaction } from 'ethers';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 import { DEFAULT_PROXY_FACTORY } from './constants';
+import { ITimelockController } from '../../typechain-types';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 type TAddressesWithNetwork = {
     [k: string]: TAddresses;
@@ -16,7 +18,7 @@ export type TAddresses = {
 };
 
 export function getAddresses(network: string): TAddresses {
-    const addresses: TAddressesWithNetwork = require('../../addresses-mainnet.json');
+    const addresses: TAddressesWithNetwork = require('../../mainnet.json');
     if (!addresses[network]) {
         throw Error(`network ${network} not supported`);
     }
@@ -27,10 +29,15 @@ export function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function verify(run: any, address: string, options: any = {}) {
+export async function verify(
+    run: any,
+    address: string,
+    options: any = {},
+    delay = 13_000
+) {
     console.log(`Going to verify...`);
 
-    await sleep(12_000);
+    await sleep(delay);
 
     try {
         await run('verify:verify', {
@@ -40,43 +47,48 @@ export async function verify(run: any, address: string, options: any = {}) {
     } catch (e) {
         console.error(`Verification failed: ${e}`);
     }
+
+    console.log('\n');
 }
 
 export async function schedule(
-    ethers: any,
-    {
-        timelockAddr,
-        transaction,
-        predecessor,
-        salt,
-        delay,
-    }: {
-        timelockAddr: string;
-        transaction: ContractTransaction;
-        predecessor?: BytesLike;
-        salt?: BytesLike;
-        delay?: BigNumberish;
-    }
+    hre: HardhatRuntimeEnvironment,
+    timelock: ITimelockController,
+    transaction: ContractTransaction,
+    predecessor?: BytesLike,
+    salt?: BytesLike,
+    delay?: BigNumberish
 ) {
-    const timelock = await ethers.getContractAt(
-        'ITimelockController',
-        timelockAddr
-    );
+    delay = delay || (await timelock.getMinDelay());
 
-    if (!delay) {
-        delay = await timelock.getMinDelay();
-    }
-
-    const res = await timelock.schedule(
+    return await timelock.schedule(
         transaction.to,
         transaction.value || '0',
         transaction.data,
-        predecessor || ethers.ZeroHash,
-        salt || ethers.ZeroHash,
+        predecessor || hre.ethers.ZeroHash,
+        salt || hre.ethers.ZeroHash,
         delay
     );
-    await res.wait();
-    console.log(res.hash);
+}
+
+export async function populateSchedule(
+    hre: HardhatRuntimeEnvironment,
+    timelock: ITimelockController,
+    transaction: ContractTransaction,
+    predecessor?: BytesLike,
+    salt?: BytesLike,
+    delay?: BigNumberish
+) {
+    delay = delay || (await timelock.getMinDelay());
+
+    return await timelock.schedule.populateTransaction(
+        transaction.to,
+        transaction.value || '0',
+        transaction.data,
+        predecessor || hre.ethers.ZeroHash,
+        salt || hre.ethers.ZeroHash,
+        delay
+    );
 }
 
 export async function getProxyFactoryAt(
@@ -95,4 +107,40 @@ export function getProxySalt(
     contractName: string
 ) {
     return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}`);
+}
+
+/**
+ * Computes data for calling a method on a contract
+ * @param {string} functionSignature - method signature in solidity selector format "functionName(uint256)".
+ * @param {Array} args - arguments to pass to the function
+ * @returns {string} - hex encoded data field
+ */
+export function getTransactionData(
+    hre: HardhatRuntimeEnvironment,
+    functionSignature: string,
+    args: any[]
+): string {
+    const functionFragment =
+        hre.ethers.FunctionFragment.from(functionSignature);
+    const iface = new hre.ethers.Interface([functionFragment]);
+    return iface.encodeFunctionData(functionFragment.name, args);
+}
+
+export function checkEIP165InterfaceId(
+    id: string,
+    contract: string,
+    chain: string,
+    hre: HardhatRuntimeEnvironment
+): Promise<boolean> {
+    const provider = new hre.ethers.JsonRpcProvider(
+        hre.config.networks[chain].url
+    );
+    const data = getTransactionData(hre, 'supportsInterface(bytes4)', [id]);
+    return provider.send('eth_call', [
+        {
+            to: contract,
+            data: data,
+        },
+        'latest',
+    ]) as Promise<boolean>;
 }
