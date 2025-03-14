@@ -17,9 +17,16 @@ interface IIBCVoucher {
     );
     event TreasuryUpdated(address indexed newTreasury);
     event FeeUpdated(uint256 fee);
+    event RateLimitUpdated(uint64 limit, uint64 window, uint64 threshold);
+    event RateLimitInflowIncreased(uint64 amount, uint64 flow);
+    event RateLimitOutflowIncreased(uint64 amount, uint64 flow);
 
     error AmountTooLow();
     error ZeroAddress();
+    error RateLimitExceeded(uint64 limit, uint64 flow, uint64 amount);
+    error ZeroThreshold();
+    error FutureStartTime(uint256 startTime, uint256 blockTimestamp);
+    error ZeroWindow();
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval

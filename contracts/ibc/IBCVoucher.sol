@@ -9,7 +9,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IIBCVoucher} from "./IIBCVoucher.sol";
 import {ILBTC} from "../LBTC/ILBTC.sol";
 
-/// TODO: IBC like rate limits
 /// @title ERC20 intermediary token
 /// @author Lombard.Finance
 /// @notice The contracts is a part of Lombard.Finace protocol
@@ -21,6 +20,18 @@ contract IBCVoucher is
 {
     using SafeERC20 for IERC20;
 
+    /// @notice Simplified implementation of IBC rate limits: https://github.com/cosmos/ibc-apps/tree/modules/rate-limiting/v8.0.0/modules/rate-limiting
+    struct RateLimit {
+        uint64 supplyAtUpdate;
+        uint64 limit;
+        uint64 inflow;
+        uint64 outflow;
+        uint64 startTime;
+        uint64 window; // Window denominated in hours.
+        uint64 epoch;
+        uint16 threshold; // Denominated in BIPs (hundredths of a percentage) of the supply.
+    }
+
     /// @custom:storage-location erc7201:lombardfinance.storage.IBCVoucher
     struct IBCVoucherStorage {
         string name;
@@ -28,11 +39,14 @@ contract IBCVoucher is
         ILBTC lbtc;
         uint256 fee;
         address treasury;
+        RateLimit rateLimit;
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+
+    uint256 public constant RATIO_MULTIPLIER = 10000;
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -81,6 +95,63 @@ contract IBCVoucher is
         _setTreasuryAddress(_treasury);
     }
 
+    /// @notice Sets a rate limit for unwrapping the IBC Voucher.
+    /// @param threshold The rate limit threshold in BIPs (hundredths of a percentage).
+    /// @param window The rate limit window in hours.
+    function setRateLimit(
+        uint16 threshold,
+        uint64 window,
+        uint64 startTime
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        if (threshold == 0) {
+            revert ZeroThreshold();
+        }
+
+        _setRateLimit($, threshold, window, 0, startTime);
+    }
+
+    function _resetRateLimit(uint64 epoch) internal {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        _setRateLimit($, $.rateLimit.threshold, $.rateLimit.window, epoch, 0);
+    }
+
+    function _setRateLimit(
+        IBCVoucherStorage storage $,
+        uint16 threshold,
+        uint64 window,
+        uint64 epoch,
+        uint64 startTime
+    ) internal {
+        uint256 totalSupply = totalSupply();
+        if (window == 0) {
+            revert ZeroWindow();
+        }
+
+        $.rateLimit.supplyAtUpdate = uint64(totalSupply);
+        $.rateLimit.threshold = threshold;
+        $.rateLimit.limit = uint64(
+            (threshold * totalSupply) / RATIO_MULTIPLIER
+        );
+        $.rateLimit.inflow = 0;
+        $.rateLimit.outflow = 0;
+        $.rateLimit.window = window;
+        $.rateLimit.epoch = epoch;
+
+        if (epoch == 0) {
+            if (startTime > block.timestamp) {
+                revert FutureStartTime(startTime, block.timestamp);
+            }
+            $.rateLimit.startTime = startTime;
+        }
+
+        emit RateLimitUpdated(
+            $.rateLimit.limit,
+            $.rateLimit.window,
+            $.rateLimit.threshold
+        );
+    }
+
     function wrap(
         uint256 amount
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
@@ -100,6 +171,20 @@ contract IBCVoucher is
         uint256 amount
     ) internal returns (uint256) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        if ($.rateLimit.window != 0) {
+            uint64 epoch = uint64(
+                (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
+            );
+            if (epoch > $.rateLimit.epoch) {
+                _resetRateLimit(epoch);
+            }
+
+            // Calculate net flow, so wrapping would reduce our flow.
+            $.rateLimit.outflow += uint64(amount);
+
+            emit RateLimitOutflowIncreased($.rateLimit.outflow, uint64(amount));
+        }
+
         ILBTC _lbtc = $.lbtc;
         uint256 fee = $.fee;
 
@@ -145,6 +230,30 @@ contract IBCVoucher is
 
     function _spend(address from, address recipient, uint256 amount) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+
+        if ($.rateLimit.window != 0) {
+            uint64 epoch = uint64(
+                (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
+            );
+            if (epoch > $.rateLimit.epoch) {
+                _resetRateLimit(epoch);
+            }
+
+            // Check that spend doesn't exceed rate limit.
+            uint64 newInflow = uint64(amount) + $.rateLimit.inflow;
+            if (newInflow >= $.rateLimit.outflow) {
+                if (newInflow - $.rateLimit.outflow > $.rateLimit.limit) {
+                    revert RateLimitExceeded(
+                        $.rateLimit.limit,
+                        $.rateLimit.inflow,
+                        uint64(amount)
+                    );
+                }
+            }
+
+            $.rateLimit.inflow = newInflow;
+            emit RateLimitInflowIncreased($.rateLimit.inflow, uint64(amount));
+        }
 
         _burn(from, amount);
         $.lbtc.mint(recipient, amount);
@@ -211,6 +320,31 @@ contract IBCVoucher is
     /// Because LBTC represents BTC we use the same decimals.
     function decimals() public view virtual override returns (uint8) {
         return 8;
+    }
+
+    function leftoverAmount() public view returns (uint128) {
+        IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+        uint64 epoch = uint64(
+            (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
+        );
+        if (epoch > $.rateLimit.epoch) {
+            return
+                uint128(
+                    ($.rateLimit.threshold * totalSupply()) / RATIO_MULTIPLIER
+                );
+        }
+
+        int128 netFlow = int64($.rateLimit.inflow) - int64($.rateLimit.outflow);
+        // Our result here should always fit into an unsigned integer.
+        // Since `inflow` and `outflow` are both 64-bit unsigned integers, the maximum value for
+        // `netFlow` is either the `limit` (as `inflow` can not exceed `limit`), or the negation
+        // of the maximum supply of LBTC which fits easily into 64 bits. Therefore, this subtraction
+        // can only range from 0 to the maximum LBTC supply plus the `limit`.
+        return uint128(int128(int64($.rateLimit.limit)) - netFlow);
+    }
+
+    function rateLimitConfig() public view returns (RateLimit memory) {
+        return _getIBCVoucherStorage().rateLimit;
     }
 
     function _changeNameAndSymbol(
