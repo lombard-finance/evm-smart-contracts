@@ -56,5 +56,13 @@
       "CLAdapter": "0x84Ad0dAcD195ebCFB7059Dee1A36903e76919eBa",
       "LombardTokenPool": "0x204ae9A27C2eC4D7B2c0f56447f7e15912B37783"
     }
+  },
+  "sonicTestnet": {
+    "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5"
+    }
   }
 }

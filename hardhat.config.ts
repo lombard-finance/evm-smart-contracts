@@ -507,7 +507,7 @@ const config: HardhatUserConfig = {
                 network: 'sonicTestnet',
                 chainId: 57054,
                 urls: {
-                    apiURL: 'https://testnet.sonicscan.org/api',
+                    apiURL: 'https://api-testnet.sonicscan.org/api',
                     browserURL: 'https://testnet.sonicscan.org',
                 },
             },
@@ -600,7 +600,7 @@ const config: HardhatUserConfig = {
             beraBartio: 'no',
             beraCartio: 'no',
             swell_testnet: 'no',
-            sonicTestnet: 'no',
+            sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
             // mainnets
             mainnet: vars.get('ETHERSCAN_API_KEY', ''),
             bsc: vars.get('BSCSCAN_API_KEY', ''),
