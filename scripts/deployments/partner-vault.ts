@@ -9,32 +9,14 @@ import { create3 } from '../helpers/create3Deployment';
  */
 
 task('deploy-partner-vault', 'Deploys the PartnerVault contract via create3')
-    .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
-    .addParam('admin', 'The address of the owner')
-    .addParam('lbtc', 'The address of the LBTC contract')
-    .addParam('fbtc', 'The address of the FBTC0 contract')
-    .addParam('stakeLimit', 'The stake limit of the partner vault')
-    .addParam(
-        'proxyFactoryAddr',
-        'The ProxyFactory address',
-        DEFAULT_PROXY_FACTORY
-    )
-    .setAction(async (taskArgs, hre) => {
-        const {
-            ledgerNetwork,
-            admin,
-            lbtc,
-            fbtc,
-            stakeLimit,
-            proxyFactoryAddr,
-        } = taskArgs;
+  .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
+  .addParam('admin', 'The address of the owner')
+  .addParam('lbtc', 'The address of the LBTC contract')
+  .addParam('fbtc', 'The address of the FBTC0 contract')
+  .addParam('stakeLimit', 'The stake limit of the partner vault')
+  .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
+  .setAction(async (taskArgs, hre) => {
+    const { ledgerNetwork, admin, lbtc, fbtc, stakeLimit, proxyFactoryAddr } = taskArgs;
 
-        await create3(
-            'FBTCPartnerVault',
-            [admin, fbtc, lbtc, stakeLimit],
-            proxyFactoryAddr,
-            ledgerNetwork,
-            admin,
-            hre
-        );
-    });
+    await create3('FBTCPartnerVault', [admin, fbtc, lbtc, stakeLimit], proxyFactoryAddr, ledgerNetwork, admin, hre);
+  });

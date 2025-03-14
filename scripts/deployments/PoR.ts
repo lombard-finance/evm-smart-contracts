@@ -9,22 +9,11 @@ import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
  * 3. Add addresses
  */
 task('deploy-por', 'Deploys the PoR contract via create3')
-    .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
-    .addParam('admin', 'The address of the owner')
-    .addParam(
-        'proxyFactoryAddr',
-        'The ProxyFactory address',
-        DEFAULT_PROXY_FACTORY
-    )
-    .setAction(async (taskArgs, hre) => {
-        const { ledgerNetwork, admin, proxyFactoryAddr } = taskArgs;
+  .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
+  .addParam('admin', 'The address of the owner')
+  .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
+  .setAction(async (taskArgs, hre) => {
+    const { ledgerNetwork, admin, proxyFactoryAddr } = taskArgs;
 
-        await create3(
-            'PoR',
-            [admin],
-            proxyFactoryAddr,
-            ledgerNetwork,
-            admin,
-            hre
-        );
-    });
+    await create3('PoR', [admin], proxyFactoryAddr, ledgerNetwork, admin, hre);
+  });

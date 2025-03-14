@@ -3,11 +3,7 @@ import { Contract } from 'ethers';
 import { AdminBucket } from './admin-bucket';
 
 export interface AddressList {
-    [key: string]: any;
+  [key: string]: any;
 }
 
-export type RuleFunc = (
-    hre: HardhatRuntimeEnvironment,
-    contract: Contract,
-    admins: AdminBucket
-) => Promise<void>;
+export type RuleFunc = (hre: HardhatRuntimeEnvironment, contract: Contract, admins: AdminBucket) => Promise<void>;
