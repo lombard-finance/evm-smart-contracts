@@ -25,25 +25,31 @@ contract StakeAndBake is
     /// @dev error thrown when operator is changed to zero address
     error ZeroAddress();
     /// @dev error thrown when fee is attempted to be set above hardcoded maximum
-    error FeeGreaterThanMaximum();
+    error FeeGreaterThanMaximum(uint256 fee);
     /// @dev error thrown when no depositor is set
     error NoDepositorSet();
+    /// @dev error thrown when collecting funds from user fails
+    error CollectingFundsFailed();
+    /// @dev error thrown when sending the fee fails
+    error SendingFeeFailed();
+    /// @dev error thrown when approving to the depositor fails
+    error ApprovalFailed();
+    /// @dev error thrown when stakeAndBakeInternal is called by anyone other than self
+    error CallerNotSelf(address caller);
 
     event DepositorSet(address indexed depositor);
-    event BatchStakeAndBakeReverted(
-        uint256 indexed index,
-        StakeAndBakeData data
-    );
-    event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event BatchStakeAndBakeReverted(uint256 indexed index, string message);
+    event FeeChanged(uint256 newFee);
+    event GasLimitChanged(uint256 newGasLimit);
 
     struct StakeAndBakeData {
-        /// @notice permitPayload Contents of permit approval signed by the user
+        /// @notice Contents of permit approval signed by the user
         bytes permitPayload;
-        /// @notice depositPayload Contains the parameters needed to complete a deposit
+        /// @notice Contains the parameters needed to complete a deposit
         bytes depositPayload;
-        /// @notice mintPayload The message with the stake data
+        /// @notice The message with the stake data
         bytes mintPayload;
-        /// @notice proof Signature of the consortium approving the mint
+        /// @notice Signature of the consortium approving the mint
         bytes proof;
     }
 
@@ -52,6 +58,7 @@ contract StakeAndBake is
         LBTC lbtc;
         IDepositor depositor;
         uint256 fee;
+        uint256 gasLimit;
     }
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -78,13 +85,16 @@ contract StakeAndBake is
     }
 
     function initialize(
-        address lbtc_,
+        LBTC lbtc_,
         address owner_,
         address operator_,
         uint256 fee_,
         address claimer_,
-        address pauser_
+        address pauser_,
+        uint256 gasLimit_
     ) external initializer {
+        if (fee_ > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee_);
+
         __ReentrancyGuard_init();
         __Pausable_init();
         __AccessControl_init();
@@ -99,8 +109,9 @@ contract StakeAndBake is
         _grantRole(CLAIMER_ROLE, address(this));
 
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        $.lbtc = LBTC(lbtc_);
+        $.lbtc = lbtc_;
         $.fee = fee_;
+        $.gasLimit = gasLimit_;
     }
 
     /**
@@ -108,11 +119,22 @@ contract StakeAndBake is
      * @param fee The fee to set
      */
     function setFee(uint256 fee) external onlyRole(FEE_OPERATOR_ROLE) {
-        if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum();
+        if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee);
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        uint256 oldFee = $.fee;
         $.fee = fee;
-        emit FeeChanged(oldFee, fee);
+        emit FeeChanged(fee);
+    }
+
+    /**
+     * @notice Sets the maximum gas limit for a batch stake and bake call
+     * @param gasLimit The gas limit to set
+     */
+    function setGasLimit(
+        uint256 gasLimit
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        $.gasLimit = gasLimit;
+        emit GasLimitChanged(gasLimit);
     }
 
     /**
@@ -133,16 +155,39 @@ contract StakeAndBake is
      */
     function batchStakeAndBake(
         StakeAndBakeData[] calldata data
-    ) external onlyRole(CLAIMER_ROLE) whenNotPaused {
+    )
+        external
+        onlyRole(CLAIMER_ROLE)
+        depositorSet
+        whenNotPaused
+        returns (bytes[] memory)
+    {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        bytes[] memory ret = new bytes[](data.length);
         for (uint256 i; i < data.length; ) {
-            try this.stakeAndBake(data[i]) {} catch {
-                emit BatchStakeAndBakeReverted(i, data[i]);
+            try this.stakeAndBakeInternal{gas: $.gasLimit}(data[i]) returns (
+                bytes memory b
+            ) {
+                ret[i] = b;
+            } catch Error(string memory message) {
+                emit BatchStakeAndBakeReverted(i, message);
             }
 
             unchecked {
                 i++;
             }
         }
+
+        return ret;
+    }
+
+    function stakeAndBakeInternal(
+        StakeAndBakeData calldata data
+    ) external returns (bytes memory) {
+        if (_msgSender() != address(this)) {
+            revert CallerNotSelf(_msgSender());
+        }
+        return _stakeAndBake(data);
     }
 
     /**
@@ -151,10 +196,59 @@ contract StakeAndBake is
      */
     function stakeAndBake(
         StakeAndBakeData calldata data
-    ) external nonReentrant onlyRole(CLAIMER_ROLE) depositorSet whenNotPaused {
+    )
+        external
+        nonReentrant
+        onlyRole(CLAIMER_ROLE)
+        depositorSet
+        whenNotPaused
+        returns (bytes memory)
+    {
+        return _stakeAndBake(data);
+    }
+
+    function getStakeAndBakeFee() external view returns (uint256) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.fee;
+    }
+
+    function getStakeAndBakeDepositor() external view returns (IDepositor) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        return $.depositor;
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
+    function _deposit(
+        uint256 permitAmount,
+        uint256 feeAmount,
+        address owner,
+        bytes calldata depositPayload
+    ) internal returns (bytes memory) {
+        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        uint256 remainingAmount = permitAmount - feeAmount;
+
+        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
+        // The depositor should then send the staked vault shares back to the `owner`.
+        if (!$.lbtc.approve(address($.depositor), remainingAmount))
+            revert ApprovalFailed();
+
+        // Finally, deposit LBTC to the given vault.
+        return $.depositor.deposit(owner, remainingAmount, depositPayload);
+    }
+
+    function _stakeAndBake(
+        StakeAndBakeData calldata data
+    ) internal returns (bytes memory) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
-        // First, mint the LBTC and send to owner.
+        // First, mint the LBTC.
         $.lbtc.mint(data.mintPayload, data.proof);
 
         (
@@ -187,39 +281,22 @@ contract StakeAndBake is
                 s
             );
 
-        $.lbtc.transferFrom(owner, address(this), permitAmount);
+        if (!$.lbtc.transferFrom(owner, address(this), permitAmount))
+            revert CollectingFundsFailed();
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
-        if (feeAmount > 0) $.lbtc.transfer($.lbtc.getTreasury(), feeAmount);
+        if (feeAmount > 0) {
+            if (!$.lbtc.transfer($.lbtc.getTreasury(), feeAmount))
+                revert SendingFeeFailed();
+        }
 
-        uint256 remainingAmount = permitAmount - feeAmount;
-        if (remainingAmount == 0) revert ZeroDepositAmount();
-
-        // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
-        // The depositor should then send the staked vault shares back to the `owner`.
-        $.lbtc.approve(address($.depositor), remainingAmount);
-
-        // Finally, deposit LBTC to the given vault.
-        $.depositor.deposit(owner, remainingAmount, data.depositPayload);
-    }
-
-    function getStakeAndBakeFee() external view returns (uint256) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return $.fee;
-    }
-
-    function getStakeAndBakeDepositor() external view returns (address) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        return address($.depositor);
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
+        if (permitAmount > feeAmount) {
+            return
+                _deposit(permitAmount, feeAmount, owner, data.depositPayload);
+        } else {
+            revert ZeroDepositAmount();
+        }
     }
 
     function _getStakeAndBakeStorage()
