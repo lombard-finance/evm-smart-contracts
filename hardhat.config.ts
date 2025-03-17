@@ -162,6 +162,14 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    etherlinkTestnet: {
+      loggingEnabled: true,
+      url: vars.get('ETHERLINK_RPC', 'https://node.ghostnet.etherlink.com'),
+      chainId: 128123,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
@@ -345,6 +353,14 @@ const config: HardhatUserConfig = {
           browserURL: 'https://explorer-holesky.morphl2.io/'
         }
       },
+      {
+        network: 'etherlinkTestnet',
+        chainId: 128123,
+        urls: {
+          apiURL: 'https://testnet.explorer.etherlink.com/api',
+          browserURL: 'https://testnet.explorer.etherlink.com'
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -435,6 +451,7 @@ const config: HardhatUserConfig = {
       beraCartio: 'no',
       swell_testnet: 'no',
       sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
+      etherlinkTestnet: 'no',
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
