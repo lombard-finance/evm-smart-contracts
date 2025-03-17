@@ -162,6 +162,14 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    etherlinkTestnet: {
+      loggingEnabled: true,
+      url: vars.get('ETHERLINK_RPC', 'https://node.ghostnet.etherlink.com'),
+      chainId: 128123,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
@@ -252,6 +260,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    etherlink: {
+      loggingEnabled: true,
+      url: vars.get('ETHERLINK_RPC', 'https://node.mainnet.etherlink.com'),
+      chainId: 42793,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
     }
   },
   etherscan: {
@@ -337,6 +353,14 @@ const config: HardhatUserConfig = {
           browserURL: 'https://explorer-holesky.morphl2.io/'
         }
       },
+      {
+        network: 'etherlinkTestnet',
+        chainId: 128123,
+        urls: {
+          apiURL: 'https://testnet.explorer.etherlink.com/api',
+          browserURL: 'https://testnet.explorer.etherlink.com'
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -401,6 +425,14 @@ const config: HardhatUserConfig = {
           apiURL: 'https://morphscan.org/api/v2/network/mainnet/evm/2818/etherscan',
           browserURL: 'https://morphscan.org'
         }
+      },
+      {
+        network: 'etherlink',
+        chainId: 42793,
+        urls: {
+          apiURL: 'https://explorer.etherlink.com/api',
+          browserURL: 'https://explorer.etherlink.com'
+        }
       }
     ],
     apiKey: {
@@ -419,6 +451,7 @@ const config: HardhatUserConfig = {
       beraCartio: 'no',
       swell_testnet: 'no',
       sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
+      etherlinkTestnet: 'no',
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -432,7 +465,8 @@ const config: HardhatUserConfig = {
       swell: 'no',
       berachain: vars.get('BERACHAIN_API_KEY', ''),
       sonic: vars.get('SONIC_API_KEY', ''),
-      morph: 'no'
+      morph: 'no',
+      etherlink: 'no'
     }
   },
   sourcify: {
