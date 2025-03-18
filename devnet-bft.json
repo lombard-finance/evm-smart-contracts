@@ -26,7 +26,7 @@
     },
     "layerZero": {
       "LBTCOFTAdapter_beraBartio": "0xe3748bF0Ec0A76767539eE28610B3367e35fe2C2",
-      "LBTCOFTAdapter_beraCartio": "0x33a4663C5D5F25e5f93F95A88b0FE8A202064AFE",
+      "LBTCOFTAdapter_beraCartio": "0x33a4663C5D5F25e5f93F95A88b0FE8A202064AFE"
     }
   },
   "linea_testnet": {
@@ -77,7 +77,7 @@
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
-      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x1977013acaf27856ac8048C42EE2ed0134d53895"
@@ -92,7 +92,7 @@
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
-      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x1977013acaf27856ac8048C42EE2ed0134d53895"

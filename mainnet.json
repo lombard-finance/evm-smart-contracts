@@ -29,8 +29,8 @@
       "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
     },
     "stakeAndBake": {
-        "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
-        "TellerWithMultiAssetSupportDepositor": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+      "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "TellerWithMultiAssetSupportDepositor": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
@@ -40,7 +40,7 @@
       "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E"
     },
     "cubist": {
-      "Bascule": "0xc750eCAC7250E0D18ecE2C7a5F130E3A765dc260",
+      "Bascule": "0xc750eCAC7250E0D18ecE2C7a5F130E3A765dc260"
     }
   },
   "bsc": {
@@ -72,8 +72,8 @@
       "LombardTokenPool": "0x75BEafC5E96aD88B4BD0Ae44a56FebCAD64FE11F"
     },
     "stakeAndBake": {
-        "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
-        "TellerWithMultiAssetSupportDepositor": "0xBb92c89608cFAbdAb47aAFb0954D98f13576AD68"
+      "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "TellerWithMultiAssetSupportDepositor": "0xBb92c89608cFAbdAb47aAFb0954D98f13576AD68"
     },
     "cubist": {
       "BasculeV2": "0x93D0a45766413517E4F122F0ee73254357DF0Fa1"
@@ -147,17 +147,17 @@
     }
   },
   "morph": {
-      "chainId": "0x0000000000000000000000000000000000000000000000000000000000000b02",
-      "admin": {
-          "Owner": "",
-          "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
-      },
-      "lombard": {
-          "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-          "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
-      },
-      "layerZero": {
-          "LBTCBurnMintOFTAdapter": "0x2e1871Fc8ac793dCf2A74Ce004eE21D913763565"
-      }
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000b02",
+    "admin": {
+      "Owner": "",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x2e1871Fc8ac793dCf2A74Ce004eE21D913763565"
+    }
   }
 }
