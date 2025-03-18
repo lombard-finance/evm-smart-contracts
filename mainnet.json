@@ -37,7 +37,8 @@
       "LBTCOFTAdapter_swell": "0x37E92d760a15231e652a2C502182a6b44c7510c0",
       "LBTCOFTAdapter_berachain": "0x1290A6b480f7eF14925229fdB66f5680aD8F44AD",
       "LBTCOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd",
-      "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E"
+      "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E",
+      "LBTCOFTAdatper_etherlink": "0x3a7647c1323144a16e7D0D71A581E3FE5BD95299"
     },
     "cubist": {
       "Bascule": "0xc750eCAC7250E0D18ecE2C7a5F130E3A765dc260"
@@ -149,7 +150,7 @@
   "morph": {
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000000b02",
     "admin": {
-      "Owner": "",
+      "Owner": "0x6b1030F18f819266f193e1b5cF025A7d89fEc2F4",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
@@ -158,6 +159,20 @@
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x2e1871Fc8ac793dCf2A74Ce004eE21D913763565"
+    }
+  },
+  "etherlink": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a729",
+    "admin": {
+      "Owner": "0x6b1030F18f819266f193e1b5cF025A7d89fEc2F4",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0xC832183d4d5fc5831daaC892a93dBBfd798034E3"
     }
   }
 }
