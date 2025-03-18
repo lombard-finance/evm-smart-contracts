@@ -38,6 +38,9 @@
       "LBTCOFTAdapter_berachain": "0x1290A6b480f7eF14925229fdB66f5680aD8F44AD",
       "LBTCOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd",
       "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E"
+    },
+    "cubist": {
+      "Bascule": "0xc750eCAC7250E0D18ecE2C7a5F130E3A765dc260",
     }
   },
   "bsc": {
@@ -71,6 +74,9 @@
     "stakeAndBake": {
         "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
         "TellerWithMultiAssetSupportDepositor": "0xBb92c89608cFAbdAb47aAFb0954D98f13576AD68"
+    },
+    "cubist": {
+      "BasculeV2": "0x93D0a45766413517E4F122F0ee73254357DF0Fa1"
     }
   },
   "base": {
@@ -102,6 +108,9 @@
       "RMN": "0xC842c69d54F83170C42C4d556B4F6B2ca53Dd3E8",
       "CLAdapter": "0x35df1153b69b245a12336b8ed5c12f1cb8279916",
       "LombardTokenPool": "0x84166eAf4530994C565E6aCC774a6950Ce8c88aA"
+    },
+    "cubist": {
+      "BasculeV2": "0x937ae3923eF063BE92816F48c9364Dd38AF169dA"
     }
   },
   "berachain": {
@@ -132,6 +141,9 @@
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
+    },
+    "cubist": {
+      "BasculeV2": "0x4515755A7E22411AF547815a856ac7f16d85dD5C"
     }
   },
   "morph": {

@@ -9,7 +9,17 @@ import { AdminBucket } from './admin-bucket';
 const IGNORE_SCOPE_LIST: string[] = [
   'admin' // ignored, because used as source of possible admins
 ];
-const IGNORE_CONTRACT_LIST = ['ThresholdKey', 'BTCB', 'Router', 'RMN', 'CBBTC', 'FBTC', 'LockedFBTC'];
+const IGNORE_CONTRACT_LIST = [
+  'ThresholdKey',
+  'BTCB',
+  'Router',
+  'RMN',
+  'CBBTC',
+  'FBTC',
+  'LockedFBTC',
+  'Bascule',
+  'BasculeV2'
+];
 
 const RULESET: Array<RuleFunc> = [checkOwnable, checkOwnable2Step, checkProxyAdminOwnership, checkAccessControlAdmin];
 
