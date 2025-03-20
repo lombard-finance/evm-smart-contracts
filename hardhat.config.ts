@@ -105,7 +105,6 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
-
     arbitrumSepolia: {
       loggingEnabled: true,
       url: vars.get('ARBITRUM_SEPOLIA_RPC', 'https://rpc.ankr.com/arbitrum_sepolia'),
@@ -164,9 +163,17 @@ const config: HardhatUserConfig = {
     },
     etherlinkTestnet: {
       loggingEnabled: true,
-      url: vars.get('ETHERLINK_RPC', 'https://node.ghostnet.etherlink.com'),
+      url: vars.get('ETHERLINK_TESTNET_RPC', 'https://node.ghostnet.etherlink.com'),
       chainId: 128123,
-      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    inkSepolia: {
+      loggingEnabled: true,
+      url: vars.get('INK_SEPOLIA_RPC', 'https://rpc-gel-sepolia.inkonchain.com'),
+      chainId: 763373,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
     },
@@ -268,6 +275,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    ink: {
+      loggingEnabled: true,
+      url: vars.get('INK_RPC', 'https://rpc-gel.inkonchain.com'),
+      chainId: 57073,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
     }
   },
   etherscan: {
@@ -361,6 +376,14 @@ const config: HardhatUserConfig = {
           browserURL: 'https://testnet.explorer.etherlink.com'
         }
       },
+      {
+        network: 'inkSepolia',
+        chainId: 763373,
+        urls: {
+          apiURL: 'https://api.routescan.io/v2/network/testnet/evm/763373/etherscan',
+          browserURL: 'https://sepolia.inkonscan.xyz/'
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -433,6 +456,14 @@ const config: HardhatUserConfig = {
           apiURL: 'https://explorer.etherlink.com/api',
           browserURL: 'https://explorer.etherlink.com'
         }
+      },
+      {
+        network: 'ink',
+        chainId: 57073,
+        urls: {
+          apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/57073/etherscan',
+          browserURL: 'https://57073.routescan.io/'
+        }
       }
     ],
     apiKey: {
@@ -452,6 +483,7 @@ const config: HardhatUserConfig = {
       swell_testnet: 'no',
       sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
       etherlinkTestnet: 'no',
+      inkSepolia: 'no',
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -466,7 +498,8 @@ const config: HardhatUserConfig = {
       berachain: vars.get('BERACHAIN_API_KEY', ''),
       sonic: vars.get('SONIC_API_KEY', ''),
       morph: 'no',
-      etherlink: 'no'
+      etherlink: 'no',
+      ink: 'no'
     }
   },
   sourcify: {

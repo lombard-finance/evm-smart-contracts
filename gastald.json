@@ -1,6 +1,10 @@
 {
   "holesky": {
-    "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
@@ -16,7 +20,11 @@
     }
   },
   "btcTestnet": {
-    "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
     "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
     "BTCB": "0xdd48f288874c7226603cCC98cab0661b3bd5721A",
     "BTCBPMM": "0x63749Acfc2527A8406E8BC8c93A80f29FDD75e27",
@@ -38,7 +46,11 @@
     }
   },
   "baseSepolia": {
-    "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
     "deprecated": {
       "CLAdapter": "0x0632C7D607ce6511B81292478dF4099B001310e5",
       "TokenPool": "0x8aF38c5B632c6F0d511d86521fDb21555Df35310"
@@ -58,11 +70,36 @@
     }
   },
   "sonicTestnet": {
-    "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
-      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5"
+      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+    }
+  },
+  "inkTestnet": {
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "LBTC": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "CLAdapter": "",
+      "LombardTokenPool": ""
     }
   }
 }
