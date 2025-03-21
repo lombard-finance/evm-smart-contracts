@@ -82,5 +82,17 @@
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4"
     }
+  },
+  "inkSepolia": {
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6"
+    }
   }
 }
