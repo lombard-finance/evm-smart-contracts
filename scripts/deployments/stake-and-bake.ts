@@ -15,15 +15,16 @@ task('deploy-stake-and-bake', 'Deploys the StakeAndBake contract')
   .addParam('fee', 'The starting fee setting')
   .addParam('claimer', 'The claimer of the StakeAndBake contract')
   .addParam('pauser', 'The pauser of the StakeAndBake contract')
+  .addParam('gasLimit', 'Gas limit for batch stake and bake calls')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
-    const { ledgerNetwork, lbtc, admin, operator, fee, claimer, pauser, proxyFactoryAddr } = taskArgs;
+    const { ledgerNetwork, lbtc, admin, operator, fee, claimer, pauser, gasLimit, proxyFactoryAddr } = taskArgs;
 
     await create3(
       'StakeAndBake',
-      [lbtc, admin, operator, fee, claimer, pauser],
+      [lbtc, admin, operator, fee, claimer, pauser, gasLimit],
       proxyFactoryAddr,
       ledgerNetwork,
       admin,
