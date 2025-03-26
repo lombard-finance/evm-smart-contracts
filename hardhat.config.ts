@@ -180,7 +180,7 @@ const config: HardhatUserConfig = {
     // mainnets
     mainnet: {
       loggingEnabled: true,
-      url: vars.get('MAINNET_RPC', 'https://rpc.ankr.com/eth'),
+      url: vars.get('MAINNET_RPC', 'https://ethereum-rpc.publicnode.com'),
       chainId: 1,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
