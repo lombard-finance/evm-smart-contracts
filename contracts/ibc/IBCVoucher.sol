@@ -125,7 +125,7 @@ contract IBCVoucher is
         uint64 startTime
     ) internal {
         uint256 totalSupply = totalSupply();
-        if (window < MIN_RATE_LIMIT_WINDOW) {
+        if (window != 0 && window < MIN_RATE_LIMIT_WINDOW) {
             revert TooLowWindow();
         }
         if (threshold > RATIO_MULTIPLIER) {
