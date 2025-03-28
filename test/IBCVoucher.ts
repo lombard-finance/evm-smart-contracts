@@ -21,6 +21,7 @@ describe('IBCVoucher', function () {
   const fee = 10n;
   const amount = 100n;
   const oneDay = 60 * 60 * 24;
+  const oneHour = 60 * 60 * 24;
 
   before(async function () {
     [deployer, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
@@ -101,7 +102,7 @@ describe('IBCVoucher', function () {
   describe('Wrapping', function () {
     beforeEach(async function () {
       await snapshot.restore();
-      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount);
+      await lbtc.connect(admin)['mint(address,uint256)'](relayer.address, amount);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount);
     });
 
@@ -158,7 +159,7 @@ describe('IBCVoucher', function () {
   describe('Spending', function () {
     beforeEach(async function () {
       await snapshot.restore();
-      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount + fee);
+      await lbtc.connect(admin)['mint(address,uint256)'](relayer.address, amount + fee);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount + fee);
       await ibcVoucher.connect(relayer).wrapTo(signer1.address, amount + fee);
     });
@@ -221,8 +222,8 @@ describe('IBCVoucher', function () {
   describe('Access control', function () {
     beforeEach(async function () {
       await snapshot.restore();
-      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount + fee);
-      await lbtc.connect(admin)['mint(address, uint256)'](signer1.address, amount);
+      await lbtc.connect(admin)['mint(address,uint256)'](relayer.address, amount + fee);
+      await lbtc.connect(admin)['mint(address,uint256)'](signer1.address, amount);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount + fee);
       await ibcVoucher.connect(relayer).wrapTo(signer1.address, amount + fee);
 
@@ -260,7 +261,7 @@ describe('IBCVoucher', function () {
 
   describe('Pausing', function () {
     before(async function () {
-      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, amount);
+      await lbtc.connect(admin)['mint(address,uint256)'](relayer.address, amount);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), amount);
     });
 
@@ -324,7 +325,7 @@ describe('IBCVoucher', function () {
       await snapshot.restore();
       RATIO_MULTIPLIER = await ibcVoucher.RATIO_MULTIPLIER();
       await ibcVoucher.connect(admin).setFee(0n);
-      await lbtc.connect(admin)['mint(address, uint256)'](relayer.address, 10000_0000);
+      await lbtc.connect(admin)['mint(address,uint256)'](relayer.address, 10000_0000);
       await lbtc.connect(relayer).approve(await ibcVoucher.getAddress(), 10000_0000);
     });
 
@@ -573,7 +574,13 @@ describe('IBCVoucher', function () {
     it('setRateLimit: rejects when window is 0', async function () {
       await expect(
         ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, 0n, (await time.latest()) - 1)
-      ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroWindow');
+      ).to.be.revertedWithCustomError(ibcVoucher, 'TooLowWindow');
+    });
+
+    it('setRateLimit: rejects when window is less than minimum', async function () {
+      await expect(
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, (await ibcVoucher.MIN_RATE_LIMIT_WINDOW()) - BigInt(1), (await time.latest()) - 1)
+      ).to.be.revertedWithCustomError(ibcVoucher, 'TooLowWindow');
     });
 
     it('setRateLimit: rejects when threshold is 0', async function () {

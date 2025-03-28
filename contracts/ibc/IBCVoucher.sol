@@ -47,6 +47,7 @@ contract IBCVoucher is
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     uint256 public constant RATIO_MULTIPLIER = 10000;
+    uint16 public constant MIN_RATE_LIMIT_WINDOW = 3600; // minimum window in seconds for the rate limit calculation
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -124,8 +125,8 @@ contract IBCVoucher is
         uint64 startTime
     ) internal {
         uint256 totalSupply = totalSupply();
-        if (window == 0) {
-            revert ZeroWindow();
+        if (window < MIN_RATE_LIMIT_WINDOW) {
+            revert TooLowWindow();
         }
         if (threshold > RATIO_MULTIPLIER) {
             revert InconsistentThreshold();
