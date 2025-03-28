@@ -127,6 +127,9 @@ contract IBCVoucher is
         if (window == 0) {
             revert ZeroWindow();
         }
+        if (threshold > RATIO_MULTIPLIER) {
+            revert InconsistentThreshold();
+        }
 
         $.rateLimit.supplyAtUpdate = uint64(totalSupply);
         $.rateLimit.threshold = threshold;

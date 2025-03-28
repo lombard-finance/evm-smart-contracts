@@ -27,6 +27,7 @@ interface IIBCVoucher {
     error ZeroThreshold();
     error FutureStartTime(uint256 startTime, uint256 blockTimestamp);
     error ZeroWindow();
+    error InconsistentThreshold();
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval
