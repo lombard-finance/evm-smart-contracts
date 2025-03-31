@@ -18,8 +18,8 @@ interface IIBCVoucher {
     event TreasuryUpdated(address indexed newTreasury);
     event FeeUpdated(uint256 fee);
     event RateLimitUpdated(uint64 limit, uint64 window, uint64 threshold);
-    event RateLimitInflowIncreased(uint64 amount, uint64 flow);
-    event RateLimitOutflowIncreased(uint64 amount, uint64 flow);
+    event RateLimitInflowIncreased(uint64 oldCredit, uint amount);
+    event RateLimitOutflowIncreased(uint64 oldCredit, uint amount);
 
     error AmountTooLow();
     error ZeroAddress();
