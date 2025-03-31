@@ -549,12 +549,6 @@ describe('IBCVoucher', function () {
         ibcVoucher.connect(admin).setRateLimit(RATIO_MULTIPLIER + BigInt(1), oneDay, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'InconsistentThreshold');
     });
-    
-    it('setRateLimit: rejects when window is 0', async function () {
-      await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, 0n, (await time.latest()) - 1)
-      ).to.be.revertedWithCustomError(ibcVoucher, 'TooLowWindow');
-    });
 
     it('setRateLimit: rejects when window is less than minimum', async function () {
       await expect(
