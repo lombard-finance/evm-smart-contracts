@@ -97,7 +97,7 @@ contract IBCVoucher is
 
     /// @notice Sets a rate limit for unwrapping the IBC Voucher.
     /// @param threshold The rate limit threshold in BIPs (hundredths of a percentage).
-    /// @param window The rate limit window in hours.
+    /// @param window The rate limit window in seconds.
     function setRateLimit(
         uint16 threshold,
         uint64 window,
