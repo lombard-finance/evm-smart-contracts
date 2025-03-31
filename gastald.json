@@ -1,5 +1,6 @@
 {
   "holesky": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000004268"
     "admin": {
       "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
       "TimeLock": "",
@@ -70,19 +71,7 @@
     }
   },
   "sonicTestnet": {
-    "admin": {
-      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
-      "TimeLock": "",
-      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
-    },
-    "lombard": {
-      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
-      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
-      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
-    }
-  },
-  "inkTestnet": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000dede"
     "admin": {
       "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
       "TimeLock": "",
@@ -95,11 +84,32 @@
       "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
-      "CLAdapter": "",
-      "LombardTokenPool": ""
+      "ChainSelector": "3676871237479449268",
+      "Router": "0x2fBd4659774D468Db5ca5bacE37869905d8EfA34",
+      "RMN": "0xD3166538bd1132329d25E34B240E4D44922A07F0",
+      "CLAdapter": "0x385EaD99CC90844080eAE02A6f6c519260CB0D5E",
+      "LombardTokenPool": "0xC1728AC2B0aa47bed025920961E438E0690994F0"
+    }
+  },
+  "inkTestnet": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000ba5ed"
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+    },
+    "chainlink": {
+      "ChainSelector": "9763904284804119144",
+      "Router": "0x17fCda531D8E43B4e2a2A2492FBcd4507a1685A1",
+      "RMN": "0x84017cfddD12D319E5bBf090e0de6d55B78160Cb",
+      "CLAdapter": "0xEEf94b7D7606ed1b0f0aF99503B61246A3F07F86",
+      "LombardTokenPool": "0x64018e9F6bfE646efe78da806C077575d71daFEC"
     }
   }
 }
