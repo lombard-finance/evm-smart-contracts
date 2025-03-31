@@ -220,14 +220,6 @@ contract IBCVoucher is
         _spend(owner, owner, amount);
     }
 
-    function spendFromTo(
-        address owner,
-        address recipient,
-        uint256 amount
-    ) external override nonReentrant onlyRole(OPERATOR_ROLE) {
-        _spend(owner, recipient, amount);
-    }
-
     function _spend(address from, address recipient, uint256 amount) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
 

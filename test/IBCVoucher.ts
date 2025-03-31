@@ -203,19 +203,6 @@ describe('IBCVoucher', function () {
       expect(await lbtc.balanceOf(signer1.address)).to.be.equal(amount);
       expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
     });
-
-    it('should allow operator to spendFromTo voucher', async function () {
-      await expect(ibcVoucher.connect(operator).spendFromTo(signer1.address, signer2.address, amount))
-        .to.emit(ibcVoucher, 'Transfer')
-        .withArgs(signer1.address, ethers.ZeroAddress, amount)
-        .to.emit(lbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, amount)
-        .to.emit(ibcVoucher, 'VoucherSpent')
-        .withArgs(signer1.address, signer2.address, amount);
-
-      expect(await lbtc.balanceOf(signer2.address)).to.be.equal(amount);
-      expect(await ibcVoucher.balanceOf(signer1.address)).to.be.equal(0);
-    });
   });
 
   describe('Access control', function () {
@@ -249,12 +236,6 @@ describe('IBCVoucher', function () {
         ibcVoucher,
         'AccessControlUnauthorizedAccount'
       );
-    });
-
-    it('should not allow just anyone to spendFromTo LBTC', async function () {
-      await expect(
-        ibcVoucher.connect(signer1).spendFromTo(signer1.address, signer2.address, amount)
-      ).to.be.revertedWithCustomError(ibcVoucher, 'AccessControlUnauthorizedAccount');
     });
   });
 

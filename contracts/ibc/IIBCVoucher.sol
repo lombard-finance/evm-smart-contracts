@@ -60,18 +60,6 @@ interface IIBCVoucher {
     /// @param amount Amount of Voucher
     function spendFrom(address owner, uint256 amount) external;
 
-    /// @notice Spends the voucher and gives LBTC back to `recipient`
-    /// @dev No approval required, burns directly from specified account.
-    /// Only available to relayer role.
-    /// @param owner Owner of Voucher
-    /// @param recipient Recipient of LBTC
-    /// @param amount Amount of Voucher
-    function spendFromTo(
-        address owner,
-        address recipient,
-        uint256 amount
-    ) external;
-
     /// @notice Returns the current wrapping fee
     function getFee() external view returns (uint256);
 }
