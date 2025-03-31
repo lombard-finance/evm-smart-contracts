@@ -296,8 +296,6 @@ describe('IBCVoucher', function () {
   });
 
   describe('Rate limits', function () {
-    let outflow = 0n;
-    let inflow = 0n;
     let rateLimit = 0n;
     let rateLimitPercent = 1000n;
     let RATIO_MULTIPLIER = 0n;
@@ -328,8 +326,7 @@ describe('IBCVoucher', function () {
       expect(initialLeftover).to.be.equal(rateLimit);
       expect(rateLimitConfig.supplyAtUpdate).to.be.eq(amount);
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
-      expect(rateLimitConfig.inflow).to.be.eq(0n);
-      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.credit).to.be.eq(rateLimit);
       expect(rateLimitConfig.startTime).to.be.eq(startTime);
       expect(rateLimitConfig.window).to.be.eq(oneDay);
       expect(rateLimitConfig.epoch).to.be.eq(0n);
@@ -356,10 +353,9 @@ describe('IBCVoucher', function () {
       const leftoverBefore = await ibcVoucher.leftoverAmount();
       const totalSupplyBefore = await ibcVoucher.totalSupply();
 
-      outflow += amount;
       await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
         .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
-        .withArgs(outflow, amount)
+        .withArgs(rateLimit, amount)
         .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -375,10 +371,9 @@ describe('IBCVoucher', function () {
       const amount = leftoverBefore / 2n;
       const ibcBalanceBefore = await ibcVoucher.balanceOf(signer1);
 
-      inflow += amount;
       await expect(ibcVoucher.connect(signer1).spend(amount))
         .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
-        .withArgs(inflow, amount)
+        .withArgs(leftoverBefore, amount)
         .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -394,10 +389,9 @@ describe('IBCVoucher', function () {
       const amount = leftoverBefore;
       const ibcBalanceBefore = await ibcVoucher.balanceOf(signer1);
 
-      inflow += amount;
       await expect(ibcVoucher.connect(signer1).spend(amount))
         .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
-        .withArgs(inflow, amount)
+        .withArgs(leftoverBefore, amount)
         .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -411,8 +405,6 @@ describe('IBCVoucher', function () {
       const rateLimitConfig = await ibcVoucher.rateLimitConfig();
       await time.increaseTo(Number(rateLimitConfig.startTime) + oneDay + 1);
       rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
-      outflow = 0n;
-      inflow = 0n;
 
       console.log(await ibcVoucher.leftoverAmount());
       expect(await ibcVoucher.leftoverAmount()).to.be.eq(rateLimit);
@@ -422,11 +414,10 @@ describe('IBCVoucher', function () {
       const amount = 1000n;
       const totalSupplyBefore = await ibcVoucher.totalSupply();
 
-      outflow += amount;
       rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
       await expect(ibcVoucher.connect(relayer).wrapTo(signer2.address, amount))
         .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
-        .withArgs(outflow, amount)
+        .withArgs(rateLimit, amount)
         .to.emit(ibcVoucher, 'RateLimitUpdated')
         .withArgs(rateLimit, oneDay, rateLimitPercent);
 
@@ -434,12 +425,11 @@ describe('IBCVoucher', function () {
       const leftoverAfter = await ibcVoucher.leftoverAmount();
       console.log('Leftover after wrap:', leftoverAfter);
 
-      expect(leftoverAfter).to.be.equal(rateLimit + outflow);
+      expect(leftoverAfter).to.be.equal(rateLimit + amount);
       expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore + amount);
       expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
-      expect(rateLimitConfig.inflow).to.be.eq(0n);
-      expect(rateLimitConfig.outflow).to.be.eq(outflow);
+      expect(rateLimitConfig.credit).to.be.eq(rateLimit + amount);
       expect(rateLimitConfig.window).to.be.eq(oneDay);
       expect(rateLimitConfig.epoch).to.be.eq(1n);
       expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
@@ -451,10 +441,9 @@ describe('IBCVoucher', function () {
       const ibcBalanceBefore = await ibcVoucher.balanceOf(signer2);
       const amount = ibcBalanceBefore;
 
-      inflow += amount;
       await expect(ibcVoucher.connect(signer2).spend(amount))
         .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
-        .withArgs(inflow, amount)
+        .withArgs(leftoverBefore, amount)
         .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -469,15 +458,12 @@ describe('IBCVoucher', function () {
       await time.increaseTo(Number(rateLimitConfigBefore.startTime) + oneDay * 2 + 1);
       const totalSupplyBefore = await ibcVoucher.totalSupply();
       rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
-      outflow = 0n;
-      inflow = 0n;
 
       const amount = rateLimit;
 
-      inflow += amount;
       await expect(ibcVoucher.connect(signer1).spend(amount))
         .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
-        .withArgs(inflow, amount)
+        .withArgs(rateLimit, amount)
         .to.emit(ibcVoucher, 'RateLimitUpdated')
         .withArgs(rateLimit, oneDay, rateLimitPercent);
 
@@ -489,8 +475,7 @@ describe('IBCVoucher', function () {
       expect(await ibcVoucher.totalSupply()).to.be.eq(totalSupplyBefore - amount);
       expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
-      expect(rateLimitConfig.inflow).to.be.eq(inflow);
-      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.credit).to.be.eq(rateLimit - amount);
       expect(rateLimitConfig.window).to.be.eq(oneDay);
       expect(rateLimitConfig.epoch).to.be.eq(2n);
       expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
@@ -501,10 +486,9 @@ describe('IBCVoucher', function () {
       const leftoverBefore = await ibcVoucher.leftoverAmount();
       const totalSupplyBefore = await ibcVoucher.totalSupply();
 
-      outflow += amount;
       await expect(ibcVoucher.connect(relayer).wrapTo(signer1.address, amount))
         .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
-        .withArgs(outflow, amount)
+        .withArgs(leftoverBefore, amount)
         .to.not.emit(ibcVoucher, 'RateLimitUpdated');
 
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -532,8 +516,7 @@ describe('IBCVoucher', function () {
       expect(newLeftover).to.be.equal(rateLimit);
       expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
-      expect(rateLimitConfig.inflow).to.be.eq(0n);
-      expect(rateLimitConfig.outflow).to.be.eq(0n);
+      expect(rateLimitConfig.credit).to.be.eq(rateLimit);
       expect(rateLimitConfig.startTime).to.be.eq(startTime);
       expect(rateLimitConfig.window).to.be.eq(oneDay);
       expect(rateLimitConfig.epoch).to.be.eq(0n);
