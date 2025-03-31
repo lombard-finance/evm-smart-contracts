@@ -1,5 +1,6 @@
 {
   "holesky": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000004268"
     "admin": {
       "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "TimeLock": "",
@@ -72,6 +73,7 @@
     }
   },
   "sonicTestnet": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000dede"
     "admin": {
       "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "TimeLock": "",
@@ -80,10 +82,19 @@
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
-      "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4"
+      "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "Bridge": "0xd654c4cd2f69Ae15275D92797f65eE9577EF1C2D"
+    },
+    "chainlink": {
+      "ChainSelector": "3676871237479449268",
+      "Router": "0x2fBd4659774D468Db5ca5bacE37869905d8EfA34",
+      "RMN": "0xD3166538bd1132329d25E34B240E4D44922A07F0",
+      "CLAdapter": "0xD27cdA6E1eD6C807280670Ea0E06D1342f778B3E",
+      "LombardTokenPool": "0x95B4b82583774914bC8bddbC71a5160a7a531D73"
     }
   },
   "inkSepolia": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000ba5ed"
     "admin": {
       "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "TimeLock": "",
@@ -92,7 +103,15 @@
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
-      "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6"
+      "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
+      "Bridge": "0xd654c4cd2f69Ae15275D92797f65eE9577EF1C2D"
+    },
+    "chainlink": {
+      "ChainSelector": "9763904284804119144",
+      "Router": "0x17fCda531D8E43B4e2a2A2492FBcd4507a1685A1",
+      "RMN": "0x84017cfddD12D319E5bBf090e0de6d55B78160Cb",
+      "CLAdapter": "0x736C9FA3f33856293b36d830f57EaD496871D781",
+      "LombardTokenPool": "0x2B90E92A1ab688daac97b7FC3a71A1c22Fe1dc9c"
     }
   }
 }
