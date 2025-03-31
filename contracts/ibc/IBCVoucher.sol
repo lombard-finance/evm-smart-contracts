@@ -154,22 +154,25 @@ contract IBCVoucher is
     }
 
     function wrap(
-        uint256 amount
+        uint256 amount,
+        uint256 minAmountOut
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
-        return _wrap(_msgSender(), _msgSender(), amount);
+        return _wrap(_msgSender(), _msgSender(), amount, minAmountOut);
     }
 
     function wrapTo(
         address recipient,
-        uint256 amount
+        uint256 amount,
+        uint256 minAmountOut
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
-        return _wrap(_msgSender(), recipient, amount);
+        return _wrap(_msgSender(), recipient, amount, minAmountOut);
     }
 
     function _wrap(
         address from,
         address recipient,
-        uint256 amount
+        uint256 amount,
+        uint256 minAmountOut
     ) internal returns (uint256) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         if ($.rateLimit.window != 0) {
@@ -193,6 +196,10 @@ contract IBCVoucher is
             revert AmountTooLow();
         }
         uint256 amountAfterFee = amount - fee;
+
+        if (amountAfterFee < minAmountOut) {
+            revert SlippageExceeded(amountAfterFee, minAmountOut);
+        }
 
         IERC20(address(_lbtc)).safeTransfer($.treasury, fee);
         _lbtc.burn(amountAfterFee);

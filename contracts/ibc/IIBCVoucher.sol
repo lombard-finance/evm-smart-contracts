@@ -28,19 +28,26 @@ interface IIBCVoucher {
     error FutureStartTime(uint256 startTime, uint256 blockTimestamp);
     error TooLowWindow();
     error InconsistentThreshold();
+    error SlippageExceeded(uint256 amountAfterFee, uint256 minAmountOut);
 
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval
     /// @param amount Amount of LBTC
-    function wrap(uint256 amount) external returns (uint256);
+    /// @param minAmountOut The minimum acceptable amount of LBTC to receive
+    function wrap(
+        uint256 amount,
+        uint256 minAmountOut
+    ) external returns (uint256);
 
     /// @notice Gives voucher to `recipient` in exchange for LBTC
     /// @dev Requires LBTC approval
     /// @param recipient Recipient of Voucher
     /// @param amount Amount of LBTC
+    /// @param minAmountOut The minimum acceptable amount of LBTC to receive
     function wrapTo(
         address recipient,
-        uint256 amount
+        uint256 amount,
+        uint256 minAmountOut
     ) external returns (uint256);
 
     /// @notice Spends the voucher and gives LBTC back
