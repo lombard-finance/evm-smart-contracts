@@ -27,7 +27,8 @@
     "layerZero": {
       "LBTCOFTAdapter_beraBartio": "0xe3748bF0Ec0A76767539eE28610B3367e35fe2C2",
       "LBTCOFTAdapter_beraCartio": "0x33a4663C5D5F25e5f93F95A88b0FE8A202064AFE",
-      "LBTCOFTAdapter_solanaDevnet": "0x9be4D536383Eba57a82e449E08E03CeE15991a41"
+      "LBTCOFTAdapter_solanaDevnetStaging": "0xeF199B3C134e4310876C934a4aA41280c96D3693",
+      "LBTCOFTAdapter_solanaDevnetGastald": "0x9be4D536383Eba57a82e449E08E03CeE15991a41"
     }
   },
   "linea_testnet": {
