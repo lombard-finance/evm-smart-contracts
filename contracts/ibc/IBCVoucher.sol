@@ -186,7 +186,7 @@ contract IBCVoucher is
             // Calculate net flow, so wrapping would reduce our flow.
             $.rateLimit.outflow += uint64(amount);
 
-            emit RateLimitOutflowIncreased($.rateLimit.outflow, uint64(amount));
+            emit RateLimitOutflowIncreased(uint64(amount), $.rateLimit.outflow);
         }
 
         ILBTC _lbtc = $.lbtc;
@@ -248,7 +248,7 @@ contract IBCVoucher is
             }
 
             $.rateLimit.inflow = newInflow;
-            emit RateLimitInflowIncreased($.rateLimit.inflow, uint64(amount));
+            emit RateLimitInflowIncreased(uint64(amount), $.rateLimit.inflow);
         }
 
         _burn(from, amount);
