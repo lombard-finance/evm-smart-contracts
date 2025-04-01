@@ -20,8 +20,7 @@ describe('IBCVoucher', function () {
   let snapshot: SnapshotRestorer;
   const fee = 10n;
   const amount = 100n;
-  const oneDay = 60 * 60 * 24;
-  const oneHour = 60 * 60 * 24;
+  const oneHour = 60 * 60;
 
   before(async function () {
     [deployer, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
@@ -330,9 +329,9 @@ describe('IBCVoucher', function () {
       rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
 
       const startTime = await time.latest();
-      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, startTime))
+      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneHour, startTime))
         .to.emit(ibcVoucher, 'RateLimitUpdated')
-        .withArgs(rateLimit, oneDay, rateLimitPercent);
+        .withArgs(rateLimit, oneHour, rateLimitPercent);
 
       const rateLimitConfig = await ibcVoucher.rateLimitConfig();
       const initialLeftover = await ibcVoucher.leftoverAmount();
@@ -343,14 +342,14 @@ describe('IBCVoucher', function () {
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
       expect(rateLimitConfig.credit).to.be.eq(rateLimit);
       expect(rateLimitConfig.startTime).to.be.eq(startTime);
-      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.window).to.be.eq(oneHour);
       expect(rateLimitConfig.epoch).to.be.eq(0n);
       expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
 
     it('setRateLimit: rejects when called by not admin', async function () {
       await expect(
-        ibcVoucher.connect(signer1).setRateLimit(rateLimitPercent, oneDay, await time.latest())
+        ibcVoucher.connect(signer1).setRateLimit(rateLimitPercent, oneHour, await time.latest())
       ).to.be.revertedWithCustomError(ibcVoucher, 'AccessControlUnauthorizedAccount');
     });
 
@@ -418,7 +417,7 @@ describe('IBCVoucher', function () {
 
     it('leftover resets by the beginning of new epoch', async function () {
       const rateLimitConfig = await ibcVoucher.rateLimitConfig();
-      await time.increaseTo(Number(rateLimitConfig.startTime) + oneDay + 1);
+      await time.increaseTo(Number(rateLimitConfig.startTime) + oneHour + 1);
       rateLimit = ((await ibcVoucher.totalSupply()) * rateLimitPercent) / RATIO_MULTIPLIER;
 
       console.log(await ibcVoucher.leftoverAmount());
@@ -434,7 +433,7 @@ describe('IBCVoucher', function () {
         .to.emit(ibcVoucher, 'RateLimitOutflowIncreased')
         .withArgs(rateLimit, amount)
         .to.emit(ibcVoucher, 'RateLimitUpdated')
-        .withArgs(rateLimit, oneDay, rateLimitPercent);
+        .withArgs(rateLimit, oneHour, rateLimitPercent);
 
       const rateLimitConfig = await ibcVoucher.rateLimitConfig();
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -445,7 +444,7 @@ describe('IBCVoucher', function () {
       expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
       expect(rateLimitConfig.credit).to.be.eq(rateLimit + amount);
-      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.window).to.be.eq(oneHour);
       expect(rateLimitConfig.epoch).to.be.eq(1n);
       expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
@@ -470,7 +469,7 @@ describe('IBCVoucher', function () {
 
     it('first spend in the epoch resets rate limit', async function () {
       const rateLimitConfigBefore = await ibcVoucher.rateLimitConfig();
-      await time.increaseTo(Number(rateLimitConfigBefore.startTime) + oneDay * 2 + 1);
+      await time.increaseTo(Number(rateLimitConfigBefore.startTime) + oneHour * 2 + 1);
       const totalSupplyBefore = await ibcVoucher.totalSupply();
       rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
 
@@ -480,7 +479,7 @@ describe('IBCVoucher', function () {
         .to.emit(ibcVoucher, 'RateLimitInflowIncreased')
         .withArgs(rateLimit, amount)
         .to.emit(ibcVoucher, 'RateLimitUpdated')
-        .withArgs(rateLimit, oneDay, rateLimitPercent);
+        .withArgs(rateLimit, oneHour, rateLimitPercent);
 
       const rateLimitConfig = await ibcVoucher.rateLimitConfig();
       const leftoverAfter = await ibcVoucher.leftoverAmount();
@@ -491,7 +490,7 @@ describe('IBCVoucher', function () {
       expect(rateLimitConfig.supplyAtUpdate).to.be.eq(totalSupplyBefore);
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
       expect(rateLimitConfig.credit).to.be.eq(rateLimit - amount);
-      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.window).to.be.eq(oneHour);
       expect(rateLimitConfig.epoch).to.be.eq(2n);
       expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
@@ -519,9 +518,9 @@ describe('IBCVoucher', function () {
       rateLimit = (totalSupplyBefore * rateLimitPercent) / RATIO_MULTIPLIER;
 
       const startTime = await time.latest();
-      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, startTime))
+      await expect(ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneHour, startTime))
         .to.emit(ibcVoucher, 'RateLimitUpdated')
-        .withArgs(rateLimit, oneDay, rateLimitPercent);
+        .withArgs(rateLimit, oneHour, rateLimitPercent);
 
       const rateLimitConfig = await ibcVoucher.rateLimitConfig();
       const newLeftover = await ibcVoucher.leftoverAmount();
@@ -533,32 +532,32 @@ describe('IBCVoucher', function () {
       expect(rateLimitConfig.limit).to.be.eq(rateLimit);
       expect(rateLimitConfig.credit).to.be.eq(rateLimit);
       expect(rateLimitConfig.startTime).to.be.eq(startTime);
-      expect(rateLimitConfig.window).to.be.eq(oneDay);
+      expect(rateLimitConfig.window).to.be.eq(oneHour);
       expect(rateLimitConfig.epoch).to.be.eq(0n);
       expect(rateLimitConfig.threshold).to.be.eq(rateLimitPercent);
     });
 
     it('setRateLimit: rejects when start time in the future', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneDay, (await time.latest()) + 100)
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, oneHour, (await time.latest()) + 100)
       ).to.be.revertedWithCustomError(ibcVoucher, 'FutureStartTime');
     });
 
     it('setRateLimit: rejects when threshold is beyond 100%', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(RATIO_MULTIPLIER + BigInt(1), oneDay, (await time.latest()) - 1)
+        ibcVoucher.connect(admin).setRateLimit(RATIO_MULTIPLIER + 1n, oneHour, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'InconsistentThreshold');
     });
 
     it('setRateLimit: rejects when window is less than minimum', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, (await ibcVoucher.MIN_RATE_LIMIT_WINDOW()) - BigInt(1), (await time.latest()) - 1)
+        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, (await ibcVoucher.MIN_RATE_LIMIT_WINDOW()) - 1n, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'TooLowWindow');
     });
 
     it('setRateLimit: rejects when threshold is 0', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(0n, oneDay, (await time.latest()) - 1)
+        ibcVoucher.connect(admin).setRateLimit(0n, oneHour, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'ZeroThreshold');
     });
   });
