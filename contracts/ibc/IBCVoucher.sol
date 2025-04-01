@@ -175,6 +175,16 @@ contract IBCVoucher is
         uint256 minAmountOut
     ) internal returns (uint256) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+
+        uint256 fee = $.fee;
+        if (amount <= fee) {
+            revert AmountTooLow();
+        }
+        uint256 amountAfterFee = amount - fee;
+        if (amountAfterFee < minAmountOut) {
+            revert SlippageExceeded(amountAfterFee, minAmountOut);
+        }
+
         if ($.rateLimit.window != 0) {
             uint64 epoch = uint64(
                 (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
@@ -184,22 +194,13 @@ contract IBCVoucher is
             }
 
             // Calculate net flow, so wrapping would reduce our flow.
-            emit RateLimitOutflowIncreased($.rateLimit.credit, uint64(amount));
-            $.rateLimit.credit += uint64(amount);
+            emit RateLimitOutflowIncreased($.rateLimit.credit, uint64(amountAfterFee));
+            $.rateLimit.credit += uint64(amountAfterFee);
         }
 
         ILBTC _lbtc = $.lbtc;
-        uint256 fee = $.fee;
 
         IERC20(address(_lbtc)).safeTransferFrom(from, address(this), amount);
-        if (amount <= fee) {
-            revert AmountTooLow();
-        }
-        uint256 amountAfterFee = amount - fee;
-
-        if (amountAfterFee < minAmountOut) {
-            revert SlippageExceeded(amountAfterFee, minAmountOut);
-        }
 
         IERC20(address(_lbtc)).safeTransfer($.treasury, fee);
         _lbtc.burn(amountAfterFee);
