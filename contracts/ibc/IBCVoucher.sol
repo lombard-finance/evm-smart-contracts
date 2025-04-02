@@ -154,10 +154,23 @@ contract IBCVoucher is
     }
 
     function wrap(
+        uint256 amount
+    ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+        return _wrap(_msgSender(), _msgSender(), amount, 0);
+    }
+
+    function wrap(
         uint256 amount,
         uint256 minAmountOut
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
         return _wrap(_msgSender(), _msgSender(), amount, minAmountOut);
+    }
+
+    function wrapTo(
+        address recipient,
+        uint256 amount
+    ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+        return _wrap(_msgSender(), recipient, amount, 0);
     }
 
     function wrapTo(
@@ -194,7 +207,10 @@ contract IBCVoucher is
             }
 
             // Calculate net flow, so wrapping would reduce our flow.
-            emit RateLimitOutflowIncreased($.rateLimit.credit, uint64(amountAfterFee));
+            emit RateLimitOutflowIncreased(
+                $.rateLimit.credit,
+                uint64(amountAfterFee)
+            );
             $.rateLimit.credit += uint64(amountAfterFee);
         }
 
