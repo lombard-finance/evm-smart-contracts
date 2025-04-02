@@ -207,7 +207,10 @@ contract IBCVoucher is
             }
 
             // Calculate net flow, so wrapping would reduce our flow.
-            emit RateLimitOutflowIncreased($.rateLimit.credit, uint64(amountAfterFee));
+            emit RateLimitOutflowIncreased(
+                $.rateLimit.credit,
+                uint64(amountAfterFee)
+            );
             $.rateLimit.credit += uint64(amountAfterFee);
         }
 

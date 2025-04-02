@@ -33,10 +33,8 @@ interface IIBCVoucher {
     /// @notice Gives voucher in exchange for LBTC accepting any current fee
     /// @dev Requires LBTC approval
     /// @param amount Amount of LBTC
-    function wrap(
-        uint256 amount
-    ) external returns (uint256);
-    
+    function wrap(uint256 amount) external returns (uint256);
+
     /// @notice Gives voucher in exchange for LBTC
     /// @dev Requires LBTC approval
     /// @param amount Amount of LBTC
@@ -54,7 +52,7 @@ interface IIBCVoucher {
         address recipient,
         uint256 amount
     ) external returns (uint256);
-    
+
     /// @notice Gives voucher to `recipient` in exchange for LBTC
     /// @dev Requires LBTC approval
     /// @param recipient Recipient of Voucher

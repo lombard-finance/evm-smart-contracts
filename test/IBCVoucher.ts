@@ -123,7 +123,7 @@ describe('IBCVoucher', function () {
       expect(await ibcVoucher.balanceOf(relayer.address)).to.be.equal(amount - fee);
       expect(await ibcVoucher.totalSupply()).to.be.eq(amount - fee);
     });
-    
+
     it('should allow a relayer to wrap LBTC with slippage control', async function () {
       await expect(ibcVoucher.connect(relayer).wrapMin(amount, amount - fee))
         .to.emit(lbtc, 'Transfer')
@@ -182,7 +182,10 @@ describe('IBCVoucher', function () {
     });
 
     it('should not allow to wrap with amount equal to or below fee amount', async function () {
-      await expect(ibcVoucher.connect(relayer).wrapMin(fee, 0)).to.be.revertedWithCustomError(ibcVoucher, 'AmountTooLow');
+      await expect(ibcVoucher.connect(relayer).wrapMin(fee, 0)).to.be.revertedWithCustomError(
+        ibcVoucher,
+        'AmountTooLow'
+      );
     });
 
     it('should not allow to wrapTo with amount equal to or below fee amount', async function () {
@@ -589,7 +592,9 @@ describe('IBCVoucher', function () {
 
     it('setRateLimit: rejects when window is less than minimum', async function () {
       await expect(
-        ibcVoucher.connect(admin).setRateLimit(rateLimitPercent, (await ibcVoucher.MIN_RATE_LIMIT_WINDOW()) - 1n, (await time.latest()) - 1)
+        ibcVoucher
+          .connect(admin)
+          .setRateLimit(rateLimitPercent, (await ibcVoucher.MIN_RATE_LIMIT_WINDOW()) - 1n, (await time.latest()) - 1)
       ).to.be.revertedWithCustomError(ibcVoucher, 'TooLowWindow');
     });
 
