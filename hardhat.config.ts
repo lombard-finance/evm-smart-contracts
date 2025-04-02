@@ -34,7 +34,7 @@ const config: HardhatUserConfig = {
     // testnets
     holesky: {
       loggingEnabled: true,
-      url: vars.get('HOLESKY_RPC', 'https://rpc.ankr.com/eth_holesky'),
+      url: vars.get('HOLESKY_RPC', 'https://ethereum-holesky-rpc.publicnode.com'),
       chainId: 17_000,
       accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       gas: 8_000_000,
