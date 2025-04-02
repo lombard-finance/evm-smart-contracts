@@ -41,7 +41,7 @@ interface IIBCVoucher {
     /// @dev Requires LBTC approval
     /// @param amount Amount of LBTC
     /// @param minAmountOut The minimum acceptable amount of LBTC to receive
-    function wrap(
+    function wrapMin(
         uint256 amount,
         uint256 minAmountOut
     ) external returns (uint256);
@@ -60,7 +60,7 @@ interface IIBCVoucher {
     /// @param recipient Recipient of Voucher
     /// @param amount Amount of LBTC
     /// @param minAmountOut The minimum acceptable amount of LBTC to receive
-    function wrapTo(
+    function wrapToMin(
         address recipient,
         uint256 amount,
         uint256 minAmountOut

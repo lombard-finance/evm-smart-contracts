@@ -159,7 +159,7 @@ contract IBCVoucher is
         return _wrap(_msgSender(), _msgSender(), amount, 0);
     }
 
-    function wrap(
+    function wrapMin(
         uint256 amount,
         uint256 minAmountOut
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
@@ -173,7 +173,7 @@ contract IBCVoucher is
         return _wrap(_msgSender(), recipient, amount, 0);
     }
 
-    function wrapTo(
+    function wrapToMin(
         address recipient,
         uint256 amount,
         uint256 minAmountOut
