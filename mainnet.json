@@ -111,6 +111,10 @@
       "CLAdapter": "0x35df1153b69b245a12336b8ed5c12f1cb8279916",
       "LombardTokenPool": "0x84166eAf4530994C565E6aCC774a6950Ce8c88aA"
     },
+    "stakeAndBake": {
+      "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "TellerWithMultiAssetSupportDepositor": "0x7c38ffD0F0d7706017b2ac89aE1009D81C33192e"
+    },
     "cubist": {
       "BasculeV2": "0x937ae3923eF063BE92816F48c9364Dd38AF169dA"
     }
