@@ -34,7 +34,7 @@ const config: HardhatUserConfig = {
     // testnets
     holesky: {
       loggingEnabled: true,
-      url: vars.get('HOLESKY_RPC', 'https://rpc.ankr.com/eth_holesky'),
+      url: vars.get('HOLESKY_RPC', 'https://ethereum-holesky-rpc.publicnode.com'),
       chainId: 17_000,
       accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       gas: 8_000_000,
@@ -105,7 +105,6 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
-
     arbitrumSepolia: {
       loggingEnabled: true,
       url: vars.get('ARBITRUM_SEPOLIA_RPC', 'https://rpc.ankr.com/arbitrum_sepolia'),
@@ -162,10 +161,26 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    etherlinkTestnet: {
+      loggingEnabled: true,
+      url: vars.get('ETHERLINK_TESTNET_RPC', 'https://node.ghostnet.etherlink.com'),
+      chainId: 128123,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    inkSepolia: {
+      loggingEnabled: true,
+      url: vars.get('INK_SEPOLIA_RPC', 'https://rpc-gel-sepolia.inkonchain.com'),
+      chainId: 763373,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
-      url: vars.get('MAINNET_RPC', 'https://rpc.ankr.com/eth'),
+      url: vars.get('MAINNET_RPC', 'https://ethereum-rpc.publicnode.com'),
       chainId: 1,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
@@ -249,6 +264,22 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('MORPH_RPC', 'https://rpc-quicknode.morphl2.io'),
       chainId: 2818,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    etherlink: {
+      loggingEnabled: true,
+      url: vars.get('ETHERLINK_RPC', 'https://node.mainnet.etherlink.com'),
+      chainId: 42793,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    ink: {
+      loggingEnabled: true,
+      url: vars.get('INK_RPC', 'https://rpc-gel.inkonchain.com'),
+      chainId: 57073,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
@@ -337,6 +368,22 @@ const config: HardhatUserConfig = {
           browserURL: 'https://explorer-holesky.morphl2.io/'
         }
       },
+      {
+        network: 'etherlinkTestnet',
+        chainId: 128123,
+        urls: {
+          apiURL: 'https://testnet.explorer.etherlink.com/api',
+          browserURL: 'https://testnet.explorer.etherlink.com'
+        }
+      },
+      {
+        network: 'inkSepolia',
+        chainId: 763373,
+        urls: {
+          apiURL: 'https://api.routescan.io/v2/network/testnet/evm/763373/etherscan',
+          browserURL: 'https://sepolia.inkonscan.xyz/'
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -401,6 +448,22 @@ const config: HardhatUserConfig = {
           apiURL: 'https://morphscan.org/api/v2/network/mainnet/evm/2818/etherscan',
           browserURL: 'https://morphscan.org'
         }
+      },
+      {
+        network: 'etherlink',
+        chainId: 42793,
+        urls: {
+          apiURL: 'https://explorer.etherlink.com/api',
+          browserURL: 'https://explorer.etherlink.com'
+        }
+      },
+      {
+        network: 'ink',
+        chainId: 57073,
+        urls: {
+          apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/57073/etherscan',
+          browserURL: 'https://57073.routescan.io/'
+        }
       }
     ],
     apiKey: {
@@ -419,6 +482,8 @@ const config: HardhatUserConfig = {
       beraCartio: 'no',
       swell_testnet: 'no',
       sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
+      etherlinkTestnet: 'no',
+      inkSepolia: 'no',
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -432,7 +497,9 @@ const config: HardhatUserConfig = {
       swell: 'no',
       berachain: vars.get('BERACHAIN_API_KEY', ''),
       sonic: vars.get('SONIC_API_KEY', ''),
-      morph: 'no'
+      morph: 'no',
+      etherlink: 'no',
+      ink: 'no'
     }
   },
   sourcify: {
