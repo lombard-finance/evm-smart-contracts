@@ -205,7 +205,7 @@ const config: HardhatUserConfig = {
     },
     bsc: {
       loggingEnabled: true,
-      url: vars.get('BSC_RPC', 'https://rpc.ankr.com/bsc'),
+      url: vars.get('BSC_RPC', 'https://binance.llamarpc.com'),
       chainId: 56,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
@@ -213,7 +213,7 @@ const config: HardhatUserConfig = {
     },
     base: {
       loggingEnabled: true,
-      url: vars.get('BASE_RPC', 'https://rpc.ankr.com/base'),
+      url: vars.get('BASE_RPC', 'https://base.llamarpc.com'),
       chainId: 8453,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
