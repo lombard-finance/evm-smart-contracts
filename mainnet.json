@@ -143,10 +143,18 @@
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
-      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
+    },
+    "chainlink": {
+      "ChainSelector": "1673871237479749969",
+      "Router": "0xB4e1Ff7882474BB93042be9AD5E1fA387949B860",
+      "RMN": "0x60536Ef486DB5E0e1771874E31485c12e3c2844f",
+      "CLAdapter": "0x6ebe222a56Ee24421ad2BB78b7c88648C9954006",
+      "LombardTokenPool": "0x3BA7EDC2C37D8069B1A29159290604da93887Fa2"
     },
     "cubist": {
       "BasculeV2": "0x4515755A7E22411AF547815a856ac7f16d85dD5C"
