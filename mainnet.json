@@ -41,7 +41,7 @@
       "LBTCOFTAdatper_etherlink": "0x3a7647c1323144a16e7D0D71A581E3FE5BD95299"
     },
     "IBC": {
-        "IBCVoucher": "0xBf45A5029d081333407Cc52a84BE5ed40e181C46"
+      "IBCVoucher": "0xBf45A5029d081333407Cc52a84BE5ed40e181C46"
     },
     "cubist": {
       "Bascule": "0xc750eCAC7250E0D18ecE2C7a5F130E3A765dc260"
@@ -192,7 +192,15 @@
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
-      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
+    },
+    "chainlink": {
+      "ChainSelector": "3461204551265785888",
+      "Router": "0xca7c90A52B44E301AC01Cb5EB99b2fD99339433A",
+      "RMN": "0x3A293fa336E118900AD0f2EcfeC0DAa6A4DeDaA1",
+      "CLAdapter": "0x80A23cB6eCEDa270889Eb165C41f55bcd300053c",
+      "LombardTokenPool": "0xe361310Fa58841F323638d4ab5E2032F94F790D6"
     }
   }
 }
