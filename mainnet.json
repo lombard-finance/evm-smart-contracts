@@ -193,6 +193,9 @@
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
+    },
+    "cubist": {
+      "BasculeV2": "0x862Cbca3a521858416EE08208455984EE6681420"
     }
   }
 }
