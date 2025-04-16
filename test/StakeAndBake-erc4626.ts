@@ -18,7 +18,7 @@ import {
 import { StakeAndBake, ERC4626Depositor, LBTCMock, ERC4626Mock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('StakeAndBake-erc4626', function () {
+describe('ERC4626Depositor', function () {
   let deployer: Signer,
     signer1: Signer,
     signer2: Signer,
