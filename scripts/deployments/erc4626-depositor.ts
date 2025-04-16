@@ -3,7 +3,7 @@ import { create3 } from '../helpers/create3Deployment';
 import { sleep } from '../helpers';
 import { verify } from '../helpers';
 
-task('deploy-kiln-depositor', 'Deploys the KilnDepositor contract')
+task('deploy-erc4626-depositor', 'Deploys the ERC4626Depositor contract')
   .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('vault', 'The address of the vault')
   .addParam('lbtc', 'The address of the LBTC contract')
@@ -15,7 +15,7 @@ task('deploy-kiln-depositor', 'Deploys the KilnDepositor contract')
 
     const args = [vault, lbtc, stakeAndBake];
 
-    const adapter = await hre.ethers.deployContract('KilnDepositor', args);
+    const adapter = await hre.ethers.deployContract('ERC4626Depositor', args);
     await adapter.waitForDeployment();
 
     console.log(`Deployment address is ${await adapter.getAddress()}`);
