@@ -12,7 +12,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract KilnDepositor is IDepositor, ReentrancyGuard {
+contract ERC4626Depositor is IDepositor, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @dev error thrown when the passed depositAmount is zero

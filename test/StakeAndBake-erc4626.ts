@@ -15,10 +15,10 @@ import {
   Signer,
   init
 } from './helpers';
-import { StakeAndBake, KilnDepositor, LBTCMock, KilnVaultMock } from '../typechain-types';
+import { StakeAndBake, ERC4626Depositor, LBTCMock, ERC4626Mock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('StakeAndBake-kiln', function () {
+describe('StakeAndBake-erc4626', function () {
   let deployer: Signer,
     signer1: Signer,
     signer2: Signer,
@@ -27,8 +27,8 @@ describe('StakeAndBake-kiln', function () {
     pauser: Signer,
     treasury: Signer;
   let stakeAndBake: StakeAndBake;
-  let kilnDepositor: KilnDepositor;
-  let vault: KilnVaultMock;
+  let erc4626Depositor: ERC4626Depositor;
+  let vault: ERC4626Mock;
   let lbtc: LBTCMock;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
@@ -59,10 +59,10 @@ describe('StakeAndBake-kiln', function () {
       1_000_000
     ]);
 
-    vault = await deployContract<KilnVaultMock>('KilnVaultMock', [await lbtc.getAddress()], false);
+    vault = await deployContract<ERC4626Mock>('ERC4626Mock', [await lbtc.getAddress()], false);
 
-    kilnDepositor = await deployContract<KilnDepositor>(
-      'KilnDepositor',
+    erc4626Depositor = await deployContract<ERC4626Depositor>(
+      'ERC4626Depositor',
       [await vault.getAddress(), await lbtc.getAddress(), await stakeAndBake.getAddress()],
       false
     );
@@ -144,13 +144,13 @@ describe('StakeAndBake-kiln', function () {
 
   describe('Setters', function () {
     it('should allow admin to set depositor', async function () {
-      await expect(stakeAndBake.setDepositor(await kilnDepositor.getAddress()))
+      await expect(stakeAndBake.setDepositor(await erc4626Depositor.getAddress()))
         .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await kilnDepositor.getAddress());
+        .withArgs(await erc4626Depositor.getAddress());
     });
 
     it('should not allow anyone else to set depositor', async function () {
-      await expect(stakeAndBake.connect(signer1).setDepositor(await kilnDepositor.getAddress())).to.be.reverted;
+      await expect(stakeAndBake.connect(signer1).setDepositor(await erc4626Depositor.getAddress())).to.be.reverted;
     });
 
     it('should not allow calling stakeAndBake without a set depositor', async function () {
@@ -168,9 +168,9 @@ describe('StakeAndBake-kiln', function () {
   describe('Stake and Bake', function () {
     beforeEach(async function () {
       // set depositor to stake and bake
-      await expect(stakeAndBake.setDepositor(await kilnDepositor.getAddress()))
+      await expect(stakeAndBake.setDepositor(await erc4626Depositor.getAddress()))
         .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await kilnDepositor.getAddress());
+        .withArgs(await erc4626Depositor.getAddress());
     });
 
     it('should not allow non-claimer to call stakeAndBake', async function () {
@@ -257,7 +257,7 @@ describe('StakeAndBake-kiln', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), await kilnDepositor.getAddress(), depositValue)
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
@@ -281,7 +281,7 @@ describe('StakeAndBake-kiln', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), await kilnDepositor.getAddress(), depositValue)
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
@@ -312,7 +312,7 @@ describe('StakeAndBake-kiln', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), await kilnDepositor.getAddress(), depositValue)
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue)
         .to.emit(lbtc, 'MintProofConsumed')
@@ -324,7 +324,7 @@ describe('StakeAndBake-kiln', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), await kilnDepositor.getAddress(), depositValue)
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
