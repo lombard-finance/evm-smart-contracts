@@ -18,7 +18,7 @@ import {
 import { StakeAndBake, KilnDepositor, LBTCMock, KilnVaultMock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('StakeAndBake', function () {
+describe('StakeAndBake-kiln', function () {
   let deployer: Signer,
     signer1: Signer,
     signer2: Signer,
