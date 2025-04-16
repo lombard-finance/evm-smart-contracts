@@ -25,7 +25,7 @@ import {
 } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('StakeAndBake-veda', function () {
+describe('TellerWithMultiAssetSupportDepositor', function () {
   let deployer: Signer,
     signer1: Signer,
     signer2: Signer,
