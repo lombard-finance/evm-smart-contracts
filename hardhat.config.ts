@@ -205,7 +205,7 @@ const config: HardhatUserConfig = {
     },
     bsc: {
       loggingEnabled: true,
-      url: vars.get('BSC_RPC', 'https://binance.llamarpc.com'),
+      url: vars.get('BSC_RPC', 'https://bsc-rpc.publicnode.com'),
       chainId: 56,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
