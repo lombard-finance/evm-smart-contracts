@@ -190,7 +190,9 @@ async function queryEventsSafe(event: string, contract: Contract, provider: Hard
     const res = /block range: (\d+)/.exec(e);
 
     if (!res || res.length < 2) {
-      throw e;
+      console.error(`Unknown err (skip events fetching): ${e.toString()}`);
+      // throw e;
+      return [];
     }
 
     const range = Number(res[1]);
