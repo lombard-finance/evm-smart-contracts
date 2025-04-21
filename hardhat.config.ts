@@ -213,7 +213,7 @@ const config: HardhatUserConfig = {
     },
     base: {
       loggingEnabled: true,
-      url: vars.get('BASE_RPC', 'https://base.llamarpc.com'),
+      url: vars.get('BASE_RPC', 'https://gateway.tenderly.co/public/base'),
       chainId: 8453,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
