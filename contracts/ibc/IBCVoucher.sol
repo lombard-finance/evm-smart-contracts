@@ -24,8 +24,7 @@ contract IBCVoucher is
     struct RateLimit {
         uint64 supplyAtUpdate;
         uint64 limit;
-        uint64 inflow;
-        uint64 outflow;
+        uint64 credit;
         uint64 startTime;
         uint64 window; // Window denominated in hours.
         uint64 epoch;
@@ -47,6 +46,7 @@ contract IBCVoucher is
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     uint256 public constant RATIO_MULTIPLIER = 10000;
+    uint16 public constant MIN_RATE_LIMIT_WINDOW = 3600; // minimum window in seconds for the rate limit calculation
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.IBCVoucher")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant IBCVOUCHER_STORAGE_LOCATION =
@@ -97,7 +97,7 @@ contract IBCVoucher is
 
     /// @notice Sets a rate limit for unwrapping the IBC Voucher.
     /// @param threshold The rate limit threshold in BIPs (hundredths of a percentage).
-    /// @param window The rate limit window in hours.
+    /// @param window The rate limit window in seconds.
     function setRateLimit(
         uint16 threshold,
         uint64 window,
@@ -124,17 +124,18 @@ contract IBCVoucher is
         uint64 startTime
     ) internal {
         uint256 totalSupply = totalSupply();
-        if (window == 0) {
-            revert ZeroWindow();
+        if (window != 0 && window < MIN_RATE_LIMIT_WINDOW) {
+            revert TooLowWindow();
+        }
+        if (threshold > RATIO_MULTIPLIER) {
+            revert InconsistentThreshold();
         }
 
         $.rateLimit.supplyAtUpdate = uint64(totalSupply);
         $.rateLimit.threshold = threshold;
-        $.rateLimit.limit = uint64(
-            (threshold * totalSupply) / RATIO_MULTIPLIER
-        );
-        $.rateLimit.inflow = 0;
-        $.rateLimit.outflow = 0;
+        uint64 limit = uint64((threshold * totalSupply) / RATIO_MULTIPLIER);
+        $.rateLimit.limit = limit;
+        $.rateLimit.credit = limit;
         $.rateLimit.window = window;
         $.rateLimit.epoch = epoch;
 
@@ -155,22 +156,48 @@ contract IBCVoucher is
     function wrap(
         uint256 amount
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
-        return _wrap(_msgSender(), _msgSender(), amount);
+        return _wrap(_msgSender(), _msgSender(), amount, 0);
+    }
+
+    function wrap(
+        uint256 amount,
+        uint256 minAmountOut
+    ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+        return _wrap(_msgSender(), _msgSender(), amount, minAmountOut);
     }
 
     function wrapTo(
         address recipient,
         uint256 amount
     ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
-        return _wrap(_msgSender(), recipient, amount);
+        return _wrap(_msgSender(), recipient, amount, 0);
+    }
+
+    function wrapTo(
+        address recipient,
+        uint256 amount,
+        uint256 minAmountOut
+    ) external override nonReentrant onlyRole(RELAYER_ROLE) returns (uint256) {
+        return _wrap(_msgSender(), recipient, amount, minAmountOut);
     }
 
     function _wrap(
         address from,
         address recipient,
-        uint256 amount
+        uint256 amount,
+        uint256 minAmountOut
     ) internal returns (uint256) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
+
+        uint256 fee = $.fee;
+        if (amount <= fee) {
+            revert AmountTooLow();
+        }
+        uint256 amountAfterFee = amount - fee;
+        if (amountAfterFee < minAmountOut) {
+            revert SlippageExceeded(amountAfterFee, minAmountOut);
+        }
+
         if ($.rateLimit.window != 0) {
             uint64 epoch = uint64(
                 (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
@@ -180,19 +207,16 @@ contract IBCVoucher is
             }
 
             // Calculate net flow, so wrapping would reduce our flow.
-            $.rateLimit.outflow += uint64(amount);
-
-            emit RateLimitOutflowIncreased($.rateLimit.outflow, uint64(amount));
+            emit RateLimitOutflowIncreased(
+                $.rateLimit.credit,
+                uint64(amountAfterFee)
+            );
+            $.rateLimit.credit += uint64(amountAfterFee);
         }
 
         ILBTC _lbtc = $.lbtc;
-        uint256 fee = $.fee;
 
         IERC20(address(_lbtc)).safeTransferFrom(from, address(this), amount);
-        if (amount <= fee) {
-            revert AmountTooLow();
-        }
-        uint256 amountAfterFee = amount - fee;
 
         IERC20(address(_lbtc)).safeTransfer($.treasury, fee);
         _lbtc.burn(amountAfterFee);
@@ -220,14 +244,6 @@ contract IBCVoucher is
         _spend(owner, owner, amount);
     }
 
-    function spendFromTo(
-        address owner,
-        address recipient,
-        uint256 amount
-    ) external override nonReentrant onlyRole(OPERATOR_ROLE) {
-        _spend(owner, recipient, amount);
-    }
-
     function _spend(address from, address recipient, uint256 amount) internal {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
 
@@ -239,20 +255,16 @@ contract IBCVoucher is
                 _resetRateLimit(epoch);
             }
 
-            // Check that spend doesn't exceed rate limit.
-            uint64 newInflow = uint64(amount) + $.rateLimit.inflow;
-            if (newInflow >= $.rateLimit.outflow) {
-                if (newInflow - $.rateLimit.outflow > $.rateLimit.limit) {
-                    revert RateLimitExceeded(
-                        $.rateLimit.limit,
-                        $.rateLimit.inflow,
-                        uint64(amount)
-                    );
-                }
+            if (uint64(amount) > $.rateLimit.credit) {
+                revert RateLimitExceeded(
+                    $.rateLimit.limit,
+                    $.rateLimit.credit,
+                    uint64(amount)
+                );
             }
 
-            $.rateLimit.inflow = newInflow;
-            emit RateLimitInflowIncreased($.rateLimit.inflow, uint64(amount));
+            emit RateLimitInflowIncreased($.rateLimit.credit, uint64(amount));
+            $.rateLimit.credit -= uint64(amount);
         }
 
         _burn(from, amount);
@@ -322,25 +334,19 @@ contract IBCVoucher is
         return 8;
     }
 
-    function leftoverAmount() public view returns (uint128) {
+    function leftoverAmount() public view returns (uint64) {
         IBCVoucherStorage storage $ = _getIBCVoucherStorage();
         uint64 epoch = uint64(
             (block.timestamp - $.rateLimit.startTime) / $.rateLimit.window
         );
         if (epoch > $.rateLimit.epoch) {
             return
-                uint128(
+                uint64(
                     ($.rateLimit.threshold * totalSupply()) / RATIO_MULTIPLIER
                 );
         }
 
-        int128 netFlow = int64($.rateLimit.inflow) - int64($.rateLimit.outflow);
-        // Our result here should always fit into an unsigned integer.
-        // Since `inflow` and `outflow` are both 64-bit unsigned integers, the maximum value for
-        // `netFlow` is either the `limit` (as `inflow` can not exceed `limit`), or the negation
-        // of the maximum supply of LBTC which fits easily into 64 bits. Therefore, this subtraction
-        // can only range from 0 to the maximum LBTC supply plus the `limit`.
-        return uint128(int128(int64($.rateLimit.limit)) - netFlow);
+        return $.rateLimit.credit;
     }
 
     function rateLimitConfig() public view returns (RateLimit memory) {

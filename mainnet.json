@@ -40,6 +40,9 @@
       "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E",
       "LBTCOFTAdatper_etherlink": "0x3a7647c1323144a16e7D0D71A581E3FE5BD95299"
     },
+    "IBC": {
+        "IBCVoucher": "0xBf45A5029d081333407Cc52a84BE5ed40e181C46"
+    },
     "cubist": {
       "Bascule": "0xc750eCAC7250E0D18ecE2C7a5F130E3A765dc260"
     }
