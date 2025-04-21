@@ -15,17 +15,10 @@ import {
   Signer,
   init
 } from './helpers';
-import {
-  StakeAndBake,
-  BoringVaultDepositor,
-  LBTCMock,
-  BoringVaultMock,
-  AccountantMock,
-  TellerMock
-} from '../typechain-types';
+import { StakeAndBake, ERC4626Depositor, LBTCMock, ERC4626Mock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('TellerWithMultiAssetSupportDepositor', function () {
+describe('ERC4626Depositor', function () {
   let deployer: Signer,
     signer1: Signer,
     signer2: Signer,
@@ -34,8 +27,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     pauser: Signer,
     treasury: Signer;
   let stakeAndBake: StakeAndBake;
-  let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
-  let teller: TellerWithMultiAssetSupportMock;
+  let erc4626Depositor: ERC4626Depositor;
+  let vault: ERC4626Mock;
   let lbtc: LBTCMock;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
@@ -47,8 +40,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   let depositPayload2;
   const value = 10001;
   const fee = 1;
-  const premium = 100;
-  const depositValue = 9900;
+  const depositValue = 10000;
 
   before(async function () {
     [deployer, signer1, signer2, signer3, operator, pauser, treasury] = await getSignersWithPrivateKeys();
@@ -67,15 +59,11 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       1_000_000
     ]);
 
-    teller = await deployContract<TellerWithMultiAssetSupportMock>(
-      'TellerWithMultiAssetSupportMock',
-      [await lbtc.getAddress()],
-      false
-    );
+    vault = await deployContract<ERC4626Mock>('ERC4626Mock', [await lbtc.getAddress()], false);
 
-    tellerWithMultiAssetSupportDepositor = await deployContract<TellerWithMultiAssetSupportDepositor>(
-      'TellerWithMultiAssetSupportDepositor',
-      [await teller.getAddress(), await lbtc.getAddress(), await stakeAndBake.getAddress()],
+    erc4626Depositor = await deployContract<ERC4626Depositor>(
+      'ERC4626Depositor',
+      [await vault.getAddress(), await lbtc.getAddress(), await stakeAndBake.getAddress()],
       false
     );
 
@@ -156,14 +144,13 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
   describe('Setters', function () {
     it('should allow admin to set depositor', async function () {
-      await expect(stakeAndBake.setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
+      await expect(stakeAndBake.setDepositor(await erc4626Depositor.getAddress()))
         .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
+        .withArgs(await erc4626Depositor.getAddress());
     });
 
     it('should not allow anyone else to set depositor', async function () {
-      await expect(stakeAndBake.connect(signer1).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
-        .to.be.reverted;
+      await expect(stakeAndBake.connect(signer1).setDepositor(await erc4626Depositor.getAddress())).to.be.reverted;
     });
 
     it('should not allow calling stakeAndBake without a set depositor', async function () {
@@ -181,9 +168,9 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   describe('Stake and Bake', function () {
     beforeEach(async function () {
       // set depositor to stake and bake
-      await expect(stakeAndBake.setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
+      await expect(stakeAndBake.setDepositor(await erc4626Depositor.getAddress()))
         .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
+        .withArgs(await erc4626Depositor.getAddress());
     });
 
     it('should not allow non-claimer to call stakeAndBake', async function () {
@@ -270,12 +257,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
-        )
-        .to.emit(teller, 'Transfer')
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
+        .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
 
@@ -298,12 +281,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
-        )
-        .to.emit(teller, 'Transfer')
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
+        .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
 
@@ -333,12 +312,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
-        )
-        .to.emit(teller, 'Transfer')
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
+        .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue)
         .to.emit(lbtc, 'MintProofConsumed')
         .withArgs(signer3.address, data2.payloadHash, data2.payload)
@@ -349,12 +324,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         .to.emit(lbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(lbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
-        )
-        .to.emit(teller, 'Transfer')
+        .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
+        .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
 
