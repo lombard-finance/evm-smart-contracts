@@ -141,6 +141,7 @@
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000000092",
     "admin": {
       "Owner": "0x2B8C70bFB1CCc21b9efDc461e7d950524C6d0f12",
+      "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
@@ -195,6 +196,7 @@
     "chainId": "0x000000000000000000000000000000000000000000000000000000000000def1",
     "admin": {
       "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
+      "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
