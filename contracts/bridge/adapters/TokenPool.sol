@@ -61,6 +61,7 @@ contract LombardTokenPool is TokenPool {
 
         uint64 amount = adapter.initiateWithdrawal(
             releaseOrMintIn.remoteChainSelector,
+            releaseOrMintIn.sourcePoolData,
             releaseOrMintIn.offchainTokenData
         );
 

@@ -37,7 +37,7 @@ library Actions {
     error InvalidPublicKey(bytes pubKey);
 
     /// @dev Error thrown when signatures length is not equal to signers length
-    error LengthMismatch();
+    error Actions_LengthMismatch();
 
     /// @dev Error thrown when threshold is invalid
     error InvalidThreshold();
@@ -55,7 +55,7 @@ library Actions {
     error WrongContract();
 
     /// @dev Error thrown when zero address is provided
-    error ZeroAddress();
+    error Actions_ZeroAddress();
 
     /// @dev Error thrown when zero amount is provided
     error ZeroAmount();
@@ -133,7 +133,7 @@ library Actions {
             revert WrongChainId();
         }
         if (recipient == address(0)) {
-            revert ZeroAddress();
+            revert Actions_ZeroAddress();
         }
         if (amount == 0) {
             revert ZeroAmount();
@@ -169,7 +169,7 @@ library Actions {
             revert WrongChainId();
         }
         if (recipient == address(0)) {
-            revert ZeroAddress();
+            revert Actions_ZeroAddress();
         }
         if (amount == 0) {
             revert ZeroAmount();
@@ -222,7 +222,7 @@ library Actions {
             pubKeys.length > MAX_VALIDATOR_SET_SIZE
         ) revert InvalidValidatorSetSize();
 
-        if (pubKeys.length != weights.length) revert LengthMismatch();
+        if (pubKeys.length != weights.length) revert Actions_LengthMismatch();
 
         if (weightThreshold == 0) revert InvalidThreshold();
 

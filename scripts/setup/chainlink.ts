@@ -1,7 +1,4 @@
 import { task } from 'hardhat/config';
-import { sleep } from '../helpers';
-import type { BigNumberish } from 'ethers';
-import { RateLimiter } from '../../typechain-types/contracts/bridge/adapters/TokenPoolAdapter';
 
 task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
     .addParam('clAdapter', 'The address of chainlink adapter smart-contract')
@@ -15,10 +12,12 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
     )
     .addOptionalParam('chain', 'Chain id of remote selector')
     .addOptionalParam('remotePool', 'The address of remote token pool')
+    .addFlag('populate', 'Show transaction data and do not broadcast')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
-        const { clAdapter, remoteSelector, chain, remotePool, lbtc } = taskArgs;
+        const { clAdapter, remoteSelector, chain, remotePool, lbtc, populate } =
+            taskArgs;
 
         const adapter = await ethers.getContractAt('CLAdapter', clAdapter);
 
@@ -44,7 +43,7 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                           [lbtc]
                       );
 
-            await tokenPool.applyChainUpdates([
+            const args = [
                 {
                     remoteChainSelector: remoteSelector,
                     allowed: true,
@@ -61,13 +60,21 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                         capacity: 0,
                     },
                 },
-            ]);
+            ];
 
             console.log(
-                `Chain update applied chain selector ${remoteSelector}`
+                `tx=applyChainUpdates selector=${remoteSelector} remotePoolAddress=${remotePoolAddress} remoteTokenAddress=${lbtcEncoded}`
             );
-
-            await sleep(12_000);
+            if (populate) {
+                const txData =
+                    await tokenPool.applyChainUpdates.populateTransaction(args);
+                console.log(
+                    `applyChainUpdates: ${JSON.stringify(txData, null, 2)}`
+                );
+            } else {
+                const tx = await tokenPool.applyChainUpdates(args);
+                await tx.wait(2);
+            }
         }
 
         if (chain && remoteSelector) {
@@ -77,14 +84,27 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                       ['uint256'],
                       [chain]
                   );
-            const r = await adapter.setRemoteChainSelector(
-                toChainId,
-                remoteSelector
-            );
-            await r.wait(2);
-            console.log(`Chain ${chain} set for chain selector ${toChainId}`);
 
-            await sleep(12_000);
+            console.log(
+                `Chain ${toChainId} set for chain selector ${remoteSelector}`
+            );
+
+            if (populate) {
+                const txData =
+                    await adapter.setRemoteChainSelector.populateTransaction(
+                        toChainId,
+                        remoteSelector
+                    );
+                console.log(
+                    `setRemoteChainSelector: ${JSON.stringify(txData, null, 2)}`
+                );
+            } else {
+                const tx = await adapter.setRemoteChainSelector(
+                    toChainId,
+                    remoteSelector
+                );
+                await tx.wait(2);
+            }
         }
 
         if (remotePool && remoteSelector) {
@@ -95,13 +115,28 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
                           ['address'],
                           [remotePool]
                       );
-            const r = await tokenPool.setRemotePool(remoteSelector, toPeer);
-            await r.wait(2);
+
             console.log(
-                `Chain selector ${toPeer} set for eid ${remoteSelector}`
+                `Remote peer ${toPeer} set for selector ${remoteSelector}`
             );
 
-            await sleep(12_000);
+            if (populate) {
+                const txData =
+                    await tokenPool.setRemotePool.populateTransaction(
+                        remoteSelector,
+                        toPeer
+                    );
+
+                console.log(
+                    `setRemotePool: ${JSON.stringify(txData, null, 2)}`
+                );
+            } else {
+                const tx = await tokenPool.setRemotePool(
+                    remoteSelector,
+                    toPeer
+                );
+                await tx.wait(2);
+            }
         }
 
         console.log('DONE');
@@ -114,12 +149,14 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
     .addOptionalParam('inboundLimitCap')
     .addOptionalParam('outboundLimitRate')
     .addOptionalParam('outboundLimitCap')
+    .addFlag('populate', '')
     .setAction(async (taskArgs, hre, network) => {
         const { ethers } = hre;
 
         const {
             clAdapter,
             remoteSelector,
+            populate,
 
             inboundLimitRate,
             inboundLimitCap,
@@ -134,6 +171,25 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
             'LombardTokenPool',
             await adapter.tokenPool()
         );
+
+        if (populate) {
+            const rawTx =
+                await tokenPool.setChainRateLimiterConfig.populateTransaction(
+                    remoteSelector,
+                    {
+                        isEnabled: outboundLimitRate && outboundLimitCap,
+                        capacity: outboundLimitCap,
+                        rate: outboundLimitRate,
+                    },
+                    {
+                        isEnabled: inboundLimitRate && inboundLimitCap,
+                        capacity: inboundLimitCap,
+                        rate: inboundLimitRate,
+                    }
+                );
+            console.log(`Tx: ${JSON.stringify(rawTx, null, 2)}`);
+            return;
+        }
 
         await tokenPool.setChainRateLimiterConfig(
             remoteSelector,

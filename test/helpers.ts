@@ -1,11 +1,18 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { BaseContract, BigNumberish, Signature } from 'ethers';
+import {
+    AddressLike,
+    BaseContract,
+    BigNumberish,
+    ContractMethodArgs,
+    Signature,
+} from 'ethers';
 import {
     Consortium,
     ERC20PermitUpgradeable,
     LBTCMock,
 } from '../typechain-types';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 export type Signer = HardhatEthersSigner & {
     publicKey: string;
@@ -271,4 +278,108 @@ export async function getFeeTypedMessage(
     const message = { chainId, fee, expiry };
 
     return signer.signTypedData(domain, types, message);
+}
+
+/**
+ * address target,
+ * uint256 value,
+ * bytes calldata data,
+ * bytes32 predecessor,
+ * bytes32 salt,uint256 delay
+ */
+type ScheduleArgs = ContractMethodArgs<
+    [
+        target: AddressLike,
+        value: BigNumberish,
+        data: BytesLike,
+        predecessor: BytesLike,
+        salt: BytesLike,
+        delay: BigNumberish,
+    ]
+>;
+
+type HashOperationArgs = ContractMethodArgs<
+    [
+        target: AddressLike,
+        value: BigNumberish,
+        data: BytesLike,
+        predecessor: BytesLike,
+        salt: BytesLike,
+    ]
+>;
+
+export class TxBuilder {
+    private _target: AddressLike = ethers.ZeroAddress;
+    private _value: BigNumberish = '0';
+    private _data: BytesLike = '0x';
+    private _predecessor: BytesLike = ethers.encodeBytes32String('');
+    private _salt: BytesLike = ethers.encodeBytes32String('');
+    private _delay: BigNumberish = '0';
+
+    private constructor() {}
+
+    static new() {
+        return new TxBuilder();
+    }
+
+    setTarget(target: AddressLike): TxBuilder {
+        this._target = target;
+        return this;
+    }
+
+    setValue(value: BigNumberish): TxBuilder {
+        this._value = value;
+        return this;
+    }
+
+    setData(data: BytesLike): TxBuilder {
+        this._data = data;
+        return this;
+    }
+
+    setPredecessor(predecessor: BytesLike): TxBuilder {
+        this._predecessor = predecessor;
+        return this;
+    }
+
+    setSalt(salt: BytesLike): TxBuilder {
+        this._salt = salt;
+        return this;
+    }
+
+    setDelay(delay: BigNumberish): TxBuilder {
+        this._delay = delay;
+        return this;
+    }
+
+    get scheduleArgs(): ScheduleArgs {
+        return [
+            this._target,
+            this._value,
+            this._data,
+            this._predecessor,
+            this._salt,
+            this._delay,
+        ];
+    }
+
+    get hashOperationArgs(): HashOperationArgs {
+        return [
+            this._target,
+            this._value,
+            this._data,
+            this._predecessor,
+            this._salt,
+        ];
+    }
+
+    get eventArgs() {
+        return [
+            this._target,
+            this._value,
+            this._data,
+            this._predecessor,
+            this._delay,
+        ];
+    }
 }

@@ -1,0 +1,37 @@
+name: Run ownership check
+
+on:
+  workflow_dispatch:
+
+jobs:
+    setup-env:
+        runs-on: [self-hosted]
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Use Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: '18.17.0'
+
+            - name: Cache node modules
+              uses: actions/cache@v3
+              env:
+                  cache-name: cache-node-modules
+              with:
+                  path: ~/.npm
+                  key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-build-${{ env.cache-name }}-
+                      ${{ runner.os }}-build-
+                      ${{ runner.os }}-
+
+            - name: Install dependencies
+              run: yarn install --frozen-lockfile
+
+            - name: Compile contracts
+              run: yarn hardhat compile
+
+            - name: Check
+              run: for net in mainnet base bsc; do yarn hardhat ownership check --network $net; done

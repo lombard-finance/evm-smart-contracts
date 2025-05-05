@@ -12,18 +12,17 @@ pragma solidity 0.8.24;
 interface IDepositor {
     /**
      * @notice Deposit function interface.
-     * @param vault The address of the vault we deposit to
      * @param owner The address of the user who will receive the shares
-     * @param depositPayload The ABI encoded parameters for the vault deposit function
+     * @param depositPayload Optional ABI encoded parameters needed for a vault deposit call
      */
     function deposit(
-        address vault,
         address owner,
+        uint256 depositAmount,
         bytes calldata depositPayload
     ) external;
 
     /**
      * @notice Retrieves the final vault address. Used for granting `permit` to the right address.
      */
-    function destination(address vault) external returns (address);
+    function destination() external view returns (address);
 }
