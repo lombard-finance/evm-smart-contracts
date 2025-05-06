@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {LBTC} from "../LBTC/LBTC.sol";
 import {ILBTC} from "../LBTC/ILBTC.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
 import {Actions} from "../libs/Actions.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 /**
  * @title Convenience contract for users who wish to
@@ -55,7 +56,7 @@ contract StakeAndBake is
 
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
     struct StakeAndBakeStorage {
-        LBTC lbtc;
+        ILBTC lbtc;
         IDepositor depositor;
         uint256 fee;
         uint256 gasLimit;
@@ -85,7 +86,7 @@ contract StakeAndBake is
     }
 
     function initialize(
-        LBTC lbtc_,
+        ILBTC lbtc_,
         address owner_,
         address operator_,
         uint256 fee_,
@@ -236,8 +237,12 @@ contract StakeAndBake is
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        if (!$.lbtc.approve(address($.depositor), remainingAmount))
-            revert ApprovalFailed();
+        if (
+            !IERC20(address($.lbtc)).approve(
+                address($.depositor),
+                remainingAmount
+            )
+        ) revert ApprovalFailed();
 
         // Finally, deposit LBTC to the given vault.
         return $.depositor.deposit(owner, remainingAmount, depositPayload);
@@ -263,15 +268,18 @@ contract StakeAndBake is
             );
 
         // Check the recipient.
-        Actions.DepositBtcAction memory action = Actions.depositBtc(
+        Actions.DepositBtcActionV0 memory action = Actions.depositBtc(
             data.mintPayload[4:]
         );
         address owner = action.recipient;
 
         // We check if we can simply use transferFrom.
         // Otherwise, we permit the depositor to transfer the minted value.
-        if ($.lbtc.allowance(owner, address(this)) < permitAmount)
-            $.lbtc.permit(
+        if (
+            IERC20(address($.lbtc)).allowance(owner, address(this)) <
+            permitAmount
+        )
+            IERC20Permit(address($.lbtc)).permit(
                 owner,
                 address(this),
                 permitAmount,
@@ -281,14 +289,23 @@ contract StakeAndBake is
                 s
             );
 
-        if (!$.lbtc.transferFrom(owner, address(this), permitAmount))
-            revert CollectingFundsFailed();
+        if (
+            !IERC20(address($.lbtc)).transferFrom(
+                owner,
+                address(this),
+                permitAmount
+            )
+        ) revert CollectingFundsFailed();
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
         if (feeAmount > 0) {
-            if (!$.lbtc.transfer($.lbtc.getTreasury(), feeAmount))
-                revert SendingFeeFailed();
+            if (
+                !IERC20(address($.lbtc)).transfer(
+                    $.lbtc.getTreasury(),
+                    feeAmount
+                )
+            ) revert SendingFeeFailed();
         }
 
         if (permitAmount > feeAmount) {

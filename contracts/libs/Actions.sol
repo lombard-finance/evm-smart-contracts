@@ -2,12 +2,21 @@
 pragma solidity 0.8.24;
 
 library Actions {
-    struct DepositBtcAction {
+    struct DepositBtcActionV0 {
         uint256 toChain;
         address recipient;
         uint256 amount;
         bytes32 txid;
         uint32 vout;
+    }
+
+    struct DepositBtcActionV1 {
+        uint256 toChain;
+        address recipient;
+        uint256 amount;
+        bytes32 txid;
+        uint32 vout;
+        bytes32 tokenAddress;
     }
 
     struct DepositBridgeAction {
@@ -82,6 +91,8 @@ library Actions {
         0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
     bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
+    // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32)"))
+    bytes4 internal constant DEPOSIT_BTC_ACTION_V2 = 0xce25e7c2;
     // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
     bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
@@ -118,7 +129,7 @@ library Actions {
      */
     function depositBtc(
         bytes memory payload
-    ) internal view returns (DepositBtcAction memory) {
+    ) internal view returns (DepositBtcActionV0 memory) {
         if (payload.length != ABI_SLOT_SIZE * 5) revert PayloadTooLarge();
 
         (
@@ -139,7 +150,50 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return DepositBtcAction(toChain, recipient, amount, txid, vout);
+        return DepositBtcActionV0(toChain, recipient, amount, txid, vout);
+    }
+
+    /**
+     * @notice Returns decoded deposit btc msg v2
+     * @dev Message should not contain the selector
+     * @param payload Body of the mint payload
+     */
+    function depositBtcV2(
+        bytes memory payload
+    ) internal view returns (DepositBtcActionV1 memory) {
+        if (payload.length != ABI_SLOT_SIZE * 6) revert PayloadTooLarge();
+
+        (
+            uint256 toChain,
+            address recipient,
+            uint256 amount,
+            bytes32 txid,
+            uint32 vout,
+            bytes32 tokenAddress
+        ) = abi.decode(
+                payload,
+                (uint256, address, uint256, bytes32, uint32, bytes32)
+            );
+
+        if (toChain != block.chainid) {
+            revert WrongChainId();
+        }
+        if (recipient == address(0)) {
+            revert Actions_ZeroAddress();
+        }
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        return
+            DepositBtcActionV1(
+                toChain,
+                recipient,
+                amount,
+                txid,
+                vout,
+                tokenAddress
+            );
     }
 
     /**

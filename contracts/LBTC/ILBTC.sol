@@ -18,6 +18,7 @@ interface ILBTC {
     error PayloadAlreadyUsed();
     error InvalidInputLength();
     error InvalidMintAmount();
+    error WrongTokenAddress(bytes32 wrongAddress);
 
     event PauserRoleTransferred(
         address indexed previousPauser,
@@ -63,4 +64,6 @@ interface ILBTC {
     function burn(uint256 amount) external;
     function burn(address from, uint256 amount) external;
     function mint(address to, uint256 amount) external;
+    function mint(bytes calldata payload, bytes calldata proof) external;
+    function getTreasury() external returns (address);
 }

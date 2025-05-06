@@ -19,14 +19,14 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
  */
-contract LBTC is
+contract NativeLBTC is
     ILBTC,
     ERC20PausableUpgradeable,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable,
     ERC20PermitUpgradeable
 {
-    /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
+    /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct LBTCStorage {
         /// @dev is keccak256(payload[4:]) used
         /// @custom:oz-renamed-from usedProofs
@@ -63,9 +63,14 @@ contract LBTC is
         address operator;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant LBTC_STORAGE_LOCATION =
-        0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+        0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
+
+    struct DecodedPayload {
+        address recipient;
+        uint256 amount;
+    }
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -370,17 +375,12 @@ contract LBTC is
         bytes calldata proof
     ) public nonReentrant {
         // payload validation
-        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION) {
-            revert UnexpectedAction(bytes4(payload));
-        }
-        Actions.DepositBtcAction memory action = Actions.depositBtc(
-            payload[4:]
-        );
+        DecodedPayload memory decodedPayload = _decodeMintPayload(payload);
 
         _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
+            decodedPayload.recipient,
+            decodedPayload.amount,
+            decodedPayload.amount,
             payload,
             proof
         );
@@ -657,14 +657,9 @@ contract LBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal nonReentrant {
+    ) internal virtual nonReentrant {
         // mint payload validation
-        if (bytes4(mintPayload) != Actions.DEPOSIT_BTC_ACTION) {
-            revert UnexpectedAction(bytes4(mintPayload));
-        }
-        Actions.DepositBtcAction memory mintAction = Actions.depositBtc(
-            mintPayload[4:]
-        );
+        DecodedPayload memory decodedPayload = _decodeMintPayload(mintPayload);
 
         // fee payload validation
         if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
@@ -680,7 +675,7 @@ contract LBTC is
             fee = feeAction.fee;
         }
 
-        if (fee >= mintAction.amount) {
+        if (fee >= decodedPayload.amount) {
             revert FeeGreaterThanAmount();
         }
 
@@ -699,7 +694,7 @@ contract LBTC is
 
             if (
                 !EIP1271SignatureUtils.checkSignature(
-                    mintAction.recipient,
+                    decodedPayload.recipient,
                     digest,
                     userSignature
                 )
@@ -710,9 +705,9 @@ contract LBTC is
 
         // modified payload to be signed
         _validateAndMint(
-            mintAction.recipient,
-            mintAction.amount - fee,
-            mintAction.amount,
+            decodedPayload.recipient,
+            decodedPayload.amount - fee,
+            decodedPayload.amount,
             mintPayload,
             proof
         );
@@ -779,6 +774,22 @@ contract LBTC is
 
         bool isAboveDust = amountAfterFee > dustLimit;
         return (amountAfterFee, true, dustLimit, isAboveDust);
+    }
+
+    function _decodeMintPayload(
+        bytes calldata payload
+    ) internal view virtual returns (DecodedPayload memory) {
+        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V2) {
+            revert UnexpectedAction(bytes4(payload));
+        }
+        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV2(
+            payload[4:]
+        );
+        if (action.tokenAddress != bytes32(bytes20(address(this)))) {
+            revert WrongTokenAddress(action.tokenAddress);
+        }
+
+        return DecodedPayload(action.recipient, action.amount);
     }
 
     function _getLBTCStorage() private pure returns (LBTCStorage storage $) {

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {LBTC} from "../LBTC/LBTC.sol";
+import {NativeLBTC} from "../LBTC/NativeLBTC.sol";
 
 /**
- * @title Mock implementation of LBTC token
+ * @title Mock implementation of NativeLBTC token
  * @author Lombard.Finance
  * @notice Use only for testing
  */
-contract LBTCMock is LBTC {
+contract NativeLBTCMock is NativeLBTC {
     function mintTo(address to, uint256 amount) external {
         _mint(to, amount);
     }
