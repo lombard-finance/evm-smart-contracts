@@ -17,3 +17,4 @@ export * from './partner-vault';
 export * from './timelock';
 export * from './proxy-mock';
 export * from './voucher';
+export * from './erc4626-depositor';
