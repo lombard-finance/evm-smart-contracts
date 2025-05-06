@@ -16,6 +16,7 @@ export const CHAIN_ID: string = encode(['uint256'], [31337]);
 const ACTIONS_IFACE = ethers.Interface.from([
   'function feeApproval(uint256,uint256)',
   'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
+  'function payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32) external',
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
   'function payload(uint256,bytes[],uint256[],uint256,uint256) external'
 ]);
@@ -34,6 +35,7 @@ export function rawSign(signer: Signer, message: string): string {
 export const DEFAULT_LBTC_DUST_FEE_RATE = 3000;
 
 export const DEPOSIT_BTC_ACTION = '0xf2e73f7c';
+export const DEPOSIT_BTC_ACTION_V2 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 
@@ -82,6 +84,31 @@ export async function signDepositBtcPayload(
   let msg = getPayloadForAction(
     [toChainBytes, encode(['address'], [recipient]), amount, txid, encode(['uint32'], [vout])],
     DEPOSIT_BTC_ACTION
+  );
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signDepositBtcV1Payload(
+  signers: Signer[],
+  signatures: boolean[],
+  toChain: string | bigint | number | Uint8Array,
+  recipient: string,
+  amount: BigInt | number,
+  txid: string | Uint8Array,
+  tokenAddress: string,
+  vout: BigInt = 0n
+) {
+  let toChainBytes = toChain;
+  if (typeof toChain === 'number' || typeof toChain === 'bigint') {
+    toChainBytes = encode(['uint256'], [toChain]);
+  }
+
+  // tokenAddress is only length of address, so we need to right-pad it with zeros.
+  tokenAddress = tokenAddress.padEnd(66, '0');
+
+  let msg = getPayloadForAction(
+    [toChainBytes, encode(['address'], [recipient]), amount, txid, encode(['uint32'], [vout]), tokenAddress],
+    DEPOSIT_BTC_ACTION_V2
   );
   return signPayload(signers, signatures, msg);
 }
@@ -157,10 +184,23 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function init(burnCommission: number, treasury: string, owner: string) {
+export async function initStakedLBTC(burnCommission: number, treasury: string, owner: string) {
   const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
 
-  const lbtc = await deployContract<LBTCMock>('LBTCMock', [
+  const lbtc = await deployContract<StakedLBTCMock>('StakedLBTCMock', [
+    await consortium.getAddress(),
+    burnCommission,
+    treasury,
+    owner
+  ]);
+
+  return { lbtc, consortium };
+}
+
+export async function initNativeLBTC(burnCommission: number, treasury: string, owner: string) {
+  const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
+
+  const lbtc = await deployContract<NativeLBTCMock>('NativeLBTCMock', [
     await consortium.getAddress(),
     burnCommission,
     treasury,

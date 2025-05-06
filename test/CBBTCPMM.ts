@@ -30,7 +30,7 @@ describe('CBBTCPMM', function () {
 
     cbbtc = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
     await cbbtc.setDecimals(8);
-    lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
+    lbtc = await deploy<StakedLBTC>('StakedLBTC', 'StakedLBTC', [
       ethers.hexlify(ethers.randomBytes(20)),
       1000, // not relevant for CBBTC tests
       deployer.address, // not relevant for CBBTC tests, but can not be zero

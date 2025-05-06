@@ -31,7 +31,7 @@ describe('BTCBPMM', function () {
     btcb = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
     // use btcb decimals of 8
     await btcb.setDecimals(18);
-    lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
+    lbtc = await deploy<StakedLBTC>('StakedLBTC', 'StakedLBTC', [
       ethers.hexlify(ethers.randomBytes(20)), // not relevant for BTCB tests
       1000, // not relevant for BTCB tests
       deployer.address, // not relevant for BTCB tests, but can not be zero

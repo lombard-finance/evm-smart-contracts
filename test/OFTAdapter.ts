@@ -1,4 +1,4 @@
-import { LBTCMock, EndpointV2Mock, LBTCOFTAdapter, LBTCBurnMintOFTAdapter } from '../typechain-types';
+import { StakedLBTCMock, EndpointV2Mock, LBTCOFTAdapter, LBTCBurnMintOFTAdapter } from '../typechain-types';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { getSignersWithPrivateKeys, deployContract, encode, Signer } from './helpers';
 import { ethers } from 'hardhat';
@@ -9,7 +9,7 @@ import { Result } from 'ethers';
 describe('OFTAdapter', function () {
   let deployer: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
 
-  let lbtc: LBTCMock;
+  let lbtc: StakedLBTCMock;
   let snapshot: SnapshotRestorer;
 
   const aEid = 1;
@@ -26,7 +26,7 @@ describe('OFTAdapter', function () {
   before(async function () {
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
-    lbtc = await deployContract<LBTCMock>('LBTCMock', [
+    lbtc = await deployContract<StakedLBTCMock>('StakedLBTCMock', [
       deployer.address, // consortium - not relevant for this test, but can not be zero
       100,
       deployer.address, // treasury - not relevant for this test, but can not be zero
