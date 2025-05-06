@@ -34,8 +34,8 @@ export function rawSign(signer: Signer, message: string): string {
 
 export const DEFAULT_LBTC_DUST_FEE_RATE = 3000;
 
-export const DEPOSIT_BTC_ACTION = '0xf2e73f7c';
-export const DEPOSIT_BTC_ACTION_V2 = '0xce25e7c2';
+export const DEPOSIT_BTC_ACTION_V0 = '0xf2e73f7c';
+export const DEPOSIT_BTC_ACTION_V1 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 
@@ -83,7 +83,7 @@ export async function signDepositBtcPayload(
 
   let msg = getPayloadForAction(
     [toChainBytes, encode(['address'], [recipient]), amount, txid, encode(['uint32'], [vout])],
-    DEPOSIT_BTC_ACTION
+    DEPOSIT_BTC_ACTION_V0
   );
   return signPayload(signers, signatures, msg);
 }
@@ -103,12 +103,16 @@ export async function signDepositBtcV1Payload(
     toChainBytes = encode(['uint256'], [toChain]);
   }
 
-  // tokenAddress is only length of address, so we need to right-pad it with zeros.
-  tokenAddress = tokenAddress.padEnd(66, '0');
-
   let msg = getPayloadForAction(
-    [toChainBytes, encode(['address'], [recipient]), amount, txid, encode(['uint32'], [vout]), tokenAddress],
-    DEPOSIT_BTC_ACTION_V2
+    [
+      toChainBytes,
+      encode(['address'], [recipient]),
+      amount,
+      txid,
+      encode(['uint32'], [vout]),
+      encode(['address'], [tokenAddress])
+    ],
+    DEPOSIT_BTC_ACTION_V1
   );
   return signPayload(signers, signatures, msg);
 }

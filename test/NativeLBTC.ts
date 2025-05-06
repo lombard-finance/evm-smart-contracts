@@ -8,7 +8,7 @@ import {
   getFeeTypedMessage,
   generatePermitSignature,
   NEW_VALSET,
-  DEPOSIT_BTC_ACTION,
+  DEPOSIT_BTC_ACTION_V0,
   encode,
   getPayloadForAction,
   signDepositBtcPayload,

@@ -785,7 +785,7 @@ contract NativeLBTC is
         Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             payload[4:]
         );
-        if (action.tokenAddress != bytes32(bytes20(address(this)))) {
+        if (action.tokenAddress != address(this)) {
             revert WrongTokenAddress(action.tokenAddress);
         }
 

@@ -18,7 +18,7 @@ interface ILBTC {
     error PayloadAlreadyUsed();
     error InvalidInputLength();
     error InvalidMintAmount();
-    error WrongTokenAddress(bytes32 wrongAddress);
+    error WrongTokenAddress(address wrongAddress);
 
     event PauserRoleTransferred(
         address indexed previousPauser,

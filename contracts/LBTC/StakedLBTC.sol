@@ -26,23 +26,23 @@ contract StakedLBTC is NativeLBTC {
 
         address recipient;
         uint256 amount;
-        if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V0) {
-            Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
-                payload[4:]
-            );
-
-            recipient = action.recipient;
-            amount = action.amount;
-        } else if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V1) {
+        if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V1) {
             Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
                 payload[4:]
             );
 
             recipient = action.recipient;
             amount = action.amount;
-            if (action.tokenAddress != bytes32(bytes20(address(this)))) {
+            if (action.tokenAddress != address(this)) {
                 revert WrongTokenAddress(action.tokenAddress);
             }
+        } else if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V0) {
+            Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
+                payload[4:]
+            );
+
+            recipient = action.recipient;
+            amount = action.amount;
         }
 
         return DecodedPayload(recipient, amount);

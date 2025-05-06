@@ -8,7 +8,7 @@ import {
   getFeeTypedMessage,
   generatePermitSignature,
   NEW_VALSET,
-  DEPOSIT_BTC_ACTION,
+  DEPOSIT_BTC_ACTION_V0,
   encode,
   getPayloadForAction,
   signDepositBtcPayload,
@@ -634,7 +634,7 @@ describe('StakedLBTC', function () {
               args.txId,
               0
             ],
-            DEPOSIT_BTC_ACTION
+            DEPOSIT_BTC_ACTION_V0
           );
 
           await expect(lbtc['mint(bytes,bytes)'](payload, data.proof)).to.revertedWithCustomError(
@@ -1221,7 +1221,7 @@ describe('StakedLBTC', function () {
               args.txId,
               0
             ],
-            DEPOSIT_BTC_ACTION
+            DEPOSIT_BTC_ACTION_V0
           );
 
           await expect(lbtc['mint(bytes,bytes)'](payload, data.proof)).to.revertedWithCustomError(

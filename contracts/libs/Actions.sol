@@ -16,7 +16,7 @@ library Actions {
         uint256 amount;
         bytes32 txid;
         uint32 vout;
-        bytes32 tokenAddress;
+        address tokenAddress;
     }
 
     struct DepositBridgeAction {
@@ -169,10 +169,10 @@ library Actions {
             uint256 amount,
             bytes32 txid,
             uint32 vout,
-            bytes32 tokenAddress
+            address tokenAddress
         ) = abi.decode(
                 payload,
-                (uint256, address, uint256, bytes32, uint32, bytes32)
+                (uint256, address, uint256, bytes32, uint32, address)
             );
 
         if (toChain != block.chainid) {
