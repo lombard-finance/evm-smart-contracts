@@ -90,9 +90,9 @@ library Actions {
     bytes32 internal constant FEE_APPROVAL_EIP712_ACTION =
         0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
-    bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
+    bytes4 internal constant DEPOSIT_BTC_ACTION_V0 = 0xf2e73f7c;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32)"))
-    bytes4 internal constant DEPOSIT_BTC_ACTION_V2 = 0xce25e7c2;
+    bytes4 internal constant DEPOSIT_BTC_ACTION_V1 = 0xce25e7c2;
     // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
     bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
@@ -123,11 +123,11 @@ library Actions {
     uint256 internal constant ABI_SLOT_SIZE = 32;
 
     /**
-     * @notice Returns decoded deposit btc msg
+     * @notice Returns decoded deposit btc msg v0
      * @dev Message should not contain the selector
      * @param payload Body of the mint payload
      */
-    function depositBtc(
+    function depositBtcV0(
         bytes memory payload
     ) internal view returns (DepositBtcActionV0 memory) {
         if (payload.length != ABI_SLOT_SIZE * 5) revert PayloadTooLarge();
@@ -154,11 +154,11 @@ library Actions {
     }
 
     /**
-     * @notice Returns decoded deposit btc msg v2
+     * @notice Returns decoded deposit btc msg v1
      * @dev Message should not contain the selector
      * @param payload Body of the mint payload
      */
-    function depositBtcV2(
+    function depositBtcV1(
         bytes memory payload
     ) internal view returns (DepositBtcActionV1 memory) {
         if (payload.length != ABI_SLOT_SIZE * 6) revert PayloadTooLarge();

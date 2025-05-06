@@ -18,23 +18,23 @@ contract StakedLBTC is NativeLBTC {
         bytes calldata payload
     ) internal view override returns (DecodedPayload memory) {
         if (
-            bytes4(payload) != Actions.DEPOSIT_BTC_ACTION &&
-            bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V2
+            bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V0 &&
+            bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V1
         ) {
             revert UnexpectedAction(bytes4(payload));
         }
 
         address recipient;
         uint256 amount;
-        if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION) {
-            Actions.DepositBtcActionV0 memory action = Actions.depositBtc(
+        if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V0) {
+            Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
                 payload[4:]
             );
 
             recipient = action.recipient;
             amount = action.amount;
-        } else if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V2) {
-            Actions.DepositBtcActionV1 memory action = Actions.depositBtcV2(
+        } else if (bytes4(payload) == Actions.DEPOSIT_BTC_ACTION_V1) {
+            Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
                 payload[4:]
             );
 

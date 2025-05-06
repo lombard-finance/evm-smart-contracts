@@ -779,10 +779,10 @@ contract NativeLBTC is
     function _decodeMintPayload(
         bytes calldata payload
     ) internal view virtual returns (DecodedPayload memory) {
-        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V2) {
+        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V1) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV2(
+        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             payload[4:]
         );
         if (action.tokenAddress != bytes32(bytes20(address(this)))) {

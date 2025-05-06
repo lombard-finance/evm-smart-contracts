@@ -268,7 +268,7 @@ contract StakeAndBake is
             );
 
         // Check the recipient.
-        Actions.DepositBtcActionV0 memory action = Actions.depositBtc(
+        Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
             data.mintPayload[4:]
         );
         address owner = action.recipient;
