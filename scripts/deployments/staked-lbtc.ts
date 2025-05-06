@@ -31,7 +31,7 @@ task('deploy-staked-lbtc', 'Deploys the StakedLBTC contract')
     }
 
     const data = await create3(
-      'StakedLBTC',
+      'LBTC',
       [consortium, burnCommission, treasury, admin],
       proxyFactoryAddr,
       ledgerNetwork,
