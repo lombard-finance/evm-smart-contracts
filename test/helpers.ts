@@ -221,7 +221,8 @@ export async function generatePermitSignature(
   value: BigNumberish,
   deadline: BigNumberish,
   chainId: BigNumberish,
-  nonce: BigNumberish
+  nonce: BigNumberish,
+  name: string = 'Lombard Staked Bitcoin'
 ): Promise<{ v: number; r: string; s: string }> {
   const ownerAddress = await owner.getAddress();
 
@@ -245,7 +246,7 @@ export async function generatePermitSignature(
 
   const signature = await owner.signTypedData(
     {
-      name: 'Lombard Staked Bitcoin',
+      name: name,
       version: '1',
       chainId: chainId,
       verifyingContract: await token.getAddress()

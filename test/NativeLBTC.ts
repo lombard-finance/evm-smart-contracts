@@ -56,16 +56,16 @@ describe('NativeLBTC', function () {
     );
 
     // mock minter for lbtc
-    await lbtc.addMinter(deployer.address);
-    await lbtc2.addMinter(deployer.address);
+    await lbtc.grantRole(await lbtc.MINTER_ROLE(), deployer.address);
+    await lbtc2.grantRole(await lbtc.MINTER_ROLE(), deployer.address);
 
     // set deployer as claimer for lbtc
-    await lbtc.addClaimer(deployer.address);
-    await lbtc2.addClaimer(deployer.address);
+    await lbtc.grantRole(await lbtc.CLAIMER_ROLE(), deployer.address);
+    await lbtc2.grantRole(await lbtc.CLAIMER_ROLE(), deployer.address);
 
     // set deployer as operator for lbtc
-    await lbtc.transferOperatorRole(deployer.address);
-    await lbtc2.transferOperatorRole(deployer.address);
+    await lbtc.grantRole(await lbtc.OPERATOR_ROLE(), deployer.address);
+    await lbtc2.grantRole(await lbtc.OPERATOR_ROLE(), deployer.address);
 
     // Initialize the permit module
     await lbtc.reinitialize();
@@ -87,7 +87,7 @@ describe('NativeLBTC', function () {
     });
 
     it('owner() is deployer', async function () {
-      expect(await lbtc.owner()).to.equal(deployer.address);
+      expect(await lbtc.hasRole(await lbtc.DEFAULT_ADMIN_ROLE(), deployer.address)).to.equal(true);
     });
 
     it('decimals()', async function () {
@@ -105,23 +105,19 @@ describe('NativeLBTC', function () {
 
     it('pause() turns on enforced pause', async function () {
       expect(await lbtc.paused()).to.be.false;
-      await expect(lbtc.transferPauserRole(pauser.address))
-        .to.emit(lbtc, 'PauserRoleTransferred')
-        .withArgs(ethers.ZeroAddress, pauser.address);
+      expect(await lbtc.grantRole(await lbtc.PAUSER_ROLE(), pauser.address));
       await expect(lbtc.connect(pauser).pause()).to.emit(lbtc, 'Paused').withArgs(pauser.address);
       expect(await lbtc.paused()).to.be.true;
     });
 
     it('pause() reverts when called by not an pauser', async function () {
       await expect(lbtc.connect(signer1).pause())
-        .to.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
-        .withArgs(signer1.address);
+        .to.revertedWithCustomError(lbtc, 'AccessControlUnauthorizedAccount')
+        .withArgs(signer1.address, await lbtc.PAUSER_ROLE());
     });
 
     it('unpause() turns off enforced pause', async function () {
-      await expect(lbtc.transferPauserRole(pauser.address))
-        .to.emit(lbtc, 'PauserRoleTransferred')
-        .withArgs(ethers.ZeroAddress, pauser.address);
+      await expect(lbtc.grantRole(await lbtc.PAUSER_ROLE(), pauser.address));
 
       await lbtc.connect(pauser).pause();
       expect(await lbtc.paused()).to.be.true;
@@ -130,14 +126,12 @@ describe('NativeLBTC', function () {
     });
 
     it('unpause() reverts when called by not an pauser', async function () {
-      await expect(lbtc.transferPauserRole(pauser.address))
-        .to.emit(lbtc, 'PauserRoleTransferred')
-        .withArgs(ethers.ZeroAddress, pauser.address);
+      await expect(lbtc.grantRole(await lbtc.PAUSER_ROLE(), pauser.address));
       await lbtc.connect(pauser).pause();
       expect(await lbtc.paused()).to.be.true;
       await expect(lbtc.connect(signer1).unpause())
-        .to.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
-        .withArgs(signer1.address);
+        .to.revertedWithCustomError(lbtc, 'AccessControlUnauthorizedAccount')
+        .withArgs(signer1.address, await lbtc.PAUSER_ROLE());
     });
 
     it('toggleWithdrawals() enables or disables burn', async function () {
@@ -149,7 +143,7 @@ describe('NativeLBTC', function () {
     it('toggleWithdrawals() reverts when called by not an owner', async function () {
       await expect(lbtc.connect(signer1).toggleWithdrawals()).to.revertedWithCustomError(
         lbtc,
-        'OwnableUnauthorizedAccount'
+        'AccessControlUnauthorizedAccount'
       );
     });
 
@@ -162,102 +156,21 @@ describe('NativeLBTC', function () {
         .withArgs(await bascule.getAddress(), ethers.ZeroAddress);
     });
 
-    it('addMinter should be callable by owner', async function () {
-      await expect(lbtc.addMinter(signer1.address)).to.emit(lbtc, 'MinterUpdated').withArgs(signer1.address, true);
-      expect(await lbtc.isMinter(signer1.address)).to.be.true;
-      await lbtc.connect(signer1)['mint(address,uint256)'](signer2.address, 100_000_000n);
-      expect(await lbtc.balanceOf(signer2.address)).to.be.eq(100_000_000n);
-    });
-
-    it('removeMinter should be callable by owner', async function () {
-      await lbtc.addMinter(signer1.address);
-      await expect(lbtc.removeMinter(signer1.address)).to.emit(lbtc, 'MinterUpdated').withArgs(signer1.address, false);
-      expect(await lbtc.isMinter(signer1.address)).to.be.false;
-      await expect(lbtc.connect(signer1)['mint(address,uint256)'](signer2.address, 100_000_000n))
-        .to.be.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
-        .withArgs(signer1.address);
-    });
-
-    it('should fail to add minter if not owner', async function () {
-      await expect(lbtc.connect(signer1).addMinter(signer1.address)).to.revertedWithCustomError(
-        lbtc,
-        'OwnableUnauthorizedAccount'
-      );
-    });
-
-    it('should fail to add zero address as minter', async function () {
-      await expect(lbtc.addMinter(ethers.ZeroAddress)).to.revertedWithCustomError(lbtc, 'ZeroAddress');
-    });
-
-    it('should fail to remove minter if not owner', async function () {
-      await expect(lbtc.connect(signer1).removeMinter(signer1.address)).to.revertedWithCustomError(
-        lbtc,
-        'OwnableUnauthorizedAccount'
-      );
-    });
-
-    it('addClaimer should be callable by owner', async function () {
-      await expect(lbtc.addClaimer(signer1.address)).to.emit(lbtc, 'ClaimerUpdated').withArgs(signer1.address, true);
-      expect(await lbtc.isClaimer(signer1.address)).to.be.true;
-    });
-
-    it('removeClaimer should be callable by owner', async function () {
-      await lbtc.addClaimer(signer1.address);
-      await expect(lbtc.removeClaimer(signer1.address))
-        .to.emit(lbtc, 'ClaimerUpdated')
-        .withArgs(signer1.address, false);
-      expect(await lbtc.isClaimer(signer1.address)).to.be.false;
-    });
-
-    it('should fail to add claimer if not owner', async function () {
-      await expect(lbtc.connect(signer1).addClaimer(signer1.address)).to.revertedWithCustomError(
-        lbtc,
-        'OwnableUnauthorizedAccount'
-      );
-    });
-
-    it('should fail to add zero address as claimer', async function () {
-      await expect(lbtc.addClaimer(ethers.ZeroAddress)).to.revertedWithCustomError(lbtc, 'ZeroAddress');
-    });
-
-    it('should fail to remove claimer if not owner', async function () {
-      await expect(lbtc.connect(signer1).removeClaimer(signer1.address)).to.revertedWithCustomError(
-        lbtc,
-        'OwnableUnauthorizedAccount'
-      );
-    });
-
-    it('transferOperatorRole should be callable by owner', async function () {
-      await expect(lbtc.transferOperatorRole(signer1.address))
-        .to.emit(lbtc, 'OperatorRoleTransferred')
-        .withArgs(deployer.address, signer1.address);
-      expect(await lbtc.operator()).to.be.equal(signer1.address);
-    });
-
-    it('should fail to add operator if not owner', async function () {
-      await expect(lbtc.connect(signer1).transferOperatorRole(signer1.address)).to.revertedWithCustomError(
-        lbtc,
-        'OwnableUnauthorizedAccount'
-      );
-    });
-
-    it('should fail to add zero address operator', async function () {
-      await expect(lbtc.transferOperatorRole(ethers.ZeroAddress)).to.revertedWithCustomError(lbtc, 'ZeroAddress');
-    });
-
     it('should set mint fee by operator', async function () {
       await expect(lbtc.setMintFee(1234)).to.emit(lbtc, 'FeeChanged').withArgs(0, 1234);
       expect(await lbtc.getMintFee()).to.be.equal(1234);
     });
 
     it('should fail to set mint fee if not operator', async function () {
-      await expect(lbtc.connect(signer1).setMintFee(1)).to.revertedWithCustomError(lbtc, 'UnauthorizedAccount');
+      await expect(lbtc.connect(signer1).setMintFee(1))
+        .to.revertedWithCustomError(lbtc, 'AccessControlUnauthorizedAccount')
+        .withArgs(signer1.address, await lbtc.OPERATOR_ROLE());
     });
 
     it('changeTreasuryAddres() fails if not owner', async function () {
       await expect(lbtc.connect(signer1).changeTreasuryAddress(signer1.address)).to.revertedWithCustomError(
         lbtc,
-        'OwnableUnauthorizedAccount'
+        'AccessControlUnauthorizedAccount'
       );
     });
 
@@ -272,7 +185,7 @@ describe('NativeLBTC', function () {
     it('changeDustFeeRate() fails if not owner', async function () {
       await expect(lbtc.connect(signer1).changeDustFeeRate(BigInt(1000))).to.revertedWithCustomError(
         lbtc,
-        'OwnableUnauthorizedAccount'
+        'AccessControlUnauthorizedAccount'
       );
     });
 
@@ -562,7 +475,8 @@ describe('NativeLBTC', function () {
         10_000n,
         timestamp + 100,
         chainId,
-        0
+        0,
+        'Lombard Native Bitcoin'
       );
 
       await lbtc.permit(signer1.address, signer2.address, 10_000n, timestamp + 100, v, r, s);
