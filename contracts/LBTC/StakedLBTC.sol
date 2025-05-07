@@ -2,11 +2,8 @@
 pragma solidity 0.8.24;
 
 import {LBTCBase} from "./LBTCBase.sol";
-import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
@@ -19,9 +16,22 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
- * @notice The contracts is a part of Lombard.Finace protocol
+ * @notice This contract is part of the Lombard.Finance protocol
  */
 contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
+    error UnauthorizedAccount(address account);
+
+    event PauserRoleTransferred(
+        address indexed previousPauser,
+        address indexed newPauser
+    );
+    event OperatorRoleTransferred(
+        address indexed previousOperator,
+        address indexed newOperator
+    );
+    event MinterUpdated(address indexed minter, bool isMinter);
+    event ClaimerUpdated(address indexed claimer, bool isClaimer);
+
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
         /// @dev is keccak256(payload[4:]) used
@@ -254,23 +264,14 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
             amount,
-            $.burnCommission
+            $.burnCommission,
+            $.dustFeeRate
         );
         return (amountAfterFee, isAboveDust);
     }
 
     function consortium() external view virtual returns (address) {
         return _getLBTCStorage().consortium;
-    }
-
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     *
-     * Because LBTC repsents BTC we use the same decimals.
-     *
-     */
-    function decimals() public view virtual override returns (uint8) {
-        return 8;
     }
 
     /**
@@ -357,27 +358,6 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Mint LBTC by proving a stake action happened
-     * @param payload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
-     */
-    function mint(
-        bytes calldata payload,
-        bytes calldata proof
-    ) public nonReentrant {
-        // payload validation
-        DecodedPayload memory decodedPayload = _decodeMintPayload(payload);
-
-        _validateAndMint(
-            decodedPayload.recipient,
-            decodedPayload.amount,
-            decodedPayload.amount,
-            payload,
-            proof
-        );
-    }
-
-    /**
      * @notice Mint LBTC in batches by proving stake actions happened
      * @param payload The messages with the stake data
      * @param proof Signatures of the consortium approving the mints
@@ -417,7 +397,15 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         bytes calldata feePayload,
         bytes calldata userSignature
     ) external onlyClaimer {
-        _mintWithFee(mintPayload, proof, feePayload, userSignature);
+        LBTCStorage storage $ = _getLBTCStorage();
+        _mintWithFee(
+            mintPayload,
+            proof,
+            feePayload,
+            userSignature,
+            $.maximumFee,
+            $.treasury
+        );
     }
 
     /**
@@ -442,6 +430,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
             revert InvalidInputLength();
         }
 
+        LBTCStorage storage $ = _getLBTCStorage();
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
@@ -455,7 +444,9 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
                 mintPayload[i],
                 proof[i],
                 feePayload[i],
-                userSignature[i]
+                userSignature[i],
+                $.maximumFee,
+                $.treasury
             );
         }
     }
@@ -479,7 +470,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
             bool isAboveFee,
             uint256 dustLimit,
             bool isAboveDust
-        ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee);
+        ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee, $.dustFeeRate);
         if (!isAboveFee) {
             revert AmountLessThanCommission(fee);
         }
@@ -492,15 +483,6 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         _burn(fromAddress, amountAfterFee);
 
         emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
-    }
-
-    /**
-     * @dev Burns LBTC
-     *
-     * @param amount Amount of LBTC to burn
-     */
-    function burn(uint256 amount) external {
-        _burn(_msgSender(), amount);
     }
 
     /**
@@ -568,7 +550,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         uint256 depositAmount,
         bytes calldata payload,
         bytes calldata proof
-    ) internal {
+    ) internal override {
         LBTCStorage storage $ = _getLBTCStorage();
 
         if (amountToMint > depositAmount) revert InvalidMintAmount();
@@ -585,7 +567,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, legacyHash, depositAmount);
+        _confirmDeposit($.bascule, legacyHash, depositAmount);
 
         // Actually mint
         _mint(recipient, amountToMint);
@@ -598,23 +580,6 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
-    }
-
-    /**
-     * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param self LBTC storage.
-     * @param depositID The unique ID of the deposit.
-     * @param amount The withdrawal amount.
-     */
-    function _confirmDeposit(
-        LBTCStorage storage self,
-        bytes32 depositID,
-        uint256 amount
-    ) internal {
-        IBascule bascule = self.bascule;
-        if (address(bascule) != address(0)) {
-            bascule.validateWithdrawal(depositID, amount);
-        }
     }
 
     /**
@@ -641,72 +606,6 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         address oldOperator = $.operator;
         $.operator = newOperator;
         emit OperatorRoleTransferred(oldOperator, newOperator);
-    }
-
-    function _mintWithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) internal virtual nonReentrant {
-        // mint payload validation
-        DecodedPayload memory decodedPayload = _decodeMintPayload(mintPayload);
-
-        // fee payload validation
-        if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
-            revert UnexpectedAction(bytes4(feePayload));
-        }
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
-            feePayload[4:]
-        );
-
-        LBTCStorage storage $ = _getLBTCStorage();
-        uint256 fee = $.maximumFee;
-        if (fee > feeAction.fee) {
-            fee = feeAction.fee;
-        }
-
-        if (fee >= decodedPayload.amount) {
-            revert FeeGreaterThanAmount();
-        }
-
-        {
-            // Fee validation
-            bytes32 digest = _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        Actions.FEE_APPROVAL_EIP712_ACTION,
-                        block.chainid,
-                        feeAction.fee,
-                        feeAction.expiry
-                    )
-                )
-            );
-
-            if (
-                !EIP1271SignatureUtils.checkSignature(
-                    decodedPayload.recipient,
-                    digest,
-                    userSignature
-                )
-            ) {
-                revert InvalidUserSignature();
-            }
-        }
-
-        // modified payload to be signed
-        _validateAndMint(
-            decodedPayload.recipient,
-            decodedPayload.amount - fee,
-            decodedPayload.amount,
-            mintPayload,
-            proof
-        );
-
-        // mint fee to treasury
-        _mint($.treasury, fee);
-
-        emit FeeCharged(fee, userSignature);
     }
 
     function _checkPauser() internal view {
@@ -741,35 +640,9 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         emit TreasuryAddressChanged(prevValue, newValue);
     }
 
-    function _calcFeeAndDustLimit(
-        bytes calldata scriptPubkey,
-        uint256 amount,
-        uint64 fee
-    ) internal view returns (uint256, bool, uint256, bool) {
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-        if (outType == OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-
-        if (amount <= fee) {
-            return (0, false, 0, false);
-        }
-
-        LBTCStorage storage $ = _getLBTCStorage();
-        uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
-            scriptPubkey,
-            $.dustFeeRate
-        );
-
-        bool isAboveDust = amountAfterFee > dustLimit;
-        return (amountAfterFee, true, dustLimit, isAboveDust);
-    }
-
     function _decodeMintPayload(
         bytes calldata payload
-    ) internal view returns (DecodedPayload memory) {
+    ) internal view override returns (DecodedPayload memory) {
         if (
             bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V0 &&
             bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V1
