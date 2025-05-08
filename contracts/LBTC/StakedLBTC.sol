@@ -12,6 +12,7 @@ import {FeeUtils} from "../libs/FeeUtils.sol";
 import {Consortium} from "../consortium/Consortium.sol";
 import {Actions} from "../libs/Actions.sol";
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
@@ -19,7 +20,10 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
  * @notice This contract is part of the Lombard.Finance protocol
  */
 contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
+    using SafeERC20 for IERC20;
+
     error UnauthorizedAccount(address account);
+    error ZeroAmount();
 
     event PauserRoleTransferred(
         address indexed previousPauser,
@@ -31,6 +35,9 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     );
     event MinterUpdated(address indexed minter, bool isMinter);
     event ClaimerUpdated(address indexed claimer, bool isClaimer);
+    event NativeLBTCUpdated(address indexed nativeLBTC);
+    event WrapInitiated(address indexed user, bytes32 indexed swapId, uint256 amount);
+    event UnwrapInitiated(address indexed user, bytes32 indexed swapId, uint256 amount);
 
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct LBTCStorage {
@@ -67,6 +74,10 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         // @dev is sha256(payload) used
         mapping(bytes32 => bool) usedPayloads;
         address operator;
+        IERC20 nativeLBTC;
+        mapping(address => bytes32[]) pendingSwaps;
+        mapping(bytes32 => uint256) swapAmounts;
+        mapping(address => uint256) swapNonce;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
@@ -181,6 +192,10 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         _changeBurnCommission(newValue);
     }
 
+    function changeNativeLBTC(IERC20 nativeLBTC) external onlyOwner {
+        _changeNativeLBTC(nativeLBTC);
+    }
+
     function pause() external onlyPauser {
         _pause();
     }
@@ -253,7 +268,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
     /// @dev This function can be used by front-ends to verify burn amounts before submitting a transaction
     /// @param scriptPubkey The Bitcoin script public key as a byte array
-    /// @param amount The amount of LBTC to be burned
+    /// @param amount The amount of stLBTC to be burned
     /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
     /// @return isAboveDust Whether the amountAfterFee is equal to or above the dust limit
     function calcUnstakeRequestAmount(
@@ -329,9 +344,9 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     /// USER ACTIONS ///
 
     /**
-     * @notice Mint LBTC to the specified address
+     * @notice Mint stLBTC to the specified address
      * @param to The address to mint to
-     * @param amount The amount of LBTC to mint
+     * @param amount The amount of stLBTC to mint
      * @dev Only callable by whitelisted minters
      */
     function mint(address to, uint256 amount) external override onlyMinter {
@@ -339,9 +354,9 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Mint LBTC in batches
+     * @notice Mint stLBTC in batches
      * @param to The addresses to mint to
-     * @param amount The amounts of LBTC to mint
+     * @param amount The amounts of stLBTC to mint
      * @dev Only callable by whitelisted minters
      */
     function batchMint(
@@ -358,7 +373,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Mint LBTC in batches by proving stake actions happened
+     * @notice Mint stLBTC in batches by proving stake actions happened
      * @param payload The messages with the stake data
      * @param proof Signatures of the consortium approving the mints
      */
@@ -384,7 +399,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Mint LBTC applying a commission to the amount
+     * @notice Mint stLBTC applying a commission to the amount
      * @dev Payload should be same as mint to avoid reusing them with and without fee
      * @param mintPayload The message with the stake data
      * @param proof Signature of the consortium approving the mint
@@ -409,7 +424,7 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Mint LBTC in batches proving stake actions happened
+     * @notice Mint stLBTC in batches proving stake actions happened
      * @param mintPayload The messages with the stake data
      * @param proof Signatures of the consortium approving the mints
      * @param feePayload Contents of the fee approvals signed by the user
@@ -452,10 +467,10 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
+     * @dev Burns stLBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
      * @param scriptPubkey scriptPubkey for output
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of stLBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         LBTCStorage storage $ = _getLBTCStorage();
@@ -486,12 +501,64 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
     }
 
     /**
-     * @dev Allows minters to burn LBTC
+     * @dev Allows minters to burn stLBTC
      *
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of stLBTC to burn
      */
     function burn(address from, uint256 amount) external override onlyMinter {
         _burn(from, amount);
+    }
+
+    /**
+     * @dev Initiates a wrap, converting LBTC to stLBTC
+     * @param amount Amount of LBTC to wrap
+     */
+    function initiateWrap(uint256 amount) external nonReentrant {
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 nonce = $.swapNonce[_msgSender()];
+        bytes32 swapId = sha256(abi.encode(_msgSender(), nonce));
+        $.swapNonce[_msgSender()] += 1;
+        $.swapAmounts[swapId] = amount;
+        $.nativeLBTC.safeTransferFrom(_msgSender(), address(this), amount);
+
+        emit WrapInitiated(_msgSender(), swapId, amount);
+    }
+
+    /**
+     * @dev Finishes a wrap operation
+     * @param payload The wrap payload
+     */
+    function finishWrap(bytes payload) external nonReentrant {
+    }
+
+    /**
+     * @dev Initiates an unwrap, converting stLBTC to LBTC
+     * @param amount Amount of stLBTC to unwrap
+     */
+    function initiateUnwrap(uint256 amount) external nonReentrant {
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        LBTCStorage storage $ = _getLBTCStorage();
+        uint256 nonce = $.swapNonce[_msgSender()];
+        bytes32 swapId = sha256(abi.encode(_msgSender(), nonce));
+        $.swapNonce[_msgSender()] += 1;
+        $.swapAmounts[swapId] = amount;
+        IERC20(this).safeTransferFrom(_msgSender(), address(this), amount);
+
+        emit UnwrapInitiated(_msgSender(), swapId, amount);
+    }
+
+    /**
+     * @dev Finishes an unwrap operation
+     * @param payload The unwrap payload
+     */
+    function finishUnwrap(bytes payload) external nonReentrant {
     }
 
     /**
@@ -580,6 +647,12 @@ contract StakedLBTC is LBTCBase, Ownable2StepUpgradeable {
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
+    }
+
+    function _changeNativeLBTC(IERC20 nativeLBTC_) internal {
+        LBTCStorage storage $ = _getLBTCStorage();
+        $.nativeLBTC = nativeLBTC_;
+        emit NativeLBTCUpdated(address(nativeLBTC_));
     }
 
     /**
