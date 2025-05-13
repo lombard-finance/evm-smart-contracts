@@ -1,0 +1,223 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import {MessagePath} from "./libs/MessagePath.sol";
+import {IMailbox} from "./IMailbox.sol";
+import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {RateLimits} from "../libs/RateLimits.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LChainId} from "../libs/LChainId.sol";
+import {IHandler} from "./IHandler.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {GMPUtils} from "./libs/GMPUtils.sol";
+
+/**
+ * @title Mailbox to send/receive messages by Lombard Generalized Message Passing Protocol
+ * @author Lombard.Finance
+ * @notice The contract is a part of Lombard Generalized Message Passing protocol
+ */
+contract Mailbox is
+    IMailbox,
+    Ownable2StepUpgradeable,
+    ReentrancyGuardUpgradeable
+{
+    using MessagePath for MessagePath.Details;
+
+    /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
+    struct MailboxStorage {
+        INotaryConsortium consortium;
+        // Increments with each cross chain operation and should be part of the payload
+        // Makes each payload unique
+        uint256 globalNonce;
+        mapping(bytes32 => bytes32) outboundMessagePath; // Message Path id => destination chain id
+        mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => destination mailbox address
+        mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
+        mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
+    }
+
+    /// TODO: calculate
+    /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant MAILBOX_STORAGE_LOCATION =
+        0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
+
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address owner_,
+        INotaryConsortium consortium_
+    ) external initializer {
+        __Ownable_init(owner_);
+        __Ownable2Step_init();
+        __ReentrancyGuard_init();
+
+        __Mailbox_init(consortium_);
+    }
+
+    function __Mailbox_init(
+        INotaryConsortium consortium_
+    ) internal onlyInitializing {
+        // TODO: check for zero address
+        MailboxStorage storage $ = _getStorage();
+        $.consortium = consortium_;
+    }
+
+    function consortium() external view returns (INotaryConsortium) {
+        return _getStorage().consortium;
+    }
+
+    function enableMessagePath(
+        bytes32 destinationChain,
+        bytes32 destinationMailbox
+    ) external onlyOwner {
+        if (destinationChain == bytes32(0)) {
+            revert Mailbox_ZeroChainId();
+        }
+
+        MessagePath.Details memory outboundPath = MessagePath.Details(
+            GMPUtils.addressToBytes32(address(this)),
+            LChainId.get(),
+            destinationChain
+        );
+        bytes32 outboundId = outboundPath.id();
+
+        MessagePath.Details memory inboundPath = MessagePath.Details(
+            destinationMailbox,
+            destinationChain,
+            LChainId.get()
+        );
+        bytes32 inboundId = inboundPath.id();
+
+        MailboxStorage storage $ = _getStorage();
+
+        // set outbound message path if not exist
+        if ($.outboundMessagePath[outboundId] != bytes32(0)) {
+            revert Mailbox_MessagePathEnabled(outboundId);
+        }
+        $.outboundMessagePath[outboundId] = destinationChain;
+
+        if ($.inboundMessagePath[inboundId] != bytes32(0)) {
+            revert Mailbox_MessagePathEnabled(inboundId);
+        }
+        $.inboundMessagePath[inboundId] = destinationMailbox;
+
+        emit MessagePathEnabled(destinationChain, destinationMailbox);
+    }
+
+    // TODO: implement disableMessagePath
+
+    // TODO: make whitelist
+    function send(
+        bytes32 destinationChain,
+        bytes32 recipient,
+        bytes32 destinationCaller,
+        bytes calldata body
+    ) external payable nonReentrant returns (uint256, bytes32) {
+        MessagePath.Details memory messagePath = MessagePath.Details(
+            GMPUtils.addressToBytes32(address(this)),
+            LChainId.get(),
+            destinationChain
+        );
+        bytes32 outboundId = messagePath.id();
+
+        MailboxStorage storage $ = _getStorage();
+
+        // revert if message path disabled
+        if ($.outboundMessagePath[outboundId] == bytes32(0)) {
+            revert Mailbox_MessagePathDisabled(outboundId);
+        }
+
+        uint256 nonce = $.globalNonce++;
+
+        address msgSender = _msgSender();
+
+        // prepare payload
+        bytes memory rawPayload = GMPUtils.encodePayload(
+            outboundId,
+            nonce,
+            GMPUtils.addressToBytes32(msgSender),
+            recipient,
+            destinationCaller,
+            body
+        );
+
+        // TODO: calculate fee based on payload size
+        // TODO: whitelist max payload size
+
+        emit MessageSent(destinationChain, msgSender, recipient, rawPayload);
+        return (nonce, GMPUtils.hash(rawPayload));
+    }
+
+    // no replay protection
+    // TODO: implement deliver only method, then relayer can only deliver payload
+    function deliverAndHandle(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) external nonReentrant returns (bytes32) {
+        GMPUtils.Payload memory payload = GMPUtils.decodePayload(rawPayload);
+        MailboxStorage storage $ = _getStorage();
+        address msgSender = _msgSender();
+
+        // revert if message path disabled
+        if ($.inboundMessagePath[payload.msgPath] == bytes32(0)) {
+            revert Mailbox_MessagePathDisabled(payload.msgPath);
+        }
+
+        bytes32 payloadHash = GMPUtils.hash(rawPayload);
+        // if not verified check the proof
+        if (!$.deliveredPayload[payloadHash]) {
+            $.consortium.checkProof(payloadHash, proof);
+            $.deliveredPayload[payloadHash] = true;
+            emit MessageDelivered(payloadHash, msgSender, rawPayload);
+        }
+
+        // verify who is able to execute message
+        if (
+            payload.msgDestinationCaller != address(0) &&
+            payload.msgDestinationCaller != msgSender
+        ) {
+            revert Mailbox_UnexpectedDestinationCaller(
+                payload.msgDestinationCaller,
+                msgSender
+            );
+        }
+
+        // check recipient interface
+        if (
+            !ERC165Checker.supportsInterface(
+                payload.msgRecipient,
+                type(IHandler).interfaceId
+            )
+        ) {
+            revert Mailbox_HandlerNotImplemented();
+        }
+
+        try IHandler(payload.msgRecipient).handlePayload(payload) returns (
+            bytes memory executionResult
+        ) {
+            emit MessageHandled(payloadHash, msgSender, executionResult);
+            $.handledPayload[payloadHash] = true;
+        } catch Error(string memory reason) {
+            emit MessageHandleError(payloadHash, msgSender, reason);
+        } catch (bytes memory lowLevelData) {
+            emit MessageHandleError(
+                payloadHash,
+                msgSender,
+                string(lowLevelData)
+            );
+        }
+
+        return payloadHash;
+    }
+
+    function _getStorage() private pure returns (MailboxStorage storage $) {
+        assembly {
+            $.slot := MAILBOX_STORAGE_LOCATION
+        }
+    }
+}

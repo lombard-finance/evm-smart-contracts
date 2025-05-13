@@ -17,7 +17,8 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function feeApproval(uint256,uint256)',
   'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
-  'function payload(uint256,bytes[],uint256[],uint256,uint256) external'
+  'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
+  'function V1(bytes32,uint256,bytes32,bytes32,bytes32,bytes) external'
 ]);
 
 export function getPayloadForAction(data: any[], action: string) {
@@ -36,6 +37,7 @@ export const DEFAULT_LBTC_DUST_FEE_RATE = 3000;
 export const DEPOSIT_BTC_ACTION = '0xf2e73f7c';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
+export const GMP_V1_SELECTOR = '0x6f6116ec';
 
 export async function signDepositBridgePayload(
   signers: Signer[],

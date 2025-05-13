@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+interface IMailbox {
+    error Mailbox_ZeroChainId();
+    error Mailbox_MessagePathEnabled(bytes32 id);
+    error Mailbox_MessagePathDisabled(bytes32 id);
+    error Mailbox_UnexpectedDestinationCaller(address expected, address actual);
+    error Mailbox_HandlerNotImplemented();
+
+    event MessagePathEnabled(
+        bytes32 indexed destinationChain,
+        bytes32 indexed destinationMailbox
+    );
+
+    event MessageSent(
+        bytes32 indexed destinationLChainId,
+        address indexed sender,
+        bytes32 indexed recipient,
+        bytes payload
+    );
+
+    event MessageDelivered(
+        bytes32 indexed payloadHash,
+        address indexed destinationCaller,
+        // TODO: add more indexed events
+        bytes payload
+    );
+
+    event MessageHandled(
+        bytes32 indexed payloadHash,
+        address indexed destinationCaller,
+        bytes executionResult
+    );
+
+    event MessageHandleError(
+        bytes32 indexed payloadHash,
+        address indexed destinationCaller,
+        string reason
+    );
+}
