@@ -5,6 +5,7 @@ interface IMailbox {
     error Mailbox_ZeroChainId();
     error Mailbox_ZeroConsortium();
     error Mailbox_ZeroMailbox();
+    error Mailbox_ZeroRecipient();
     error Mailbox_MessagePathEnabled(bytes32 id);
     error Mailbox_MessagePathDisabled(bytes32 id);
     error Mailbox_UnexpectedDestinationCaller(address expected, address actual);

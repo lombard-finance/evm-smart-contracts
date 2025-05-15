@@ -146,7 +146,7 @@ contract Mailbox is
     function _calcInboundMessagePath(
         bytes32 destinationChain,
         bytes32 destinationMailbox
-    ) internal pure returns (bytes32) {
+    ) internal view returns (bytes32) {
         MessagePath.Details memory inboundPath = MessagePath.Details(
             destinationMailbox,
             destinationChain,
@@ -157,7 +157,7 @@ contract Mailbox is
 
     function _calcOutboundMessagePath(
         bytes32 destinationChain
-    ) internal pure returns (bytes32) {
+    ) internal view returns (bytes32) {
         MessagePath.Details memory outboundPath = MessagePath.Details(
             GMPUtils.addressToBytes32(address(this)),
             LChainId.get(),
@@ -172,6 +172,12 @@ contract Mailbox is
         bytes32 destinationCaller,
         bytes calldata body
     ) external payable nonReentrant returns (uint256, bytes32) {
+
+        if (recipient == bytes32(0)) {
+            revert Mailbox_ZeroRecipient();
+        }
+
+
         MessagePath.Details memory messagePath = MessagePath.Details(
             GMPUtils.addressToBytes32(address(this)),
             LChainId.get(),
