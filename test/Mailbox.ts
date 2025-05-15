@@ -41,6 +41,7 @@ class Addressable {
   set address(value: string) {
     this._address = value;
   }
+  // @ts-ignore
   private _address: string;
 }
 
@@ -314,6 +315,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -434,6 +436,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [ethers.ZeroAddress]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -483,6 +486,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -647,6 +651,7 @@ describe('Mailbox', function () {
 
           const { proof } = await signPayload([arg.notary()], [true], payload);
 
+          // @ts-ignore
           await expect(
             dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof)
           ).to.be.revertedWithCustomError(...arg.customError());
