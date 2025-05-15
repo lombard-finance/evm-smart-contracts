@@ -5,33 +5,13 @@ import {
   encode,
   getPayloadForAction,
   getSignersWithPrivateKeys,
-  GMP_V1_SELECTOR,
   NEW_VALSET,
   Signer,
-  signPayload
+  signPayload,
+  getGMPPayload
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-
-function getGMPPayload(
-  sourceContract: string,
-  sourceLChainId: string,
-  destinationLChainId: string,
-  nonce: number,
-  sender: string,
-  recipient: string,
-  destinationCaller: string,
-  msgBody: string
-): string {
-  const messagePath = ethers.keccak256(
-    encode(['address', 'bytes32', 'bytes32'], [sourceContract, sourceLChainId, destinationLChainId])
-  );
-
-  return getPayloadForAction(
-    [messagePath, encode(['uint256'], [nonce]), sender, recipient, destinationCaller, msgBody],
-    GMP_V1_SELECTOR
-  );
-}
 
 class Addressable {
   get address(): string {

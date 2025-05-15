@@ -21,6 +21,26 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function MessageV1(bytes32,uint256,bytes32,bytes32,bytes32,bytes) external'
 ]);
 
+export function getGMPPayload(
+  sourceContract: string,
+  sourceLChainId: string,
+  destinationLChainId: string,
+  nonce: number,
+  sender: string,
+  recipient: string,
+  destinationCaller: string,
+  msgBody: string
+): string {
+  const messagePath = ethers.keccak256(
+    encode(['address', 'bytes32', 'bytes32'], [sourceContract, sourceLChainId, destinationLChainId])
+  );
+
+  return getPayloadForAction(
+    [messagePath, encode(['uint256'], [nonce]), sender, recipient, destinationCaller, msgBody],
+    GMP_V1_SELECTOR
+  );
+}
+
 export function getPayloadForAction(data: any[], action: string) {
   return ACTIONS_IFACE.encodeFunctionData(action, data);
 }
