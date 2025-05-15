@@ -27,7 +27,6 @@ contract Mailbox is
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
     struct MailboxStorage {
-        INotaryConsortium consortium;
         // Increments with each cross chain operation and should be part of the payload
         // Makes each payload unique
         uint256 globalNonce;
@@ -35,6 +34,7 @@ contract Mailbox is
         mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => destination mailbox address
         mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
+        INotaryConsortium consortium;
     }
 
     /// TODO: calculate
