@@ -33,26 +33,37 @@ function getGMPPayload(
   );
 }
 
+class Addressable {
+  get address(): string {
+    return this._address;
+  }
+
+  set address(value: string) {
+    this._address = value;
+  }
+  private _address: string;
+}
+
 describe('Mailbox', function () {
   let deployer: Signer, owner: Signer, signer1: Signer, signer2: Signer;
-  let consortium: Consortium;
-  let smailbox: Mailbox, dmailbox: Mailbox;
+  let consortium: Consortium & Addressable;
+  let smailbox: Mailbox & Addressable, dmailbox: Mailbox & Addressable;
   let snapshot: SnapshotRestorer;
   let lChainId: string;
-  let handlerMock: GMPHandlerMock;
+  let handlerMock: GMPHandlerMock & Addressable;
   let globalNonce = 0;
 
   before(async function () {
     [deployer, owner, signer1, signer2] = await getSignersWithPrivateKeys();
 
     // for both chains
-    consortium = await deployContract<Consortium>('Consortium', [deployer.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address]);
     consortium.address = await consortium.getAddress();
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
-    smailbox = await deployContract<Mailbox>('Mailbox', [owner.address, consortium.address]);
+    smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
     smailbox.address = await smailbox.getAddress();
-    dmailbox = await deployContract<Mailbox>('Mailbox', [owner.address, consortium.address]);
+    dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
     dmailbox.address = await dmailbox.getAddress();
 
     const { chainId } = await ethers.provider.getNetwork();
@@ -60,7 +71,7 @@ describe('Mailbox', function () {
     await smailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [dmailbox.address]));
     await dmailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
 
-    handlerMock = await deployContract<GMPHandlerMock>('GMPHandlerMock', [true], false);
+    handlerMock = await deployContract<GMPHandlerMock & Addressable>('GMPHandlerMock', [true], false);
     handlerMock.address = await handlerMock.getAddress();
 
     snapshot = await takeSnapshot();
@@ -111,12 +122,13 @@ describe('Mailbox', function () {
         .to.revertedWithCustomError(smailbox, 'Mailbox_ZeroChainId');
     });
 
-    //TODO: work out
-    it('enableMessagePath reverts when mailbox is 0 address', async function () {
+    //When mailbox is 0 address it means that it wont be able to receive any message, only send
+    it('enableMessagePath mailbox can be 0 address', async function () {
       let chain = encode(['uint256'], [12345]);
-      await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [ethers.ZeroAddress])))
-        .to.revertedWithCustomError(smailbox, 'OwnableUnauthorizedAccount')
-        .withArgs(signer1.address);
+      let mailbox = ethers.ZeroAddress;
+      await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox])))
+        .to.emit(smailbox, 'MessagePathEnabled')
+        .withArgs(chain, encode(['address'], [mailbox]));
     });
   });
 
@@ -132,7 +144,7 @@ describe('Mailbox', function () {
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
 
       const payload = getGMPPayload(
-        await smailbox.address,
+        smailbox.address,
         lChainId,
         lChainId,
         globalNonce++,
@@ -372,6 +384,20 @@ describe('Mailbox', function () {
         await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, destinationCaller.address, body);
         await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
       });
+
+      it('other mailbox on dst chain can receive this message', async function () {
+        const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
+        newDstMailbox.address = await newDstMailbox.getAddress();
+        await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
+
+        const result = await newDstMailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
+        await expect(result).to.not.emit(newDstMailbox, 'MessageHandleError');
+        await expect(result)
+          .to.emit(newDstMailbox, 'MessageDelivered')
+          .withArgs(payloadHash, destinationCaller.address, payload);
+        await expect(result).to.emit(newDstMailbox, 'MessageHandled').withArgs(payloadHash, destinationCaller.address, body);
+        await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
+      });
     });
 
     describe('Caller is arbitrary', function () {
@@ -487,11 +513,11 @@ describe('Mailbox', function () {
     });
 
     describe('Payload is invalid', function () {
-      let unknownMailbox: Mailbox;
+      let unknownMailbox: Mailbox & Addressable;
 
       before(async function () {
         await snapshot.restore();
-        unknownMailbox = await deployContract<Mailbox>('Mailbox', [owner.address, consortium.address]);
+        unknownMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
         unknownMailbox.address = await unknownMailbox.getAddress();
       });
       let nonce = 0;
