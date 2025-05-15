@@ -355,7 +355,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
         let receipt = await tx.wait();
-        let payload = receipt?.logs.find((l: Log | EventLog) => l.eventName === 'MessageSent')?.args.payload;
+        let payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
         let res = await signPayload([signer1], [true], payload);
