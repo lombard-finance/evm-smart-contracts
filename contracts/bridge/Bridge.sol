@@ -11,6 +11,8 @@ import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
 import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
 import {RateLimits} from "../libs/RateLimits.sol";
+
+// @deprecated
 contract Bridge is
     IBridge,
     Ownable2StepUpgradeable,

@@ -32,7 +32,7 @@ contract Mailbox is
         // Makes each payload unique
         uint256 globalNonce;
         mapping(bytes32 => bytes32) outboundMessagePath; // Message Path id => destination chain id
-        mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => destination mailbox address
+        mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => Source chain id
         mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
     }
@@ -104,7 +104,8 @@ contract Mailbox is
         if ($.inboundMessagePath[inboundId] != bytes32(0)) {
             revert Mailbox_MessagePathEnabled(inboundId);
         }
-        $.inboundMessagePath[inboundId] = destinationMailbox;
+        // store chain id of remote chain for message path
+        $.inboundMessagePath[inboundId] = destinationChain;
 
         emit MessagePathEnabled(destinationChain, destinationMailbox);
     }
@@ -117,7 +118,7 @@ contract Mailbox is
         bytes32 recipient,
         bytes32 destinationCaller,
         bytes calldata body
-    ) external payable nonReentrant returns (uint256, bytes32) {
+    ) external payable override nonReentrant returns (uint256, bytes32) {
         MessagePath.Details memory messagePath = MessagePath.Details(
             GMPUtils.addressToBytes32(address(this)),
             LChainId.get(),
@@ -169,12 +170,7 @@ contract Mailbox is
         }
 
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
-        // if not verified check the proof
-        if (!$.deliveredPayload[payloadHash]) {
-            $.consortium.checkProof(payloadHash, proof);
-            $.deliveredPayload[payloadHash] = true;
-            emit MessageDelivered(payloadHash, msgSender, rawPayload);
-        }
+        _verifyPayload($, payloadHash, proof, rawPayload);
 
         // verify who is able to execute message
         if (
@@ -213,6 +209,21 @@ contract Mailbox is
         }
 
         return payloadHash;
+    }
+
+    function _verifyPayload(MailboxStorage storage $, bytes32 payloadHash, bytes calldata proof, bytes calldata rawPayload) internal virtual {
+        // if not verified check the proof
+        if (!$.deliveredPayload[payloadHash]) {
+            $.consortium.checkProof(payloadHash, proof);
+            $.deliveredPayload[payloadHash] = true;
+            emit MessageDelivered(payloadHash, _msgSender(), rawPayload);
+        }
+    }
+
+    function getInboundMessagePath(
+        bytes32 pathId
+    ) external view override returns (bytes32) {
+        return _getStorage().inboundMessagePath[pathId];
     }
 
     function _getStorage() private pure returns (MailboxStorage storage $) {

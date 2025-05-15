@@ -1,5 +1,5 @@
 import { Consortium, Mailbox, GMPHandlerMock } from '../typechain-types';
-import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   getSignersWithPrivateKeys,
   deployContract,
@@ -7,31 +7,11 @@ import {
   NEW_VALSET,
   encode,
   Signer,
-  GMP_V1_SELECTOR,
-  signPayload
+  signPayload,
+  getGMPPayload
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-
-function getGMPPayload(
-  sourceContract: string,
-  sourceLChainId: string,
-  destinationLChainId: string,
-  nonce: number,
-  sender: string,
-  recipient: string,
-  destinationCaller: string,
-  msgBody: string
-): string {
-  const messagePath = ethers.keccak256(
-    encode(['address', 'bytes32', 'bytes32'], [sourceContract, sourceLChainId, destinationLChainId])
-  );
-
-  return getPayloadForAction(
-    [messagePath, encode(['uint256'], [nonce]), sender, recipient, destinationCaller, msgBody],
-    GMP_V1_SELECTOR
-  );
-}
 
 describe('Mailbox', function () {
   let deployer: Signer, signer1: Signer, signer2: Signer;

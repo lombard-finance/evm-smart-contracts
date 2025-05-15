@@ -38,4 +38,15 @@ interface IMailbox {
         address indexed destinationCaller,
         string reason
     );
+
+    function send(
+        bytes32 destinationChain,
+        bytes32 recipient,
+        bytes32 destinationCaller,
+        bytes calldata body
+    ) external payable returns (uint256, bytes32);
+
+    function getInboundMessagePath(
+        bytes32 pathId
+    ) external view returns (bytes32);
 }

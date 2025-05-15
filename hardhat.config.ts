@@ -10,7 +10,7 @@ import './tasks';
 
 const config: HardhatUserConfig = {
   gasReporter: {
-    enabled: true,
+    enabled: false,
     currency: 'USD',
     L1: 'ethereum',
     coinmarketcap: vars.get('CMC_API_KEY', ''),
