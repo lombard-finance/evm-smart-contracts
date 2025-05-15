@@ -12,8 +12,6 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { EventLog, Log } from 'ethers';
-import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 
 function getGMPPayload(
   sourceContract: string,
