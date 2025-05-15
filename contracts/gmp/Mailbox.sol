@@ -172,11 +172,9 @@ contract Mailbox is
         bytes32 destinationCaller,
         bytes calldata body
     ) external payable nonReentrant returns (uint256, bytes32) {
-
         if (recipient == bytes32(0)) {
             revert Mailbox_ZeroRecipient();
         }
-
 
         MessagePath.Details memory messagePath = MessagePath.Details(
             GMPUtils.addressToBytes32(address(this)),
