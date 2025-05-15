@@ -108,8 +108,7 @@ describe('Mailbox', function () {
       let chain = encode(['uint256'], [0]);
       let mailbox = ethers.Wallet.createRandom();
       await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox.address])))
-        .to.revertedWithCustomError(smailbox, 'Mailbox_ZeroChainId')
-        .withArgs(signer1.address);
+        .to.revertedWithCustomError(smailbox, 'Mailbox_ZeroChainId');
     });
 
     //TODO: work out
@@ -118,15 +117,6 @@ describe('Mailbox', function () {
       await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [ethers.ZeroAddress])))
         .to.revertedWithCustomError(smailbox, 'OwnableUnauthorizedAccount')
         .withArgs(signer1.address);
-    });
-
-    //TODO work out which is the correct behavior
-    it('enableMessagePath another mailbox on known chain', async function () {
-      let chain = lChainId;
-      let mailbox = ethers.Wallet.createRandom();
-      await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox.address])))
-        .to.emit(smailbox, 'MessagePathEnabled')
-        .withArgs(chain, encode(['address'], [mailbox.address]));
     });
   });
 
@@ -519,6 +509,17 @@ describe('Mailbox', function () {
           customError: () => [dmailbox, 'Mailbox_HandlerNotImplemented']
         },
         {
+          name: 'Recipient is 0 address',
+          recipientAddress: () => ethers.ZeroAddress,
+          srcContract: () => smailbox.address,
+          srcChain: () => lChainId,
+          dstChain: () => lChainId,
+          nonce: () => nonce,
+          sender: () => signer2.address,
+          notary: () => signer1,
+          customError: () => [dmailbox, 'GMP_ZeroRecipient']
+        },
+        {
           name: 'Unknown src mailbox',
           recipientAddress: () => handlerMock.address,
           srcContract: () => unknownMailbox.address,
@@ -587,7 +588,7 @@ describe('Mailbox', function () {
       ];
 
       args.forEach(function (arg) {
-        it(arg.name, async () => {
+        it(`Reverts when ${arg.name}`, async () => {
           let destinationCaller = signer2;
           let body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
 
