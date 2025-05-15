@@ -27,7 +27,6 @@ contract Mailbox is
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
     struct MailboxStorage {
-        INotaryConsortium consortium;
         // Increments with each cross chain operation and should be part of the payload
         // Makes each payload unique
         uint256 globalNonce;
@@ -35,12 +34,12 @@ contract Mailbox is
         mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => Source chain id
         mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
+        INotaryConsortium consortium;
     }
 
-    /// TODO: calculate
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant MAILBOX_STORAGE_LOCATION =
-        0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
+        0x0278229f5c76f980110e38383ce9a522090076c3f8b366b016a9b1421b307400;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -62,7 +61,10 @@ contract Mailbox is
     function __Mailbox_init(
         INotaryConsortium consortium_
     ) internal onlyInitializing {
-        // TODO: check for zero address
+        if (address(consortium_) == address(0)) {
+            revert Mailbox_ZeroConsortium();
+        }
+
         MailboxStorage storage $ = _getStorage();
         $.consortium = consortium_;
     }
@@ -79,19 +81,15 @@ contract Mailbox is
             revert Mailbox_ZeroChainId();
         }
 
-        MessagePath.Details memory outboundPath = MessagePath.Details(
-            GMPUtils.addressToBytes32(address(this)),
-            LChainId.get(),
-            destinationChain
-        );
-        bytes32 outboundId = outboundPath.id();
+        if (destinationMailbox == bytes32(0)) {
+            revert Mailbox_ZeroMailbox();
+        }
 
-        MessagePath.Details memory inboundPath = MessagePath.Details(
-            destinationMailbox,
+        bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
+        bytes32 inboundId = _calcInboundMessagePath(
             destinationChain,
-            LChainId.get()
+            destinationMailbox
         );
-        bytes32 inboundId = inboundPath.id();
 
         MailboxStorage storage $ = _getStorage();
 
@@ -107,18 +105,77 @@ contract Mailbox is
         // store chain id of remote chain for message path
         $.inboundMessagePath[inboundId] = destinationChain;
 
-        emit MessagePathEnabled(destinationChain, destinationMailbox);
+        emit MessagePathEnabled(
+            destinationChain,
+            inboundId,
+            outboundId,
+            destinationMailbox
+        );
     }
 
-    // TODO: implement disableMessagePath
+    function disableMessagePath(
+        bytes32 destinationChain,
+        bytes32 destinationMailbox
+    ) external onlyOwner {
+        if (destinationChain == bytes32(0)) {
+            revert Mailbox_ZeroChainId();
+        }
 
-    // TODO: make whitelist
+        if (destinationMailbox == bytes32(0)) {
+            revert Mailbox_ZeroMailbox();
+        }
+
+        MailboxStorage storage $ = _getStorage();
+
+        bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
+        bytes32 inboundId = _calcInboundMessagePath(
+            destinationChain,
+            destinationMailbox
+        );
+
+        delete $.outboundMessagePath[outboundId];
+        delete $.inboundMessagePath[inboundId];
+
+        emit MessagePathDisabled(
+            destinationChain,
+            inboundId,
+            outboundId,
+            destinationMailbox
+        );
+    }
+
+    function _calcInboundMessagePath(
+        bytes32 destinationChain,
+        bytes32 destinationMailbox
+    ) internal view returns (bytes32) {
+        MessagePath.Details memory inboundPath = MessagePath.Details(
+            destinationMailbox,
+            destinationChain,
+            LChainId.get()
+        );
+        return inboundPath.id();
+    }
+
+    function _calcOutboundMessagePath(
+        bytes32 destinationChain
+    ) internal view returns (bytes32) {
+        MessagePath.Details memory outboundPath = MessagePath.Details(
+            GMPUtils.addressToBytes32(address(this)),
+            LChainId.get(),
+            destinationChain
+        );
+        return outboundPath.id();
+    }
+
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
         bytes32 destinationCaller,
         bytes calldata body
     ) external payable override nonReentrant returns (uint256, bytes32) {
+        if (recipient == bytes32(0)) {
+            revert Mailbox_ZeroRecipient();
+        }
         MessagePath.Details memory messagePath = MessagePath.Details(
             GMPUtils.addressToBytes32(address(this)),
             LChainId.get(),

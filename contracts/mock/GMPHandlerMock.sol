@@ -8,6 +8,8 @@ import {GMPUtils} from "../gmp/libs/GMPUtils.sol";
 contract GMPHandlerMock is IHandler {
     bool public enabled;
 
+    event MessageReceived(bytes message);
+
     constructor(bool enabled_) {
         enabled = enabled_;
     }
@@ -16,11 +18,16 @@ contract GMPHandlerMock is IHandler {
         GMPUtils.Payload memory payload
     ) external override returns (bytes memory) {
         require(enabled, "not enabled");
+        emit MessageReceived(payload.msgBody);
         return payload.msgBody;
     }
 
-    function toggle() external {
-        enabled = !enabled;
+    function enable() external {
+        enabled = true;
+    }
+
+    function disable() external {
+        enabled = false;
     }
 
     function supportsInterface(
