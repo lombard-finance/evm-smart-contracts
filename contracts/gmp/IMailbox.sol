@@ -3,6 +3,8 @@ pragma solidity 0.8.24;
 
 interface IMailbox {
     error Mailbox_ZeroChainId();
+    error Mailbox_ZeroConsortium();
+    error Mailbox_ZeroMailbox();
     error Mailbox_MessagePathEnabled(bytes32 id);
     error Mailbox_MessagePathDisabled(bytes32 id);
     error Mailbox_UnexpectedDestinationCaller(address expected, address actual);
@@ -10,7 +12,16 @@ interface IMailbox {
 
     event MessagePathEnabled(
         bytes32 indexed destinationChain,
-        bytes32 indexed destinationMailbox
+        bytes32 indexed inboundMessagePath,
+        bytes32 indexed outboundMessagePath,
+        bytes32 destinationMailbox
+    );
+
+    event MessagePathDisabled(
+        bytes32 indexed destinationChain,
+        bytes32 indexed inboundMessagePath,
+        bytes32 indexed outboundMessagePath,
+        bytes32 destinationMailbox
     );
 
     event MessageSent(
