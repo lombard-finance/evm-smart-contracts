@@ -12,6 +12,9 @@
       "Mailbox": "0xC7a9Fc9A8DF4dD23649bEfcbaf21Fe9A33B24F16",
       "BridgeV2": ""
     },
+    "mocks": {
+      "GMPHandlerMock": "0x2c8C3b5Ce589f3D43638508250733Feb17250576"
+    },
     "chainlink": {
       "ChainSelector": "",
       "Router": "",
