@@ -1,19 +1,17 @@
-import { Consortium, Mailbox, GMPHandlerMock } from '../typechain-types';
-import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { Consortium, GMPHandlerMock, Mailbox } from '../typechain-types';
+import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
-  getSignersWithPrivateKeys,
   deployContract,
-  getPayloadForAction,
-  NEW_VALSET,
   encode,
-  Signer,
+  getPayloadForAction,
+  getSignersWithPrivateKeys,
   GMP_V1_SELECTOR,
+  NEW_VALSET,
+  Signer,
   signPayload
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { string } from 'hardhat/internal/core/params/argumentTypes';
-import { exec } from 'node:child_process';
 
 function getGMPPayload(
   sourceContract: string,
@@ -262,7 +260,7 @@ describe('Mailbox', function () {
         destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
         error: 'Mailbox_MessagePathDisabled'
-      },
+      }
       //TODO: body max size
       // {
       //   name: 'Unknown destination chain',
