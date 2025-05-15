@@ -48,7 +48,10 @@ contract BridgeV2 is
         _disableInitializers();
     }
 
-    function initialize(address owner_, IMailbox mailbox_) external initializer {
+    function initialize(
+        address owner_,
+        IMailbox mailbox_
+    ) external initializer {
         __Ownable_init(owner_);
         __Ownable2Step_init();
         __ReentrancyGuard_init();
@@ -161,7 +164,6 @@ contract BridgeV2 is
     function handlePayload(
         GMPUtils.Payload memory payload
     ) external nonReentrant returns (bytes memory) {
-
         BridgeV2Storage storage $ = _getStorage();
 
         if (_msgSender() != address($.mailbox)) {
@@ -185,17 +187,17 @@ contract BridgeV2 is
     }
 
     function _withdraw(bytes32 chainId, bytes memory msgBody) internal {
-
-        (address token, address recipient, uint256 amount) = decodeMsgBody(msgBody);
-        IERC20MintableBurnable(token).mint(
-            recipient,
-            amount
+        (address token, address recipient, uint256 amount) = decodeMsgBody(
+            msgBody
         );
+        IERC20MintableBurnable(token).mint(recipient, amount);
 
         emit WithdrawFromBridge(recipient, chainId, token, amount);
     }
 
-    function decodeMsgBody(bytes memory msgBody) public pure returns (address, address, uint256) {
+    function decodeMsgBody(
+        bytes memory msgBody
+    ) public pure returns (address, address, uint256) {
         if (msgBody.length != MSG_LENGTH) {
             revert BridgeV2_InvalidMsgBodyLength(MSG_LENGTH, msgBody.length);
         }
@@ -217,10 +219,16 @@ contract BridgeV2 is
             revert BridgeV2_VersionMismatch(MSG_VERSION, version);
         }
 
-        return (GMPUtils.bytes32ToAddress(token), GMPUtils.bytes32ToAddress(recipient), amount);
+        return (
+            GMPUtils.bytes32ToAddress(token),
+            GMPUtils.bytes32ToAddress(recipient),
+            amount
+        );
     }
 
-    function destinationBridge(bytes32 chainId) external view returns (bytes32) {
+    function destinationBridge(
+        bytes32 chainId
+    ) external view returns (bytes32) {
         return _getStorage().bridgeContract[chainId];
     }
 
@@ -243,11 +251,7 @@ contract BridgeV2 is
         return keccak256(abi.encodePacked(destinationChain, sourceToken));
     }
 
-    function _getStorage()
-        private
-        pure
-        returns (BridgeV2Storage storage $)
-    {
+    function _getStorage() private pure returns (BridgeV2Storage storage $) {
         assembly {
             $.slot := BRIDGE_STORAGE_LOCATION
         }

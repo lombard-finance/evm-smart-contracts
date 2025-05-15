@@ -211,7 +211,12 @@ contract Mailbox is
         return payloadHash;
     }
 
-    function _verifyPayload(MailboxStorage storage $, bytes32 payloadHash, bytes calldata proof, bytes calldata rawPayload) internal virtual {
+    function _verifyPayload(
+        MailboxStorage storage $,
+        bytes32 payloadHash,
+        bytes calldata proof,
+        bytes calldata rawPayload
+    ) internal virtual {
         // if not verified check the proof
         if (!$.deliveredPayload[payloadHash]) {
             $.consortium.checkProof(payloadHash, proof);

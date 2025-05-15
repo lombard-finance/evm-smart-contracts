@@ -5,9 +5,13 @@ import {Mailbox} from "../gmp/Mailbox.sol";
 
 /// Dummy contract to return msgBody
 contract MailboxMock is Mailbox {
-
     // allow any payloadHash without signature verification
-    function _verifyPayload(MailboxStorage storage $, bytes32 payloadHash, bytes calldata, bytes calldata) internal override virtual {
+    function _verifyPayload(
+        MailboxStorage storage $,
+        bytes32 payloadHash,
+        bytes calldata,
+        bytes calldata
+    ) internal virtual override {
         $.deliveredPayload[payloadHash] = true;
     }
 }
