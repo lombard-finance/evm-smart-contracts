@@ -8,9 +8,7 @@ import {GMPUtils} from "../gmp/libs/GMPUtils.sol";
 contract GMPHandlerMock is IHandler {
     bool public enabled;
 
-    event MessageReceived(
-        bytes message
-    );
+    event MessageReceived(bytes message);
 
     constructor(bool enabled_) {
         enabled = enabled_;

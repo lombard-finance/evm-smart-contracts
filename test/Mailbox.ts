@@ -41,6 +41,7 @@ class Addressable {
   set address(value: string) {
     this._address = value;
   }
+  // @ts-ignore
   private _address: string;
 }
 
@@ -92,11 +93,22 @@ describe('Mailbox', function () {
     });
 
     it('enableMessagePath owner can', async function () {
+      console.log('1');
       let chain = encode(['uint256'], [12345]);
       let mailbox = ethers.Wallet.createRandom();
-      await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox.address])))
+
+      const mailbox32Bytes = encode(['address'], [mailbox.address]);
+
+      const messagePathOut = ethers.keccak256(
+        encode(['address', 'bytes32', 'bytes32'], [smailbox.address, lChainId, chain])
+      );
+      const messagePathIn = ethers.keccak256(
+        encode(['address', 'bytes32', 'bytes32'], [mailbox.address, chain, lChainId])
+      );
+
+      await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox32Bytes))
         .to.emit(smailbox, 'MessagePathEnabled')
-        .withArgs(chain, encode(['address'], [mailbox.address]));
+        .withArgs(chain, messagePathIn, messagePathOut, mailbox32Bytes);
     });
 
     it('enableMessagePath reverts when called by not an owner', async function () {
@@ -118,17 +130,17 @@ describe('Mailbox', function () {
     it('enableMessagePath reverts when chainId is 0', async function () {
       let chain = encode(['uint256'], [0]);
       let mailbox = ethers.Wallet.createRandom();
-      await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox.address])))
-        .to.revertedWithCustomError(smailbox, 'Mailbox_ZeroChainId');
+      await expect(
+        smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox.address]))
+      ).to.revertedWithCustomError(smailbox, 'Mailbox_ZeroChainId');
     });
 
-    //When mailbox is 0 address it means that it wont be able to receive any message, only send
-    it('enableMessagePath mailbox can be 0 address', async function () {
+    it('enableMessagePath mailbox cannot be be 0 address', async function () {
       let chain = encode(['uint256'], [12345]);
       let mailbox = ethers.ZeroAddress;
-      await expect(smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox])))
-        .to.emit(smailbox, 'MessagePathEnabled')
-        .withArgs(chain, encode(['address'], [mailbox]));
+      await expect(
+        smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox]))
+      ).to.revertedWithCustomError(smailbox, 'Mailbox_ZeroMailbox');
     });
   });
 
@@ -261,7 +273,7 @@ describe('Mailbox', function () {
         recipient: () => encode(['address'], [ethers.ZeroAddress]),
         destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
-        error: 'Mailbox_MessagePathDisabled'
+        error: 'Mailbox_ZeroRecipient'
       }
       //TODO: body max size
       // {
@@ -303,6 +315,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -342,6 +355,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         let payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -386,7 +400,10 @@ describe('Mailbox', function () {
       });
 
       it('other mailbox on dst chain can receive this message', async function () {
-        const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
+        const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
+          owner.address,
+          consortium.address
+        ]);
         newDstMailbox.address = await newDstMailbox.getAddress();
         await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
 
@@ -395,7 +412,9 @@ describe('Mailbox', function () {
         await expect(result)
           .to.emit(newDstMailbox, 'MessageDelivered')
           .withArgs(payloadHash, destinationCaller.address, payload);
-        await expect(result).to.emit(newDstMailbox, 'MessageHandled').withArgs(payloadHash, destinationCaller.address, body);
+        await expect(result)
+          .to.emit(newDstMailbox, 'MessageHandled')
+          .withArgs(payloadHash, destinationCaller.address, body);
         await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
       });
     });
@@ -418,6 +437,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [ethers.ZeroAddress]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -467,6 +487,7 @@ describe('Mailbox', function () {
           .connect(signer1)
           .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
         let receipt = await tx.wait();
+        // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
         expect(payload).to.not.undefined;
 
@@ -633,6 +654,7 @@ describe('Mailbox', function () {
 
           await expect(
             dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof)
+            // @ts-ignore
           ).to.be.revertedWithCustomError(...arg.customError());
         });
       });
