@@ -651,9 +651,9 @@ describe('Mailbox', function () {
 
           const { proof } = await signPayload([arg.notary()], [true], payload);
 
-          // @ts-ignore
           await expect(
             dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof)
+            // @ts-ignore
           ).to.be.revertedWithCustomError(...arg.customError());
         });
       });
