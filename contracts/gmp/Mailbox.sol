@@ -26,7 +26,7 @@ contract Mailbox is
     using MessagePath for MessagePath.Details;
 
     struct SenderConfig {
-        uint64 maxPayloadSize;
+        uint32 maxPayloadSize;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
@@ -40,7 +40,7 @@ contract Mailbox is
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
 
         INotaryConsortium consortium;
-        uint64 defaultMaxPayloadSize;
+        uint32 defaultMaxPayloadSize;
 
         mapping(address => SenderConfig) senderConfig; // address => SenderConfig
     }
@@ -48,6 +48,9 @@ contract Mailbox is
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant MAILBOX_STORAGE_LOCATION =
         0x0278229f5c76f980110e38383ce9a522090076c3f8b366b016a9b1421b307400;
+
+    /// Allow max 10 KB of data to be sent
+    uint32 internal constant GLOBAL_MAX_PAYLOAD_SIZE = 10000;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -176,11 +179,18 @@ contract Mailbox is
     }
 
     function setDefaultMaxPayloadSize(uint64 maxPayloadSize) external onlyOwner {
+        if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
+            revert Mailbox_PayloadOversize(GLOBAL_MAX_PAYLOAD_SIZE, maxPayloadSize);
+        }
+
         _getStorage().defaultMaxPayloadSize = maxPayloadSize;
         emit DefaultPayloadSizeSet(maxPayloadSize);
     }
 
     function setSenderConfig(address sender, uint64 maxPayloadSize) external onlyOwner {
+        if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
+            revert Mailbox_PayloadOversize(GLOBAL_MAX_PAYLOAD_SIZE, maxPayloadSize);
+        }
 
         MailboxStorage storage $ = _getStorage();
         $.senderConfig[sender].maxPayloadSize;
