@@ -15,6 +15,7 @@ interface IBridgeV2 {
     error BridgeV2_BadMsgSender();
     error BridgeV2_VersionMismatch(uint8 expected, uint8 actual);
     error BridgeV2_InvalidMsgBodyLength(uint256 expected, uint256 actual);
+    error BridgeV2_PayloadSpent();
 
     /// @notice Emitted when the is a deposit in the bridge
     event DepositToBridge(

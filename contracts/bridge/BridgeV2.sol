@@ -32,6 +32,7 @@ contract BridgeV2 is
         mapping(bytes32 => bytes32) bridgeContract; // destination chain => PathConfig
         mapping(bytes32 => bytes32) allowedToken; // keccak256( destinationChain | sourceToken ) => bytes32 token, see `_calcAllowedTokenId`
         IMailbox mailbox;
+        mapping(bytes32 => bool) payloadSpent;
     }
 
     // TODO: calculate
@@ -164,10 +165,15 @@ contract BridgeV2 is
     function handlePayload(
         GMPUtils.Payload memory payload
     ) external nonReentrant returns (bytes memory) {
+
         BridgeV2Storage storage $ = _getStorage();
 
         if (_msgSender() != address($.mailbox)) {
             revert BridgeV2_MailboxExpected();
+        }
+
+        if ($.payloadSpent[payload.id]) {
+            revert BridgeV2_PayloadSpent();
         }
 
         bytes32 chainId = $.mailbox.getInboundMessagePath(payload.msgPath);

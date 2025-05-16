@@ -73,7 +73,6 @@ describe('Mailbox', function () {
     });
 
     it('enableMessagePath owner can', async function () {
-      console.log('1');
       let chain = encode(['uint256'], [12345]);
       let mailbox = ethers.Wallet.createRandom();
 
