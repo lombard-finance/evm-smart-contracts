@@ -10,7 +10,7 @@ interface IMailbox {
     error Mailbox_MessagePathDisabled(bytes32 id);
     error Mailbox_UnexpectedDestinationCaller(address expected, address actual);
     error Mailbox_HandlerNotImplemented();
-    error Mailbox_PayloadOversize(uint64 max, uint64 actual);
+    error Mailbox_PayloadOversize(uint32 max, uint256 actual);
 
     event MessagePathEnabled(
         bytes32 indexed destinationChain,

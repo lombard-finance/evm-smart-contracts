@@ -178,7 +178,7 @@ contract Mailbox is
         return outboundPath.id();
     }
 
-    function setDefaultMaxPayloadSize(uint64 maxPayloadSize) external onlyOwner {
+    function setDefaultMaxPayloadSize(uint32 maxPayloadSize) external onlyOwner {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
             revert Mailbox_PayloadOversize(GLOBAL_MAX_PAYLOAD_SIZE, maxPayloadSize);
         }
@@ -187,7 +187,7 @@ contract Mailbox is
         emit DefaultPayloadSizeSet(maxPayloadSize);
     }
 
-    function setSenderConfig(address sender, uint64 maxPayloadSize) external onlyOwner {
+    function setSenderConfig(address sender, uint32 maxPayloadSize) external onlyOwner {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
             revert Mailbox_PayloadOversize(GLOBAL_MAX_PAYLOAD_SIZE, maxPayloadSize);
         }
@@ -235,12 +235,14 @@ contract Mailbox is
             body
         );
 
-        SenderConfig memory senderCfg = _getSenderConfigWithDefault($, msgSender);
+        {
+            SenderConfig memory senderCfg = _getSenderConfigWithDefault($, msgSender);
 
-        uint256 payloadSize = rawPayload.length;
-        // in fact, when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
-        if (payloadSize > senderCfg.maxPayloadSize) {
-            revert Mailbox_PayloadOversize(senderCfg.maxPayloadSize, payloadSize);
+            uint256 payloadSize = rawPayload.length;
+            // in fact, when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
+            if (payloadSize > senderCfg.maxPayloadSize) {
+                revert Mailbox_PayloadOversize(senderCfg.maxPayloadSize, payloadSize);
+            }
         }
 
         // TODO: calculate fee based on payload size

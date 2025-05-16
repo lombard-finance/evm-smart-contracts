@@ -55,6 +55,9 @@ describe('Mailbox', function () {
     handlerMock = await deployContract<GMPHandlerMock & Addressable>('GMPHandlerMock', [true], false);
     handlerMock.address = await handlerMock.getAddress();
 
+    await smailbox.connect(owner).setDefaultMaxPayloadSize(5000);
+    await dmailbox.connect(owner).setDefaultMaxPayloadSize(5000);
+
     snapshot = await takeSnapshot();
   });
 
