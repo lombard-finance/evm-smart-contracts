@@ -10,6 +10,7 @@ interface IMailbox {
     error Mailbox_MessagePathDisabled(bytes32 id);
     error Mailbox_UnexpectedDestinationCaller(address expected, address actual);
     error Mailbox_HandlerNotImplemented();
+    error Mailbox_PayloadOversize(uint64 max, uint64 actual);
 
     event MessagePathEnabled(
         bytes32 indexed destinationChain,
@@ -49,6 +50,15 @@ interface IMailbox {
         bytes32 indexed payloadHash,
         address indexed destinationCaller,
         string reason
+    );
+
+    event SenderConfigUpdated(
+        address indexed sender,
+        uint64 maxPayloadSize
+    );
+
+    event DefaultPayloadSizeSet(
+        uint64 maxPayloadSize
     );
 
     function send(

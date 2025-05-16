@@ -25,6 +25,10 @@ contract Mailbox is
 {
     using MessagePath for MessagePath.Details;
 
+    struct SenderConfig {
+        uint64 maxPayloadSize;
+    }
+
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
     struct MailboxStorage {
         // Increments with each cross chain operation and should be part of the payload
@@ -34,7 +38,11 @@ contract Mailbox is
         mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => Source chain id
         mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
+
         INotaryConsortium consortium;
+        uint64 defaultMaxPayloadSize;
+
+        mapping(address => SenderConfig) senderConfig; // address => SenderConfig
     }
 
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
@@ -167,6 +175,19 @@ contract Mailbox is
         return outboundPath.id();
     }
 
+    function setDefaultMaxPayloadSize(uint64 maxPayloadSize) external onlyOwner {
+        _getStorage().defaultMaxPayloadSize = maxPayloadSize;
+        emit DefaultPayloadSizeSet(maxPayloadSize);
+    }
+
+    function setSenderConfig(address sender, uint64 maxPayloadSize) external onlyOwner {
+
+        MailboxStorage storage $ = _getStorage();
+        $.senderConfig[sender].maxPayloadSize;
+
+        emit SenderConfigUpdated(sender, maxPayloadSize);
+    }
+
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
@@ -204,8 +225,15 @@ contract Mailbox is
             body
         );
 
+        SenderConfig memory senderCfg = _getSenderConfigWithDefault($, msgSender);
+
+        uint256 payloadSize = rawPayload.length;
+        // in fact, when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
+        if (payloadSize > senderCfg.maxPayloadSize) {
+            revert Mailbox_PayloadOversize(senderCfg.maxPayloadSize, payloadSize);
+        }
+
         // TODO: calculate fee based on payload size
-        // TODO: whitelist max payload size
 
         emit MessageSent(destinationChain, msgSender, recipient, rawPayload);
         return (nonce, GMPUtils.hash(rawPayload));
@@ -292,5 +320,13 @@ contract Mailbox is
         assembly {
             $.slot := MAILBOX_STORAGE_LOCATION
         }
+    }
+
+    function _getSenderConfigWithDefault(MailboxStorage storage $, address sender) internal view returns (SenderConfig memory) {
+        SenderConfig memory cfg = $.senderConfig[sender];
+        if (cfg.maxPayloadSize == 0) {
+            cfg.maxPayloadSize = $.defaultMaxPayloadSize;
+        }
+        return cfg;
     }
 }
