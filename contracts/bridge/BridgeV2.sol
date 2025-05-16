@@ -165,7 +165,6 @@ contract BridgeV2 is
     function handlePayload(
         GMPUtils.Payload memory payload
     ) external nonReentrant returns (bytes memory) {
-
         BridgeV2Storage storage $ = _getStorage();
 
         if (_msgSender() != address($.mailbox)) {

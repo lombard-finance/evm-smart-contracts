@@ -48,7 +48,6 @@ library GMPUtils {
     ) internal pure returns (Payload memory payload) {
         validatePayload(rawPayload);
 
-
         (
             payload.msgPath,
             payload.msgNonce,

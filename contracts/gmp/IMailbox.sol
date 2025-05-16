@@ -52,14 +52,9 @@ interface IMailbox {
         string reason
     );
 
-    event SenderConfigUpdated(
-        address indexed sender,
-        uint64 maxPayloadSize
-    );
+    event SenderConfigUpdated(address indexed sender, uint64 maxPayloadSize);
 
-    event DefaultPayloadSizeSet(
-        uint64 maxPayloadSize
-    );
+    event DefaultPayloadSizeSet(uint64 maxPayloadSize);
 
     function send(
         bytes32 destinationChain,

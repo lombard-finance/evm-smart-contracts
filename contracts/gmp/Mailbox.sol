@@ -38,10 +38,8 @@ contract Mailbox is
         mapping(bytes32 => bytes32) inboundMessagePath; // Message Path id => Source chain id
         mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
-
         INotaryConsortium consortium;
         uint32 defaultMaxPayloadSize;
-
         mapping(address => SenderConfig) senderConfig; // address => SenderConfig
     }
 
@@ -178,18 +176,29 @@ contract Mailbox is
         return outboundPath.id();
     }
 
-    function setDefaultMaxPayloadSize(uint32 maxPayloadSize) external onlyOwner {
+    function setDefaultMaxPayloadSize(
+        uint32 maxPayloadSize
+    ) external onlyOwner {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
-            revert Mailbox_PayloadOversize(GLOBAL_MAX_PAYLOAD_SIZE, maxPayloadSize);
+            revert Mailbox_PayloadOversize(
+                GLOBAL_MAX_PAYLOAD_SIZE,
+                maxPayloadSize
+            );
         }
 
         _getStorage().defaultMaxPayloadSize = maxPayloadSize;
         emit DefaultPayloadSizeSet(maxPayloadSize);
     }
 
-    function setSenderConfig(address sender, uint32 maxPayloadSize) external onlyOwner {
+    function setSenderConfig(
+        address sender,
+        uint32 maxPayloadSize
+    ) external onlyOwner {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
-            revert Mailbox_PayloadOversize(GLOBAL_MAX_PAYLOAD_SIZE, maxPayloadSize);
+            revert Mailbox_PayloadOversize(
+                GLOBAL_MAX_PAYLOAD_SIZE,
+                maxPayloadSize
+            );
         }
 
         MailboxStorage storage $ = _getStorage();
@@ -236,12 +245,18 @@ contract Mailbox is
         );
 
         {
-            SenderConfig memory senderCfg = _getSenderConfigWithDefault($, msgSender);
+            SenderConfig memory senderCfg = _getSenderConfigWithDefault(
+                $,
+                msgSender
+            );
 
             uint256 payloadSize = rawPayload.length;
             // in fact, when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
             if (payloadSize > senderCfg.maxPayloadSize) {
-                revert Mailbox_PayloadOversize(senderCfg.maxPayloadSize, payloadSize);
+                revert Mailbox_PayloadOversize(
+                    senderCfg.maxPayloadSize,
+                    payloadSize
+                );
             }
         }
 
@@ -334,7 +349,10 @@ contract Mailbox is
         }
     }
 
-    function _getSenderConfigWithDefault(MailboxStorage storage $, address sender) internal view returns (SenderConfig memory) {
+    function _getSenderConfigWithDefault(
+        MailboxStorage storage $,
+        address sender
+    ) internal view returns (SenderConfig memory) {
         SenderConfig memory cfg = $.senderConfig[sender];
         if (cfg.maxPayloadSize == 0) {
             cfg.maxPayloadSize = $.defaultMaxPayloadSize;
