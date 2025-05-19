@@ -347,6 +347,15 @@ describe('Mailbox', function () {
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
         fee: VERY_BIG_FEE,
         error: 'Mailbox_ZeroRecipient'
+      },
+      {
+        name: 'Not enough fee',
+        destinationChain: () => lChainId,
+        recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
+        fee: 1,
+        error: 'Mailbox_NotEnoughFee'
       }
     ];
 
