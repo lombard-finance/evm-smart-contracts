@@ -179,7 +179,7 @@ describe('Mailbox', function () {
       const sender = signer1;
 
       const payload = getGMPPayload(
-        await smailbox.getAddress(),
+        smailbox.address,
         lChainId,
         lChainId,
         globalNonce++,
