@@ -6,11 +6,15 @@ interface IMailbox {
     error Mailbox_ZeroConsortium();
     error Mailbox_ZeroMailbox();
     error Mailbox_ZeroRecipient();
+    error Mailbox_ZeroTreasury();
+    error Mailbox_ZeroAmount();
     error Mailbox_MessagePathEnabled(bytes32 id);
     error Mailbox_MessagePathDisabled(bytes32 id);
     error Mailbox_UnexpectedDestinationCaller(address expected, address actual);
     error Mailbox_HandlerNotImplemented();
     error Mailbox_PayloadOversize(uint32 max, uint256 actual);
+    error Mailbox_NotEnoughFee(uint256 expected, uint256 actual);
+    error Mailbox_CallFailed();
 
     event MessagePathEnabled(
         bytes32 indexed destinationChain,
@@ -31,6 +35,14 @@ interface IMailbox {
         address indexed sender,
         bytes32 indexed recipient,
         bytes payload
+    );
+
+    /// Message payment receipt
+    event MessagePaid(
+        bytes32 indexed payloadHash,
+        address indexed msgSender,
+        uint256 payloadSize,
+        uint256 value
     );
 
     event MessageDelivered(
@@ -55,6 +67,10 @@ interface IMailbox {
     event SenderConfigUpdated(address indexed sender, uint64 maxPayloadSize);
 
     event DefaultPayloadSizeSet(uint64 maxPayloadSize);
+
+    event FeePerByteSet(uint256 fee);
+
+    event FeeWithdrawn(address indexed by, address indexed treasury, uint256 amount);
 
     function send(
         bytes32 destinationChain,

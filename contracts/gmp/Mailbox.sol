@@ -41,6 +41,7 @@ contract Mailbox is
         INotaryConsortium consortium;
         uint32 defaultMaxPayloadSize;
         mapping(address => SenderConfig) senderConfig; // address => SenderConfig
+        uint256 feePerByte; // wei to be paid per byte of payload
     }
 
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
@@ -207,6 +208,29 @@ contract Mailbox is
         emit SenderConfigUpdated(sender, maxPayloadSize);
     }
 
+    function setFee(uint256 weiPerByte) external onlyOwner {
+        _getStorage().feePerByte = weiPerByte;
+
+        emit FeePerByteSet(weiPerByte);
+    }
+
+    // only body size affect fee estimation
+    function getFee(
+        bytes calldata body
+    ) external view returns (uint256) {
+
+        bytes memory rawPayload = GMPUtils.encodePayload(
+            bytes32(0),
+            0,
+            bytes32(0),
+            bytes32(0),
+            bytes32(0),
+            body
+        );
+
+        return _calcFee(_getStorage(), rawPayload.length);
+    }
+
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
@@ -216,12 +240,8 @@ contract Mailbox is
         if (recipient == bytes32(0)) {
             revert Mailbox_ZeroRecipient();
         }
-        MessagePath.Details memory messagePath = MessagePath.Details(
-            GMPUtils.addressToBytes32(address(this)),
-            LChainId.get(),
-            destinationChain
-        );
-        bytes32 outboundId = messagePath.id();
+
+        bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
 
         MailboxStorage storage $ = _getStorage();
 
@@ -243,6 +263,7 @@ contract Mailbox is
             destinationCaller,
             body
         );
+        bytes32 payloadHash = GMPUtils.hash(rawPayload);
 
         {
             SenderConfig memory senderCfg = _getSenderConfigWithDefault(
@@ -258,12 +279,23 @@ contract Mailbox is
                     payloadSize
                 );
             }
+
+            uint256 fee = _calcFee($, payloadSize);
+            // we allow to pay more
+            // in this case fee rate of message increased
+            // relayer would process such messages in priority
+            if (msg.value < fee) {
+                revert Mailbox_NotEnoughFee(fee, msg.value);
+            }
+            emit MessagePaid(payloadHash, msgSender, payloadSize, msg.value);
         }
 
-        // TODO: calculate fee based on payload size
-
         emit MessageSent(destinationChain, msgSender, recipient, rawPayload);
-        return (nonce, GMPUtils.hash(rawPayload));
+        return (nonce, payloadHash);
+    }
+
+    function _calcFee(MailboxStorage storage $, uint256 payloadSize) internal view returns (uint256) {
+        return payloadSize * $.feePerByte;
     }
 
     // no replay protection
@@ -335,6 +367,23 @@ contract Mailbox is
             $.deliveredPayload[payloadHash] = true;
             emit MessageDelivered(payloadHash, _msgSender(), rawPayload);
         }
+    }
+
+    function withdrawFee(address payable treasury) external nonReentrant onlyOwner {
+        if (treasury == address(0)) {
+            revert Mailbox_ZeroTreasury();
+        }
+
+        uint256 amount = address(this).balance;
+        if (amount == 0) {
+            revert Mailbox_ZeroAmount();
+        }
+        (bool success,) = treasury.call{value: amount}("");
+        if (!success) {
+            revert Mailbox_CallFailed();
+        }
+
+        emit FeeWithdrawn(_msgSender(), treasury, amount);
     }
 
     function getInboundMessagePath(
