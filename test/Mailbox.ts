@@ -278,32 +278,6 @@ describe('Mailbox', function () {
         .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
     });
 
-    it('Reverts when payload oversized', async () => {
-      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
-      const body = ethers.hexlify(new Uint8Array(255));
-
-      const payload = getGMPPayload(
-        await smailbox.getAddress(),
-        lChainId,
-        lChainId,
-        globalNonce++,
-        encode(['address'], [signer1.address]),
-        recipient,
-        destinationCaller,
-        body
-      );
-
-      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
-
-      // max payload for sender payload.length - 1
-      await smailbox.setSenderConfig(signer1, payloadLength - 1);
-
-      await expect(smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body, { value: fee }))
-        .to.revertedWithCustomError(smailbox, 'Mailbox_PayloadOversize')
-        .withArgs(payloadLength - 1, payloadLength);
-    });
-
     it('Another message to the same chain', async function () {
       const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
       const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
@@ -372,15 +346,6 @@ describe('Mailbox', function () {
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
         error: 'Mailbox_ZeroRecipient'
       }
-      //TODO: body max size
-      // {
-      //   name: 'Unknown destination chain',
-      //   destinationChain: () => lChainId,
-      //   recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
-      //   destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
-      //   body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
-      //   error: 'Mailbox_MessagePathDisabled'
-      // }
     ];
 
     invalidArgs.forEach(function (arg) {
@@ -391,6 +356,32 @@ describe('Mailbox', function () {
           })
         ).to.revertedWithCustomError(smailbox, arg.error);
       });
+    });
+
+    it('Reverts when payload oversized', async () => {
+      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
+      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
+      const body = ethers.hexlify(new Uint8Array(255));
+
+      const payload = getGMPPayload(
+        await smailbox.getAddress(),
+        lChainId,
+        lChainId,
+        globalNonce,
+        encode(['address'], [signer1.address]),
+        recipient,
+        destinationCaller,
+        body
+      );
+
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      // max payload for sender payload.length - 1
+      await smailbox.connect(owner).setSenderConfig(signer1, payloadLength - 1);
+
+      await expect(smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body, { value: fee }))
+        .to.revertedWithCustomError(smailbox, 'Mailbox_PayloadOversize')
+        .withArgs(payloadLength - 1, payloadLength);
     });
   });
 
