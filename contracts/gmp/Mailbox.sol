@@ -344,7 +344,9 @@ contract Mailbox is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (bytes32) {
-        GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(rawPayload);
+        GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
+            rawPayload
+        );
         MailboxStorage storage $ = _getStorage();
         address msgSender = _msgSender();
 
@@ -354,7 +356,14 @@ contract Mailbox is
         }
 
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
-        _verifyPayload($, payloadHash, payload.msgNonce, payload.msgSender, proof, rawPayload);
+        _verifyPayload(
+            $,
+            payloadHash,
+            payload.msgNonce,
+            payload.msgSender,
+            proof,
+            rawPayload
+        );
 
         // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
         // verify who is able to execute the message
@@ -408,7 +417,13 @@ contract Mailbox is
         if (!$.deliveredPayload[payloadHash]) {
             $.consortium.checkProof(payloadHash, proof);
             $.deliveredPayload[payloadHash] = true;
-            emit MessageDelivered(payloadHash, _msgSender(), msgNonce,msgSender,rawPayload);
+            emit MessageDelivered(
+                payloadHash,
+                _msgSender(),
+                msgNonce,
+                msgSender,
+                rawPayload
+            );
         }
     }
 
