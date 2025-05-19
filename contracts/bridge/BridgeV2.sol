@@ -162,6 +162,14 @@ contract BridgeV2 is
         return (nonce, payloadHash);
     }
 
+    /**
+     * @notice Handles an incoming notarized payload received by the Mailbox,
+     * mints the token to the requested recipient on the chain.
+     * @dev Validates the `msg.sender` is the Mailbox, and the payload `msgSender`
+     * is a registered bridge for `msgPath`.
+     * @param payload The parsed payload.
+     * @return result Empty bytes.
+     */
     function handlePayload(
         GMPUtils.Payload memory payload
     ) external nonReentrant returns (bytes memory) {
@@ -188,7 +196,7 @@ contract BridgeV2 is
 
         _withdraw(chainId, payload.msgBody);
 
-        return new bytes(0);
+        return new bytes("");
     }
 
     function _withdraw(bytes32 chainId, bytes memory msgBody) internal {
