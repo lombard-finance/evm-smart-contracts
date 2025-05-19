@@ -90,6 +90,8 @@ contract Mailbox is
         MailboxStorage storage $ = _getStorage();
         $.consortium = consortium_;
         $.feePerByte = feePerByte;
+        // nonce must start with nonzero value
+        $.globalNonce = 1;
     }
 
     function consortium() external view returns (INotaryConsortium) {
