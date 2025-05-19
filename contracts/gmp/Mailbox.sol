@@ -57,26 +57,37 @@ contract Mailbox is
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the contract
+     * @dev owner_, consortium_ must be non-zero.
+     * @param owner_ Owner address
+     * @param consortium_ Notary Consortium address
+     * @param feePerByte wei to be paid per byte
+     */
     function initialize(
         address owner_,
-        INotaryConsortium consortium_
+        INotaryConsortium consortium_,
+        uint256 feePerByte
     ) external initializer {
         __Ownable_init(owner_);
         __Ownable2Step_init();
         __ReentrancyGuard_init();
 
-        __Mailbox_init(consortium_);
+        __Mailbox_init(consortium_, feePerByte);
     }
 
     function __Mailbox_init(
-        INotaryConsortium consortium_
+        INotaryConsortium consortium_,
+        uint256 feePerByte
     ) internal onlyInitializing {
+        // consortium must be nonzero
         if (address(consortium_) == address(0)) {
             revert Mailbox_ZeroConsortium();
         }
 
         MailboxStorage storage $ = _getStorage();
         $.consortium = consortium_;
+        $.feePerByte = feePerByte;
     }
 
     function consortium() external view returns (INotaryConsortium) {
@@ -237,12 +248,21 @@ contract Mailbox is
         return _calcFee(_getStorage(), rawPayload.length);
     }
 
+    /**
+     * @notice Send the message to the `destinationChain` and `recipient`
+     * @dev Encodes the message, and emits a `MessageSent` event with consortium compatible payload.
+     * @param destinationChain Lombard chain id of destination chain
+     * @param recipient Address of message recipient on destination chain as bytes32 (must support IHandler interface)
+     * @param destinationCaller Caller on the `destinationChain`, as bytes32
+     * @param body Contents of the message (bytes)
+     */
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
         bytes32 destinationCaller,
         bytes calldata body
     ) external payable override nonReentrant returns (uint256, bytes32) {
+        // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert Mailbox_ZeroRecipient();
         }
@@ -250,7 +270,6 @@ contract Mailbox is
         bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
 
         MailboxStorage storage $ = _getStorage();
-
         // revert if message path disabled
         if ($.outboundMessagePath[outboundId] == bytes32(0)) {
             revert Mailbox_MessagePathDisabled(outboundId);
@@ -307,13 +326,23 @@ contract Mailbox is
         return payloadSize * $.feePerByte;
     }
 
-    // no replay protection
-    // TODO: implement deliver only method, then relayer can only deliver payload
+    /**
+     * @notice Deliver a message. The mailbox does not track the nonce or hash of the payload,
+     * the handler must prevent double-spending if such logic applies.
+     * The valid payload is decoded and passed to the specified receiver, which must
+     * implement the IHandler interface to process the payload.
+     *
+     * @dev Payload is ABI encoded with selector
+     * MessageV1(path bytes32, nonce uint256, sender bytes32, recipient bytes32, destinationCaller bytes32, body bytes)
+     * @param rawPayload Payload bytes
+     * @param proof ABI encoded array of signatures
+     * @return payloadHash The hash of payload
+     */
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (bytes32) {
-        GMPUtils.Payload memory payload = GMPUtils.decodePayload(rawPayload);
+        GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(rawPayload);
         MailboxStorage storage $ = _getStorage();
         address msgSender = _msgSender();
 
@@ -323,9 +352,10 @@ contract Mailbox is
         }
 
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
-        _verifyPayload($, payloadHash, payload.msgNonce, proof, rawPayload);
+        _verifyPayload($, payloadHash, payload.msgNonce, payload.msgSender, proof, rawPayload);
 
-        // verify who is able to execute message
+        // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
+        // verify who is able to execute the message
         if (
             payload.msgDestinationCaller != address(0) &&
             payload.msgDestinationCaller != msgSender
@@ -367,7 +397,8 @@ contract Mailbox is
     function _verifyPayload(
         MailboxStorage storage $,
         bytes32 payloadHash,
-        uint256 nonce,
+        uint256 msgNonce,
+        bytes32 msgSender,
         bytes calldata proof,
         bytes calldata rawPayload
     ) internal virtual {
@@ -375,7 +406,7 @@ contract Mailbox is
         if (!$.deliveredPayload[payloadHash]) {
             $.consortium.checkProof(payloadHash, proof);
             $.deliveredPayload[payloadHash] = true;
-            emit MessageDelivered(payloadHash, _msgSender(), nonce,rawPayload);
+            emit MessageDelivered(payloadHash, _msgSender(), msgNonce,msgSender,rawPayload);
         }
     }
 

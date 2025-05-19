@@ -43,7 +43,7 @@ library GMPUtils {
             );
     }
 
-    function decodePayload(
+    function decodeAndValidatePayload(
         bytes calldata rawPayload
     ) internal pure returns (Payload memory payload) {
         validatePayload(rawPayload);
