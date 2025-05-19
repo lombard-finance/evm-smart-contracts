@@ -12,6 +12,8 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { BigNumberish } from 'ethers';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 class Addressable {
   get address(): string {
@@ -24,6 +26,23 @@ class Addressable {
   // @ts-ignore
   private _address: string;
 }
+
+async function calcFee(
+  payload: BytesLike,
+  weiPerByte: bigint
+): Promise<{
+  fee: BigNumberish;
+  length: number;
+}> {
+  const length = ethers.getBytes(payload).length;
+  return {
+    fee: weiPerByte * BigInt(length),
+    length
+  };
+}
+
+const DEFAULT_FEE_PER_BYTE = 100n;
+const VERY_BIG_FEE = 9999_9999_9999n;
 
 describe('Mailbox', function () {
   let deployer: Signer, owner: Signer, signer1: Signer, signer2: Signer;
@@ -55,8 +74,10 @@ describe('Mailbox', function () {
     handlerMock = await deployContract<GMPHandlerMock & Addressable>('GMPHandlerMock', [true], false);
     handlerMock.address = await handlerMock.getAddress();
 
-    await smailbox.connect(owner).setDefaultMaxPayloadSize(5000);
-    await dmailbox.connect(owner).setDefaultMaxPayloadSize(5000);
+    await smailbox.connect(owner).setDefaultMaxPayloadSize(1000);
+    await dmailbox.connect(owner).setDefaultMaxPayloadSize(1000);
+
+    await smailbox.connect(owner).setFee(DEFAULT_FEE_PER_BYTE);
 
     snapshot = await takeSnapshot();
   });
@@ -124,6 +145,47 @@ describe('Mailbox', function () {
         smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox]))
       ).to.revertedWithCustomError(smailbox, 'Mailbox_ZeroMailbox');
     });
+
+    // TODO: `setDefaultMaxPayloadSize` reverted with Mailbox_PayloadOversize when set > GLOBAL_MAX_PAYLOAD_SIZE
+
+    it('DefaultMaxPayloadSize', async () => {
+      const size = 10000n;
+      await expect(smailbox.connect(owner).setDefaultMaxPayloadSize(size))
+        .to.emit(smailbox, 'DefaultPayloadSizeSet')
+        .withArgs(size);
+      expect(await smailbox.getDefaultMaxPayloadSize()).to.be.equal(size);
+    });
+
+    // TODO: `setSenderConfig` reverted with Mailbox_PayloadOversize when set > GLOBAL_MAX_PAYLOAD_SIZE
+
+    it('SenderConfig', async () => {
+      const payloadSize = 111;
+      await expect(smailbox.connect(owner).setSenderConfig(signer2, payloadSize))
+        .to.emit(smailbox, 'SenderConfigUpdated')
+        .withArgs(signer2, payloadSize);
+
+      const cfg = await smailbox.getSenderConfigWithDefault(signer2);
+      expect(cfg['maxPayloadSize']).to.be.eq(payloadSize);
+    });
+
+    it('Fee', async () => {
+      const fee = 1n;
+      await expect(smailbox.connect(owner).setFee(fee)).to.emit(smailbox, 'FeePerByteSet').withArgs(fee);
+
+      // precalculate expected fee
+      const payload = getGMPPayload(
+        ethers.ZeroAddress,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        0,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        '0x'
+      );
+      const { fee: expectedFee } = await calcFee(payload, fee);
+      expect(await smailbox.getFee('0x')).to.be.eq(expectedFee);
+    });
   });
 
   describe('Base flow', function () {
@@ -132,10 +194,13 @@ describe('Mailbox', function () {
       globalNonce = 0;
     });
 
+    // TODO: `smailbox` throws `Mailbox_NotEnoughFee` when not enough fee
+
     it('transmit successful', async () => {
       const recipient = encode(['address'], [await handlerMock.getAddress()]);
       const destinationCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
+      const balanceBefore = await ethers.provider.getBalance(signer1);
 
       const payload = getGMPPayload(
         smailbox.address,
@@ -148,9 +213,22 @@ describe('Mailbox', function () {
         body
       );
 
-      await expect(smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body))
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      const sendTx = smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body, { value: fee });
+
+      await expect(sendTx)
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(lChainId, signer1.address, recipient, payload);
+        .withArgs(lChainId, signer1.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
+
+      const receipt = await ethers.provider.getTransactionReceipt((await sendTx).hash);
+      const txFee = receipt?.fee || 0n;
+
+      const balanceAfter = await ethers.provider.getBalance(signer1);
+      // the difference should be GMP Fee + Tx Fee
+      expect(balanceBefore - balanceAfter).to.be.equal(txFee + BigInt(fee));
 
       const { proof, payloadHash } = await signPayload([signer1], [true], payload);
 
@@ -191,9 +269,13 @@ describe('Mailbox', function () {
         body
       );
 
-      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body))
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body, { value: fee }))
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(lChainId, sender.address, recipient, payload);
+        .withArgs(lChainId, sender.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
     });
 
     it('Another message to the same chain', async function () {
@@ -213,9 +295,13 @@ describe('Mailbox', function () {
         body
       );
 
-      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body))
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body, { value: fee }))
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(lChainId, sender.address, recipient, payload);
+        .withArgs(lChainId, sender.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
     });
 
     it('Message to different chain', async function () {
@@ -234,10 +320,13 @@ describe('Mailbox', function () {
         destinationCaller,
         body
       );
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
 
-      await expect(smailbox.connect(sender).send(newDstChain, recipient, destinationCaller, body))
+      await expect(smailbox.connect(sender).send(newDstChain, recipient, destinationCaller, body, { value: fee }))
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(newDstChain, sender.address, recipient, payload);
+        .withArgs(newDstChain, sender.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), sender, payloadLength, fee);
     });
 
     const invalidArgs = [
@@ -271,7 +360,9 @@ describe('Mailbox', function () {
     invalidArgs.forEach(function (arg) {
       it(`Reverts when ${arg.name}`, async function () {
         await expect(
-          smailbox.connect(signer1).send(arg.destinationChain(), arg.recipient(), arg.destinationCaller(), arg.body())
+          smailbox.connect(signer1).send(arg.destinationChain(), arg.recipient(), arg.destinationCaller(), arg.body(), {
+            value: VERY_BIG_FEE // TODO: add fee to params
+          })
         ).to.revertedWithCustomError(smailbox, arg.error);
       });
     });
@@ -295,7 +386,7 @@ describe('Mailbox', function () {
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
+          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
@@ -335,7 +426,7 @@ describe('Mailbox', function () {
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
+          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
         let payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
@@ -417,7 +508,7 @@ describe('Mailbox', function () {
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [ethers.ZeroAddress]), body);
+          .send(lChainId, recipient, encode(['address'], [ethers.ZeroAddress]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
@@ -467,7 +558,7 @@ describe('Mailbox', function () {
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
+          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;

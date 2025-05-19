@@ -191,6 +191,10 @@ contract Mailbox is
         emit DefaultPayloadSizeSet(maxPayloadSize);
     }
 
+    function getDefaultMaxPayloadSize() external view returns (uint32) {
+        return _getStorage().defaultMaxPayloadSize;
+    }
+
     function setSenderConfig(
         address sender,
         uint32 maxPayloadSize
@@ -202,10 +206,15 @@ contract Mailbox is
             );
         }
 
-        MailboxStorage storage $ = _getStorage();
-        $.senderConfig[sender].maxPayloadSize;
+        _getStorage().senderConfig[sender].maxPayloadSize = maxPayloadSize;
 
         emit SenderConfigUpdated(sender, maxPayloadSize);
+    }
+
+    function getSenderConfigWithDefault(
+        address sender
+    ) external view returns (SenderConfig memory) {
+        return _getSenderConfigWithDefault(_getStorage(), sender);
     }
 
     function setFee(uint256 weiPerByte) external onlyOwner {
@@ -215,10 +224,7 @@ contract Mailbox is
     }
 
     // only body size affect fee estimation
-    function getFee(
-        bytes calldata body
-    ) external view returns (uint256) {
-
+    function getFee(bytes calldata body) external view returns (uint256) {
         bytes memory rawPayload = GMPUtils.encodePayload(
             bytes32(0),
             0,
@@ -294,7 +300,10 @@ contract Mailbox is
         return (nonce, payloadHash);
     }
 
-    function _calcFee(MailboxStorage storage $, uint256 payloadSize) internal view returns (uint256) {
+    function _calcFee(
+        MailboxStorage storage $,
+        uint256 payloadSize
+    ) internal view returns (uint256) {
         return payloadSize * $.feePerByte;
     }
 
@@ -369,7 +378,9 @@ contract Mailbox is
         }
     }
 
-    function withdrawFee(address payable treasury) external nonReentrant onlyOwner {
+    function withdrawFee(
+        address payable treasury
+    ) external nonReentrant onlyOwner {
         if (treasury == address(0)) {
             revert Mailbox_ZeroTreasury();
         }
@@ -378,7 +389,7 @@ contract Mailbox is
         if (amount == 0) {
             revert Mailbox_ZeroAmount();
         }
-        (bool success,) = treasury.call{value: amount}("");
+        (bool success, ) = treasury.call{value: amount}("");
         if (!success) {
             revert Mailbox_CallFailed();
         }

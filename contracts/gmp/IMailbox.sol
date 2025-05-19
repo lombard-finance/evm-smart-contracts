@@ -70,7 +70,11 @@ interface IMailbox {
 
     event FeePerByteSet(uint256 fee);
 
-    event FeeWithdrawn(address indexed by, address indexed treasury, uint256 amount);
+    event FeeWithdrawn(
+        address indexed by,
+        address indexed treasury,
+        uint256 amount
+    );
 
     function send(
         bytes32 destinationChain,
