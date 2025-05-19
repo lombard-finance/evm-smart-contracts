@@ -32,7 +32,7 @@ interface IMailbox {
 
     event MessageSent(
         bytes32 indexed destinationLChainId,
-        address indexed sender,
+        address indexed msgSender,
         bytes32 indexed recipient,
         bytes payload
     );
