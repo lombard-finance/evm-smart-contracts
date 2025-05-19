@@ -336,6 +336,7 @@ describe('Mailbox', function () {
         recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
+        fee: VERY_BIG_FEE,
         error: 'Mailbox_MessagePathDisabled'
       },
       {
@@ -344,6 +345,7 @@ describe('Mailbox', function () {
         recipient: () => encode(['address'], [ethers.ZeroAddress]),
         destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
+        fee: VERY_BIG_FEE,
         error: 'Mailbox_ZeroRecipient'
       }
     ];
@@ -352,7 +354,7 @@ describe('Mailbox', function () {
       it(`Reverts when ${arg.name}`, async function () {
         await expect(
           smailbox.connect(signer1).send(arg.destinationChain(), arg.recipient(), arg.destinationCaller(), arg.body(), {
-            value: VERY_BIG_FEE // TODO: add fee to params
+            value: arg.fee
           })
         ).to.revertedWithCustomError(smailbox, arg.error);
       });
