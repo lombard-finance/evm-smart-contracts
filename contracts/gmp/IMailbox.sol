@@ -47,8 +47,9 @@ interface IMailbox {
 
     event MessageDelivered(
         bytes32 indexed payloadHash,
-        address indexed destinationCaller,
-        // TODO: add more indexed events
+        address indexed caller,
+        uint256 indexed nonce,
+        bytes32 msgSender,
         bytes payload
     );
 

@@ -323,7 +323,7 @@ contract Mailbox is
         }
 
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
-        _verifyPayload($, payloadHash, proof, rawPayload);
+        _verifyPayload($, payloadHash, payload.msgNonce, proof, rawPayload);
 
         // verify who is able to execute message
         if (
@@ -367,6 +367,7 @@ contract Mailbox is
     function _verifyPayload(
         MailboxStorage storage $,
         bytes32 payloadHash,
+        uint256 nonce,
         bytes calldata proof,
         bytes calldata rawPayload
     ) internal virtual {
@@ -374,7 +375,7 @@ contract Mailbox is
         if (!$.deliveredPayload[payloadHash]) {
             $.consortium.checkProof(payloadHash, proof);
             $.deliveredPayload[payloadHash] = true;
-            emit MessageDelivered(payloadHash, _msgSender(), rawPayload);
+            emit MessageDelivered(payloadHash, _msgSender(), nonce,rawPayload);
         }
     }
 
