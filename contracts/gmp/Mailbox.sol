@@ -6,6 +6,8 @@ import {IMailbox} from "./IMailbox.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {RateLimits} from "../libs/RateLimits.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LChainId} from "../libs/LChainId.sol";
@@ -427,6 +429,20 @@ contract Mailbox is
         }
 
         emit FeeWithdrawn(_msgSender(), treasury, amount);
+    }
+
+    /**
+     * @notice Rescue ERC20 tokens locked up in this contract.
+     * @param tokenContract ERC20 token contract address
+     * @param to Recipient address
+     * @param amount Amount to withdraw
+     */
+    function rescueERC20(
+        IERC20 tokenContract,
+        address to,
+        uint256 amount
+    ) external onlyOwner {
+        SafeERC20.safeTransfer(tokenContract, to, amount);
     }
 
     function getInboundMessagePath(
