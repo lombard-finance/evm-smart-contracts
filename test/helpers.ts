@@ -264,6 +264,20 @@ export async function getFeeTypedMessage(
   return signer.signTypedData(domain, types, message);
 }
 
+export function randomBigInt(length: number): bigint {
+  if (length <= 0) {
+    return BigInt(0);
+  }
+
+  const min = BigInt(10) ** BigInt(length - 1);
+  const max = (BigInt(10) ** BigInt(length)) - BigInt(1);
+
+  const range = max - min + BigInt(1);
+  const rand = BigInt(Math.floor(Math.random() * Number(range)));
+
+  return min + rand;
+}
+
 /**
  * address target,
  * uint256 value,
@@ -342,3 +356,4 @@ export class TxBuilder {
     return [this._target, this._value, this._data, this._predecessor, this._delay];
   }
 }
+
