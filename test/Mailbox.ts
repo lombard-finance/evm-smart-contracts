@@ -14,6 +14,7 @@ import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { BigNumberish } from 'ethers';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
+import { bridge } from '../typechain-types/contracts';
 
 class Addressable {
   get address(): string {
@@ -221,7 +222,7 @@ describe('Mailbox', function () {
 
     // TODO: `smailbox` throws `Mailbox_NotEnoughFee` when not enough fee
 
-    it('transmit successful', async () => {
+    it('transmit and withdraw fee successful', async () => {
       const recipient = encode(['address'], [await handlerMock.getAddress()]);
       const destinationCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
@@ -265,6 +266,14 @@ describe('Mailbox', function () {
         .to.emit(dmailbox, 'MessageDelivered')
         .withArgs(payloadHash, signer1.address, globalNonce - 1, signer1Bytes, payload);
       await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, signer1.address, body);
+
+      // withdraw the fee
+      const signer2BalanceBefore = await ethers.provider.getBalance(signer2);
+      await expect(smailbox.connect(owner).withdrawFee(signer2))
+        .to.emit(smailbox, 'FeeWithdrawn')
+        .withArgs(owner, signer2, fee);
+      const signer2BalanceAfter = await ethers.provider.getBalance(signer2);
+      expect(signer2BalanceAfter - signer2BalanceBefore).to.be.equal(fee);
     });
   });
 

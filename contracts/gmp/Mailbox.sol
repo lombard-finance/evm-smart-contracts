@@ -29,6 +29,7 @@ contract Mailbox is
 
     struct SenderConfig {
         uint32 maxPayloadSize;
+        // TODO: fee multiplier per sender (0 makes possible to disable them)
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
