@@ -4,19 +4,21 @@ import { getSignersWithPrivateKeys, deployContract, encode, Signer, getGMPPayloa
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
+const BRIDGE_PAYLOAD_SIZE = 356;
+
 describe('BridgeV2', function () {
   let deployer: Signer, signer1: Signer, signer2: Signer;
   let mailbox: MailboxMock;
   let snapshot: SnapshotRestorer;
   let bridge: BridgeV2;
   let lChainId: string;
-  let globalNonce = 0;
+  let globalNonce = 1;
   let lbtc: LBTCMock;
 
   before(async function () {
     [deployer, signer1, signer2] = await getSignersWithPrivateKeys();
 
-    mailbox = await deployContract<MailboxMock>('MailboxMock', [deployer.address, deployer.address]);
+    mailbox = await deployContract<MailboxMock>('MailboxMock', [deployer.address, deployer.address, 0n, 0n]);
 
     const { chainId } = await ethers.provider.getNetwork();
     lChainId = encode(['uint256'], [chainId]);
@@ -24,6 +26,8 @@ describe('BridgeV2', function () {
     await mailbox.enableMessagePath(lChainId, encode(['address'], [await mailbox.getAddress()]));
 
     bridge = await deployContract<BridgeV2>('BridgeV2', [deployer.address, await mailbox.getAddress()]);
+    // allow required payload size and exclude from fees
+    await mailbox.connect(deployer).setSenderConfig(bridge, BRIDGE_PAYLOAD_SIZE, true);
     lbtc = await deployContract<LBTCMock>('LBTCMock', [deployer.address, 0, deployer.address, deployer.address]);
     await lbtc.addMinter(await bridge.getAddress());
 
@@ -33,7 +37,7 @@ describe('BridgeV2', function () {
   const AMOUNT = 1_0000_0000n;
 
   beforeEach(async function () {
-    globalNonce = 0;
+    globalNonce = 1;
     await lbtc.mintTo(signer1.address, AMOUNT);
     await lbtc.connect(signer1).approve(await bridge.getAddress(), AMOUNT);
 
