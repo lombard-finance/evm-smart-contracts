@@ -24,6 +24,5 @@ task('deploy-gmp-mailbox', 'Deploys the GMP mailbox contract')
       owner = admin;
     }
 
-    const data = await create3('Mailbox', [owner, consortium], proxyFactoryAddr, ledgerNetwork, owner, hre);
-    console.log(data);
+    await create3('Mailbox', [owner, consortium], proxyFactoryAddr, ledgerNetwork, owner, hre);
   });

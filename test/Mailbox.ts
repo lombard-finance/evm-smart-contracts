@@ -1,4 +1,4 @@
-import { Consortium, GMPHandlerMock, Mailbox } from '../typechain-types';
+import { Consortium, GMPHandlerMock, LBTCMock, Mailbox } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   deployContract,
@@ -12,6 +12,9 @@ import {
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { BigNumberish } from 'ethers';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
+import { bridge } from '../typechain-types/contracts';
 
 class Addressable {
   get address(): string {
@@ -25,6 +28,23 @@ class Addressable {
   private _address: string;
 }
 
+async function calcFee(
+  payload: BytesLike,
+  weiPerByte: bigint
+): Promise<{
+  fee: BigNumberish;
+  length: number;
+}> {
+  const length = ethers.getBytes(payload).length;
+  return {
+    fee: weiPerByte * BigInt(length),
+    length
+  };
+}
+
+const DEFAULT_FEE_PER_BYTE = 100n;
+const VERY_BIG_FEE = 9999_9999_9999n;
+
 describe('Mailbox', function () {
   let deployer: Signer, owner: Signer, signer1: Signer, signer2: Signer;
   let consortium: Consortium & Addressable;
@@ -32,7 +52,7 @@ describe('Mailbox', function () {
   let snapshot: SnapshotRestorer;
   let lChainId: string;
   let handlerMock: GMPHandlerMock & Addressable;
-  let globalNonce = 0;
+  let globalNonce = 1;
 
   before(async function () {
     [deployer, owner, signer1, signer2] = await getSignersWithPrivateKeys();
@@ -42,9 +62,14 @@ describe('Mailbox', function () {
     consortium.address = await consortium.getAddress();
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
-    smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
+    smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
+      owner.address,
+      consortium.address,
+      DEFAULT_FEE_PER_BYTE,
+      0n
+    ]);
     smailbox.address = await smailbox.getAddress();
-    dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
+    dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
     dmailbox.address = await dmailbox.getAddress();
 
     const { chainId } = await ethers.provider.getNetwork();
@@ -55,13 +80,16 @@ describe('Mailbox', function () {
     handlerMock = await deployContract<GMPHandlerMock & Addressable>('GMPHandlerMock', [true], false);
     handlerMock.address = await handlerMock.getAddress();
 
+    await smailbox.connect(owner).setDefaultMaxPayloadSize(1000);
+    await dmailbox.connect(owner).setDefaultMaxPayloadSize(1000);
+
     snapshot = await takeSnapshot();
   });
 
   describe('Setters and Getters', () => {
     beforeEach(async function () {
       await snapshot.restore();
-      globalNonce = 0;
+      globalNonce = 1;
     });
 
     it('Owner', async function () {
@@ -73,7 +101,6 @@ describe('Mailbox', function () {
     });
 
     it('enableMessagePath owner can', async function () {
-      console.log('1');
       let chain = encode(['uint256'], [12345]);
       let mailbox = ethers.Wallet.createRandom();
 
@@ -95,8 +122,8 @@ describe('Mailbox', function () {
       let chain = encode(['uint256'], [12345]);
       let mailbox = ethers.Wallet.createRandom();
       await expect(smailbox.connect(signer1).enableMessagePath(chain, encode(['address'], [mailbox.address])))
-        .to.revertedWithCustomError(smailbox, 'OwnableUnauthorizedAccount')
-        .withArgs(signer1.address);
+        .to.revertedWithCustomError(smailbox, 'AccessControlUnauthorizedAccount')
+        .withArgs(signer1.address, await smailbox.DEFAULT_ADMIN_ROLE());
     });
 
     it('enableMessagePath reverts when destination contract is set', async function () {
@@ -122,40 +149,147 @@ describe('Mailbox', function () {
         smailbox.connect(owner).enableMessagePath(chain, encode(['address'], [mailbox]))
       ).to.revertedWithCustomError(smailbox, 'Mailbox_ZeroMailbox');
     });
+
+    // TODO: `setDefaultMaxPayloadSize` reverted with Mailbox_PayloadOversize when set > GLOBAL_MAX_PAYLOAD_SIZE
+
+    it('DefaultMaxPayloadSize', async () => {
+      const size = 10000n;
+      await expect(smailbox.connect(owner).setDefaultMaxPayloadSize(size))
+        .to.emit(smailbox, 'DefaultPayloadSizeSet')
+        .withArgs(size);
+      expect(await smailbox.getDefaultMaxPayloadSize()).to.be.equal(size);
+    });
+
+    // TODO: `setSenderConfig` reverted with Mailbox_PayloadOversize when set > GLOBAL_MAX_PAYLOAD_SIZE
+
+    it('SenderConfig', async () => {
+      const payloadSize = 111;
+      await expect(smailbox.connect(owner).setSenderConfig(signer2, payloadSize, false))
+        .to.emit(smailbox, 'SenderConfigUpdated')
+        .withArgs(signer2, payloadSize, false);
+
+      const cfg = await smailbox.getSenderConfigWithDefault(signer2);
+      expect(cfg['maxPayloadSize']).to.be.eq(payloadSize);
+    });
+
+    it('Fee', async () => {
+      const fee = 1n;
+      await expect(smailbox.connect(owner).setFee(fee)).to.emit(smailbox, 'FeePerByteSet').withArgs(fee);
+
+      // precalculate expected fee
+      const payload = getGMPPayload(
+        ethers.ZeroAddress,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        0,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
+        '0x'
+      );
+      const { fee: expectedFee } = await calcFee(payload, fee);
+      expect(await smailbox.getFee(owner, '0x')).to.be.eq(expectedFee);
+    });
+
+    it('Fee when sender excluded from fee', async () => {
+      await expect(smailbox.connect(owner).setFee(VERY_BIG_FEE))
+        .to.emit(smailbox, 'FeePerByteSet')
+        .withArgs(VERY_BIG_FEE);
+
+      await expect(smailbox.connect(owner).setSenderConfig(owner, 0, true))
+        .to.emit(smailbox, 'SenderConfigUpdated')
+        .withArgs(owner, 0, true);
+
+      expect(await smailbox.getFee(owner, '0x')).to.be.eq(0);
+    });
+  });
+
+  describe('Rescue ERC20', function () {
+    // TODO: should revert if not owner
+    it('should rescue erc20', async () => {
+      await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), owner);
+      const rndAddr = ethers.Wallet.createRandom();
+      const someErc20 = await deployContract<LBTCMock>('LBTCMock', [
+        rndAddr.address,
+        0,
+        rndAddr.address,
+        owner.address
+      ]);
+      const AMOUNT = 1_000_000n;
+      await someErc20.mintTo(signer2, AMOUNT);
+      await someErc20.connect(signer2).transfer(smailbox, AMOUNT);
+      expect(await someErc20.balanceOf(signer2)).to.be.eq(0);
+      expect(await someErc20.balanceOf(smailbox)).to.be.eq(AMOUNT);
+
+      await smailbox.connect(owner).rescueERC20(someErc20, signer2, AMOUNT);
+
+      expect(await someErc20.balanceOf(signer2)).to.be.eq(AMOUNT);
+      expect(await someErc20.balanceOf(smailbox)).to.be.eq(0);
+    });
   });
 
   describe('Base flow', function () {
     beforeEach(async function () {
       await snapshot.restore();
-      globalNonce = 0;
+      globalNonce = 1;
     });
 
-    it('transmit successful', async () => {
+    // TODO: `smailbox` throws `Mailbox_NotEnoughFee` when not enough fee
+
+    it('transmit and withdraw fee successful', async () => {
       const recipient = encode(['address'], [await handlerMock.getAddress()]);
       const destinationCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
+      let balanceBefore = await ethers.provider.getBalance(signer1);
+
+      const signer1Bytes = encode(['address'], [signer1.address]);
 
       const payload = getGMPPayload(
         smailbox.address,
         lChainId,
         lChainId,
         globalNonce++,
-        encode(['address'], [signer1.address]),
+        signer1Bytes,
         recipient,
         destinationCaller,
         body
       );
 
-      await expect(smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body))
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      const sendTx = smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body, { value: fee });
+
+      await expect(sendTx)
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(lChainId, signer1.address, recipient, payload);
+        .withArgs(lChainId, signer1.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
+
+      const receipt = await ethers.provider.getTransactionReceipt((await sendTx).hash);
+      const txFee = receipt?.fee || 0n;
+
+      let balanceAfter = await ethers.provider.getBalance(signer1);
+      // the difference should be GMP Fee + Tx Fee
+      expect(balanceBefore - balanceAfter).to.be.equal(txFee + BigInt(fee));
 
       const { proof, payloadHash } = await signPayload([signer1], [true], payload);
 
       const result = dmailbox.connect(signer1).deliverAndHandle(payload, proof);
       await expect(result).to.not.emit(dmailbox, 'MessageHandleError');
-      await expect(result).to.emit(dmailbox, 'MessageDelivered').withArgs(payloadHash, signer1.address, payload);
+      await expect(result)
+        .to.emit(dmailbox, 'MessageDelivered')
+        .withArgs(payloadHash, signer1.address, globalNonce - 1, signer1Bytes, payload);
       await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, signer1.address, body);
+
+      // withdraw the fee
+      balanceBefore = await ethers.provider.getBalance(signer1);
+      await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), signer1);
+      const withdrawFeeTx = smailbox.connect(signer1).withdrawFee();
+      await expect(withdrawFeeTx).to.emit(smailbox, 'FeeWithdrawn').withArgs(signer1, fee);
+      const withdrawFeeReceipt = await ethers.provider.getTransactionReceipt((await withdrawFeeTx).hash);
+      const withdrawFeeTxFee = withdrawFeeReceipt?.fee || 0n;
+      balanceAfter = await ethers.provider.getBalance(signer1);
+      expect(balanceBefore - balanceAfter).to.be.equal(withdrawFeeTxFee - BigInt(fee));
     });
   });
 
@@ -165,7 +299,7 @@ describe('Mailbox', function () {
 
     before(async function () {
       await snapshot.restore();
-      globalNonce = 0;
+      globalNonce = 1;
 
       newDstChain = encode(['uint256'], [12345]);
       newDstMailbox = ethers.Wallet.createRandom();
@@ -189,9 +323,13 @@ describe('Mailbox', function () {
         body
       );
 
-      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body))
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body, { value: fee }))
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(lChainId, sender.address, recipient, payload);
+        .withArgs(lChainId, sender.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
     });
 
     it('Another message to the same chain', async function () {
@@ -211,9 +349,13 @@ describe('Mailbox', function () {
         body
       );
 
-      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body))
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      await expect(smailbox.connect(sender).send(lChainId, recipient, destinationCaller, body, { value: fee }))
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(lChainId, sender.address, recipient, payload);
+        .withArgs(lChainId, sender.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), signer1.address, payloadLength, fee);
     });
 
     it('Message to different chain', async function () {
@@ -232,10 +374,13 @@ describe('Mailbox', function () {
         destinationCaller,
         body
       );
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
 
-      await expect(smailbox.connect(sender).send(newDstChain, recipient, destinationCaller, body))
+      await expect(smailbox.connect(sender).send(newDstChain, recipient, destinationCaller, body, { value: fee }))
         .to.emit(smailbox, 'MessageSent')
-        .withArgs(newDstChain, sender.address, recipient, payload);
+        .withArgs(newDstChain, sender.address, recipient, payload)
+        .and.to.emit(smailbox, 'MessagePaid')
+        .withArgs(ethers.sha256(payload), sender, payloadLength, fee);
     });
 
     const invalidArgs = [
@@ -245,6 +390,7 @@ describe('Mailbox', function () {
         recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
+        fee: VERY_BIG_FEE,
         error: 'Mailbox_MessagePathDisabled'
       },
       {
@@ -253,25 +399,56 @@ describe('Mailbox', function () {
         recipient: () => encode(['address'], [ethers.ZeroAddress]),
         destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
+        fee: VERY_BIG_FEE,
         error: 'Mailbox_ZeroRecipient'
+      },
+      {
+        name: 'Not enough fee',
+        destinationChain: () => lChainId,
+        recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
+        fee: 1,
+        error: 'Mailbox_NotEnoughFee'
       }
-      //TODO: body max size
-      // {
-      //   name: 'Unknown destination chain',
-      //   destinationChain: () => lChainId,
-      //   recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
-      //   destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
-      //   body: () => ethers.hexlify(ethers.toUtf8Bytes('TEST')),
-      //   error: 'Mailbox_MessagePathDisabled'
-      // }
     ];
 
     invalidArgs.forEach(function (arg) {
       it(`Reverts when ${arg.name}`, async function () {
         await expect(
-          smailbox.connect(signer1).send(arg.destinationChain(), arg.recipient(), arg.destinationCaller(), arg.body())
+          smailbox.connect(signer1).send(arg.destinationChain(), arg.recipient(), arg.destinationCaller(), arg.body(), {
+            value: arg.fee
+          })
         ).to.revertedWithCustomError(smailbox, arg.error);
       });
+    });
+
+    it('Reverts when payload oversized', async () => {
+      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
+      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
+      const body = ethers.hexlify(new Uint8Array(255));
+
+      const payload = getGMPPayload(
+        await smailbox.getAddress(),
+        lChainId,
+        lChainId,
+        globalNonce,
+        encode(['address'], [signer1.address]),
+        recipient,
+        destinationCaller,
+        body
+      );
+
+      const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
+
+      // max payload for sender payload.length - 1
+      await expect(smailbox.connect(owner).setSenderConfig(signer1, payloadLength - 1, false))
+        .to.emit(smailbox, 'SenderConfigUpdated')
+        .withArgs(signer1, payloadLength - 1, false);
+
+      await expect(smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body, { value: fee }))
+        .to.revertedWithCustomError(smailbox, 'Mailbox_PayloadOversize')
+        .withArgs(payloadLength - 1, payloadLength);
     });
   });
 
@@ -283,6 +460,8 @@ describe('Mailbox', function () {
       let payload: string;
       let proof: string;
       let payloadHash: string;
+      let msgSender: string;
+      let nonce: bigint;
 
       before(async function () {
         await snapshot.restore();
@@ -293,11 +472,14 @@ describe('Mailbox', function () {
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
+          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
-        payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
-        expect(payload).to.not.undefined;
+        const args = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args;
+        expect(args.payload).to.not.undefined;
+        payload = args.payload;
+        msgSender = encode(['address'], [args.msgSender]);
+        nonce = ethers.toBigInt(payload.slice(74, 138));
 
         let res = await signPayload([signer1], [true], payload);
         proof = res.proof;
@@ -315,7 +497,7 @@ describe('Mailbox', function () {
         await expect(result).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(result)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, payload);
+          .withArgs(payloadHash, destinationCaller.address, nonce, msgSender, payload);
         await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, destinationCaller.address, body);
         await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
       });
@@ -328,16 +510,40 @@ describe('Mailbox', function () {
         await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
       });
 
+      it('other mailbox on dst chain can receive this message', async function () {
+        const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
+          owner.address,
+          consortium.address,
+          0n,
+          0n
+        ]);
+        newDstMailbox.address = await newDstMailbox.getAddress();
+        await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
+
+        const result = await newDstMailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
+        await expect(result).to.not.emit(newDstMailbox, 'MessageHandleError');
+        await expect(result)
+          .to.emit(newDstMailbox, 'MessageDelivered')
+          .withArgs(payloadHash, destinationCaller.address, nonce, msgSender, payload);
+        await expect(result)
+          .to.emit(newDstMailbox, 'MessageHandled')
+          .withArgs(payloadHash, destinationCaller.address, body);
+        await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
+      });
+
       it('deliver another message from the same dst', async function () {
         let body = ethers.hexlify(ethers.toUtf8Bytes('TEST 2'));
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
+          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
-        let payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
-        expect(payload).to.not.undefined;
+        const args = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args;
+        expect(args.payload).to.not.undefined;
+        payload = args.payload;
+        msgSender = encode(['address'], [args.msgSender]);
+        nonce = ethers.toBigInt(payload.slice(74, 138));
 
         let res = await signPayload([signer1], [true], payload);
 
@@ -345,7 +551,7 @@ describe('Mailbox', function () {
         await expect(result).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(result)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(res.payloadHash, destinationCaller.address, payload);
+          .withArgs(res.payloadHash, destinationCaller.address, nonce, msgSender, payload);
         await expect(result)
           .to.emit(dmailbox, 'MessageHandled')
           .withArgs(res.payloadHash, destinationCaller.address, body);
@@ -374,27 +580,8 @@ describe('Mailbox', function () {
         await expect(result).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(result)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, payload);
+          .withArgs(payloadHash, destinationCaller.address, globalNonce - 1, msgSender, payload);
         await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, destinationCaller.address, body);
-        await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
-      });
-
-      it('other mailbox on dst chain can receive this message', async function () {
-        const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
-          owner.address,
-          consortium.address
-        ]);
-        newDstMailbox.address = await newDstMailbox.getAddress();
-        await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
-
-        const result = await newDstMailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
-        await expect(result).to.not.emit(newDstMailbox, 'MessageHandleError');
-        await expect(result)
-          .to.emit(newDstMailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, payload);
-        await expect(result)
-          .to.emit(newDstMailbox, 'MessageHandled')
-          .withArgs(payloadHash, destinationCaller.address, body);
         await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
       });
     });
@@ -405,17 +592,19 @@ describe('Mailbox', function () {
       let payload: string;
       let proof: string;
       let payloadHash: string;
+      let signer1Bytes: string;
 
       before(async function () {
         await snapshot.restore();
-        globalNonce = 0;
+        globalNonce = 1;
+        signer1Bytes = encode(['address'], [signer1.address]);
 
         recipient = encode(['address'], [handlerMock.address]);
         body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [ethers.ZeroAddress]), body);
+          .send(lChainId, recipient, encode(['address'], [ethers.ZeroAddress]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
@@ -432,7 +621,7 @@ describe('Mailbox', function () {
         await expect(result).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(result)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, payload);
+          .withArgs(payloadHash, destinationCaller.address, globalNonce, signer1Bytes, payload);
         await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, destinationCaller.address, body);
         await expect(result).to.emit(handlerMock, 'MessageReceived').withArgs(body);
       });
@@ -454,10 +643,12 @@ describe('Mailbox', function () {
       let payload: string;
       let proof: string;
       let payloadHash: string;
+      let signer1Bytes: string;
 
       before(async function () {
         await snapshot.restore();
-        globalNonce = 0;
+        globalNonce = 1;
+        signer1Bytes = encode(['address'], [signer1.address]);
 
         recipient = encode(['address'], [handlerMock.address]);
         destinationCaller = signer2;
@@ -465,7 +656,7 @@ describe('Mailbox', function () {
 
         let tx = await smailbox
           .connect(signer1)
-          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body);
+          .send(lChainId, recipient, encode(['address'], [destinationCaller.address]), body, { value: VERY_BIG_FEE });
         let receipt = await tx.wait();
         // @ts-ignore
         payload = receipt?.logs.find(l => l.eventName === 'MessageSent')?.args.payload;
@@ -485,7 +676,7 @@ describe('Mailbox', function () {
           .withArgs(payloadHash, destinationCaller.address, 'not enabled', '0x');
         await expect(result)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, payload);
+          .withArgs(payloadHash, destinationCaller.address, globalNonce, signer1Bytes, payload);
         await expect(result).to.not.emit(dmailbox, 'MessageHandled');
         await expect(result).to.not.emit(handlerMock, 'MessageReceived');
       });
@@ -518,10 +709,15 @@ describe('Mailbox', function () {
 
       before(async function () {
         await snapshot.restore();
-        unknownMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address]);
+        unknownMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
+          owner.address,
+          consortium.address,
+          0,
+          0n
+        ]);
         unknownMailbox.address = await unknownMailbox.getAddress();
       });
-      let nonce = 0;
+      let nonce = 1;
 
       const args = [
         {

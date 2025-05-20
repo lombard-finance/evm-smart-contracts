@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {AccessControlUpgradeable, AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+
 import {MessagePath} from "./libs/MessagePath.sol";
 import {IMailbox} from "./IMailbox.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {RateLimits} from "../libs/RateLimits.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LChainId} from "../libs/LChainId.sol";
 import {IHandler} from "./IHandler.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {GMPUtils} from "./libs/GMPUtils.sol";
 
 /**
@@ -19,11 +22,17 @@ import {GMPUtils} from "./libs/GMPUtils.sol";
  * @notice The contract is a part of Lombard Generalized Message Passing protocol
  */
 contract Mailbox is
-IMailbox,
-Ownable2StepUpgradeable,
-ReentrancyGuardUpgradeable
+    IMailbox,
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
 {
     using MessagePath for MessagePath.Details;
+
+    struct SenderConfig {
+        uint32 maxPayloadSize;
+        bool feeDisabled;
+    }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
     struct MailboxStorage {
@@ -35,11 +44,20 @@ ReentrancyGuardUpgradeable
         mapping(bytes32 => bool) deliveredPayload; // sha256(rawPayload) => bool
         mapping(bytes32 => bool) handledPayload; // sha256(rawPayload) => bool
         INotaryConsortium consortium;
+        uint32 defaultMaxPayloadSize;
+        mapping(address => SenderConfig) senderConfig; // address => SenderConfig
+        uint256 feePerByte; // wei to be paid per byte of payload
     }
+
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant TREASURER_ROLE = keccak256("TREASURER_ROLE");
 
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant MAILBOX_STORAGE_LOCATION =
-    0x0278229f5c76f980110e38383ce9a522090076c3f8b366b016a9b1421b307400;
+        0x0278229f5c76f980110e38383ce9a522090076c3f8b366b016a9b1421b307400;
+
+    /// Allow max 10 KB of data to be sent
+    uint32 internal constant GLOBAL_MAX_PAYLOAD_SIZE = 10000;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -47,26 +65,45 @@ ReentrancyGuardUpgradeable
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the contract
+     * @dev defaultAdmin, consortium_ must be non-zero.
+     * @param defaultAdmin Admin address
+     * @param consortium_ Notary Consortium address
+     * @param feePerByte wei to be paid per byte
+     * @param defaultAdminChangeDelay The change delay for defaultAdmin
+     */
     function initialize(
-        address owner_,
-        INotaryConsortium consortium_
+        address defaultAdmin,
+        INotaryConsortium consortium_,
+        uint256 feePerByte,
+        uint48 defaultAdminChangeDelay
     ) external initializer {
-        __Ownable_init(owner_);
-        __Ownable2Step_init();
+        __AccessControl_init();
+        __AccessControlDefaultAdminRules_init(
+            defaultAdminChangeDelay,
+            defaultAdmin
+        );
         __ReentrancyGuard_init();
+        __Pausable_init();
 
-        __Mailbox_init(consortium_);
+        __Mailbox_init(consortium_, feePerByte);
     }
 
     function __Mailbox_init(
-        INotaryConsortium consortium_
+        INotaryConsortium consortium_,
+        uint256 feePerByte
     ) internal onlyInitializing {
+        // consortium must be nonzero
         if (address(consortium_) == address(0)) {
             revert Mailbox_ZeroConsortium();
         }
 
         MailboxStorage storage $ = _getStorage();
         $.consortium = consortium_;
+        $.feePerByte = feePerByte;
+        // nonce must start with nonzero value
+        $.globalNonce = 1;
     }
 
     function consortium() external view returns (INotaryConsortium) {
@@ -76,7 +113,7 @@ ReentrancyGuardUpgradeable
     function enableMessagePath(
         bytes32 destinationChain,
         bytes32 destinationMailbox
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (destinationChain == bytes32(0)) {
             revert Mailbox_ZeroChainId();
         }
@@ -116,7 +153,7 @@ ReentrancyGuardUpgradeable
     function disableMessagePath(
         bytes32 destinationChain,
         bytes32 destinationMailbox
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (destinationChain == bytes32(0)) {
             revert Mailbox_ZeroChainId();
         }
@@ -167,24 +204,116 @@ ReentrancyGuardUpgradeable
         return outboundPath.id();
     }
 
+    function setDefaultMaxPayloadSize(
+        uint32 maxPayloadSize
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
+            revert Mailbox_PayloadOversize(
+                GLOBAL_MAX_PAYLOAD_SIZE,
+                maxPayloadSize
+            );
+        }
+
+        _getStorage().defaultMaxPayloadSize = maxPayloadSize;
+        emit DefaultPayloadSizeSet(maxPayloadSize);
+    }
+
+    function getDefaultMaxPayloadSize() external view returns (uint32) {
+        return _getStorage().defaultMaxPayloadSize;
+    }
+
+    /**
+     * @notice Set the sender config vars
+     * @dev Only owner. Max payload size is limited by `GLOBAL_MAX_PAYLOAD_SIZE`
+     * @param sender Address of the sender
+     * @param maxPayloadSize Max Payload Size allowed for sender (when set to zero, use `defaultMaxPayloadSize`)
+     * @param feeDisabled If true, not apply fee for message
+     */
+    function setSenderConfig(
+        address sender,
+        uint32 maxPayloadSize,
+        bool feeDisabled
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
+            revert Mailbox_PayloadOversize(
+                GLOBAL_MAX_PAYLOAD_SIZE,
+                maxPayloadSize
+            );
+        }
+
+        SenderConfig storage conf = _getStorage().senderConfig[sender];
+
+        conf.maxPayloadSize = maxPayloadSize;
+        conf.feeDisabled = feeDisabled;
+
+        emit SenderConfigUpdated(sender, maxPayloadSize, feeDisabled);
+    }
+
+    function getSenderConfigWithDefault(
+        address sender
+    ) external view returns (SenderConfig memory) {
+        return _getSenderConfigWithDefault(_getStorage(), sender);
+    }
+
+    function setFee(uint256 weiPerByte) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getStorage().feePerByte = weiPerByte;
+
+        emit FeePerByteSet(weiPerByte);
+    }
+
+    // only body size affect fee estimation
+    function getFee(
+        address sender,
+        bytes calldata body
+    ) external view returns (uint256) {
+        bytes memory rawPayload = GMPUtils.encodePayload(
+            bytes32(0),
+            0,
+            GMPUtils.addressToBytes32(sender),
+            bytes32(0),
+            bytes32(0),
+            body
+        );
+
+        MailboxStorage storage $ = _getStorage();
+
+        return
+            _calcFee(
+                _getSenderConfigWithDefault($, sender),
+                $.feePerByte,
+                rawPayload.length
+            );
+    }
+
+    /**
+     * @notice Send the message to the `destinationChain` and `recipient`
+     * @dev Encodes the message, and emits a `MessageSent` event with consortium compatible payload.
+     * @param destinationChain Lombard chain id of destination chain
+     * @param recipient Address of message recipient on destination chain as bytes32 (must support IHandler interface)
+     * @param destinationCaller Caller on the `destinationChain`, as bytes32
+     * @param body Contents of the message (bytes)
+     */
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
         bytes32 destinationCaller,
         bytes calldata body
-    ) external payable override nonReentrant returns (uint256, bytes32) {
+    )
+        external
+        payable
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256, bytes32)
+    {
+        // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert Mailbox_ZeroRecipient();
         }
-        MessagePath.Details memory messagePath = MessagePath.Details(
-            GMPUtils.addressToBytes32(address(this)),
-            LChainId.get(),
-            destinationChain
-        );
-        bytes32 outboundId = messagePath.id();
+
+        bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
 
         MailboxStorage storage $ = _getStorage();
-
         // revert if message path disabled
         if ($.outboundMessagePath[outboundId] == bytes32(0)) {
             revert Mailbox_MessagePathDisabled(outboundId);
@@ -203,21 +332,83 @@ ReentrancyGuardUpgradeable
             destinationCaller,
             body
         );
+        bytes32 payloadHash = GMPUtils.hash(rawPayload);
 
-        // TODO: calculate fee based on payload size
-        // TODO: whitelist max payload size
+        _validatePayloadSizeAndFee(
+            $,
+            payloadHash,
+            rawPayload.length,
+            msgSender
+        );
 
         emit MessageSent(destinationChain, msgSender, recipient, rawPayload);
-        return (nonce, GMPUtils.hash(rawPayload));
+        return (nonce, payloadHash);
     }
 
-    // no replay protection
-    // TODO: implement deliver only method, then relayer can only deliver payload
+    function _validatePayloadSizeAndFee(
+        MailboxStorage storage $,
+        bytes32 payloadHash,
+        uint256 payloadSize,
+        address msgSender
+    ) internal {
+        SenderConfig memory senderCfg = _getSenderConfigWithDefault(
+            $,
+            msgSender
+        );
+
+        _validatePayloadSize(senderCfg, payloadSize);
+
+        uint256 fee = _calcFee(senderCfg, $.feePerByte, payloadSize);
+        // we allow to pay more
+        // in this case fee rate of message increased
+        // relayer would process such messages in priority
+        if (msg.value < fee) {
+            revert Mailbox_NotEnoughFee(fee, msg.value);
+        }
+        emit MessagePaid(payloadHash, msgSender, payloadSize, msg.value);
+    }
+
+    // @dev when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
+    function _validatePayloadSize(
+        SenderConfig memory conf,
+        uint256 payloadSize
+    ) internal pure {
+        if (payloadSize > conf.maxPayloadSize) {
+            revert Mailbox_PayloadOversize(conf.maxPayloadSize, payloadSize);
+        }
+    }
+
+    function _calcFee(
+        SenderConfig memory conf,
+        uint256 feePerByte,
+        uint256 payloadSize
+    ) internal pure returns (uint256) {
+        // there would be a case when sender is excluded from fee
+        if (conf.feeDisabled) {
+            return 0;
+        }
+        return payloadSize * feePerByte;
+    }
+
+    /**
+     * @notice Deliver a message. The mailbox does not track the nonce or hash of the payload,
+     * the handler must prevent double-spending if such logic applies.
+     * The valid payload is decoded and passed to the specified receiver, which must
+     * implement the IHandler interface to process the payload.
+     *
+     * @dev Payload is ABI encoded with selector
+     * MessageV1(path bytes32, nonce uint256, sender bytes32, recipient bytes32, destinationCaller bytes32, body bytes)
+     * @param rawPayload Payload bytes
+     * @param proof ABI encoded array of signatures
+     * @return payloadHash The hash of payload
+     */
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external nonReentrant returns (bytes32) {
-        GMPUtils.Payload memory payload = GMPUtils.decodePayload(rawPayload);
+    ) external whenNotPaused nonReentrant returns (bytes32) {
+        GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
+            rawPayload
+        );
         MailboxStorage storage $ = _getStorage();
         address msgSender = _msgSender();
 
@@ -227,9 +418,17 @@ ReentrancyGuardUpgradeable
         }
 
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
-        _verifyPayload($, payloadHash, proof, rawPayload);
+        _verifyPayload(
+            $,
+            payloadHash,
+            payload.msgNonce,
+            payload.msgSender,
+            proof,
+            rawPayload
+        );
 
-        // verify who is able to execute message
+        // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
+        // verify who is able to execute the message
         if (
             payload.msgDestinationCaller != address(0) &&
             payload.msgDestinationCaller != msgSender
@@ -243,9 +442,9 @@ ReentrancyGuardUpgradeable
         // check recipient interface
         if (
             !ERC165Checker.supportsInterface(
-            payload.msgRecipient,
-            type(IHandler).interfaceId
-        )
+                payload.msgRecipient,
+                type(IHandler).interfaceId
+            )
         ) {
             revert Mailbox_HandlerNotImplemented();
         }
@@ -256,14 +455,9 @@ ReentrancyGuardUpgradeable
             emit MessageHandled(payloadHash, msgSender, executionResult);
             $.handledPayload[payloadHash] = true;
         } catch Error(string memory reason) {
-            emit MessageHandleError(payloadHash, msgSender, reason, '');
+            emit MessageHandleError(payloadHash, msgSender, reason, "");
         } catch (bytes memory lowLevelData) {
-            emit MessageHandleError(
-                payloadHash,
-                msgSender,
-                '',
-                lowLevelData
-            );
+            emit MessageHandleError(payloadHash, msgSender, "", lowLevelData);
         }
 
         return payloadHash;
@@ -272,6 +466,8 @@ ReentrancyGuardUpgradeable
     function _verifyPayload(
         MailboxStorage storage $,
         bytes32 payloadHash,
+        uint256 msgNonce,
+        bytes32 msgSender,
         bytes calldata proof,
         bytes calldata rawPayload
     ) internal virtual {
@@ -279,8 +475,59 @@ ReentrancyGuardUpgradeable
         if (!$.deliveredPayload[payloadHash]) {
             $.consortium.checkProof(payloadHash, proof);
             $.deliveredPayload[payloadHash] = true;
-            emit MessageDelivered(payloadHash, _msgSender(), rawPayload);
+            emit MessageDelivered(
+                payloadHash,
+                _msgSender(),
+                msgNonce,
+                msgSender,
+                rawPayload
+            );
         }
+    }
+
+    /**
+     * @notice Withdraw all accumulated fee to msg sender
+     * @dev When not paused. Only TREASURER_ROLE
+     */
+    function withdrawFee()
+        external
+        whenNotPaused
+        onlyRole(TREASURER_ROLE)
+        nonReentrant
+    {
+        uint256 amount = address(this).balance;
+        if (amount == 0) {
+            revert Mailbox_ZeroAmount();
+        }
+        (bool success, ) = payable(_msgSender()).call{value: amount}("");
+        if (!success) {
+            revert Mailbox_CallFailed();
+        }
+
+        emit FeeWithdrawn(_msgSender(), amount);
+    }
+
+    /**
+     * @notice Rescue ERC20 tokens locked up in this contract.
+     * @dev When not paused. Only TREASURER_ROLE
+     * @param tokenContract ERC20 token contract address
+     * @param to Recipient address
+     * @param amount Amount to withdraw
+     */
+    function rescueERC20(
+        IERC20 tokenContract,
+        address to,
+        uint256 amount
+    ) external whenNotPaused onlyRole(TREASURER_ROLE) {
+        SafeERC20.safeTransfer(tokenContract, to, amount);
+    }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     function getInboundMessagePath(
@@ -293,5 +540,16 @@ ReentrancyGuardUpgradeable
         assembly {
             $.slot := MAILBOX_STORAGE_LOCATION
         }
+    }
+
+    function _getSenderConfigWithDefault(
+        MailboxStorage storage $,
+        address sender
+    ) internal view returns (SenderConfig memory) {
+        SenderConfig memory cfg = $.senderConfig[sender];
+        if (cfg.maxPayloadSize == 0) {
+            cfg.maxPayloadSize = $.defaultMaxPayloadSize;
+        }
+        return cfg;
     }
 }

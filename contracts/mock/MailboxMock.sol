@@ -9,6 +9,8 @@ contract MailboxMock is Mailbox {
     function _verifyPayload(
         MailboxStorage storage $,
         bytes32 payloadHash,
+        uint256,
+        bytes32,
         bytes calldata,
         bytes calldata
     ) internal virtual override {

@@ -32,6 +32,7 @@ contract BridgeV2 is
         mapping(bytes32 => bytes32) bridgeContract; // destination chain => PathConfig
         mapping(bytes32 => bytes32) allowedToken; // keccak256( destinationChain | sourceToken ) => bytes32 token, see `_calcAllowedTokenId`
         IMailbox mailbox;
+        mapping(bytes32 => bool) payloadSpent;
     }
 
     // TODO: calculate
@@ -68,14 +69,14 @@ contract BridgeV2 is
     /// to disable path set destination bridge as bytes32(0)
     function setDestinationBridge(
         bytes32 destinationChain,
-        bytes32 destinationBridge
+        bytes32 destinationBridge_
     ) external onlyOwner {
         if (destinationChain == bytes32(0)) {
             revert BridgeV2_ZeroChainId();
         }
 
         BridgeV2Storage storage $ = _getStorage();
-        $.bridgeContract[destinationChain] = destinationBridge;
+        $.bridgeContract[destinationChain] = destinationBridge_;
         // TODO: emit event
     }
 
@@ -108,6 +109,16 @@ contract BridgeV2 is
     // TODO: implement fees
     // TODO: whitelisting
     // TODO: rate limits
+    /**
+     * @notice Deposits and burns tokens from sender to be minted on `destinationChain`.
+     * Emits a `DepositToBridge` event.
+     * @param token address of the token burned on the source chain
+     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
+     * @param amount amount of tokens to burn (must be non-zero)
+     * @param destinationCaller caller on the `destinationChain`, as bytes32
+     * @return nonce The nonce of payload.
+     * @return payloadHash The hash of payload
+     */
     function deposit(
         bytes32 destinationChain,
         IERC20MintableBurnable token,
@@ -115,32 +126,34 @@ contract BridgeV2 is
         uint256 amount,
         bytes32 destinationCaller
     ) external payable nonReentrant returns (uint256, bytes32) {
+        // amount must be nonzero
         if (amount == 0) {
             revert BridgeV2_ZeroAmount();
         }
 
+        // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert BridgeV2_ZeroRecipient();
         }
 
         BridgeV2Storage storage $ = _getStorage();
 
-        bytes32 destinationBridge = $.bridgeContract[destinationChain];
-
-        if (destinationBridge == bytes32(0)) {
+        bytes32 _destinationBridge = $.bridgeContract[destinationChain];
+        // destination bridge must be nonzero
+        if (_destinationBridge == bytes32(0)) {
             revert BridgeV2_PathNotAllowed();
         }
 
         bytes32 destinationToken = $.allowedToken[
             _calcAllowedTokenId(destinationChain, address(token))
         ];
+        // destination token must be nonzero
         if (destinationToken == bytes32(0)) {
             revert BridgeV2_TokenNotAllowed();
         }
 
-        // take asset
+        // take and burn `token` from `_msgSender()`
         SafeERC20.safeTransferFrom(token, _msgSender(), address(this), amount);
-
         token.burn(amount);
 
         bytes memory body = abi.encodePacked(
@@ -152,7 +165,7 @@ contract BridgeV2 is
         // send message via mailbox
         (uint256 nonce, bytes32 payloadHash) = $.mailbox.send(
             destinationChain,
-            destinationBridge,
+            _destinationBridge,
             destinationCaller,
             body
         );
@@ -161,14 +174,29 @@ contract BridgeV2 is
         return (nonce, payloadHash);
     }
 
+    /**
+     * @notice Handles an incoming notarized payload received by the Mailbox,
+     * mints the token to the requested recipient on the chain.
+     * @dev Validates the `msg.sender` is the Mailbox, and the payload `msgSender`
+     * is a registered bridge for `msgPath`.
+     * @param payload The parsed payload.
+     * @return result Empty bytes.
+     */
     function handlePayload(
         GMPUtils.Payload memory payload
     ) external nonReentrant returns (bytes memory) {
         BridgeV2Storage storage $ = _getStorage();
 
+        // only mailbox is authorized to call
         if (_msgSender() != address($.mailbox)) {
             revert BridgeV2_MailboxExpected();
         }
+
+        // prevent double spend
+        if ($.payloadSpent[payload.id]) {
+            revert BridgeV2_PayloadSpent();
+        }
+        $.payloadSpent[payload.id] = true;
 
         bytes32 chainId = $.mailbox.getInboundMessagePath(payload.msgPath);
 

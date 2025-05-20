@@ -14,6 +14,7 @@ library GMPUtils {
     error GMP_WrongPayloadLength();
 
     struct Payload {
+        bytes32 id;
         bytes32 msgPath;
         uint256 msgNonce;
         bytes32 msgSender;
@@ -42,7 +43,7 @@ library GMPUtils {
             );
     }
 
-    function decodePayload(
+    function decodeAndValidatePayload(
         bytes calldata rawPayload
     ) internal pure returns (Payload memory payload) {
         validatePayload(rawPayload);
@@ -66,6 +67,8 @@ library GMPUtils {
         if (payload.msgRecipient == address(0)) {
             revert GMP_ZeroRecipient();
         }
+
+        payload.id = hash(rawPayload);
 
         return payload;
     }
