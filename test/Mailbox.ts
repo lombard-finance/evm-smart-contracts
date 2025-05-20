@@ -313,7 +313,7 @@ describe('Mailbox', function () {
       const sender = signer1;
 
       const payload = getGMPPayload(
-        await smailbox.getAddress(),
+        smailbox.address,
         lChainId,
         lChainId,
         globalNonce++,
@@ -673,7 +673,7 @@ describe('Mailbox', function () {
         const result = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
         await expect(result)
           .to.emit(dmailbox, 'MessageHandleError')
-          .withArgs(payloadHash, destinationCaller.address, 'not enabled');
+          .withArgs(payloadHash, destinationCaller.address, 'not enabled', '0x');
         await expect(result)
           .to.emit(dmailbox, 'MessageDelivered')
           .withArgs(payloadHash, destinationCaller.address, globalNonce, signer1Bytes, payload);
@@ -687,7 +687,7 @@ describe('Mailbox', function () {
         const result = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
         await expect(result)
           .to.emit(dmailbox, 'MessageHandleError')
-          .withArgs(payloadHash, destinationCaller.address, 'not enabled');
+          .withArgs(payloadHash, destinationCaller.address, 'not enabled', '0x');
         await expect(result).to.not.emit(dmailbox, 'MessageDelivered');
         await expect(result).to.not.emit(dmailbox, 'MessageHandled');
         await expect(result).to.not.emit(handlerMock, 'MessageReceived');

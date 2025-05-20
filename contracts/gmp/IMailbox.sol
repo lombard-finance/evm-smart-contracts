@@ -61,7 +61,8 @@ interface IMailbox {
     event MessageHandleError(
         bytes32 indexed payloadHash,
         address indexed destinationCaller,
-        string reason
+        string reason,
+        bytes customError
     );
 
     event SenderConfigUpdated(

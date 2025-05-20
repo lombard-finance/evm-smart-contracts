@@ -54,7 +54,7 @@ contract Mailbox is
 
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant MAILBOX_STORAGE_LOCATION =
-        0x0278229f5c76f980110e38383ce9a522090076c3f8b366b016a9b1421b307400;
+    0x0278229f5c76f980110e38383ce9a522090076c3f8b366b016a9b1421b307400;
 
     /// Allow max 10 KB of data to be sent
     uint32 internal constant GLOBAL_MAX_PAYLOAD_SIZE = 10000;
@@ -442,9 +442,9 @@ contract Mailbox is
         // check recipient interface
         if (
             !ERC165Checker.supportsInterface(
-                payload.msgRecipient,
-                type(IHandler).interfaceId
-            )
+            payload.msgRecipient,
+            type(IHandler).interfaceId
+        )
         ) {
             revert Mailbox_HandlerNotImplemented();
         }
@@ -455,12 +455,13 @@ contract Mailbox is
             emit MessageHandled(payloadHash, msgSender, executionResult);
             $.handledPayload[payloadHash] = true;
         } catch Error(string memory reason) {
-            emit MessageHandleError(payloadHash, msgSender, reason);
+            emit MessageHandleError(payloadHash, msgSender, reason, '');
         } catch (bytes memory lowLevelData) {
             emit MessageHandleError(
                 payloadHash,
                 msgSender,
-                string(lowLevelData)
+                '',
+                lowLevelData
             );
         }
 
