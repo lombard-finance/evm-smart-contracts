@@ -270,7 +270,7 @@ export function randomBigInt(length: number): bigint {
   }
 
   const min = BigInt(10) ** BigInt(length - 1);
-  const max = (BigInt(10) ** BigInt(length)) - BigInt(1);
+  const max = BigInt(10) ** BigInt(length) - BigInt(1);
 
   const range = max - min + BigInt(1);
   const rand = BigInt(Math.floor(Math.random() * Number(range)));
@@ -356,4 +356,3 @@ export class TxBuilder {
     return [this._target, this._value, this._data, this._predecessor, this._delay];
   }
 }
-

@@ -309,7 +309,9 @@ describe('BridgeV2', function () {
       const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
       const amount = randomBigInt(10);
 
-      const tx = await sbridge.connect(signer1).deposit(lChainId, sLBTC.address, encode(['address'], [recipient]), amount, destinationCaller);
+      const tx = await sbridge
+        .connect(signer1)
+        .deposit(lChainId, sLBTC.address, encode(['address'], [recipient]), amount, destinationCaller);
       let receipt = (await tx.wait()) as ContractTransactionReceipt;
       globalNonce++;
       const logsPayload = payloadFromLogs(receipt);
