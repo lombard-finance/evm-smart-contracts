@@ -492,27 +492,21 @@ contract Mailbox is
     }
 
     /**
-     * @notice Withdraw all accumulated fee to `treasury`
+     * @notice Withdraw all accumulated fee to msg sender
      * @dev When not paused. Only TREASURER_ROLE
-     * @param treasury The recipient of fees
      */
-    function withdrawFee(
-        address payable treasury
-    ) external whenNotPaused onlyRole(TREASURER_ROLE) nonReentrant {
-        if (treasury == address(0)) {
-            revert Mailbox_ZeroTreasury();
-        }
+    function withdrawFee() external whenNotPaused onlyRole(TREASURER_ROLE) nonReentrant {
 
         uint256 amount = address(this).balance;
         if (amount == 0) {
             revert Mailbox_ZeroAmount();
         }
-        (bool success, ) = treasury.call{value: amount}("");
+        (bool success, ) = payable(_msgSender()).call{value: amount}("");
         if (!success) {
             revert Mailbox_CallFailed();
         }
 
-        emit FeeWithdrawn(_msgSender(), treasury, amount);
+        emit FeeWithdrawn(_msgSender(), amount);
     }
 
     /**

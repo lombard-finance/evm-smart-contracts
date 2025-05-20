@@ -6,7 +6,6 @@ interface IMailbox {
     error Mailbox_ZeroConsortium();
     error Mailbox_ZeroMailbox();
     error Mailbox_ZeroRecipient();
-    error Mailbox_ZeroTreasury();
     error Mailbox_ZeroAmount();
     error Mailbox_MessagePathEnabled(bytes32 id);
     error Mailbox_MessagePathDisabled(bytes32 id);
@@ -76,7 +75,6 @@ interface IMailbox {
     event FeePerByteSet(uint256 fee);
 
     event FeeWithdrawn(
-        address indexed by,
         address indexed treasury,
         uint256 amount
     );
