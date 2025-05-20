@@ -65,10 +65,11 @@ describe('Mailbox', function () {
     smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
       owner.address,
       consortium.address,
-      DEFAULT_FEE_PER_BYTE
+      DEFAULT_FEE_PER_BYTE,
+      0n
     ]);
     smailbox.address = await smailbox.getAddress();
-    dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n]);
+    dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
     dmailbox.address = await dmailbox.getAddress();
 
     const { chainId } = await ethers.provider.getNetwork();
@@ -121,8 +122,8 @@ describe('Mailbox', function () {
       let chain = encode(['uint256'], [12345]);
       let mailbox = ethers.Wallet.createRandom();
       await expect(smailbox.connect(signer1).enableMessagePath(chain, encode(['address'], [mailbox.address])))
-        .to.revertedWithCustomError(smailbox, 'OwnableUnauthorizedAccount')
-        .withArgs(signer1.address);
+        .to.revertedWithCustomError(smailbox, 'AccessControlUnauthorizedAccount')
+        .withArgs(signer1.address, await smailbox.DEFAULT_ADMIN_ROLE());
     });
 
     it('enableMessagePath reverts when destination contract is set', async function () {
@@ -206,6 +207,7 @@ describe('Mailbox', function () {
   describe('Rescue ERC20', function () {
     // TODO: should revert if not owner
     it('should rescue erc20', async () => {
+      await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), owner);
       const rndAddr = ethers.Wallet.createRandom();
       const someErc20 = await deployContract<LBTCMock>('LBTCMock', [
         rndAddr.address,
@@ -238,7 +240,7 @@ describe('Mailbox', function () {
       const recipient = encode(['address'], [await handlerMock.getAddress()]);
       const destinationCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
-      const balanceBefore = await ethers.provider.getBalance(signer1);
+      let balanceBefore = await ethers.provider.getBalance(signer1);
 
       const signer1Bytes = encode(['address'], [signer1.address]);
 
@@ -266,7 +268,7 @@ describe('Mailbox', function () {
       const receipt = await ethers.provider.getTransactionReceipt((await sendTx).hash);
       const txFee = receipt?.fee || 0n;
 
-      const balanceAfter = await ethers.provider.getBalance(signer1);
+      let balanceAfter = await ethers.provider.getBalance(signer1);
       // the difference should be GMP Fee + Tx Fee
       expect(balanceBefore - balanceAfter).to.be.equal(txFee + BigInt(fee));
 
@@ -280,12 +282,14 @@ describe('Mailbox', function () {
       await expect(result).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, signer1.address, body);
 
       // withdraw the fee
-      const signer2BalanceBefore = await ethers.provider.getBalance(signer2);
-      await expect(smailbox.connect(owner).withdrawFee(signer2))
-        .to.emit(smailbox, 'FeeWithdrawn')
-        .withArgs(owner, signer2, fee);
-      const signer2BalanceAfter = await ethers.provider.getBalance(signer2);
-      expect(signer2BalanceAfter - signer2BalanceBefore).to.be.equal(fee);
+      balanceBefore = await ethers.provider.getBalance(signer1);
+      await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), signer1);
+      const withdrawFeeTx = smailbox.connect(signer1).withdrawFee();
+      await expect(withdrawFeeTx).to.emit(smailbox, 'FeeWithdrawn').withArgs(signer1, fee);
+      const withdrawFeeReceipt = await ethers.provider.getTransactionReceipt((await withdrawFeeTx).hash);
+      const withdrawFeeTxFee = withdrawFeeReceipt?.fee || 0n;
+      balanceAfter = await ethers.provider.getBalance(signer1);
+      expect(balanceBefore - balanceAfter).to.be.equal(withdrawFeeTxFee - BigInt(fee));
     });
   });
 
@@ -510,7 +514,8 @@ describe('Mailbox', function () {
         const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
           owner.address,
           consortium.address,
-          0
+          0n,
+          0n
         ]);
         newDstMailbox.address = await newDstMailbox.getAddress();
         await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
@@ -704,7 +709,12 @@ describe('Mailbox', function () {
 
       before(async function () {
         await snapshot.restore();
-        unknownMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0]);
+        unknownMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
+          owner.address,
+          consortium.address,
+          0,
+          0n
+        ]);
         unknownMailbox.address = await unknownMailbox.getAddress();
       });
       let nonce = 1;

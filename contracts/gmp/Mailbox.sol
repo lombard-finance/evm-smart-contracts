@@ -88,8 +88,6 @@ contract Mailbox is
         __Pausable_init();
 
         __Mailbox_init(consortium_, feePerByte);
-
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
     }
 
     function __Mailbox_init(
