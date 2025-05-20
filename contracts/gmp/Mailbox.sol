@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {AccessControlUpgradeable, AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {MessagePath} from "./libs/MessagePath.sol";
 import {IMailbox} from "./IMailbox.sol";
@@ -22,8 +23,9 @@ import {GMPUtils} from "./libs/GMPUtils.sol";
  */
 contract Mailbox is
     IMailbox,
-    Ownable2StepUpgradeable,
-    ReentrancyGuardUpgradeable
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
 {
     using MessagePath for MessagePath.Details;
 
@@ -46,6 +48,9 @@ contract Mailbox is
         mapping(address => SenderConfig) senderConfig; // address => SenderConfig
         uint256 feePerByte; // wei to be paid per byte of payload
     }
+    
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant TREASURER_ROLE = keccak256("TREASURER_ROLE");
 
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.Mailbox")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant MAILBOX_STORAGE_LOCATION =
@@ -62,21 +67,26 @@ contract Mailbox is
 
     /**
      * @notice Initializes the contract
-     * @dev owner_, consortium_ must be non-zero.
-     * @param owner_ Owner address
+     * @dev defaultAdmin, consortium_ must be non-zero.
+     * @param defaultAdmin Admin address
      * @param consortium_ Notary Consortium address
      * @param feePerByte wei to be paid per byte
+     * @param defaultAdminChangeDelay The change delay for defaultAdmin
      */
     function initialize(
-        address owner_,
+        address defaultAdmin,
         INotaryConsortium consortium_,
-        uint256 feePerByte
+        uint256 feePerByte,
+        uint48 defaultAdminChangeDelay
     ) external initializer {
-        __Ownable_init(owner_);
-        __Ownable2Step_init();
+        __AccessControl_init();
+        __AccessControlDefaultAdminRules_init(defaultAdminChangeDelay, defaultAdmin);
         __ReentrancyGuard_init();
+        __Pausable_init();
 
         __Mailbox_init(consortium_, feePerByte);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
     }
 
     function __Mailbox_init(
@@ -102,7 +112,7 @@ contract Mailbox is
     function enableMessagePath(
         bytes32 destinationChain,
         bytes32 destinationMailbox
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (destinationChain == bytes32(0)) {
             revert Mailbox_ZeroChainId();
         }
@@ -142,7 +152,7 @@ contract Mailbox is
     function disableMessagePath(
         bytes32 destinationChain,
         bytes32 destinationMailbox
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (destinationChain == bytes32(0)) {
             revert Mailbox_ZeroChainId();
         }
@@ -195,7 +205,7 @@ contract Mailbox is
 
     function setDefaultMaxPayloadSize(
         uint32 maxPayloadSize
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
             revert Mailbox_PayloadOversize(
                 GLOBAL_MAX_PAYLOAD_SIZE,
@@ -222,7 +232,7 @@ contract Mailbox is
         address sender,
         uint32 maxPayloadSize,
         bool feeDisabled
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
             revert Mailbox_PayloadOversize(
                 GLOBAL_MAX_PAYLOAD_SIZE,
@@ -244,7 +254,7 @@ contract Mailbox is
         return _getSenderConfigWithDefault(_getStorage(), sender);
     }
 
-    function setFee(uint256 weiPerByte) external onlyOwner {
+    function setFee(uint256 weiPerByte) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _getStorage().feePerByte = weiPerByte;
 
         emit FeePerByteSet(weiPerByte);
@@ -287,7 +297,7 @@ contract Mailbox is
         bytes32 recipient,
         bytes32 destinationCaller,
         bytes calldata body
-    ) external payable override nonReentrant returns (uint256, bytes32) {
+    ) external payable override whenNotPaused nonReentrant returns (uint256, bytes32) {
         // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert Mailbox_ZeroRecipient();
@@ -387,7 +397,7 @@ contract Mailbox is
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external nonReentrant returns (bytes32) {
+    ) external whenNotPaused nonReentrant returns (bytes32) {
         GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
             rawPayload
         );
@@ -471,9 +481,14 @@ contract Mailbox is
         }
     }
 
+    /**
+     * @notice Withdraw all accumulated fee to `treasury`
+     * @dev When not paused. Only TREASURER_ROLE
+     * @param treasury The recipient of fees
+     */
     function withdrawFee(
         address payable treasury
-    ) external nonReentrant onlyOwner {
+    ) external whenNotPaused onlyRole(TREASURER_ROLE) nonReentrant {
         if (treasury == address(0)) {
             revert Mailbox_ZeroTreasury();
         }
@@ -492,6 +507,7 @@ contract Mailbox is
 
     /**
      * @notice Rescue ERC20 tokens locked up in this contract.
+     * @dev When not paused. Only TREASURER_ROLE
      * @param tokenContract ERC20 token contract address
      * @param to Recipient address
      * @param amount Amount to withdraw
@@ -500,8 +516,16 @@ contract Mailbox is
         IERC20 tokenContract,
         address to,
         uint256 amount
-    ) external onlyOwner {
+    ) external whenNotPaused onlyRole(TREASURER_ROLE) {
         SafeERC20.safeTransfer(tokenContract, to, amount);
+    }
+
+    function pause() onlyRole(PAUSER_ROLE) external {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     function getInboundMessagePath(
