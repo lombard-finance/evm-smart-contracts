@@ -163,9 +163,9 @@ describe('Mailbox', function () {
 
     it('SenderConfig', async () => {
       const payloadSize = 111;
-      await expect(smailbox.connect(owner).setSenderConfig(signer2, payloadSize))
+      await expect(smailbox.connect(owner).setSenderConfig(signer2, payloadSize, false))
         .to.emit(smailbox, 'SenderConfigUpdated')
-        .withArgs(signer2, payloadSize);
+        .withArgs(signer2, payloadSize, false);
 
       const cfg = await smailbox.getSenderConfigWithDefault(signer2);
       expect(cfg['maxPayloadSize']).to.be.eq(payloadSize);
@@ -187,7 +187,19 @@ describe('Mailbox', function () {
         '0x'
       );
       const { fee: expectedFee } = await calcFee(payload, fee);
-      expect(await smailbox.getFee('0x')).to.be.eq(expectedFee);
+      expect(await smailbox.getFee(owner, '0x')).to.be.eq(expectedFee);
+    });
+
+    it('Fee when sender excluded from fee', async () => {
+      await expect(smailbox.connect(owner).setFee(VERY_BIG_FEE))
+        .to.emit(smailbox, 'FeePerByteSet')
+        .withArgs(VERY_BIG_FEE);
+
+      await expect(smailbox.connect(owner).setSenderConfig(owner, 0, true))
+        .to.emit(smailbox, 'SenderConfigUpdated')
+        .withArgs(owner, 0, true);
+
+      expect(await smailbox.getFee(owner, '0x')).to.be.eq(0);
     });
   });
 
@@ -426,7 +438,9 @@ describe('Mailbox', function () {
       const { fee, length: payloadLength } = await calcFee(payload, DEFAULT_FEE_PER_BYTE);
 
       // max payload for sender payload.length - 1
-      await smailbox.connect(owner).setSenderConfig(signer1, payloadLength - 1);
+      await expect(smailbox.connect(owner).setSenderConfig(signer1, payloadLength - 1, false))
+        .to.emit(smailbox, 'SenderConfigUpdated')
+        .withArgs(signer1, payloadLength - 1, false);
 
       await expect(smailbox.connect(signer1).send(lChainId, recipient, destinationCaller, body, { value: fee }))
         .to.revertedWithCustomError(smailbox, 'Mailbox_PayloadOversize')

@@ -29,7 +29,7 @@ contract Mailbox is
 
     struct SenderConfig {
         uint32 maxPayloadSize;
-        // TODO: fee multiplier per sender (0 makes possible to disable them)
+        bool feeDisabled;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Mailbox
@@ -211,9 +211,17 @@ contract Mailbox is
         return _getStorage().defaultMaxPayloadSize;
     }
 
+    /**
+     * @notice Set the sender config vars
+     * @dev Only owner. Max payload size is limited by `GLOBAL_MAX_PAYLOAD_SIZE`
+     * @param sender Address of the sender
+     * @param maxPayloadSize Max Payload Size allowed for sender (when set to zero, use `defaultMaxPayloadSize`)
+     * @param feeDisabled If true, not apply fee for message
+     */
     function setSenderConfig(
         address sender,
-        uint32 maxPayloadSize
+        uint32 maxPayloadSize,
+        bool feeDisabled
     ) external onlyOwner {
         if (maxPayloadSize > GLOBAL_MAX_PAYLOAD_SIZE) {
             revert Mailbox_PayloadOversize(
@@ -222,9 +230,12 @@ contract Mailbox is
             );
         }
 
-        _getStorage().senderConfig[sender].maxPayloadSize = maxPayloadSize;
+        SenderConfig storage conf = _getStorage().senderConfig[sender];
 
-        emit SenderConfigUpdated(sender, maxPayloadSize);
+        conf.maxPayloadSize = maxPayloadSize;
+        conf.feeDisabled = feeDisabled;
+
+        emit SenderConfigUpdated(sender, maxPayloadSize, feeDisabled);
     }
 
     function getSenderConfigWithDefault(
@@ -240,17 +251,19 @@ contract Mailbox is
     }
 
     // only body size affect fee estimation
-    function getFee(bytes calldata body) external view returns (uint256) {
+    function getFee(address sender, bytes calldata body) external view returns (uint256) {
         bytes memory rawPayload = GMPUtils.encodePayload(
             bytes32(0),
             0,
-            bytes32(0),
+            GMPUtils.addressToBytes32(sender),
             bytes32(0),
             bytes32(0),
             body
         );
 
-        return _calcFee(_getStorage(), rawPayload.length);
+        MailboxStorage storage $ = _getStorage();
+
+        return _calcFee(_getSenderConfigWithDefault($, sender), $.feePerByte, rawPayload.length);
     }
 
     /**
@@ -295,40 +308,50 @@ contract Mailbox is
         );
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
 
-        {
-            SenderConfig memory senderCfg = _getSenderConfigWithDefault(
-                $,
-                msgSender
-            );
-
-            uint256 payloadSize = rawPayload.length;
-            // in fact, when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
-            if (payloadSize > senderCfg.maxPayloadSize) {
-                revert Mailbox_PayloadOversize(
-                    senderCfg.maxPayloadSize,
-                    payloadSize
-                );
-            }
-
-            uint256 fee = _calcFee($, payloadSize);
-            // we allow to pay more
-            // in this case fee rate of message increased
-            // relayer would process such messages in priority
-            if (msg.value < fee) {
-                revert Mailbox_NotEnoughFee(fee, msg.value);
-            }
-            emit MessagePaid(payloadHash, msgSender, payloadSize, msg.value);
-        }
+        _validatePayloadSizeAndFee($, payloadHash, rawPayload.length, msgSender);
 
         emit MessageSent(destinationChain, msgSender, recipient, rawPayload);
         return (nonce, payloadHash);
     }
 
+    function _validatePayloadSizeAndFee(MailboxStorage storage $, bytes32 payloadHash, uint256 payloadSize, address msgSender) internal {
+        SenderConfig memory senderCfg = _getSenderConfigWithDefault(
+            $,
+            msgSender
+        );
+
+        _validatePayloadSize(senderCfg, payloadSize);
+
+        uint256 fee = _calcFee(senderCfg, $.feePerByte, payloadSize);
+        // we allow to pay more
+        // in this case fee rate of message increased
+        // relayer would process such messages in priority
+        if (msg.value < fee) {
+            revert Mailbox_NotEnoughFee(fee, msg.value);
+        }
+        emit MessagePaid(payloadHash, msgSender, payloadSize, msg.value);
+    }
+
+    // @dev when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
+    function _validatePayloadSize(SenderConfig memory conf, uint256 payloadSize) internal pure {
+        if (payloadSize > conf.maxPayloadSize) {
+            revert Mailbox_PayloadOversize(
+                conf.maxPayloadSize,
+                payloadSize
+            );
+        }
+    }
+
     function _calcFee(
-        MailboxStorage storage $,
+        SenderConfig memory conf,
+        uint256 feePerByte,
         uint256 payloadSize
-    ) internal view returns (uint256) {
-        return payloadSize * $.feePerByte;
+    ) internal pure returns (uint256) {
+        // there would be a case when sender is excluded from fee
+        if (conf.feeDisabled) {
+            return 0;
+        }
+        return payloadSize * feePerByte;
     }
 
     /**
