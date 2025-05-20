@@ -48,7 +48,7 @@ contract Mailbox is
         mapping(address => SenderConfig) senderConfig; // address => SenderConfig
         uint256 feePerByte; // wei to be paid per byte of payload
     }
-    
+
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant TREASURER_ROLE = keccak256("TREASURER_ROLE");
 
@@ -80,7 +80,10 @@ contract Mailbox is
         uint48 defaultAdminChangeDelay
     ) external initializer {
         __AccessControl_init();
-        __AccessControlDefaultAdminRules_init(defaultAdminChangeDelay, defaultAdmin);
+        __AccessControlDefaultAdminRules_init(
+            defaultAdminChangeDelay,
+            defaultAdmin
+        );
         __ReentrancyGuard_init();
         __Pausable_init();
 
@@ -297,7 +300,14 @@ contract Mailbox is
         bytes32 recipient,
         bytes32 destinationCaller,
         bytes calldata body
-    ) external payable override whenNotPaused nonReentrant returns (uint256, bytes32) {
+    )
+        external
+        payable
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256, bytes32)
+    {
         // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert Mailbox_ZeroRecipient();
@@ -520,7 +530,7 @@ contract Mailbox is
         SafeERC20.safeTransfer(tokenContract, to, amount);
     }
 
-    function pause() onlyRole(PAUSER_ROLE) external {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
