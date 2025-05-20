@@ -196,6 +196,7 @@ contract BridgeV2 is
         if ($.payloadSpent[payload.id]) {
             revert BridgeV2_PayloadSpent();
         }
+        $.payloadSpent[payload.id] = true;
 
         bytes32 chainId = $.mailbox.getInboundMessagePath(payload.msgPath);
 
