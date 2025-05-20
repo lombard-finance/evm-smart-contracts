@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {MessagePath} from "./libs/MessagePath.sol";
-import {IMailbox} from "./IMailbox.sol";
-import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {RateLimits} from "../libs/RateLimits.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+
+import {MessagePath} from "./libs/MessagePath.sol";
+import {IMailbox} from "./IMailbox.sol";
+import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {RateLimits} from "../libs/RateLimits.sol";
 import {LChainId} from "../libs/LChainId.sol";
 import {IHandler} from "./IHandler.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {GMPUtils} from "./libs/GMPUtils.sol";
 
 /**
@@ -251,7 +251,10 @@ contract Mailbox is
     }
 
     // only body size affect fee estimation
-    function getFee(address sender, bytes calldata body) external view returns (uint256) {
+    function getFee(
+        address sender,
+        bytes calldata body
+    ) external view returns (uint256) {
         bytes memory rawPayload = GMPUtils.encodePayload(
             bytes32(0),
             0,
@@ -263,7 +266,12 @@ contract Mailbox is
 
         MailboxStorage storage $ = _getStorage();
 
-        return _calcFee(_getSenderConfigWithDefault($, sender), $.feePerByte, rawPayload.length);
+        return
+            _calcFee(
+                _getSenderConfigWithDefault($, sender),
+                $.feePerByte,
+                rawPayload.length
+            );
     }
 
     /**
@@ -308,13 +316,23 @@ contract Mailbox is
         );
         bytes32 payloadHash = GMPUtils.hash(rawPayload);
 
-        _validatePayloadSizeAndFee($, payloadHash, rawPayload.length, msgSender);
+        _validatePayloadSizeAndFee(
+            $,
+            payloadHash,
+            rawPayload.length,
+            msgSender
+        );
 
         emit MessageSent(destinationChain, msgSender, recipient, rawPayload);
         return (nonce, payloadHash);
     }
 
-    function _validatePayloadSizeAndFee(MailboxStorage storage $, bytes32 payloadHash, uint256 payloadSize, address msgSender) internal {
+    function _validatePayloadSizeAndFee(
+        MailboxStorage storage $,
+        bytes32 payloadHash,
+        uint256 payloadSize,
+        address msgSender
+    ) internal {
         SenderConfig memory senderCfg = _getSenderConfigWithDefault(
             $,
             msgSender
@@ -333,12 +351,12 @@ contract Mailbox is
     }
 
     // @dev when `defaultMaxPayloadSize` equals 0, there whitelisting of allowed senders
-    function _validatePayloadSize(SenderConfig memory conf, uint256 payloadSize) internal pure {
+    function _validatePayloadSize(
+        SenderConfig memory conf,
+        uint256 payloadSize
+    ) internal pure {
         if (payloadSize > conf.maxPayloadSize) {
-            revert Mailbox_PayloadOversize(
-                conf.maxPayloadSize,
-                payloadSize
-            );
+            revert Mailbox_PayloadOversize(conf.maxPayloadSize, payloadSize);
         }
     }
 

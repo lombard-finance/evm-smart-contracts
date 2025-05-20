@@ -65,7 +65,11 @@ interface IMailbox {
         string reason
     );
 
-    event SenderConfigUpdated(address indexed sender, uint64 maxPayloadSize, bool feeDisabled);
+    event SenderConfigUpdated(
+        address indexed sender,
+        uint64 maxPayloadSize,
+        bool feeDisabled
+    );
 
     event DefaultPayloadSizeSet(uint64 maxPayloadSize);
 
