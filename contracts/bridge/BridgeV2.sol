@@ -246,6 +246,18 @@ contract BridgeV2 is
             revert BridgeV2_VersionMismatch(MSG_VERSION, version);
         }
 
+        if (amount == 0) {
+            revert BridgeV2_ZeroAmount();
+        }
+
+        if (recipient == bytes32(0)) {
+            revert BridgeV2_ZeroRecipient();
+        }
+
+        if (token == bytes32(0)) {
+            revert BridgeV2_ZeroToken();
+        }
+
         return (
             GMPUtils.bytes32ToAddress(token),
             GMPUtils.bytes32ToAddress(recipient),

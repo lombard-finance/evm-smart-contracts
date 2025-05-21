@@ -766,7 +766,7 @@ describe('BridgeV2', function () {
           messagePath: () => messagePath,
           sBridgeBytes: () => sBridgeBytes,
           bodyModifier: (body: string): string => body,
-          customError: (arg: any) => dLBTC.interface.encodeErrorResult('ERC20InvalidReceiver', [arg.tokenRecipient()])
+          customError: (arg: any) => sbridge.interface.encodeErrorResult('BridgeV2_ZeroRecipient')
         },
         {
           name: 'bridge came from unsupported chain',
