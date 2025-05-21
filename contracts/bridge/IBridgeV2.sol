@@ -12,7 +12,7 @@ interface IBridgeV2 {
     error BridgeV2_ZeroSender();
     error BridgeV2_ZeroToken();
     error BridgeV2_ZeroMailbox();
-    error BridgeV2_AlreadyAllowed();
+    error BridgeV2_AlreadyAllowed(bytes32 tokenId);
     error BridgeV2_TokenNotAllowed();
     error BridgeV2_PathNotAllowed();
     error BridgeV2_MailboxExpected();
@@ -28,7 +28,12 @@ interface IBridgeV2 {
         bytes32 indexed destinationChain,
         bytes32 indexed destinationBridge
     );
-    event DestinationTokenSet(
+    event DestinationTokenAdded(
+        bytes32 indexed destinationChain,
+        bytes32 indexed destinationToken,
+        address indexed sourceToken
+    );
+    event DestinationTokenRemoved(
         bytes32 indexed destinationChain,
         bytes32 indexed destinationToken,
         address indexed sourceToken

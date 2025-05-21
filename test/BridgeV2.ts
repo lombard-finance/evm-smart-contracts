@@ -107,7 +107,8 @@ describe('BridgeV2', function () {
     // TODO: tests when sender is not whitelisted
     await sbridge.connect(owner).setSenderConfig(signer1, 100_00n, true);
 
-    await sbridge.connect(owner).setDestinationToken(lChainId, sLBTC.address, encode(['address'], [dLBTC.address]));
+    await sbridge.connect(owner).addDestinationToken(lChainId, sLBTC.address, encode(['address'], [dLBTC.address]));
+    await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC, encode(['address'], [sLBTC.address]));
     snapshot = await takeSnapshot();
   });
 
@@ -119,7 +120,7 @@ describe('BridgeV2', function () {
 
       it('Verify storage slot and mailbox inside', async () => {
         const slot = calculateStorageSlot('lombardfinance.storage.BridgeV2');
-        const storage = await ethers.provider.getStorage(sbridge, slot + 2n);
+        const storage = await ethers.provider.getStorage(sbridge, slot + 3n);
         expect(storage).to.be.eq(encode(['address'], [smailbox.address]));
       });
 
@@ -239,7 +240,7 @@ describe('BridgeV2', function () {
       });
     });
 
-    describe('setDestinationToken', () => {
+    describe('addDestinationToken', () => {
       let sbridge: BridgeV2 & Addressable;
       const destinationChain = encode(['uint256'], [randomBigInt(8)]);
       const sourceToken = ethers.Wallet.createRandom().address;
@@ -254,58 +255,75 @@ describe('BridgeV2', function () {
         await sbridge.connect(owner).setDestinationBridge(destinationChain, dBridgeBytes);
       });
 
-      it('setDestinationToken owner can', async () => {
-        await expect(sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken))
-          .to.emit(sbridge, 'DestinationTokenSet')
+      it('addDestinationToken owner can', async () => {
+        await expect(sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken))
+          .to.emit(sbridge, 'DestinationTokenAdded')
           .withArgs(destinationChain, destinationToken, sourceToken);
+
+        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(destinationToken);
       });
 
-      it('setDestinationToken add another sourceToken destinationToken pair for chain', async () => {
+      it('addDestinationToken add another sourceToken destinationToken pair for chain', async () => {
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken))
-          .to.emit(sbridge, 'DestinationTokenSet')
+        await expect(sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken))
+          .to.emit(sbridge, 'DestinationTokenAdded')
           .withArgs(destinationChain, destinationToken, sourceToken);
+        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(destinationToken);
       });
 
-      //TODO: must revert
-      it('setDestinationToken add another sourceToken for the destinationToken', async () => {
+      it('addDestinationToken reverts when add another sourceToken for the destinationToken', async () => {
         const sourceToken = ethers.Wallet.createRandom().address;
-        await sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken);
+        await expect(
+          sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_AlreadyAllowed');
+        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(ethers.ZeroHash);
       });
 
-      //TODO: shall replace destination token?
-      it('setDestinationToken add another destinationToken for sourceToken', async () => {
+      it('addDestinationToken reverts when add another destinationToken for sourceToken', async () => {
         const destinationToken = ethers.Wallet.createRandom().address;
-        await sbridge
-          .connect(owner)
-          .setDestinationToken(destinationChain, sourceToken, encode(['address'], [destinationToken]));
+        await expect(
+          sbridge
+            .connect(owner)
+            .addDestinationToken(destinationChain, sourceToken, encode(['address'], [destinationToken]))
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_AlreadyAllowed');
       });
 
-      it('setDestinationToken reverts when called by not an owner', async () => {
+      it('addDestinationToken allow to set different destinationToken after removed', async () => {
+        const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
+        await expect(sbridge.connect(owner).removeDestinationToken(destinationChain, sourceToken, destinationToken))
+          .to.emit(sbridge, 'DestinationTokenRemoved')
+          .withArgs(destinationChain, destinationToken, sourceToken);
+        await expect(sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken))
+          .to.emit(sbridge, 'DestinationTokenAdded')
+          .withArgs(destinationChain, destinationToken, sourceToken);
+        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(destinationToken);
+      });
+
+      it('addDestinationToken reverts when called by not an owner', async () => {
         const destinationChain = encode(['uint256'], [randomBigInt(8)]);
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(sbridge.connect(deployer).setDestinationToken(destinationChain, sourceToken, destinationToken))
+        await expect(sbridge.connect(deployer).addDestinationToken(destinationChain, sourceToken, destinationToken))
           .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
           .withArgs(deployer.address);
       });
 
-      it('setDestinationToken reverts when destination chain is 0', async () => {
+      it('addDestinationToken reverts when destination chain is 0', async () => {
         const destinationChain = encode(['uint256'], [0]);
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
         await expect(
-          sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken)
+          sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken)
         ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroPath');
       });
 
-      it('setDestinationToken reverts when sourceToken is 0', async () => {
+      it('addDestinationToken reverts when sourceToken is 0', async () => {
         const destinationChain = encode(['uint256'], [randomBigInt(8)]);
         const sourceToken = ethers.ZeroAddress;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
         await expect(
-          sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken)
+          sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken)
         ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroToken');
       });
     });
@@ -449,7 +467,7 @@ describe('BridgeV2', function () {
       let newDstToken = ethers.Wallet.createRandom().address;
       let newDstBridge = encode(['address'], [ethers.Wallet.createRandom().address]);
       await sbridge.connect(owner).setDestinationBridge(newDstChain, newDstBridge);
-      await sbridge.connect(owner).setDestinationToken(newDstChain, sLBTC.address, encode(['address'], [newDstToken]));
+      await sbridge.connect(owner).addDestinationToken(newDstChain, sLBTC.address, encode(['address'], [newDstToken]));
 
       const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
       const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
@@ -668,6 +686,8 @@ describe('BridgeV2', function () {
         const newSrcBridgeBytes = encode(['address'], [newSrcBridge]);
         await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]));
         await dbridge.connect(owner).setDestinationBridge(newSrcChain, newSrcBridgeBytes);
+        // allow token for new src chain
+        await dbridge.connect(owner).addDestinationToken(newSrcChain, dLBTC, encode(['address'], [sLBTC.address]));
 
         const amount = randomBigInt(8);
         const body = ethers.solidityPacked(

@@ -36,7 +36,8 @@ contract BridgeV2 is
     /// @custom:storage-location erc7201:lombardfinance.storage.BridgeV2
     struct BridgeV2Storage {
         mapping(bytes32 => bytes32) bridgeContract; // destination chain => PathConfig
-        mapping(bytes32 => bytes32) allowedToken; // keccak256( destinationChain | sourceToken ) => bytes32 token, see `_calcAllowedTokenId`
+        mapping(bytes32 => bytes32) allowedDestinationToken; // keccak256( destinationChain | sourceToken ) => destinationToken token, see `_calcAllowedTokenId`
+        mapping(bytes32 => address) allowedSourceToken; // keccak256( destinationChain | destinationToken ) => sourceToken
         IMailbox mailbox;
         mapping(bytes32 => bool) payloadSpent;
         mapping(address => SenderConfig) senderConfig;
@@ -91,8 +92,7 @@ contract BridgeV2 is
         emit DestinationBridgeSet(destinationChain, destinationBridge_);
     }
 
-    /// allow to set bytes32(0) destination token in case if we want to disable it
-    function setDestinationToken(
+    function addDestinationToken(
         bytes32 destinationChain,
         address sourceToken,
         bytes32 destinationToken
@@ -111,11 +111,81 @@ contract BridgeV2 is
             revert BridgeV2_PathNotAllowed();
         }
 
-        $.allowedToken[
-            _calcAllowedTokenId(destinationChain, sourceToken)
-        ] = destinationToken;
+        bytes32 destTokenId = _calcAllowedTokenId(
+            destinationChain,
+            GMPUtils.addressToBytes32(sourceToken)
+        );
+        bytes32 srcTokenId = _calcAllowedTokenId(
+            destinationChain,
+            destinationToken
+        );
 
-        emit DestinationTokenSet(
+        if ($.allowedDestinationToken[destTokenId] != bytes32(0)) {
+            revert BridgeV2_AlreadyAllowed(destTokenId);
+        }
+        if ($.allowedSourceToken[srcTokenId] != address(0)) {
+            revert BridgeV2_AlreadyAllowed(srcTokenId);
+        }
+
+        $.allowedDestinationToken[destTokenId] = destinationToken;
+        $.allowedSourceToken[srcTokenId] = sourceToken;
+
+        emit DestinationTokenAdded(
+            destinationChain,
+            destinationToken,
+            sourceToken
+        );
+    }
+
+    function getAllowedDestinationToken(
+        bytes32 destinationChain,
+        address sourceToken
+    ) external view returns (bytes32) {
+        return
+            _getStorage().allowedDestinationToken[
+                _calcAllowedTokenId(
+                    destinationChain,
+                    GMPUtils.addressToBytes32(sourceToken)
+                )
+            ];
+    }
+
+    function removeDestinationToken(
+        bytes32 destinationChain,
+        address sourceToken,
+        bytes32 destinationToken
+    ) external onlyOwner {
+        if (destinationChain == bytes32(0)) {
+            revert BridgeV2_ZeroPath();
+        }
+
+        if (sourceToken == address(0)) {
+            revert BridgeV2_ZeroToken();
+        }
+
+        if (destinationToken == bytes32(0)) {
+            revert BridgeV2_ZeroToken();
+        }
+
+        BridgeV2Storage storage $ = _getStorage();
+
+        if ($.bridgeContract[destinationChain] == bytes32(0)) {
+            revert BridgeV2_PathNotAllowed();
+        }
+
+        bytes32 destTokenId = _calcAllowedTokenId(
+            destinationChain,
+            GMPUtils.addressToBytes32(sourceToken)
+        );
+        bytes32 srcTokenId = _calcAllowedTokenId(
+            destinationChain,
+            destinationToken
+        );
+
+        delete $.allowedDestinationToken[destTokenId];
+        delete $.allowedSourceToken[srcTokenId];
+
+        emit DestinationTokenRemoved(
             destinationChain,
             destinationToken,
             sourceToken
@@ -224,8 +294,11 @@ contract BridgeV2 is
             revert BridgeV2_PathNotAllowed();
         }
 
-        bytes32 destinationToken = $.allowedToken[
-            _calcAllowedTokenId(destinationChain, address(token))
+        bytes32 destinationToken = $.allowedDestinationToken[
+            _calcAllowedTokenId(
+                destinationChain,
+                GMPUtils.addressToBytes32(address(token))
+            )
         ];
         // destination token must be nonzero
         if (destinationToken == bytes32(0)) {
@@ -335,6 +408,15 @@ contract BridgeV2 is
         (address token, address recipient, uint256 amount) = decodeMsgBody(
             msgBody
         );
+
+        if (
+            $.allowedDestinationToken[
+                _calcAllowedTokenId(chainId, GMPUtils.addressToBytes32(token))
+            ] == bytes32(0)
+        ) {
+            revert BridgeV2_TokenNotAllowed();
+        }
+
         // check rate limits
         RateLimits.Data storage rl = $.rateLimit[
             _calcRateLimitId(chainId, token)
@@ -409,9 +491,9 @@ contract BridgeV2 is
 
     function _calcAllowedTokenId(
         bytes32 destinationChain,
-        address sourceToken
+        bytes32 token
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(destinationChain, sourceToken));
+        return keccak256(abi.encodePacked(destinationChain, token));
     }
 
     function _calcRateLimitId(
