@@ -5,10 +5,12 @@ import { create3 } from '../helpers/create3Deployment';
 task('deploy-gmp-mailbox', 'Deploys the GMP mailbox contract')
   .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('consortium', 'The address of LombardConsortium')
+  .addParam('fee', 'Fee in wei per byte of payload')
+  .addOptionalParam('adminChangeDelay', 'The delay to change owner', '0')
   .addOptionalParam('admin', 'The owner of the proxy', 'self')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
   .setAction(async (taskArgs, hre, network) => {
-    const { ledgerNetwork, consortium, admin, proxyFactoryAddr } = taskArgs;
+    const { ledgerNetwork, consortium, admin, proxyFactoryAddr, fee, adminChangeDelay } = taskArgs;
 
     if (!hre.ethers.isAddress(consortium)) {
       throw new Error('consortium not an address');
@@ -24,5 +26,5 @@ task('deploy-gmp-mailbox', 'Deploys the GMP mailbox contract')
       owner = admin;
     }
 
-    await create3('Mailbox', [owner, consortium], proxyFactoryAddr, ledgerNetwork, owner, hre);
+    await create3('Mailbox', [owner, consortium, fee, adminChangeDelay], proxyFactoryAddr, ledgerNetwork, owner, hre);
   });
