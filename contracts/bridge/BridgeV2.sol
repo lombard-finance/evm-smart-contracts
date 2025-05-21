@@ -27,17 +27,25 @@ contract BridgeV2 is
     ReentrancyGuardUpgradeable,
     ERC165Upgradeable
 {
+    struct SenderConfig {
+        bool whitelisted;
+        uint32 feeDiscount; // percentage
+    }
+
     /// @custom:storage-location erc7201:lombardfinance.storage.BridgeV2
     struct BridgeV2Storage {
         mapping(bytes32 => bytes32) bridgeContract; // destination chain => PathConfig
         mapping(bytes32 => bytes32) allowedToken; // keccak256( destinationChain | sourceToken ) => bytes32 token, see `_calcAllowedTokenId`
         IMailbox mailbox;
         mapping(bytes32 => bool) payloadSpent;
+        mapping(address => SenderConfig) senderConfig;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeV2")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
         0xc94507416bfc109a2751d5191119e07e0958874eb50a6e7baf934f22dc74c000;
+
+    uint32 internal constant FEE_DISCOUNT_BASE = 100_00;
 
     uint8 public constant MSG_VERSION = 1;
     uint256 internal constant MSG_LENGTH = 97;
@@ -105,8 +113,43 @@ contract BridgeV2 is
         // TODO: emit event
     }
 
-    // TODO: implement fees
-    // TODO: whitelisting
+    function setSenderConfig(
+        address sender,
+        uint32 feeDiscount,
+        bool whitelisted
+    ) external onlyOwner {
+        if (sender == address(0)) {
+            revert BridgeV2_ZeroSender();
+        }
+
+        if (feeDiscount > FEE_DISCOUNT_BASE) {
+            revert BridgeV2_TooBigDiscount();
+        }
+        SenderConfig storage conf = _getStorage().senderConfig[sender];
+
+        conf.feeDiscount = feeDiscount;
+        conf.whitelisted = whitelisted;
+
+        emit SenderConfigChanged(sender, feeDiscount, whitelisted);
+    }
+
+    function getSenderConfig(
+        address sender
+    ) external view returns (SenderConfig memory) {
+        return _getStorage().senderConfig[sender];
+    }
+
+    function getFee(address sender) external view returns (uint256) {
+        bytes memory body = abi.encodePacked(
+            MSG_VERSION,
+            bytes32(0),
+            bytes32(0),
+            uint256(0)
+        );
+
+        return _getFee(_getStorage(), sender, body);
+    }
+
     // TODO: rate limits
     /**
      * @notice Deposits and burns tokens from sender to be minted on `destinationChain`.
@@ -137,6 +180,10 @@ contract BridgeV2 is
 
         BridgeV2Storage storage $ = _getStorage();
 
+        if (!$.senderConfig[_msgSender()].whitelisted) {
+            revert BridgeV2_SenderNotWhitelisted(_msgSender());
+        }
+
         bytes32 _destinationBridge = $.bridgeContract[destinationChain];
         // destination bridge must be nonzero
         if (_destinationBridge == bytes32(0)) {
@@ -151,9 +198,7 @@ contract BridgeV2 is
             revert BridgeV2_TokenNotAllowed();
         }
 
-        // take and burn `token` from `_msgSender()`
-        SafeERC20.safeTransferFrom(token, _msgSender(), address(this), amount);
-        token.burn(amount);
+        _burnToken(token, amount);
 
         bytes memory body = abi.encodePacked(
             MSG_VERSION,
@@ -161,8 +206,11 @@ contract BridgeV2 is
             recipient,
             amount
         );
+
+        _assertFee($, body);
+
         // send message via mailbox
-        (uint256 nonce, bytes32 payloadHash) = $.mailbox.send(
+        (uint256 nonce, bytes32 payloadHash) = $.mailbox.send{value: msg.value}(
             destinationChain,
             _destinationBridge,
             destinationCaller,
@@ -171,6 +219,38 @@ contract BridgeV2 is
 
         emit DepositToBridge(_msgSender(), recipient, payloadHash);
         return (nonce, payloadHash);
+    }
+
+    function _burnToken(IERC20MintableBurnable token, uint256 amount) internal {
+        // take and burn `token` from `_msgSender()`
+        SafeERC20.safeTransferFrom(token, _msgSender(), address(this), amount);
+        token.burn(amount);
+    }
+
+    function _assertFee(BridgeV2Storage storage $, bytes memory body) internal {
+        uint256 expectedFee = _getFee($, _msgSender(), body);
+        if (msg.value < expectedFee) {
+            revert BridgeV2_NotEnoughFee(expectedFee, msg.value);
+        }
+    }
+
+    function _getFee(
+        BridgeV2Storage storage $,
+        address sender,
+        bytes memory body
+    ) internal view returns (uint256) {
+        uint32 feeDiscount = $.senderConfig[sender].feeDiscount;
+
+        // the bridge is excluded from the fees on mailbox,
+        // because some providers can't transfer additional value in tx
+        // e.g. CCIP TokenPool
+        // so, the calculation of fee is based on zero address
+        uint256 fee = $.mailbox.getFee(address(0), body);
+
+        // each sender could be discounted from fee for some percentage
+        // because as mentioned above, bridge itself excluded from fees,
+        // what means bridge can use any arbitrary fee
+        return fee - ((fee * feeDiscount) / FEE_DISCOUNT_BASE);
     }
 
     /**

@@ -97,6 +97,9 @@ describe('BridgeV2', function () {
     await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
     await dbridge.connect(owner).setDestinationBridge(lChainId, sBridgeBytes);
 
+    // TODO: tests when sender is not whitelisted
+    await sbridge.connect(owner).setSenderConfig(signer1, 100_00n, true);
+
     await sbridge.connect(owner).setDestinationToken(lChainId, sLBTC.address, encode(['address'], [dLBTC.address]));
     snapshot = await takeSnapshot();
   });
@@ -105,7 +108,6 @@ describe('BridgeV2', function () {
     describe('Vew functions', () => {
       before(async () => {
         await snapshot.restore();
-        globalNonce = 1;
       });
 
       it('Verify storage slot and mailbox inside', async () => {
@@ -120,6 +122,10 @@ describe('BridgeV2', function () {
 
       it('Mailbox address', async () => {
         expect(await sbridge.mailbox()).to.equal(smailbox.address);
+      });
+
+      it('Fee', async () => {
+        expect(await sbridge.getFee(signer3)).to.equal(0);
       });
     });
 
@@ -162,6 +168,46 @@ describe('BridgeV2', function () {
         const newDBridgBytes = encode(['address'], [ethers.ZeroAddress]);
         await sbridge.connect(owner).setDestinationBridge(lChainId, newDBridgBytes);
         expect(await sbridge.destinationBridge(lChainId)).to.be.eq(newDBridgBytes);
+      });
+    });
+
+    describe('setSenderConfig & getSenderConfig', () => {
+      let sbridge: BridgeV2 & Addressable;
+
+      beforeEach(async () => {
+        await snapshot.restore();
+
+        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
+        sbridge.address = await sbridge.getAddress();
+      });
+
+      it('setSenderConfig owner can set', async () => {
+        await expect(sbridge.connect(owner).setSenderConfig(signer3, 100_00n, true))
+          .to.emit(sbridge, 'SenderConfigChanged')
+          .withArgs(signer3, 100_00n, true);
+
+        const conf = await sbridge.getSenderConfig(signer3);
+        expect(conf.whitelisted).to.be.eq(true);
+        expect(conf.feeDiscount).to.be.eq(100_00n);
+      });
+
+      it('setSenderConfig reverts when called by not an owner', async () => {
+        await expect(sbridge.connect(deployer).setSenderConfig(signer3, 0, false))
+          .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
+          .withArgs(deployer.address);
+      });
+
+      it('setSenderConfig reverts when discount too big', async () => {
+        await expect(sbridge.connect(owner).setSenderConfig(signer3, 100_01n, false)).to.be.revertedWithCustomError(
+          sbridge,
+          'BridgeV2_TooBigDiscount'
+        );
+      });
+
+      it('setSenderConfig reverts when sender is zero address', async () => {
+        await expect(
+          sbridge.connect(owner).setSenderConfig(ethers.ZeroAddress, 0, false)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroSender');
       });
     });
 

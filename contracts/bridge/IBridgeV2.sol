@@ -7,15 +7,25 @@ interface IBridgeV2 {
     error BridgeV2_ZeroPath();
     error BridgeV2_ZeroBridge();
     error BridgeV2_ZeroChainId();
+    error BridgeV2_ZeroSender();
     error BridgeV2_ZeroToken();
     error BridgeV2_AlreadyAllowed();
     error BridgeV2_TokenNotAllowed();
     error BridgeV2_PathNotAllowed();
     error BridgeV2_MailboxExpected();
     error BridgeV2_BadMsgSender();
+    error BridgeV2_SenderNotWhitelisted(address);
     error BridgeV2_VersionMismatch(uint8 expected, uint8 actual);
     error BridgeV2_InvalidMsgBodyLength(uint256 expected, uint256 actual);
     error BridgeV2_PayloadSpent();
+    error BridgeV2_NotEnoughFee(uint256 expected, uint256 actual);
+    error BridgeV2_TooBigDiscount();
+
+    event SenderConfigChanged(
+        address indexed sender,
+        uint32 feeDiscount,
+        bool whitelisted
+    );
 
     /// @notice Emitted when the is a deposit in the bridge
     event DepositToBridge(
