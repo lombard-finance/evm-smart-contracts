@@ -32,6 +32,8 @@ class Addressable {
   private _address: string;
 }
 
+// TODO: add rescueERC20 test
+
 const BRIDGE_PAYLOAD_SIZE = 356;
 
 describe('BridgeV2', function () {

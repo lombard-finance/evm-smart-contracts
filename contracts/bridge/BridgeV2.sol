@@ -471,6 +471,21 @@ contract BridgeV2 is
         );
     }
 
+    /**
+     * @notice Rescue ERC20 tokens locked up in this contract.
+     * @dev Only Owner
+     * @param tokenContract ERC20 token contract address
+     * @param to Recipient address
+     * @param amount Amount to withdraw
+     */
+    function rescueERC20(
+        IERC20 tokenContract,
+        address to,
+        uint256 amount
+    ) external onlyOwner {
+        SafeERC20.safeTransfer(tokenContract, to, amount);
+    }
+
     function destinationBridge(
         bytes32 chainId
     ) external view returns (bytes32) {
