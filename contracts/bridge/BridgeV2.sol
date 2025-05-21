@@ -35,10 +35,9 @@ contract BridgeV2 is
         mapping(bytes32 => bool) payloadSpent;
     }
 
-    // TODO: calculate
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.v2.Bridge")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeV2")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_STORAGE_LOCATION =
-        0x577a31cbb7f7b010ebd1a083e4c4899bcd53b83ce9c44e72ce3223baedbbb600;
+        0xc94507416bfc109a2751d5191119e07e0958874eb50a6e7baf934f22dc74c000;
 
     uint8 public constant MSG_VERSION = 1;
     uint256 internal constant MSG_LENGTH = 97;

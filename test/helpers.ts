@@ -356,3 +356,22 @@ export class TxBuilder {
     return [this._target, this._value, this._data, this._predecessor, this._delay];
   }
 }
+
+// calculate keccak256(abi.encode(uint256(keccak256(namespace)) - 1)) & ~bytes32(uint256(0xff))
+export function calculateStorageSlot(namespace: string) {
+  // Step 1: keccak256 hash of the string
+  const typeHash = ethers.keccak256(ethers.toUtf8Bytes(namespace));
+
+  // Step 2: Convert hash to BigNumber and subtract 1
+  const slotIndex = ethers.toBigInt(typeHash) - 1n;
+
+  // Step 3: abi.encode(uint256) — here, we just use ethers' default zero-padded hex
+  const encoded = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [slotIndex]);
+
+  // Step 4: keccak256 of encoded data
+  const storageSlot = ethers.keccak256(encoded);
+
+  // Step 5: AND with ~bytes32(uint256(0xff)) = mask out last byte (set it to 0)
+  const mask = ethers.toBigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00');
+  return ethers.toBigInt(storageSlot) & mask;
+}

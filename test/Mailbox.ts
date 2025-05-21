@@ -8,7 +8,8 @@ import {
   NEW_VALSET,
   Signer,
   signPayload,
-  getGMPPayload
+  getGMPPayload,
+  calculateStorageSlot
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
@@ -90,6 +91,12 @@ describe('Mailbox', function () {
     beforeEach(async function () {
       await snapshot.restore();
       globalNonce = 1;
+    });
+
+    it('Verify storage slot and nonce inside', async () => {
+      const slot = calculateStorageSlot('lombardfinance.storage.Mailbox');
+      const storage = await ethers.provider.getStorage(smailbox, slot);
+      expect(storage).to.be.eq(encode(['uint256'], [1]));
     });
 
     it('Owner', async function () {
