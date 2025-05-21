@@ -40,7 +40,7 @@ contract BridgeV2 is
         IMailbox mailbox;
         mapping(bytes32 => bool) payloadSpent;
         mapping(address => SenderConfig) senderConfig;
-        mapping(address => RateLimits.Data) rateLimit; // the purpose is rate limit mintable value per token
+        mapping(bytes32 => RateLimits.Data) rateLimit; // rate limit withdraw (keccak256(sourceChain | token) => RateLimits.Data)
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeV2")) - 1)) & ~bytes32(uint256(0xff))
@@ -115,17 +115,37 @@ contract BridgeV2 is
             _calcAllowedTokenId(destinationChain, sourceToken)
         ] = destinationToken;
 
-        emit DestinationTokenSet(destinationChain, destinationToken, sourceToken);
+        emit DestinationTokenSet(
+            destinationChain,
+            destinationToken,
+            sourceToken
+        );
     }
 
-    function setTokenRateLimits(address token, RateLimits.Config memory config) external onlyOwner {
+    function setTokenRateLimits(
+        address token,
+        RateLimits.Config memory config
+    ) external onlyOwner {
         // chain id from config is not used anywhere
-        RateLimits.setRateLimit(_getStorage().rateLimit[token], config);
-        emit RateLimitsSet(token, config.limit, config.window);
+        RateLimits.setRateLimit(
+            _getStorage().rateLimit[_calcRateLimitId(config.chainId, token)],
+            config
+        );
+        emit RateLimitsSet(token, config.chainId, config.limit, config.window);
     }
 
-    function getTokenRateLimit(address token) external view returns (uint256 currentAmountInFlight, uint256 amountCanBeSent) {
-        return RateLimits.availableAmountToSend(_getStorage().rateLimit[token]);
+    function getTokenRateLimit(
+        address token,
+        bytes32 sourceChainId
+    )
+        external
+        view
+        returns (uint256 currentAmountInFlight, uint256 amountCanBeSent)
+    {
+        return
+            RateLimits.availableAmountToSend(
+                _getStorage().rateLimit[_calcRateLimitId(sourceChainId, token)]
+            );
     }
 
     function setSenderConfig(
@@ -307,12 +327,18 @@ contract BridgeV2 is
         return new bytes(0);
     }
 
-    function _withdraw(BridgeV2Storage storage $, bytes32 chainId, bytes memory msgBody) internal {
+    function _withdraw(
+        BridgeV2Storage storage $,
+        bytes32 chainId,
+        bytes memory msgBody
+    ) internal {
         (address token, address recipient, uint256 amount) = decodeMsgBody(
             msgBody
         );
         // check rate limits
-        RateLimits.Data storage rl = $.rateLimit[token];
+        RateLimits.Data storage rl = $.rateLimit[
+            _calcRateLimitId(chainId, token)
+        ];
         RateLimits.updateLimit(rl, amount);
 
         IERC20MintableBurnable(token).mint(recipient, amount);
@@ -386,6 +412,13 @@ contract BridgeV2 is
         address sourceToken
     ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(destinationChain, sourceToken));
+    }
+
+    function _calcRateLimitId(
+        bytes32 sourceChain,
+        address destinationToken
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(sourceChain, destinationToken));
     }
 
     function _getStorage() private pure returns (BridgeV2Storage storage $) {

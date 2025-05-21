@@ -99,7 +99,7 @@ describe('BridgeV2', function () {
 
     // TODO: tests when rate limits reached
     await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
-      chainId: ethers.ZeroHash, // ignored
+      chainId: lChainId,
       limit: AMOUNT * 100n,
       window: 300n
     });
@@ -137,16 +137,16 @@ describe('BridgeV2', function () {
 
       it('Rate Limits', async () => {
         const rl = {
-          chainId: ethers.ZeroHash,
+          chainId: lChainId,
           limit: 100n,
           window: 1800n
         };
 
         await expect(sbridge.connect(owner).setTokenRateLimits(dLBTC, rl))
           .to.emit(sbridge, 'RateLimitsSet')
-          .withArgs(dLBTC, rl.limit, rl.window);
+          .withArgs(dLBTC, rl.chainId, rl.limit, rl.window);
 
-        const res = await sbridge.getTokenRateLimit(dLBTC);
+        const res = await sbridge.getTokenRateLimit(dLBTC, lChainId);
         expect(res[0]).to.be.eq(0);
         expect(res[1]).to.be.eq(rl.limit);
       });
@@ -694,11 +694,22 @@ describe('BridgeV2', function () {
         const { proof, payloadHash } = await signPayload([signer1], [true], payload);
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        const tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
-        await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
+        // first time emit error, because rate limits not set for new newSrcChain
+        let tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
+        await expect(tx).to.emit(dmailbox, 'MessageHandleError');
         await expect(tx)
           .to.emit(dmailbox, 'MessageDelivered')
           .withArgs(payloadHash, destinationCaller.address, globalNonce - 1, newSrcBridgeBytes, payload);
+
+        // set rate limit to resolve error
+        await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+          chainId: newSrcChain,
+          limit: amount,
+          window: 1000n
+        });
+        // proof can be zero array, because message already delivered
+        tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, '0x');
+        await expect(tx).to.not.emit(dmailbox, 'MessageDelivered');
         await expect(tx)
           .to.emit(dbridge, 'WithdrawFromBridge')
           .withArgs(recipient.address, newSrcChain, dLBTC.address, amount);

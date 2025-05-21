@@ -24,9 +24,21 @@ interface IBridgeV2 {
     error BridgeV2_NotEnoughFee(uint256 expected, uint256 actual);
     error BridgeV2_TooBigDiscount();
 
-    event DestinationBridgeSet(bytes32 indexed destinationChain, bytes32 indexed destinationBridge);
-    event DestinationTokenSet(bytes32 indexed destinationChain, bytes32 indexed destinationToken, address indexed sourceToken);
-    event RateLimitsSet(address indexed token, uint256 limit, uint256 window);
+    event DestinationBridgeSet(
+        bytes32 indexed destinationChain,
+        bytes32 indexed destinationBridge
+    );
+    event DestinationTokenSet(
+        bytes32 indexed destinationChain,
+        bytes32 indexed destinationToken,
+        address indexed sourceToken
+    );
+    event RateLimitsSet(
+        address indexed token,
+        bytes32 indexed sourceChainId,
+        uint256 limit,
+        uint256 window
+    );
 
     event SenderConfigChanged(
         address indexed sender,
