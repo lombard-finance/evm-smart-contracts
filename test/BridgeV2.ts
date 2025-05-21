@@ -140,15 +140,18 @@ describe('BridgeV2', function () {
         sbridge.address = await sbridge.getAddress();
       });
 
-      //TODO: check for event
       it('setDestinationBridge owner can set', async () => {
-        await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
+        await expect(sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes))
+          .to.emit(sbridge, 'DestinationBridgeSet')
+          .withArgs(lChainId, dBridgeBytes);
         expect(await sbridge.destinationBridge(lChainId)).to.be.eq(dBridgeBytes);
       });
 
       it('setDestinationBridge owner can update address', async () => {
         const newDBridgBytes = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await sbridge.connect(owner).setDestinationBridge(lChainId, newDBridgBytes);
+        await expect(sbridge.connect(owner).setDestinationBridge(lChainId, newDBridgBytes))
+          .to.emit(sbridge, 'DestinationBridgeSet')
+          .withArgs(lChainId, newDBridgBytes);
         expect(await sbridge.destinationBridge(lChainId)).to.be.eq(newDBridgBytes);
       });
 
@@ -166,7 +169,9 @@ describe('BridgeV2', function () {
 
       it('setDestinationBridge owner can set to 0', async () => {
         const newDBridgBytes = encode(['address'], [ethers.ZeroAddress]);
-        await sbridge.connect(owner).setDestinationBridge(lChainId, newDBridgBytes);
+        await expect(sbridge.connect(owner).setDestinationBridge(lChainId, newDBridgBytes))
+          .to.emit(sbridge, 'DestinationBridgeSet')
+          .withArgs(lChainId, newDBridgBytes);
         expect(await sbridge.destinationBridge(lChainId)).to.be.eq(newDBridgBytes);
       });
     });
@@ -226,15 +231,18 @@ describe('BridgeV2', function () {
         await sbridge.connect(owner).setDestinationBridge(destinationChain, dBridgeBytes);
       });
 
-      //TODO: check for event
       it('setDestinationToken owner can', async () => {
-        await sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken);
+        await expect(sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken))
+          .to.emit(sbridge, 'DestinationTokenSet')
+          .withArgs(destinationChain, destinationToken, sourceToken);
       });
 
       it('setDestinationToken add another sourceToken destinationToken pair for chain', async () => {
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken);
+        await expect(sbridge.connect(owner).setDestinationToken(destinationChain, sourceToken, destinationToken))
+          .to.emit(sbridge, 'DestinationTokenSet')
+          .withArgs(destinationChain, destinationToken, sourceToken);
       });
 
       //TODO: must revert

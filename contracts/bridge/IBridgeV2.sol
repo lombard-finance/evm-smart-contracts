@@ -9,6 +9,7 @@ interface IBridgeV2 {
     error BridgeV2_ZeroChainId();
     error BridgeV2_ZeroSender();
     error BridgeV2_ZeroToken();
+    error BridgeV2_ZeroMailbox();
     error BridgeV2_AlreadyAllowed();
     error BridgeV2_TokenNotAllowed();
     error BridgeV2_PathNotAllowed();
@@ -20,6 +21,9 @@ interface IBridgeV2 {
     error BridgeV2_PayloadSpent();
     error BridgeV2_NotEnoughFee(uint256 expected, uint256 actual);
     error BridgeV2_TooBigDiscount();
+
+    event DestinationBridgeSet(bytes32 indexed destinationChain, bytes32 indexed destinationBridge);
+    event DestinationTokenSet(bytes32 indexed destinationChain, bytes32 indexed destinationToken, address indexed sourceToken);
 
     event SenderConfigChanged(
         address indexed sender,

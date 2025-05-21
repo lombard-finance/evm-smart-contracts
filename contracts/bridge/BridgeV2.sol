@@ -69,8 +69,10 @@ contract BridgeV2 is
     }
 
     function __BridgeV2_init(IMailbox mailbox_) internal onlyInitializing {
+        if (address(mailbox_) == address(0)) {
+            revert BridgeV2_ZeroMailbox();
+        }
         _getStorage().mailbox = mailbox_;
-        // TODO: emit event, verify for zero
     }
 
     /// to disable path set destination bridge as bytes32(0)
@@ -84,7 +86,7 @@ contract BridgeV2 is
 
         BridgeV2Storage storage $ = _getStorage();
         $.bridgeContract[destinationChain] = destinationBridge_;
-        // TODO: emit event
+        emit DestinationBridgeSet(destinationChain, destinationBridge_);
     }
 
     /// allow to set bytes32(0) destination token in case if we want to disable it
@@ -110,7 +112,8 @@ contract BridgeV2 is
         $.allowedToken[
             _calcAllowedTokenId(destinationChain, sourceToken)
         ] = destinationToken;
-        // TODO: emit event
+
+        emit DestinationTokenSet(destinationChain, destinationToken, sourceToken);
     }
 
     function setSenderConfig(
