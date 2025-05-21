@@ -97,6 +97,13 @@ describe('BridgeV2', function () {
     await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
     await dbridge.connect(owner).setDestinationBridge(lChainId, sBridgeBytes);
 
+    // TODO: tests when rate limits reached
+    await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+      chainId: ethers.ZeroHash, // ignored
+      limit: AMOUNT * 100n,
+      window: 300n
+    });
+
     // TODO: tests when sender is not whitelisted
     await sbridge.connect(owner).setSenderConfig(signer1, 100_00n, true);
 
@@ -126,6 +133,22 @@ describe('BridgeV2', function () {
 
       it('Fee', async () => {
         expect(await sbridge.getFee(signer3)).to.equal(0);
+      });
+
+      it('Rate Limits', async () => {
+        const rl = {
+          chainId: ethers.ZeroHash,
+          limit: 100n,
+          window: 1800n
+        };
+
+        await expect(sbridge.connect(owner).setTokenRateLimits(dLBTC, rl))
+          .to.emit(sbridge, 'RateLimitsSet')
+          .withArgs(dLBTC, rl.limit, rl.window);
+
+        const res = await sbridge.getTokenRateLimit(dLBTC);
+        expect(res[0]).to.be.eq(0);
+        expect(res[1]).to.be.eq(rl.limit);
       });
     });
 

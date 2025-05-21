@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {RateLimits} from "../libs/RateLimits.sol";
+
 interface IBridgeV2 {
     error BridgeV2_ZeroAmount();
     error BridgeV2_ZeroRecipient();
@@ -24,6 +26,7 @@ interface IBridgeV2 {
 
     event DestinationBridgeSet(bytes32 indexed destinationChain, bytes32 indexed destinationBridge);
     event DestinationTokenSet(bytes32 indexed destinationChain, bytes32 indexed destinationToken, address indexed sourceToken);
+    event RateLimitsSet(address indexed token, uint256 limit, uint256 window);
 
     event SenderConfigChanged(
         address indexed sender,

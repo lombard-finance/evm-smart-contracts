@@ -14,6 +14,7 @@ import {IBridgeV2} from "./IBridgeV2.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
 import {IERC20MintableBurnable} from "../interfaces/IERC20MintableBurnable.sol";
+import {RateLimits} from "../libs/RateLimits.sol";
 
 /**
  * @title ERC20 Token Bridge
@@ -39,6 +40,7 @@ contract BridgeV2 is
         IMailbox mailbox;
         mapping(bytes32 => bool) payloadSpent;
         mapping(address => SenderConfig) senderConfig;
+        mapping(address => RateLimits.Data) rateLimit; // the purpose is rate limit mintable value per token
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeV2")) - 1)) & ~bytes32(uint256(0xff))
@@ -116,6 +118,16 @@ contract BridgeV2 is
         emit DestinationTokenSet(destinationChain, destinationToken, sourceToken);
     }
 
+    function setTokenRateLimits(address token, RateLimits.Config memory config) external onlyOwner {
+        // chain id from config is not used anywhere
+        RateLimits.setRateLimit(_getStorage().rateLimit[token], config);
+        emit RateLimitsSet(token, config.limit, config.window);
+    }
+
+    function getTokenRateLimit(address token) external view returns (uint256 currentAmountInFlight, uint256 amountCanBeSent) {
+        return RateLimits.availableAmountToSend(_getStorage().rateLimit[token]);
+    }
+
     function setSenderConfig(
         address sender,
         uint32 feeDiscount,
@@ -153,7 +165,6 @@ contract BridgeV2 is
         return _getFee(_getStorage(), sender, body);
     }
 
-    // TODO: rate limits
     /**
      * @notice Deposits and burns tokens from sender to be minted on `destinationChain`.
      * Emits a `DepositToBridge` event.
@@ -291,15 +302,19 @@ contract BridgeV2 is
             revert BridgeV2_BadMsgSender();
         }
 
-        _withdraw(chainId, payload.msgBody);
+        _withdraw($, chainId, payload.msgBody);
 
         return new bytes(0);
     }
 
-    function _withdraw(bytes32 chainId, bytes memory msgBody) internal {
+    function _withdraw(BridgeV2Storage storage $, bytes32 chainId, bytes memory msgBody) internal {
         (address token, address recipient, uint256 amount) = decodeMsgBody(
             msgBody
         );
+        // check rate limits
+        RateLimits.Data storage rl = $.rateLimit[token];
+        RateLimits.updateLimit(rl, amount);
+
         IERC20MintableBurnable(token).mint(recipient, amount);
 
         emit WithdrawFromBridge(recipient, chainId, token, amount);
