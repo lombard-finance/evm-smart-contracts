@@ -77,6 +77,11 @@ interface IMailbox {
 
     event FeeWithdrawn(address indexed treasury, uint256 amount);
 
+    function getFee(
+        address sender,
+        bytes calldata body
+    ) external view returns (uint256);
+
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
