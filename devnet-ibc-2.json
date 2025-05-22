@@ -9,8 +9,8 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0x3867dA917f2C2f6b6C593D5e05ca8b2Db38BBe60",
       "LBTC": "0xAe6968D6fFa7F7471Aa6cA6Cf5ec137241E5254f",
-      "Mailbox": "0xC7a9Fc9A8DF4dD23649bEfcbaf21Fe9A33B24F16",
-      "BridgeV2": "0xbd779a1b0f38a6f30bee16b88114D369524AA3CE"
+      "Mailbox": "0xA5b4577fde828BD6AAB1C7532BEb446F8A194cD5",
+      "BridgeV2": ""
     },
     "mocks": {
       "GMPHandlerMock": "0x2c8C3b5Ce589f3D43638508250733Feb17250576"
@@ -34,8 +34,8 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0x3867dA917f2C2f6b6C593D5e05ca8b2Db38BBe60",
       "LBTC": "0xAe6968D6fFa7F7471Aa6cA6Cf5ec137241E5254f",
-      "Mailbox": "0xC7a9Fc9A8DF4dD23649bEfcbaf21Fe9A33B24F16",
-      "BridgeV2": "0xbd779a1b0f38a6f30bee16b88114D369524AA3CE"
+      "Mailbox": "0xA5b4577fde828BD6AAB1C7532BEb446F8A194cD5",
+      "BridgeV2": ""
     },
     "chainlink": {
       "ChainSelector": "",

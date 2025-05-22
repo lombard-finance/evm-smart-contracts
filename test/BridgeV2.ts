@@ -1,6 +1,7 @@
 import { BridgeV2, Consortium, LBTC, Mailbox } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
+  calculateStorageSlot,
   deployContract,
   encode,
   getGMPPayload,
@@ -105,6 +106,12 @@ describe('BridgeV2', function () {
       before(async () => {
         await snapshot.restore();
         globalNonce = 1;
+      });
+
+      it('Verify storage slot and mailbox inside', async () => {
+        const slot = calculateStorageSlot('lombardfinance.storage.BridgeV2');
+        const storage = await ethers.provider.getStorage(sbridge, slot + 2n);
+        expect(storage).to.be.eq(encode(['address'], [smailbox.address]));
       });
 
       it('Owner address', async () => {

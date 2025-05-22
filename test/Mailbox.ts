@@ -3,13 +3,14 @@ import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox
 import {
   deployContract,
   encode,
-  getGMPPayload,
   getPayloadForAction,
   getSignersWithPrivateKeys,
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  getGMPPayload,
+  calculateStorageSlot
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
@@ -114,6 +115,12 @@ describe('Mailbox', function () {
 
     it('Consortium', async () => {
       expect(await smailbox.consortium()).to.equal(consortium.address);
+    });
+
+    it('Verify storage slot and nonce inside', async () => {
+      const slot = calculateStorageSlot('lombardfinance.storage.Mailbox');
+      const storage = await ethers.provider.getStorage(smailbox, slot);
+      expect(storage).to.be.eq(encode(['uint256'], [1]));
     });
 
     describe('Enable message path', () => {
