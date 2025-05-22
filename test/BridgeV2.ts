@@ -328,7 +328,7 @@ describe('BridgeV2', function () {
         .deposit(lChainId, sLBTC.address, encode(['address'], [recipient]), amount, destinationCaller);
       let receipt = (await tx.wait()) as ContractTransactionReceipt;
       globalNonce++;
-      const logsData = parseLogs(smailbox, receipt);
+      const logsData = await payloadFromReceipt(receipt);
       expect(logsData?.payload).to.not.undefined;
       // @ts-ignore
       const payload = decodePayload(logsData.payload);
@@ -489,7 +489,7 @@ describe('BridgeV2', function () {
             encode(['address'], [destinationCaller.address])
           );
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
-        const logData = parseLogs(smailbox, receipt);
+        const logData = await payloadFromReceipt(receipt);
         expect(logData?.payload).to.not.undefined;
         // @ts-ignore
         payload = logData.payload;
@@ -558,7 +558,7 @@ describe('BridgeV2', function () {
             encode(['address'], [destinationCaller.address])
           );
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
-        const logsData = parseLogs(smailbox, receipt);
+        const logsData = await payloadFromReceipt(receipt);
         expect(logsData?.payload).to.not.undefined;
         // @ts-ignore
         payload = logsData.payload;
@@ -662,7 +662,7 @@ describe('BridgeV2', function () {
             encode(['address'], [ethers.ZeroAddress])
           );
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
-        const logsData = parseLogs(smailbox, receipt);
+        const logsData = await payloadFromReceipt(receipt);
         expect(logsData?.payload).to.not.undefined;
         // @ts-ignore
         payload = logsData.payload;
@@ -856,18 +856,18 @@ describe('BridgeV2', function () {
   });
 });
 
-function parseLogs(
-  contract: Mailbox,
-  receipt: ContractTransactionReceipt
-):
+async function payloadFromReceipt(receipt: ContractTransactionReceipt): Promise<
   | {
       payload: string;
       msgSender: string;
     }
-  | undefined {
+  | undefined
+> {
+  const mailbox = await ethers.getContractFactory('Mailbox');
+
   for (const log of receipt.logs) {
     try {
-      const parsed = contract.interface.parseLog(log);
+      const parsed = mailbox.interface.parseLog(log);
       // @ts-ignore
       if (parsed.name === 'MessageSent') {
         return {
