@@ -1,16 +1,17 @@
 import { Consortium, GMPHandlerMock, LBTCMock, Mailbox, MailboxTreasuryMock } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
+  calcFee,
+  calculateStorageSlot,
   deployContract,
   encode,
+  getGMPPayload,
   getPayloadForAction,
   getSignersWithPrivateKeys,
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload,
-  getGMPPayload,
-  calculateStorageSlot
+  signPayload
 } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
@@ -26,24 +27,6 @@ class Addressable {
 
   // @ts-ignore
   private _address: string;
-}
-
-function calcFee(body: string, weiPerByte: bigint): { fee: bigint; payloadLength: number } {
-  const payload = getGMPPayload(
-    ethers.ZeroAddress,
-    ethers.ZeroHash,
-    ethers.ZeroHash,
-    0,
-    ethers.ZeroHash,
-    ethers.ZeroHash,
-    ethers.ZeroHash,
-    body
-  );
-  const payloadLength = ethers.getBytes(payload).length;
-  return {
-    fee: weiPerByte * BigInt(payloadLength),
-    payloadLength
-  };
 }
 
 const GLOBAL_MAX_PAYLOAD_SIZE = 10000n;
