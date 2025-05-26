@@ -6,7 +6,6 @@ interface IMailboxWithdrawFee {
 }
 
 contract MailboxTreasuryMock {
-
     bool public canReceive;
 
     address internal mailbox;

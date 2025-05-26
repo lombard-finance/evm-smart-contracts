@@ -6,8 +6,7 @@ import {
   MockCCIPRouter,
   MockRMN,
   LombardTokenPool,
-  CLAdapter,
-  EndpointV2Mock
+  CLAdapter
 } from '../typechain-types';
 import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
