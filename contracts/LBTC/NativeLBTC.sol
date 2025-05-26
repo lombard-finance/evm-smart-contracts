@@ -18,7 +18,7 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 /**
  * @title ERC20 representation of Liquid Bitcoin
  * @author Lombard.Finance
- * @notice The contract is a part of Lombard.Finance protocol
+ * @notice This contract is part of the Lombard.Finance protocol
  */
 contract NativeLBTC is
     INativeLBTC,

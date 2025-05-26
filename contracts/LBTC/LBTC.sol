@@ -18,7 +18,7 @@ import {IStakedLBTC} from "./IStakedLBTC.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
- * @notice The contracts is a part of Lombard.Finace protocol
+ * @notice This contract is part of the Lombard.Finance protocol
  */
 contract LBTC is
     IStakedLBTC,
