@@ -65,4 +65,16 @@ interface IBridgeV2 {
         address indexed token,
         uint256 amount
     );
+
+    function mailbox() external view returns (address);
+
+    function MSG_VERSION() external view returns (uint8);
+
+    function deposit(
+        bytes32 destinationChain,
+        address token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller
+    ) external payable returns (uint256, bytes32);
 }

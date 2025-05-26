@@ -405,19 +405,28 @@ contract Mailbox is
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external whenNotPaused nonReentrant returns (bytes32) {
+    ) external override whenNotPaused nonReentrant returns (bytes32, bool) {
+        // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
+
         GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
             rawPayload
         );
+        bytes32 payloadHash = GMPUtils.hash(rawPayload);
         MailboxStorage storage $ = _getStorage();
-        address msgSender = _msgSender();
 
+        _deliver($, payload, payloadHash, rawPayload, proof);
+
+        bool success = _handle($, payload, payloadHash);
+
+        return (payloadHash, success);
+    }
+
+    function _deliver(MailboxStorage storage $, GMPUtils.Payload memory payload, bytes32 payloadHash, bytes calldata rawPayload, bytes calldata proof) internal {
         // revert if message path disabled
         if ($.inboundMessagePath[payload.msgPath] == bytes32(0)) {
             revert Mailbox_MessagePathDisabled(payload.msgPath);
         }
 
-        bytes32 payloadHash = GMPUtils.hash(rawPayload);
         _verifyPayload(
             $,
             payloadHash,
@@ -426,41 +435,6 @@ contract Mailbox is
             proof,
             rawPayload
         );
-
-        // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
-        // verify who is able to execute the message
-        if (
-            payload.msgDestinationCaller != address(0) &&
-            payload.msgDestinationCaller != msgSender
-        ) {
-            revert Mailbox_UnexpectedDestinationCaller(
-                payload.msgDestinationCaller,
-                msgSender
-            );
-        }
-
-        // check recipient interface
-        if (
-            !ERC165Checker.supportsInterface(
-                payload.msgRecipient,
-                type(IHandler).interfaceId
-            )
-        ) {
-            revert Mailbox_HandlerNotImplemented();
-        }
-
-        try IHandler(payload.msgRecipient).handlePayload(payload) returns (
-            bytes memory executionResult
-        ) {
-            emit MessageHandled(payloadHash, msgSender, executionResult);
-            $.handledPayload[payloadHash] = true;
-        } catch Error(string memory reason) {
-            emit MessageHandleError(payloadHash, msgSender, reason, "");
-        } catch (bytes memory lowLevelData) {
-            emit MessageHandleError(payloadHash, msgSender, "", lowLevelData);
-        }
-
-        return payloadHash;
     }
 
     function _verifyPayload(
@@ -483,6 +457,45 @@ contract Mailbox is
                 rawPayload
             );
         }
+    }
+
+    // @return bool False if handler reverts
+    function _handle(MailboxStorage storage $, GMPUtils.Payload memory payload, bytes32 payloadHash) internal returns (bool) {
+        address msgSender = _msgSender();
+        // verify who is able to execute the message
+        if (
+            payload.msgDestinationCaller != address(0) &&
+            payload.msgDestinationCaller != msgSender
+        ) {
+            revert Mailbox_UnexpectedDestinationCaller(
+                payload.msgDestinationCaller,
+                msgSender
+            );
+        }
+
+        // check recipient interface
+        if (
+            !ERC165Checker.supportsInterface(
+            payload.msgRecipient,
+            type(IHandler).interfaceId
+        )
+        ) {
+            revert Mailbox_HandlerNotImplemented();
+        }
+
+        try IHandler(payload.msgRecipient).handlePayload(payload) returns (
+            bytes memory executionResult
+        ) {
+            emit MessageHandled(payloadHash, msgSender, executionResult);
+            $.handledPayload[payloadHash] = true;
+            return true;
+        } catch Error(string memory reason) {
+            emit MessageHandleError(payloadHash, msgSender, reason, "");
+        } catch (bytes memory lowLevelData) {
+            emit MessageHandleError(payloadHash, msgSender, "", lowLevelData);
+        }
+
+        return false;
     }
 
     /**

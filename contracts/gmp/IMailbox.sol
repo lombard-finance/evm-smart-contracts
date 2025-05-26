@@ -82,6 +82,10 @@ interface IMailbox {
         bytes calldata body
     ) external view returns (uint256);
 
+    function getInboundMessagePath(
+        bytes32 pathId
+    ) external view returns (bytes32);
+
     function send(
         bytes32 destinationChain,
         bytes32 recipient,
@@ -89,7 +93,8 @@ interface IMailbox {
         bytes calldata body
     ) external payable returns (uint256, bytes32);
 
-    function getInboundMessagePath(
-        bytes32 pathId
-    ) external view returns (bytes32);
+    function deliverAndHandle(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) external returns (bytes32, bool);
 }

@@ -9,7 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
-import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
+import {ILBTC, INotaryConsortium} from "./IBridge.sol";
 import {IBridgeV2} from "./IBridgeV2.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
@@ -267,11 +267,21 @@ contract BridgeV2 is
      */
     function deposit(
         bytes32 destinationChain,
+        address token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller
+    ) external payable override nonReentrant returns (uint256, bytes32) {
+        return _deposit(destinationChain, IERC20MintableBurnable(token), recipient, amount, destinationCaller);
+    }
+
+    function _deposit(
+        bytes32 destinationChain,
         IERC20MintableBurnable token,
         bytes32 recipient,
         uint256 amount,
         bytes32 destinationCaller
-    ) external payable nonReentrant returns (uint256, bytes32) {
+    ) internal returns (uint256, bytes32) {
         // amount must be nonzero
         if (amount == 0) {
             revert BridgeV2_ZeroAmount();

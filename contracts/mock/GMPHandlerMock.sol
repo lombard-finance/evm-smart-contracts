@@ -33,6 +33,8 @@ contract GMPHandlerMock is IHandler {
     function supportsInterface(
         bytes4 interfaceId
     ) external view override returns (bool) {
+        // suppress warning, do not allow to make `supportsInterface` pure
+        enabled;
         return
             interfaceId == type(IHandler).interfaceId ||
             interfaceId == type(IERC165).interfaceId;
