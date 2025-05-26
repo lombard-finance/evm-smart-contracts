@@ -106,7 +106,9 @@ contract NativeLBTC is
         _changeNameAndSymbol(name_, symbol_);
     }
 
-    function changeConsortium(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeConsortium(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeConsortium(newVal);
     }
 
@@ -122,11 +124,15 @@ contract NativeLBTC is
         emit FeeChanged(oldFee, fee);
     }
 
-    function changeTreasuryAddress(address newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeTreasuryAddress(
+        address newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasuryAddress(newValue);
     }
 
-    function changeBurnCommission(uint64 newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeBurnCommission(
+        uint64 newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBurnCommission(newValue);
     }
 
@@ -141,7 +147,9 @@ contract NativeLBTC is
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
-    function changeDustFeeRate(uint256 newRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeDustFeeRate(
+        uint256 newRate
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newRate == 0) revert InvalidDustFeeRate();
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 oldRate = $.dustFeeRate;
@@ -156,7 +164,9 @@ contract NativeLBTC is
      *
      * Emits a {BasculeChanged} event.
      */
-    function changeBascule(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeBascule(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
     }
 
@@ -246,7 +256,10 @@ contract NativeLBTC is
      * @param amount The amount of LBTC to mint
      * @dev Only callable by whitelisted minters
      */
-    function mint(address to, uint256 amount) external override onlyRole(MINTER_ROLE) {
+    function mint(
+        address to,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) {
         _mint(to, amount);
     }
 
@@ -425,7 +438,10 @@ contract NativeLBTC is
      *
      * @param amount Amount of LBTC to burn
      */
-    function burn(address from, uint256 amount) external override onlyRole(MINTER_ROLE) {
+    function burn(
+        address from,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) {
         _burn(from, amount);
     }
 
