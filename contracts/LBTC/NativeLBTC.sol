@@ -40,7 +40,6 @@ contract NativeLBTC is
         IBascule bascule;
         address pauser;
         mapping(address => bool) minters;
-        mapping(address => bool) claimers;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
         // @dev is sha256(payload) used
@@ -53,6 +52,7 @@ contract NativeLBTC is
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -101,13 +101,6 @@ contract NativeLBTC is
 
     modifier onlyMinter() {
         if (!_getNativeLBTCStorage().minters[_msgSender()]) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-        _;
-    }
-
-    modifier onlyClaimer() {
-        if (!_getNativeLBTCStorage().claimers[_msgSender()]) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
@@ -166,14 +159,6 @@ contract NativeLBTC is
 
     function removeMinter(address oldMinter) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _updateMinter(oldMinter, false);
-    }
-
-    function addClaimer(address newClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _updateClaimer(newClaimer, true);
-    }
-
-    function removeClaimer(address oldClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _updateClaimer(oldClaimer, false);
     }
 
     /// @notice Change the dust fee rate used for dust limit calculations
@@ -291,10 +276,6 @@ contract NativeLBTC is
         return _getNativeLBTCStorage().minters[minter];
     }
 
-    function isClaimer(address claimer) external view returns (bool) {
-        return _getNativeLBTCStorage().claimers[claimer];
-    }
-
     /// USER ACTIONS ///
 
     /**
@@ -390,7 +371,7 @@ contract NativeLBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external onlyClaimer {
+    ) external onlyRole(CLAIMER_ROLE) {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -406,7 +387,7 @@ contract NativeLBTC is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external onlyClaimer {
+    ) external onlyRole(CLAIMER_ROLE) {
         uint256 length = mintPayload.length;
         if (
             length != proof.length ||
@@ -686,14 +667,6 @@ contract NativeLBTC is
         }
         _getNativeLBTCStorage().minters[minter] = _isMinter;
         emit MinterUpdated(minter, _isMinter);
-    }
-
-    function _updateClaimer(address claimer, bool _isClaimer) internal {
-        if (claimer == address(0)) {
-            revert ZeroAddress();
-        }
-        _getNativeLBTCStorage().claimers[claimer] = _isClaimer;
-        emit ClaimerUpdated(claimer, _isClaimer);
     }
 
     function _changeTreasuryAddress(address newValue) internal {

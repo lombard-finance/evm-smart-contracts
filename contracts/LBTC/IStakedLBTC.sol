@@ -8,4 +8,5 @@ interface IStakedLBTC is IBaseLBTC {
         address indexed previousOperator,
         address indexed newOperator
     );
+    event ClaimerUpdated(address indexed claimer, bool isClaimer);
 }
