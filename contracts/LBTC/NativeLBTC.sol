@@ -27,6 +27,7 @@ contract NativeLBTC is
     ERC20PermitUpgradeable,
     AccessControlDefaultAdminRulesUpgradeable
 {
+    /// TODO: reorder vars
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct NativeLBTCStorage {
         string name;
@@ -278,12 +279,13 @@ contract NativeLBTC is
         bytes calldata proof
     ) public nonReentrant {
         // payload validation
-        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V0) {
+        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V1) {
             revert UnexpectedAction(bytes4(payload));
         }
-        Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
+        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             payload[4:]
         );
+        _assertToken(action.tokenAddress);
 
         _validateAndMint(
             action.recipient,
@@ -471,6 +473,12 @@ contract NativeLBTC is
         $.consortium = newVal;
     }
 
+    function _assertToken(address token) internal view {
+        if (token != address(this)) {
+            revert InvalidDestinationToken(address(this), token);
+        }
+    }
+
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,
@@ -486,7 +494,7 @@ contract NativeLBTC is
         /// need to check new sha256 hash and legacy keccak256 from payload without selector
         /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
-        bytes32 legacyHash = keccak256(payload[4:]);
+        bytes32 legacyHash = keccak256(payload[4:]); // TODO: remove when bascule support sha256
         if ($.usedPayloads[payloadHash]) {
             revert PayloadAlreadyUsed();
         }
@@ -545,12 +553,13 @@ contract NativeLBTC is
         bytes calldata userSignature
     ) internal nonReentrant {
         // mint payload validation
-        if (bytes4(mintPayload) != Actions.DEPOSIT_BTC_ACTION_V0) {
+        if (bytes4(mintPayload) != Actions.DEPOSIT_BTC_ACTION_V1) {
             revert UnexpectedAction(bytes4(mintPayload));
         }
-        Actions.DepositBtcActionV0 memory mintAction = Actions.depositBtcV0(
+        Actions.DepositBtcActionV1 memory mintAction = Actions.depositBtcV1(
             mintPayload[4:]
         );
+        _assertToken(mintAction.tokenAddress);
 
         // fee payload validation
         if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
