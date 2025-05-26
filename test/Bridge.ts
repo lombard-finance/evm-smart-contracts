@@ -1,5 +1,5 @@
 import {
-  StakedLBTCMock,
+  LBTCMock,
   Bascule,
   Consortium,
   Bridge,
@@ -37,8 +37,8 @@ describe('Bridge', function () {
     reporter: Signer,
     admin: Signer,
     pauser: Signer;
-  let lbtcSource: StakedLBTCMock;
-  let lbtcDestination: StakedLBTCMock;
+  let lbtcSource: LBTCMock;
+  let lbtcDestination: LBTCMock;
   let consortium: Consortium;
   let bascule: Bascule;
   let bridgeSource: Bridge;
@@ -55,7 +55,7 @@ describe('Bridge', function () {
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
-    lbtcSource = await deployContract<StakedLBTCMock>('StakedLBTCMock', [
+    lbtcSource = await deployContract<LBTCMock>('LBTCMock', [
       await consortium.getAddress(),
       100,
       treasurySource.address,
@@ -73,7 +73,7 @@ describe('Bridge', function () {
     );
 
     // chain 2
-    lbtcDestination = await deployContract<StakedLBTCMock>('StakedLBTCMock', [
+    lbtcDestination = await deployContract<LBTCMock>('LBTCMock', [
       await consortium.getAddress(),
       100,
       treasuryDestination.address,

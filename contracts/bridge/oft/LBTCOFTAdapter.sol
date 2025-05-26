@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {OFTAdapter} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
-import {ILBTC} from "../../LBTC/ILBTC.sol";
+import {INativeLBTC} from "../../LBTC/INativeLBTC.sol";
 
 contract LBTCOFTAdapter is EfficientRateLimitedOFTAdapter {
     constructor(
@@ -18,6 +18,8 @@ contract LBTCOFTAdapter is EfficientRateLimitedOFTAdapter {
      * Peer should be set to zero before calling this method.
      */
     function empty() external onlyOwner {
-        ILBTC(address(innerToken)).burn(innerToken.balanceOf(address(this)));
+        INativeLBTC(address(innerToken)).burn(
+            innerToken.balanceOf(address(this))
+        );
     }
 }

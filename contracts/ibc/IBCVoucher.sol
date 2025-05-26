@@ -7,7 +7,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IIBCVoucher} from "./IIBCVoucher.sol";
-import {ILBTC} from "../LBTC/ILBTC.sol";
+import {INativeLBTC} from "../LBTC/INativeLBTC.sol";
 
 /// @title ERC20 intermediary token
 /// @author Lombard.Finance
@@ -35,7 +35,7 @@ contract IBCVoucher is
     struct IBCVoucherStorage {
         string name;
         string symbol;
-        ILBTC lbtc;
+        INativeLBTC lbtc;
         uint256 fee;
         address treasury;
         RateLimit rateLimit;
@@ -59,7 +59,7 @@ contract IBCVoucher is
     }
 
     function initialize(
-        ILBTC _lbtc,
+        INativeLBTC _lbtc,
         address admin,
         uint256 _fee,
         address _treasury
@@ -83,7 +83,7 @@ contract IBCVoucher is
     function __IBCVoucher_init(
         string memory _name,
         string memory _symbol,
-        ILBTC _lbtc,
+        INativeLBTC _lbtc,
         uint256 _fee,
         address _treasury
     ) internal onlyInitializing {
@@ -214,7 +214,7 @@ contract IBCVoucher is
             $.rateLimit.credit += uint64(amountAfterFee);
         }
 
-        ILBTC _lbtc = $.lbtc;
+        INativeLBTC _lbtc = $.lbtc;
 
         IERC20(address(_lbtc)).safeTransferFrom(from, address(this), amount);
 

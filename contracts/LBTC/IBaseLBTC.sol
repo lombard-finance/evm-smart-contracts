@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-interface ILBTC {
+interface IBaseLBTC {
     error ZeroAddress();
     error WithdrawalsDisabled();
     error ScriptPubkeyUnsupported();
@@ -13,8 +13,6 @@ interface ILBTC {
     error PayloadAlreadyUsed();
     error InvalidInputLength();
     error InvalidMintAmount();
-    error WrongTokenAddress(address wrongAddress);
-    error FeeGreaterThanAmount();
 
     event UnstakeRequest(
         address indexed fromAddress,
@@ -34,9 +32,9 @@ interface ILBTC {
     );
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
-    event BridgeChanged(address indexed prevVal, address indexed newVal);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    error FeeGreaterThanAmount();
 
     event MintProofConsumed(
         address indexed recipient,

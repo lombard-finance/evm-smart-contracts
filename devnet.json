@@ -16,8 +16,8 @@
       "ChainSelector": "",
       "Router": "",
       "RMN": "",
-      "CLAdapter": "0x0db0740E76807304B90bF368Eb1C53536aE29B2B",
-      "LombardTokenPool": "0xaF6990C090Dd214e221cCfF115d63865dE933a5C"
+      "CLAdapter": "",
+      "LombardTokenPool": ""
     }
   },
   "bscTestnet": {
@@ -35,6 +35,13 @@
     "BTCB": {
       "BTCB": "0xdd48f288874c7226603cCC98cab0661b3bd5721A",
       "BTCBPMM": "0x440362b55D4a255EBA3c27C650d2dC1a91Db85bA"
+    },
+    "chainlink": {
+      "ChainSelector": "13264668187771770619",
+      "Router": "0xe5ae5126be5e4dae58553fe77a2f64a63bf7efbf",
+      "RMN": "0xa049a112b149ed69b74b83823cd7b97c3aa59afb",
+      "CLAdapter": "0x2Cc0b3D2E8B412C9A4D52035E7c015E4718fF90E",
+      "LombardTokenPool": "0x267d40f64ECc4d95F3e8b2237Df5f37b10812C25"
     }
   },
   "baseSepolia": {
@@ -55,11 +62,11 @@
       "BTCBPMM": "0x440362b55D4a255EBA3c27C650d2dC1a91Db85bA"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
-      "CLAdapter": "0xCbaF20Ae8F9D04a1866e473Cb960f02090023126",
-      "LombardTokenPool": "0x80eBA96dDCFa4689aaD0DC77E5ad26e85E1fd5C1"
+      "ChainSelector": "10344971235874465080",
+      "Router": "0xd3E190f381f06DC0d289590fd452C42Fa2DAC586",
+      "RMN": "0x615a64ebd8fdb0aba3b4dc9a45daa41f94cc8f3d",
+      "CLAdapter": "0xDcC81374A7A5e9b6AB5c4ADb863D1b69e4b04C93",
+      "LombardTokenPool": "0x524Bda0C96e5708E82b0234E47Aa03aF784dd32F"
     }
   },
   "beraBartio": {
