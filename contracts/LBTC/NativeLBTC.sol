@@ -27,22 +27,22 @@ contract NativeLBTC is
     ERC20PermitUpgradeable,
     AccessControlDefaultAdminRulesUpgradeable
 {
-    /// TODO: reorder vars
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct NativeLBTCStorage {
+        // slot: 20 + 8 + 1 | 29/32
+        address consortium;
+        uint64 burnCommission; // absolute commission to charge on burn (unstake)
+        bool isWithdrawalsEnabled;
+        // slot: 20 | 20/32
+        address treasury;
+        // slot: 20 | 20/32
+        IBascule bascule;
+        // other slots by 32
         string name;
         string symbol;
-        bool isWithdrawalsEnabled;
-        address consortium;
-        address treasury;
-        uint64 burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
-        /// Bascule drawbridge used to confirm deposits before allowing withdrawals
-        IBascule bascule;
-        /// Maximum fee to apply on mints
         uint256 maximumFee;
-        // @dev is sha256(payload) used
-        mapping(bytes32 => bool) usedPayloads;
+        mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
     }
 
     // TODO: recalculate
