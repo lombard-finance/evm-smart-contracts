@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-// import side effect
-import {RMNRemote} from "@chainlink/contracts-ccip/contracts/rmn/RMNRemote.sol";
-
 import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/contracts/interfaces/IAny2EVMMessageReceiver.sol";
 import {IRouter} from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
