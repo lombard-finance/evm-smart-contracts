@@ -38,7 +38,6 @@ contract NativeLBTC is
         uint256 dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
-        address pauser;
         mapping(address => bool) minters;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
@@ -53,6 +52,7 @@ contract NativeLBTC is
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -91,13 +91,6 @@ contract NativeLBTC is
     }
 
     /// MODIFIER ///
-    /**
-     * PAUSE
-     */
-    modifier onlyPauser() {
-        _checkPauser();
-        _;
-    }
 
     modifier onlyMinter() {
         if (!_getNativeLBTCStorage().minters[_msgSender()]) {
@@ -145,11 +138,11 @@ contract NativeLBTC is
         _changeBurnCommission(newValue);
     }
 
-    function pause() external onlyPauser {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() external onlyPauser {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
@@ -181,13 +174,6 @@ contract NativeLBTC is
      */
     function changeBascule(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
-    }
-
-    function transferPauserRole(address newPauser) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newPauser == address(0)) {
-            revert ZeroAddress();
-        }
-        _transferPauserRole(newPauser);
     }
 
     /// GETTERS ///
@@ -266,10 +252,6 @@ contract NativeLBTC is
      */
     function Bascule() external view returns (IBascule) {
         return _getNativeLBTCStorage().bascule;
-    }
-
-    function pauser() public view returns (address) {
-        return _getNativeLBTCStorage().pauser;
     }
 
     function isMinter(address minter) external view returns (bool) {
@@ -577,13 +559,6 @@ contract NativeLBTC is
         $.bascule = IBascule(newVal);
     }
 
-    function _transferPauserRole(address newPauser) internal {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        address oldPauser = $.pauser;
-        $.pauser = newPauser;
-        emit PauserRoleTransferred(oldPauser, newPauser);
-    }
-
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
@@ -653,12 +628,6 @@ contract NativeLBTC is
         _mint($.treasury, fee);
 
         emit FeeCharged(fee, userSignature);
-    }
-
-    function _checkPauser() internal view {
-        if (pauser() != _msgSender()) {
-            revert UnauthorizedAccount(_msgSender());
-        }
     }
 
     function _updateMinter(address minter, bool _isMinter) internal {

@@ -9,4 +9,8 @@ interface IStakedLBTC is IBaseLBTC {
         address indexed newOperator
     );
     event ClaimerUpdated(address indexed claimer, bool isClaimer);
+    event PauserRoleTransferred(
+        address indexed previousPauser,
+        address indexed newPauser
+    );
 }

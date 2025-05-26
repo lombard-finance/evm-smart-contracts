@@ -19,10 +19,6 @@ interface IBaseLBTC {
     error InvalidInputLength();
     error InvalidMintAmount();
 
-    event PauserRoleTransferred(
-        address indexed previousPauser,
-        address indexed newPauser
-    );
     event UnstakeRequest(
         address indexed fromAddress,
         bytes scriptPubKey,
