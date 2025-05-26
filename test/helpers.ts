@@ -188,10 +188,10 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function initStakedLBTC(burnCommission: number, treasury: string, owner: string) {
+export async function initLBTC(burnCommission: number, treasury: string, owner: string) {
   const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
 
-  const lbtc = await deployContract<StakedLBTCMock>('StakedLBTCMock', [
+  const lbtc = await deployContract<LBTCMock>('LBTCMock', [
     await consortium.getAddress(),
     burnCommission,
     treasury,

@@ -13,12 +13,12 @@ import {
   getPayloadForAction,
   signDepositBtcPayload,
   Signer,
-  initStakedLBTC
+  initLBTC
 } from './helpers';
 import {
   StakeAndBake,
   BoringVaultDepositor,
-  StakedLBTCMock,
+  LBTCMock,
   BoringVaultMock,
   AccountantMock,
   TellerMock
@@ -36,7 +36,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   let stakeAndBake: StakeAndBake;
   let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
   let teller: TellerWithMultiAssetSupportMock;
-  let lbtc: StakedLBTCMock;
+  let lbtc: LBTCMock;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let data;
@@ -54,7 +54,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     [deployer, signer1, signer2, signer3, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
     const burnCommission = 1000;
-    const result = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
+    const result = await initLBTC(burnCommission, treasury.address, deployer.address);
     lbtc = result.lbtc;
 
     stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [

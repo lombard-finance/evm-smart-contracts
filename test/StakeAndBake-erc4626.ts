@@ -13,9 +13,9 @@ import {
   getPayloadForAction,
   signDepositBtcPayload,
   Signer,
-  initStakedLBTC
+  initLBTC
 } from './helpers';
-import { StakeAndBake, ERC4626Depositor, StakedLBTCMock, ERC4626Mock } from '../typechain-types';
+import { StakeAndBake, ERC4626Depositor, LBTCMock, ERC4626Mock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('ERC4626Depositor', function () {
@@ -29,7 +29,7 @@ describe('ERC4626Depositor', function () {
   let stakeAndBake: StakeAndBake;
   let erc4626Depositor: ERC4626Depositor;
   let vault: ERC4626Mock;
-  let lbtc: StakedLBTCMock;
+  let lbtc: LBTCMock;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let data;
@@ -46,7 +46,7 @@ describe('ERC4626Depositor', function () {
     [deployer, signer1, signer2, signer3, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
     const burnCommission = 1000;
-    const result = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
+    const result = await initLBTC(burnCommission, treasury.address, deployer.address);
     lbtc = result.lbtc;
 
     stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [

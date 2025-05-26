@@ -14,13 +14,13 @@ import {
   signDepositBtcPayload,
   signDepositBtcV1Payload,
   Signer,
-  initStakedLBTC,
+  initLBTC,
   DEFAULT_LBTC_DUST_FEE_RATE
 } from './helpers';
-import { StakedLBTCMock, Bascule, Consortium } from '../typechain-types';
+import { LBTCMock, Bascule, Consortium } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('StakedLBTC', function () {
+describe('LBTC', function () {
   let deployer: Signer,
     signer1: Signer,
     signer2: Signer,
@@ -29,8 +29,8 @@ describe('StakedLBTC', function () {
     reporter: Signer,
     admin: Signer,
     pauser: Signer;
-  let lbtc: StakedLBTCMock;
-  let lbtc2: StakedLBTCMock;
+  let lbtc: LBTCMock;
+  let lbtc2: LBTCMock;
   let bascule: Bascule;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
@@ -42,11 +42,11 @@ describe('StakedLBTC', function () {
 
     const burnCommission = 1000;
 
-    const result = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
+    const result = await initLBTC(burnCommission, treasury.address, deployer.address);
     lbtc = result.lbtc;
     consortium = result.consortium;
 
-    const result2 = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
+    const result2 = await initLBTC(burnCommission, treasury.address, deployer.address);
     lbtc2 = result2.lbtc;
     consortium2 = result2.consortium;
 

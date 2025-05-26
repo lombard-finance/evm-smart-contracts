@@ -1,12 +1,12 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { ProxyFactory, StakedLBTC, WBTCMock } from '../typechain-types';
+import { ProxyFactory, LBTC, WBTCMock } from '../typechain-types';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 
 describe('ProxyFactory', () => {
   let proxyFactory: ProxyFactory;
-  let lbtcImplementation: StakedLBTC;
+  let lbtcImplementation: LBTC;
   let wbtcMockImplementation: WBTCMock;
   let deployer: HardhatEthersSigner, admin: HardhatEthersSigner, acc: HardhatEthersSigner;
 
@@ -18,8 +18,8 @@ describe('ProxyFactory', () => {
     await contract.waitForDeployment();
     proxyFactory = factory.attach(await contract.getAddress()) as ProxyFactory;
 
-    const lbtcFactory = await ethers.getContractFactory('StakedLBTC');
-    lbtcImplementation = (await lbtcFactory.deploy()) as StakedLBTC;
+    const lbtcFactory = await ethers.getContractFactory('LBTC');
+    lbtcImplementation = (await lbtcFactory.deploy()) as LBTC;
     await lbtcImplementation.waitForDeployment();
 
     const wbtcMockFactory = await ethers.getContractFactory('WBTCMock');
@@ -43,7 +43,7 @@ describe('ProxyFactory', () => {
       .connect(deployer)
       .createTransparentProxy(await lbtcImplementation.getAddress(), deployer.address, data, salt);
 
-    const lbtc = await ethers.getContractAt('StakedLBTC', proxyAddress);
+    const lbtc = await ethers.getContractAt('LBTC', proxyAddress);
     expect(await lbtc.name()).to.equal('Lombard Staked Bitcoin');
 
     await snapshot.restore();
