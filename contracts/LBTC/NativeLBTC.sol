@@ -6,6 +6,7 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
@@ -22,9 +23,9 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 contract NativeLBTC is
     INativeLBTC,
     ERC20PausableUpgradeable,
-    Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable,
-    ERC20PermitUpgradeable
+    ERC20PermitUpgradeable,
+    AccessControlDefaultAdminRulesUpgradeable
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct NativeLBTCStorage {
@@ -64,13 +65,13 @@ contract NativeLBTC is
         address consortium_,
         uint64 burnCommission_,
         address treasury,
-        address owner_
+        address initialOwner,
+        uint48 initialOwnerDelay
     ) external initializer {
+        __AccessControlDefaultAdminRules_init(initialOwnerDelay, initialOwner);
+
         __ERC20_init("", "");
         __ERC20Pausable_init();
-
-        __Ownable_init(owner_);
-        __Ownable2Step_init();
 
         __ReentrancyGuard_init();
         __ERC20Permit_init("Lombard Liquid Bitcoin"); // TODO: set final name
@@ -120,7 +121,7 @@ contract NativeLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleWithdrawals() external onlyOwner {
+    function toggleWithdrawals() external onlyRole(DEFAULT_ADMIN_ROLE) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
@@ -129,11 +130,11 @@ contract NativeLBTC is
     function changeNameAndSymbol(
         string calldata name_,
         string calldata symbol_
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeNameAndSymbol(name_, symbol_);
     }
 
-    function changeConsortium(address newVal) external onlyOwner {
+    function changeConsortium(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeConsortium(newVal);
     }
 
@@ -149,11 +150,11 @@ contract NativeLBTC is
         emit FeeChanged(oldFee, fee);
     }
 
-    function changeTreasuryAddress(address newValue) external onlyOwner {
+    function changeTreasuryAddress(address newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasuryAddress(newValue);
     }
 
-    function changeBurnCommission(uint64 newValue) external onlyOwner {
+    function changeBurnCommission(uint64 newValue) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBurnCommission(newValue);
     }
 
@@ -165,26 +166,26 @@ contract NativeLBTC is
         _unpause();
     }
 
-    function addMinter(address newMinter) external onlyOwner {
+    function addMinter(address newMinter) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _updateMinter(newMinter, true);
     }
 
-    function removeMinter(address oldMinter) external onlyOwner {
+    function removeMinter(address oldMinter) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _updateMinter(oldMinter, false);
     }
 
-    function addClaimer(address newClaimer) external onlyOwner {
+    function addClaimer(address newClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _updateClaimer(newClaimer, true);
     }
 
-    function removeClaimer(address oldClaimer) external onlyOwner {
+    function removeClaimer(address oldClaimer) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _updateClaimer(oldClaimer, false);
     }
 
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
-    function changeDustFeeRate(uint256 newRate) external onlyOwner {
+    function changeDustFeeRate(uint256 newRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newRate == 0) revert InvalidDustFeeRate();
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 oldRate = $.dustFeeRate;
@@ -199,18 +200,18 @@ contract NativeLBTC is
      *
      * Emits a {BasculeChanged} event.
      */
-    function changeBascule(address newVal) external onlyOwner {
+    function changeBascule(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
     }
 
-    function transferPauserRole(address newPauser) external onlyOwner {
+    function transferPauserRole(address newPauser) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newPauser == address(0)) {
             revert ZeroAddress();
         }
         _transferPauserRole(newPauser);
     }
 
-    function transferOperatorRole(address newOperator) external onlyOwner {
+    function transferOperatorRole(address newOperator) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newOperator == address(0)) {
             revert ZeroAddress();
         }
