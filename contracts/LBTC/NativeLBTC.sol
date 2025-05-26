@@ -274,7 +274,7 @@ contract NativeLBTC is
         return _getLBTCStorage().symbol;
     }
 
-    function getTreasury() public override view returns (address) {
+    function getTreasury() public view override returns (address) {
         return _getLBTCStorage().treasury;
     }
 
@@ -506,12 +506,9 @@ contract NativeLBTC is
      *
      * @param payloadHash The minting payload hash
      */
-    function isPayloadUsed(
-        bytes32 payloadHash
-    ) public view returns (bool) {
+    function isPayloadUsed(bytes32 payloadHash) public view returns (bool) {
         NativeLBTCStorage storage $ = _getLBTCStorage();
-        return
-            $.usedPayloads[payloadHash];
+        return $.usedPayloads[payloadHash];
     }
 
     /// PRIVATE FUNCTIONS ///
@@ -758,7 +755,11 @@ contract NativeLBTC is
         return (amountAfterFee, true, dustLimit, isAboveDust);
     }
 
-    function _getLBTCStorage() private pure returns (NativeLBTCStorage storage $) {
+    function _getLBTCStorage()
+        private
+        pure
+        returns (NativeLBTCStorage storage $)
+    {
         assembly {
             $.slot := NATIVE_LBTC_STORAGE_LOCATION
         }

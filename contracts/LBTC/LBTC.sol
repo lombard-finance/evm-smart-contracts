@@ -293,7 +293,7 @@ contract LBTC is
         return _getLBTCStorage().symbol;
     }
 
-    function getTreasury() public override view returns (address) {
+    function getTreasury() public view override returns (address) {
         return _getLBTCStorage().treasury;
     }
 
