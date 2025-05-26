@@ -83,7 +83,7 @@ contract NativeLBTC is
             burnCommission_
         );
 
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
@@ -98,21 +98,21 @@ contract NativeLBTC is
     }
 
     modifier onlyMinter() {
-        if (!_getLBTCStorage().minters[_msgSender()]) {
+        if (!_getNativeLBTCStorage().minters[_msgSender()]) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
     }
 
     modifier onlyClaimer() {
-        if (!_getLBTCStorage().claimers[_msgSender()]) {
+        if (!_getNativeLBTCStorage().claimers[_msgSender()]) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
     }
 
     modifier onlyOperator() {
-        if (_getLBTCStorage().operator != _msgSender()) {
+        if (_getNativeLBTCStorage().operator != _msgSender()) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
@@ -121,7 +121,7 @@ contract NativeLBTC is
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyOwner {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
     }
@@ -143,7 +143,7 @@ contract NativeLBTC is
      * @dev zero allowed to disable fee
      */
     function setMintFee(uint256 fee) external onlyOperator {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
         emit FeeChanged(oldFee, fee);
@@ -186,7 +186,7 @@ contract NativeLBTC is
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
     function changeDustFeeRate(uint256 newRate) external onlyOwner {
         if (newRate == 0) revert InvalidDustFeeRate();
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 oldRate = $.dustFeeRate;
         $.dustFeeRate = newRate;
         emit DustFeeRateChanged(oldRate, newRate);
@@ -223,7 +223,7 @@ contract NativeLBTC is
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getLBTCStorage().maximumFee;
+        return _getNativeLBTCStorage().maximumFee;
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -236,7 +236,7 @@ contract NativeLBTC is
         bytes calldata scriptPubkey,
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
             amount,
@@ -246,7 +246,7 @@ contract NativeLBTC is
     }
 
     function consortium() external view virtual returns (address) {
-        return _getLBTCStorage().consortium;
+        return _getNativeLBTCStorage().consortium;
     }
 
     /**
@@ -263,7 +263,7 @@ contract NativeLBTC is
      * @dev Returns the name of the token.
      */
     function name() public view virtual override returns (string memory) {
-        return _getLBTCStorage().name;
+        return _getNativeLBTCStorage().name;
     }
 
     /**
@@ -271,44 +271,44 @@ contract NativeLBTC is
      * name.
      */
     function symbol() public view virtual override returns (string memory) {
-        return _getLBTCStorage().symbol;
+        return _getNativeLBTCStorage().symbol;
     }
 
     function getTreasury() public view override returns (address) {
-        return _getLBTCStorage().treasury;
+        return _getNativeLBTCStorage().treasury;
     }
 
     function getBurnCommission() public view returns (uint64) {
-        return _getLBTCStorage().burnCommission;
+        return _getNativeLBTCStorage().burnCommission;
     }
 
     /// @notice Get the current dust fee rate
     /// @return The current dust fee rate (in satoshis per 1000 bytes)
     function getDustFeeRate() public view returns (uint256) {
-        return _getLBTCStorage().dustFeeRate;
+        return _getNativeLBTCStorage().dustFeeRate;
     }
 
     /**
      * Get Bascule contract.
      */
     function Bascule() external view returns (IBascule) {
-        return _getLBTCStorage().bascule;
+        return _getNativeLBTCStorage().bascule;
     }
 
     function pauser() public view returns (address) {
-        return _getLBTCStorage().pauser;
+        return _getNativeLBTCStorage().pauser;
     }
 
     function operator() external view returns (address) {
-        return _getLBTCStorage().operator;
+        return _getNativeLBTCStorage().operator;
     }
 
     function isMinter(address minter) external view returns (bool) {
-        return _getLBTCStorage().minters[minter];
+        return _getNativeLBTCStorage().minters[minter];
     }
 
     function isClaimer(address claimer) external view returns (bool) {
-        return _getLBTCStorage().claimers[claimer];
+        return _getNativeLBTCStorage().claimers[claimer];
     }
 
     /// USER ACTIONS ///
@@ -456,7 +456,7 @@ contract NativeLBTC is
      * @param amount Amount of LBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
             revert WithdrawalsDisabled();
@@ -507,7 +507,7 @@ contract NativeLBTC is
      * @param payloadHash The minting payload hash
      */
     function isPayloadUsed(bytes32 payloadHash) public view returns (bool) {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         return $.usedPayloads[payloadHash];
     }
 
@@ -530,7 +530,7 @@ contract NativeLBTC is
         string memory name_,
         string memory symbol_
     ) internal {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.name = name_;
         $.symbol = symbol_;
         emit NameAndSymbolChanged(name_, symbol_);
@@ -540,7 +540,7 @@ contract NativeLBTC is
         if (newVal == address(0)) {
             revert ZeroAddress();
         }
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
     }
@@ -552,7 +552,7 @@ contract NativeLBTC is
         bytes calldata payload,
         bytes calldata proof
     ) internal {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
 
         if (amountToMint > depositAmount) revert InvalidMintAmount();
 
@@ -577,7 +577,7 @@ contract NativeLBTC is
     }
 
     function _changeBurnCommission(uint64 newValue) internal {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
@@ -607,20 +607,20 @@ contract NativeLBTC is
      * Emits a {BasculeChanged} event.
      */
     function _changeBascule(address newVal) internal {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         emit BasculeChanged(address($.bascule), newVal);
         $.bascule = IBascule(newVal);
     }
 
     function _transferPauserRole(address newPauser) internal {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
     }
 
     function _transferOperatorRole(address newOperator) internal {
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         address oldOperator = $.operator;
         $.operator = newOperator;
         emit OperatorRoleTransferred(oldOperator, newOperator);
@@ -648,7 +648,7 @@ contract NativeLBTC is
             feePayload[4:]
         );
 
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 fee = $.maximumFee;
         if (fee > feeAction.fee) {
             fee = feeAction.fee;
@@ -707,7 +707,7 @@ contract NativeLBTC is
         if (minter == address(0)) {
             revert ZeroAddress();
         }
-        _getLBTCStorage().minters[minter] = _isMinter;
+        _getNativeLBTCStorage().minters[minter] = _isMinter;
         emit MinterUpdated(minter, _isMinter);
     }
 
@@ -715,7 +715,7 @@ contract NativeLBTC is
         if (claimer == address(0)) {
             revert ZeroAddress();
         }
-        _getLBTCStorage().claimers[claimer] = _isClaimer;
+        _getNativeLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
     }
 
@@ -723,7 +723,7 @@ contract NativeLBTC is
         if (newValue == address(0)) {
             revert ZeroAddress();
         }
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
@@ -743,7 +743,7 @@ contract NativeLBTC is
             return (0, false, 0, false);
         }
 
-        NativeLBTCStorage storage $ = _getLBTCStorage();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 amountAfterFee = amount - fee;
         uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
             outType,
@@ -755,7 +755,7 @@ contract NativeLBTC is
         return (amountAfterFee, true, dustLimit, isAboveDust);
     }
 
-    function _getLBTCStorage()
+    function _getNativeLBTCStorage()
         private
         pure
         returns (NativeLBTCStorage storage $)
