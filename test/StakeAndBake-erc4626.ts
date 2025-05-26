@@ -5,18 +5,15 @@ import {
   deployContract,
   getSignersWithPrivateKeys,
   CHAIN_ID,
-  getFeeTypedMessage,
   generatePermitSignature,
-  NEW_VALSET,
-  DEPOSIT_BTC_ACTION,
   encode,
-  getPayloadForAction,
-  signDepositBtcPayload,
   Signer,
-  initLBTC
+  initLBTC,
+  signDepositBtcV0Payload
 } from './helpers';
 import { StakeAndBake, ERC4626Depositor, LBTCMock, ERC4626Mock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 describe('ERC4626Depositor', function () {
   let deployer: Signer,
@@ -33,11 +30,11 @@ describe('ERC4626Depositor', function () {
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let data;
-  let permitPayload;
-  let depositPayload;
+  let permitPayload: BytesLike;
+  let depositPayload: BytesLike;
   let data2;
-  let permitPayload2;
-  let depositPayload2;
+  let permitPayload2: BytesLike;
+  let depositPayload2: BytesLike;
   const value = 10001;
   const fee = 1;
   const depositValue = 10000;
@@ -76,7 +73,7 @@ describe('ERC4626Depositor', function () {
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 
-    data = await signDepositBtcPayload(
+    data = await signDepositBtcV0Payload(
       [signer1],
       [true],
       CHAIN_ID,
@@ -109,7 +106,7 @@ describe('ERC4626Depositor', function () {
 
     // NB for some reason trying to do this in a loop and passing around arrays of parameters
     // makes the test fail, so i'm doing it the ugly way here
-    data2 = await signDepositBtcPayload(
+    data2 = await signDepositBtcV0Payload(
       [signer1],
       [true],
       CHAIN_ID,

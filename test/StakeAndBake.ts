@@ -5,25 +5,20 @@ import {
   deployContract,
   getSignersWithPrivateKeys,
   CHAIN_ID,
-  getFeeTypedMessage,
   generatePermitSignature,
-  NEW_VALSET,
-  DEPOSIT_BTC_ACTION,
   encode,
-  getPayloadForAction,
-  signDepositBtcPayload,
   Signer,
-  initLBTC
+  initLBTC,
+  signDepositBtcV0Payload
 } from './helpers';
 import {
   StakeAndBake,
-  BoringVaultDepositor,
   LBTCMock,
-  BoringVaultMock,
-  AccountantMock,
-  TellerMock
+  TellerWithMultiAssetSupportDepositor,
+  TellerWithMultiAssetSupportMock
 } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 describe('TellerWithMultiAssetSupportDepositor', function () {
   let deployer: Signer,
@@ -39,12 +34,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   let lbtc: LBTCMock;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
-  let data;
-  let permitPayload;
-  let depositPayload;
-  let data2;
-  let permitPayload2;
-  let depositPayload2;
+  let data: any;
+  let permitPayload: BytesLike;
+  let depositPayload: BytesLike;
+  let data2: any;
+  let permitPayload2: BytesLike;
+  let depositPayload2: BytesLike;
   const value = 10001;
   const fee = 1;
   const premium = 100;
@@ -88,7 +83,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 
-    data = await signDepositBtcPayload(
+    data = await signDepositBtcV0Payload(
       [signer1],
       [true],
       CHAIN_ID,
@@ -121,7 +116,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     // NB for some reason trying to do this in a loop and passing around arrays of parameters
     // makes the test fail, so i'm doing it the ugly way here
-    data2 = await signDepositBtcPayload(
+    data2 = await signDepositBtcV0Payload(
       [signer1],
       [true],
       CHAIN_ID,

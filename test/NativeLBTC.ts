@@ -64,6 +64,9 @@ describe('NativeLBTC', function () {
     await nativeLbtc.grantRole(await nativeLbtc.OPERATOR_ROLE(), deployer.address);
     await nativeLbtc2.grantRole(await nativeLbtc.OPERATOR_ROLE(), deployer.address);
 
+    await nativeLbtc.grantRole(await nativeLbtc.PAUSER_ROLE(), pauser.address);
+    await nativeLbtc2.grantRole(await nativeLbtc2.PAUSER_ROLE(), pauser.address);
+
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
   });
