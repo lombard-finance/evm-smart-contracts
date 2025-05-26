@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {INativeLBTC} from "../LBTC/INativeLBTC.sol";
+import {IBaseLBTC} from "../LBTC/IBaseLBTC.sol";
 import "./adapters/IAdapter.sol";
 import {IConsortiumConsumer, INotaryConsortium} from "../interfaces/IConsortiumConsumer.sol";
 
@@ -108,7 +108,7 @@ interface IBridge is IConsortiumConsumer {
     /// @notice Emitted when the treasury is changed.
     event TreasuryChanged(address previousTreasury, address newTreasury);
 
-    function lbtc() external view returns (INativeLBTC);
+    function lbtc() external view returns (IBaseLBTC);
     function receivePayload(bytes32 fromChain, bytes calldata payload) external;
     function deposit(
         bytes32 toChain,

@@ -11,7 +11,7 @@ import { create3 } from '../helpers/create3Deployment';
  * 5. Set operator
  */
 
-task('deploy-staked-lbtc', 'Deploys the StakedLBTC contract')
+task('deploy-lbtc', 'Deploys the LBTC contract')
   .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('consortium', 'The address of LombardConsortium')
   .addParam('burnCommission', 'The burn commission')
@@ -40,6 +40,6 @@ task('deploy-staked-lbtc', 'Deploys the StakedLBTC contract')
     );
 
     // reinitialize
-    const lbtc = await ethers.getContractAt('StakedLBTC', data.proxy);
+    const lbtc = await ethers.getContractAt('LBTC', data.proxy);
     await lbtc.reinitialize();
   });

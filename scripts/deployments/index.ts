@@ -3,7 +3,7 @@ export * from './bridge';
 export * from './btcb-mock';
 export * from './consortium';
 export * from './create3-factory';
-export * from './staked-lbtc';
+export * from './lbtc';
 export * from './native-lbtc';
 export * from './chainlink-adapter';
 export * from './PoR';

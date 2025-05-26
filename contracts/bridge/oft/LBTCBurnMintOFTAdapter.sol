@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {OFTAdapter, SafeERC20, IERC20} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
-import {INativeLBTC} from "../../LBTC/INativeLBTC.sol";
+import {IBaseLBTC} from "../../LBTC/IBaseLBTC.sol";
 
 contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
     using SafeERC20 for IERC20;
@@ -49,7 +49,7 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
             amountSentLD,
             RateLimitDirection.Outbound
         );
-        INativeLBTC(address(innerToken)).burn(_from, amountSentLD);
+        IBaseLBTC(address(innerToken)).burn(_from, amountSentLD);
     }
 
     /**
@@ -75,7 +75,7 @@ contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
             RateLimitDirection.Inbound
         );
         // @dev Mint the tokens and transfer to the recipient.
-        INativeLBTC(address(innerToken)).mint(_to, _amountLD);
+        IBaseLBTC(address(innerToken)).mint(_to, _amountLD);
         return _amountLD;
     }
 }
