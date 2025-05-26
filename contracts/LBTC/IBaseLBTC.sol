@@ -37,7 +37,6 @@ interface IBaseLBTC {
     );
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
-    event MinterUpdated(address indexed minter, bool isMinter);
     event BridgeChanged(address indexed prevVal, address indexed newVal);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);

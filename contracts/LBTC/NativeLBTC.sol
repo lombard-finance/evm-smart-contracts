@@ -38,7 +38,6 @@ contract NativeLBTC is
         uint256 dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
-        mapping(address => bool) minters;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
         // @dev is sha256(payload) used
@@ -53,6 +52,7 @@ contract NativeLBTC is
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -88,15 +88,6 @@ contract NativeLBTC is
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
         emit DustFeeRateChanged(0, $.dustFeeRate);
-    }
-
-    /// MODIFIER ///
-
-    modifier onlyMinter() {
-        if (!_getNativeLBTCStorage().minters[_msgSender()]) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-        _;
     }
 
     /// ONLY OWNER FUNCTIONS ///
@@ -144,14 +135,6 @@ contract NativeLBTC is
 
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
-    }
-
-    function addMinter(address newMinter) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _updateMinter(newMinter, true);
-    }
-
-    function removeMinter(address oldMinter) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _updateMinter(oldMinter, false);
     }
 
     /// @notice Change the dust fee rate used for dust limit calculations
@@ -254,10 +237,6 @@ contract NativeLBTC is
         return _getNativeLBTCStorage().bascule;
     }
 
-    function isMinter(address minter) external view returns (bool) {
-        return _getNativeLBTCStorage().minters[minter];
-    }
-
     /// USER ACTIONS ///
 
     /**
@@ -266,7 +245,7 @@ contract NativeLBTC is
      * @param amount The amount of LBTC to mint
      * @dev Only callable by whitelisted minters
      */
-    function mint(address to, uint256 amount) external override onlyMinter {
+    function mint(address to, uint256 amount) external override onlyRole(MINTER_ROLE) {
         _mint(to, amount);
     }
 
@@ -279,7 +258,7 @@ contract NativeLBTC is
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external onlyMinter {
+    ) external onlyRole(MINTER_ROLE) {
         if (to.length != amount.length) {
             revert InvalidInputLength();
         }
@@ -444,7 +423,7 @@ contract NativeLBTC is
      *
      * @param amount Amount of LBTC to burn
      */
-    function burn(address from, uint256 amount) external override onlyMinter {
+    function burn(address from, uint256 amount) external override onlyRole(MINTER_ROLE) {
         _burn(from, amount);
     }
 
@@ -628,14 +607,6 @@ contract NativeLBTC is
         _mint($.treasury, fee);
 
         emit FeeCharged(fee, userSignature);
-    }
-
-    function _updateMinter(address minter, bool _isMinter) internal {
-        if (minter == address(0)) {
-            revert ZeroAddress();
-        }
-        _getNativeLBTCStorage().minters[minter] = _isMinter;
-        emit MinterUpdated(minter, _isMinter);
     }
 
     function _changeTreasuryAddress(address newValue) internal {

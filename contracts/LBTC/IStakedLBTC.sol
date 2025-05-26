@@ -13,4 +13,5 @@ interface IStakedLBTC is IBaseLBTC {
         address indexed previousPauser,
         address indexed newPauser
     );
+    event MinterUpdated(address indexed minter, bool isMinter);
 }
