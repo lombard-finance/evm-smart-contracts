@@ -9,7 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Actions} from "../libs/Actions.sol";
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
-import {IBridge, ILBTC, INotaryConsortium} from "./IBridge.sol";
+import {IBridge, INativeLBTC, INotaryConsortium} from "./IBridge.sol";
 import {RateLimits} from "../libs/RateLimits.sol";
 contract Bridge is
     IBridge,
@@ -34,7 +34,7 @@ contract Bridge is
     /// @custom:storage-location erc7201:lombardfinance.storage.Bridge
     struct BridgeStorage {
         address treasury;
-        ILBTC lbtc;
+        INativeLBTC lbtc;
         // Increments with each cross chain operation and should be part of the payload
         // Makes each payload unique
         uint256 crossChainOperationsNonce;
@@ -59,7 +59,7 @@ contract Bridge is
     }
 
     function initialize(
-        ILBTC lbtc_,
+        INativeLBTC lbtc_,
         address treasury_,
         address owner_
     ) external initializer {
@@ -109,7 +109,7 @@ contract Bridge is
         return _getBridgeStorage().consortium;
     }
 
-    function lbtc() public view override returns (ILBTC) {
+    function lbtc() public view override returns (INativeLBTC) {
         return _getBridgeStorage().lbtc;
     }
 
@@ -483,7 +483,7 @@ contract Bridge is
     /// PRIVATE FUNCTIONS ///
 
     function __Bridge_init(
-        ILBTC lbtc_,
+        INativeLBTC lbtc_,
         address treasury_
     ) internal onlyInitializing {
         _changeTreasury(treasury_);

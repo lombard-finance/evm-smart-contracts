@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import {IAdapter} from "./IAdapter.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-import {IBridge, ILBTC} from "../IBridge.sol";
+import {IBridge, INativeLBTC} from "../IBridge.sol";
 /**
  * @title Abstract bridge adapter
  * @author Lombard.finance
@@ -25,7 +25,7 @@ abstract contract AbstractAdapter is IAdapter, Context {
         bridge = bridge_;
     }
 
-    function lbtc() public view returns (ILBTC) {
+    function lbtc() public view returns (INativeLBTC) {
         return bridge.lbtc();
     }
 
