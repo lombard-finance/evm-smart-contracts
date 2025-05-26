@@ -4,6 +4,9 @@ pragma solidity 0.8.24;
 import {IBaseLBTC} from "./IBaseLBTC.sol";
 
 interface IStakedLBTC is IBaseLBTC {
+
+    error UnauthorizedAccount(address account);
+
     event OperatorRoleTransferred(
         address indexed previousOperator,
         address indexed newOperator

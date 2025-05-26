@@ -3,16 +3,11 @@ pragma solidity 0.8.24;
 
 interface IBaseLBTC {
     error ZeroAddress();
-    error ZeroContractHash();
-    error ZeroChainId();
     error WithdrawalsDisabled();
-    error KnownDestination();
-    error UnknownDestination();
     error ScriptPubkeyUnsupported();
     error AmountLessThanCommission(uint256 fee);
     error AmountBelowDustLimit(uint256 dustLimit);
     error InvalidDustFeeRate();
-    error UnauthorizedAccount(address account);
     error UnexpectedAction(bytes4 action);
     error InvalidUserSignature();
     error PayloadAlreadyUsed();
@@ -37,7 +32,6 @@ interface IBaseLBTC {
     );
     event DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
     event BasculeChanged(address indexed prevVal, address indexed newVal);
-    event BridgeChanged(address indexed prevVal, address indexed newVal);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
     error FeeGreaterThanAmount();
