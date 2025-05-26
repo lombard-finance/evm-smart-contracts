@@ -45,13 +45,14 @@ contract NativeLBTC is
         uint256 maximumFee;
         // @dev is sha256(payload) used
         mapping(bytes32 => bool) usedPayloads;
-        address operator;
     }
 
     // TODO: recalculate
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -112,13 +113,6 @@ contract NativeLBTC is
         _;
     }
 
-    modifier onlyOperator() {
-        if (_getNativeLBTCStorage().operator != _msgSender()) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-        _;
-    }
-
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -143,7 +137,7 @@ contract NativeLBTC is
      * @param fee New fee value
      * @dev zero allowed to disable fee
      */
-    function setMintFee(uint256 fee) external onlyOperator {
+    function setMintFee(uint256 fee) external onlyRole(OPERATOR_ROLE) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
@@ -209,13 +203,6 @@ contract NativeLBTC is
             revert ZeroAddress();
         }
         _transferPauserRole(newPauser);
-    }
-
-    function transferOperatorRole(address newOperator) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newOperator == address(0)) {
-            revert ZeroAddress();
-        }
-        _transferOperatorRole(newOperator);
     }
 
     /// GETTERS ///
@@ -298,10 +285,6 @@ contract NativeLBTC is
 
     function pauser() public view returns (address) {
         return _getNativeLBTCStorage().pauser;
-    }
-
-    function operator() external view returns (address) {
-        return _getNativeLBTCStorage().operator;
     }
 
     function isMinter(address minter) external view returns (bool) {
@@ -618,13 +601,6 @@ contract NativeLBTC is
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
-    }
-
-    function _transferOperatorRole(address newOperator) internal {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        address oldOperator = $.operator;
-        $.operator = newOperator;
-        emit OperatorRoleTransferred(oldOperator, newOperator);
     }
 
     function _mintWithFee(

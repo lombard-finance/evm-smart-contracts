@@ -23,10 +23,6 @@ interface IBaseLBTC {
         address indexed previousPauser,
         address indexed newPauser
     );
-    event OperatorRoleTransferred(
-        address indexed previousOperator,
-        address indexed newOperator
-    );
     event UnstakeRequest(
         address indexed fromAddress,
         bytes scriptPubKey,
