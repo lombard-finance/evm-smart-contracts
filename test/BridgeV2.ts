@@ -1,6 +1,7 @@
-import { BridgeV2, Consortium, LBTC, Mailbox } from '../typechain-types';
-import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { BridgeV2, Consortium, LBTC, LBTCMock, Mailbox } from '../typechain-types';
+import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
+  calcFee,
   calculateStorageSlot,
   deployContract,
   encode,
@@ -17,6 +18,7 @@ import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { ContractTransactionReceipt } from 'ethers';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
+import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 import PayloadStruct = GMPUtils.PayloadStruct;
 
 class Addressable {
@@ -32,12 +34,19 @@ class Addressable {
   private _address: string;
 }
 
-// TODO: add rescueERC20 test
-
 const BRIDGE_PAYLOAD_SIZE = 356;
+const MAX_FEE_DISCOUNT = 10000n;
 
 describe('BridgeV2', function () {
-  let deployer: Signer, owner: Signer, minter: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
+  let deployer: Signer,
+    owner: Signer,
+    pauser: Signer,
+    treasury: Signer,
+    minter: Signer,
+    notary: Signer,
+    signer1: Signer,
+    signer2: Signer,
+    signer3: Signer;
   let consortium: Consortium & Addressable;
   let smailbox: Mailbox & Addressable, dmailbox: Mailbox & Addressable;
   let sLBTC: LBTC & Addressable, dLBTC: LBTC & Addressable;
@@ -50,36 +59,41 @@ describe('BridgeV2', function () {
   const AMOUNT = 1000_0000_0000n;
   let sBridgeBytes: string;
   let dBridgeBytes: string;
+  let weiPerByte = 1000n;
 
   before(async () => {
-    [deployer, owner, minter, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
+    [deployer, owner, pauser, treasury, minter, notary, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
-    // for both chains
+    // Consortium
     consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address]);
     consortium.address = await consortium.getAddress();
-    await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
+    await consortium.setInitialValidatorSet(getPayloadForAction([1, [notary.publicKey], [1], 1, 1], NEW_VALSET));
 
+    // Mailboxes
     smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
     smailbox.address = await smailbox.getAddress();
-    await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), owner);
-    await smailbox.connect(owner).grantRole(await smailbox.PAUSER_ROLE(), owner);
-
+    await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), treasury);
+    await smailbox.connect(owner).grantRole(await smailbox.PAUSER_ROLE(), pauser);
+    await smailbox.connect(owner).setFee(1000);
     dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
     dmailbox.address = await dmailbox.getAddress();
-    await dmailbox.connect(owner).grantRole(await dmailbox.TREASURER_ROLE(), owner);
-    await dmailbox.connect(owner).grantRole(await dmailbox.PAUSER_ROLE(), owner);
+    await dmailbox.connect(owner).grantRole(await dmailbox.TREASURER_ROLE(), treasury);
+    await dmailbox.connect(owner).grantRole(await dmailbox.PAUSER_ROLE(), pauser);
 
     const { chainId } = await ethers.provider.getNetwork();
     lChainId = encode(['uint256'], [chainId]);
     await smailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [dmailbox.address]));
     await dmailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
 
+    // Bridges
     sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
     sbridge.address = await sbridge.getAddress();
+    sBridgeBytes = encode(['address'], [sbridge.address]);
     dbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, dmailbox.address]);
     dbridge.address = await dbridge.getAddress();
+    dBridgeBytes = encode(['address'], [dbridge.address]);
 
-    // LBTC tokens
+    // Tokens
     sLBTC = await deployContract<LBTC & Addressable>('LBTC', [consortium.address, 0, owner.address, owner.address]);
     sLBTC.address = await sLBTC.getAddress();
     await sLBTC.connect(owner).addMinter(minter.address);
@@ -88,29 +102,17 @@ describe('BridgeV2', function () {
     await dLBTC.connect(owner).addMinter(minter.address);
     await dLBTC.connect(owner).addMinter(dbridge.address);
 
-    sBridgeBytes = encode(['address'], [sbridge.address]);
-    dBridgeBytes = encode(['address'], [dbridge.address]);
-    // allow required payload size and exclude from fees
+    // Set paths and map tokens
+    await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
+    await sbridge.connect(owner).addDestinationToken(lChainId, sLBTC, encode(['address'], [dLBTC.address]));
+    await dbridge.connect(owner).setDestinationBridge(lChainId, sBridgeBytes);
+    await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC, encode(['address'], [sLBTC.address]));
+    // Disable fees for the bridge and set payload size
     await smailbox.connect(owner).setSenderConfig(sbridge, BRIDGE_PAYLOAD_SIZE, true);
 
     await sLBTC.connect(minter)['mint(address,uint256)'](signer1.address, AMOUNT);
     await sLBTC.connect(signer1).approve(sbridge.address, ethers.MaxUint256);
 
-    await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
-    await dbridge.connect(owner).setDestinationBridge(lChainId, sBridgeBytes);
-
-    // TODO: tests when rate limits reached
-    await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
-      chainId: lChainId,
-      limit: AMOUNT * 100n,
-      window: 300n
-    });
-
-    // TODO: tests when sender is not whitelisted
-    await sbridge.connect(owner).setSenderConfig(signer1, 100_00n, true);
-
-    await sbridge.connect(owner).addDestinationToken(lChainId, sLBTC.address, encode(['address'], [dLBTC.address]));
-    await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC, encode(['address'], [sLBTC.address]));
     snapshot = await takeSnapshot();
   });
 
@@ -132,26 +134,6 @@ describe('BridgeV2', function () {
 
       it('Mailbox address', async () => {
         expect(await sbridge.mailbox()).to.equal(smailbox.address);
-      });
-
-      it('Fee', async () => {
-        expect(await sbridge.getFee(signer3)).to.equal(0);
-      });
-
-      it('Rate Limits', async () => {
-        const rl = {
-          chainId: lChainId,
-          limit: 100n,
-          window: 1800n
-        };
-
-        await expect(sbridge.connect(owner).setTokenRateLimits(dLBTC, rl))
-          .to.emit(sbridge, 'RateLimitsSet')
-          .withArgs(dLBTC, rl.chainId, rl.limit, rl.window);
-
-        const res = await sbridge.getTokenRateLimit(dLBTC, lChainId);
-        expect(res[0]).to.be.eq(0);
-        expect(res[1]).to.be.eq(rl.limit);
       });
     });
 
@@ -202,51 +184,11 @@ describe('BridgeV2', function () {
       });
     });
 
-    describe('setSenderConfig & getSenderConfig', () => {
+    describe('Add destination token', () => {
       let sbridge: BridgeV2 & Addressable;
-
-      beforeEach(async () => {
-        await snapshot.restore();
-
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
-        sbridge.address = await sbridge.getAddress();
-      });
-
-      it('setSenderConfig owner can set', async () => {
-        await expect(sbridge.connect(owner).setSenderConfig(signer3, 100_00n, true))
-          .to.emit(sbridge, 'SenderConfigChanged')
-          .withArgs(signer3, 100_00n, true);
-
-        const conf = await sbridge.getSenderConfig(signer3);
-        expect(conf.whitelisted).to.be.eq(true);
-        expect(conf.feeDiscount).to.be.eq(100_00n);
-      });
-
-      it('setSenderConfig reverts when called by not an owner', async () => {
-        await expect(sbridge.connect(deployer).setSenderConfig(signer3, 0, false))
-          .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
-          .withArgs(deployer.address);
-      });
-
-      it('setSenderConfig reverts when discount too big', async () => {
-        await expect(sbridge.connect(owner).setSenderConfig(signer3, 100_01n, false)).to.be.revertedWithCustomError(
-          sbridge,
-          'BridgeV2_TooBigDiscount'
-        );
-      });
-
-      it('setSenderConfig reverts when sender is zero address', async () => {
-        await expect(
-          sbridge.connect(owner).setSenderConfig(ethers.ZeroAddress, 0, false)
-        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroSender');
-      });
-    });
-
-    describe('addDestinationToken', () => {
-      let sbridge: BridgeV2 & Addressable;
-      const destinationChain = encode(['uint256'], [randomBigInt(8)]);
-      const sourceToken = ethers.Wallet.createRandom().address;
-      const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
+      const dChain = encode(['uint256'], [randomBigInt(8)]);
+      const sToken = ethers.Wallet.createRandom().address;
+      const dToken = encode(['address'], [ethers.Wallet.createRandom().address]);
 
       before(async () => {
         await snapshot.restore();
@@ -254,64 +196,49 @@ describe('BridgeV2', function () {
 
         sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
         sbridge.address = await sbridge.getAddress();
-        await sbridge.connect(owner).setDestinationBridge(destinationChain, dBridgeBytes);
+        await sbridge.connect(owner).setDestinationBridge(dChain, dBridgeBytes);
       });
 
-      it('addDestinationToken owner can', async () => {
-        await expect(sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken))
+      it('addDestinationToken owner can add tokens mapping', async () => {
+        await expect(sbridge.connect(owner).addDestinationToken(dChain, sToken, dToken))
           .to.emit(sbridge, 'DestinationTokenAdded')
-          .withArgs(destinationChain, destinationToken, sourceToken);
+          .withArgs(dChain, dToken, sToken);
 
-        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(destinationToken);
+        expect(await sbridge.getAllowedDestinationToken(dChain, sToken)).to.be.eq(dToken);
       });
 
-      it('addDestinationToken add another sourceToken destinationToken pair for chain', async () => {
+      it('Add another token mapping', async () => {
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken))
+        await expect(sbridge.connect(owner).addDestinationToken(dChain, sourceToken, destinationToken))
           .to.emit(sbridge, 'DestinationTokenAdded')
-          .withArgs(destinationChain, destinationToken, sourceToken);
-        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(destinationToken);
+          .withArgs(dChain, destinationToken, sourceToken);
+        expect(await sbridge.getAllowedDestinationToken(dChain, sourceToken)).to.be.eq(destinationToken);
       });
 
-      it('addDestinationToken reverts when add another sourceToken for the destinationToken', async () => {
+      it('Reverts when destination token has mapping', async () => {
         const sourceToken = ethers.Wallet.createRandom().address;
         await expect(
-          sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken)
-        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_AlreadyAllowed');
-        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(ethers.ZeroHash);
-      });
-
-      it('addDestinationToken reverts when add another destinationToken for sourceToken', async () => {
-        const destinationToken = ethers.Wallet.createRandom().address;
-        await expect(
-          sbridge
-            .connect(owner)
-            .addDestinationToken(destinationChain, sourceToken, encode(['address'], [destinationToken]))
+          sbridge.connect(owner).addDestinationToken(dChain, sourceToken, dToken)
         ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_AlreadyAllowed');
       });
 
-      it('addDestinationToken allow to set different destinationToken after removed', async () => {
+      it('Reverts when source token has mapping', async () => {
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(sbridge.connect(owner).removeDestinationToken(destinationChain, sourceToken, destinationToken))
-          .to.emit(sbridge, 'DestinationTokenRemoved')
-          .withArgs(destinationChain, destinationToken, sourceToken);
-        await expect(sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken))
-          .to.emit(sbridge, 'DestinationTokenAdded')
-          .withArgs(destinationChain, destinationToken, sourceToken);
-        expect(await sbridge.getAllowedDestinationToken(destinationChain, sourceToken)).to.be.eq(destinationToken);
+        await expect(
+          sbridge.connect(owner).addDestinationToken(dChain, sToken, destinationToken)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_AlreadyAllowed');
       });
 
-      it('addDestinationToken reverts when called by not an owner', async () => {
-        const destinationChain = encode(['uint256'], [randomBigInt(8)]);
+      it('Reverts when called by not an owner', async () => {
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(sbridge.connect(deployer).addDestinationToken(destinationChain, sourceToken, destinationToken))
+        await expect(sbridge.connect(signer1).addDestinationToken(dChain, sourceToken, destinationToken))
           .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
-          .withArgs(deployer.address);
+          .withArgs(signer1.address);
       });
 
-      it('addDestinationToken reverts when destination chain is 0', async () => {
+      it('Reverts when destination chain is 0', async () => {
         const destinationChain = encode(['uint256'], [0]);
         const sourceToken = ethers.Wallet.createRandom().address;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
@@ -320,28 +247,143 @@ describe('BridgeV2', function () {
         ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroPath');
       });
 
-      it('addDestinationToken reverts when sourceToken is 0', async () => {
-        const destinationChain = encode(['uint256'], [randomBigInt(8)]);
+      it('Reverts when source token is 0 address', async () => {
         const sourceToken = ethers.ZeroAddress;
         const destinationToken = encode(['address'], [ethers.Wallet.createRandom().address]);
         await expect(
-          sbridge.connect(owner).addDestinationToken(destinationChain, sourceToken, destinationToken)
+          sbridge.connect(owner).addDestinationToken(dChain, sourceToken, destinationToken)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroToken');
+      });
+    });
+
+    describe('Remove destination token', () => {
+      let sbridge: BridgeV2 & Addressable;
+      const dChain = encode(['uint256'], [randomBigInt(8)]);
+      const sToken = ethers.Wallet.createRandom().address;
+      const dToken = encode(['address'], [ethers.Wallet.createRandom().address]);
+
+      before(async () => {
+        await snapshot.restore();
+        globalNonce = 1;
+
+        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
+        sbridge.address = await sbridge.getAddress();
+        await sbridge.connect(owner).setDestinationBridge(dChain, dBridgeBytes);
+        await sbridge.connect(owner).addDestinationToken(dChain, sToken, dToken);
+      });
+
+      it('Reverts when called by not an owner', async () => {
+        await expect(sbridge.connect(signer1).removeDestinationToken(dChain, sToken, dToken))
+          .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
+          .withArgs(signer1.address);
+      });
+
+      it('removeDestinationToken owner can remove tokens mapping', async () => {
+        await expect(sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken))
+          .to.emit(sbridge, 'DestinationTokenRemoved')
+          .withArgs(dChain, dToken, sToken);
+
+        expect(await sbridge.getAllowedDestinationToken(dChain, sToken)).to.be.eq(ethers.hexlify(new Uint8Array(32)));
+      });
+
+      it('Can remap source token after the prior mapping has been removed', async () => {
+        const dToken = encode(['address'], [ethers.Wallet.createRandom().address]);
+        await expect(sbridge.connect(owner).addDestinationToken(dChain, sToken, dToken))
+          .to.emit(sbridge, 'DestinationTokenAdded')
+          .withArgs(dChain, dToken, sToken);
+        expect(await sbridge.getAllowedDestinationToken(dChain, sToken)).to.be.eq(dToken);
+      });
+
+      it('Can remap destination token after the prior mapping has been removed', async () => {
+        const sToken = ethers.Wallet.createRandom().address;
+        await expect(sbridge.connect(owner).addDestinationToken(dChain, sToken, dToken))
+          .to.emit(sbridge, 'DestinationTokenAdded')
+          .withArgs(dChain, dToken, sToken);
+        expect(await sbridge.getAllowedDestinationToken(dChain, sToken)).to.be.eq(dToken);
+      });
+
+      it('Reverts when destination chain is 0', async () => {
+        const dChain = encode(['uint256'], [0]);
+        await expect(
+          sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroPath');
+      });
+
+      it('Reverts when source token is 0 address', async () => {
+        const sToken = ethers.ZeroAddress;
+        await expect(
+          sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroToken');
+      });
+
+      it('Reverts when destination token is 0 address', async () => {
+        const dToken = encode(['address'], [ethers.ZeroAddress]);
+        await expect(
+          sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken)
         ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroToken');
       });
     });
   });
 
+  describe('Rescue ERC20', function () {
+    let token: LBTCMock & Addressable;
+    let dummy: Signer;
+    const e18 = 10n ** 18n;
+
+    before(async () => {
+      await snapshot.restore();
+      globalNonce = 1;
+
+      const rndAddr = ethers.Wallet.createRandom();
+      token = await deployContract<LBTCMock & Addressable>('LBTCMock', [
+        rndAddr.address,
+        0,
+        rndAddr.address,
+        owner.address
+      ]);
+      token.address = await token.getAddress();
+      dummy = signer2;
+      await token.mintTo(dummy, e18);
+    });
+
+    it('Owner can transfer ERC20 from mailbox', async () => {
+      const amount = randomBigInt(8);
+      let tx = await token.connect(dummy).transfer(sbridge, amount);
+      await expect(tx).changeTokenBalance(token, sbridge, amount);
+
+      tx = await sbridge.connect(owner).rescueERC20(token, dummy, amount);
+      await expect(tx).changeTokenBalance(token, dummy, amount);
+      await expect(tx).changeTokenBalance(token, sbridge, -amount);
+    });
+
+    it('Reverts when called by not an owner', async () => {
+      const amount = randomBigInt(8);
+      const tx = await token.connect(dummy).transfer(sbridge, amount);
+      await expect(tx).changeTokenBalance(token, sbridge, amount);
+
+      await expect(sbridge.connect(dummy).rescueERC20(token.address, dummy.address, amount))
+        .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
+        .withArgs(dummy.address);
+    });
+  });
+
+
   describe('Base flow', function () {
     before(async () => {
       await snapshot.restore();
       globalNonce = 1;
+
+      await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
+      await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+        chainId: lChainId,
+        limit: AMOUNT * 100n,
+        window: 300n
+      });
     });
-    // TODO: should fail if token not added
-    // TODO: should fail if destination bridge not added
 
     it('successful', async () => {
       const recipient = encode(['address'], [signer1.address]);
-      const destinationCaller = encode(['address'], [ethers.ZeroAddress]);
+      const dCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'uint256'],
         [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, AMOUNT]
@@ -354,12 +396,15 @@ describe('BridgeV2', function () {
         globalNonce++,
         sBridgeBytes,
         dBridgeBytes,
-        destinationCaller,
+        dCaller,
         body
       );
-      const { proof } = await signPayload([signer1], [true], payload);
+      const { proof } = await signPayload([notary], [true], payload);
 
-      await expect(sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, AMOUNT, destinationCaller))
+      const fee = await sbridge.getFee(signer1);
+      await expect(
+        sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, AMOUNT, dCaller, { value: fee })
+      )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload);
 
@@ -369,29 +414,27 @@ describe('BridgeV2', function () {
         .to.emit(dbridge, 'WithdrawFromBridge')
         .withArgs(signer1.address, lChainId, dLBTC.address, AMOUNT);
     });
-
-    // TODO: revert after message path disabled (when implemented)
-    // TODO: revert if destination caller set, but caller is different
-    // TODO: `MessageHandleError` emitted if handler call failed, but reprocessable without signatures
   });
 
   describe('Deposit', function () {
+    const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
+    const dCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
+
     before(async () => {
       await snapshot.restore();
       globalNonce = 1;
+
+      await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
     });
 
     it('New message', async () => {
-      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
+      const sLbtcSupplyBefore = await sLBTC.totalSupply();
+
       const amount = randomBigInt(10);
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'uint256'],
         [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
       );
-
-      const sLbtcSupplyBefore = await sLBTC.totalSupply();
-
       const payload = getGMPPayload(
         smailbox.address,
         lChainId,
@@ -399,30 +442,37 @@ describe('BridgeV2', function () {
         globalNonce++,
         sBridgeBytes,
         dBridgeBytes,
-        destinationCaller,
+        dCaller,
         body
       );
 
-      const tx = await sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, amount, destinationCaller);
+      const fee = await sbridge.getFee(signer1);
+      const tx = await sbridge
+        .connect(signer1)
+        .deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       await expect(tx)
+        .to.emit(sbridge, 'DepositToBridge')
+        .withArgs(signer1, recipient, ethers.sha256(payload))
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload)
         .and.to.emit(sLBTC, 'Transfer')
         .withArgs(signer1.address, sbridge.address, amount);
-      await expect(tx).to.changeTokenBalance(sLBTC, signer1.address, -1n * amount);
+      await expect(tx).to.changeTokenBalance(sLBTC, signer1.address, -amount);
+      // Fees go to mailbox
+      await expect(tx).to.changeEtherBalance(signer1, -fee, { includeFee: false });
+      await expect(tx).to.changeEtherBalance(smailbox, fee, { includeFee: false });
 
       const sLbtcSupplyAfter = await sLBTC.totalSupply();
       expect(sLbtcSupplyBefore - sLbtcSupplyAfter).to.be.eq(amount);
     });
 
     it('decodeMsgBody returns input args', async () => {
-      const recipient = ethers.Wallet.createRandom().address;
-      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
       const amount = randomBigInt(10);
 
+      const fee = await sbridge.getFee(signer1);
       const tx = await sbridge
         .connect(signer1)
-        .deposit(lChainId, sLBTC.address, encode(['address'], [recipient]), amount, destinationCaller);
+        .deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       let receipt = (await tx.wait()) as ContractTransactionReceipt;
       globalNonce++;
       const logsData = await payloadFromReceipt(receipt);
@@ -432,19 +482,17 @@ describe('BridgeV2', function () {
 
       const res = await dbridge.decodeMsgBody(payload.msgBody);
       expect(res[0]).to.be.eq(dLBTC.address);
-      expect(res[1]).to.be.eq(recipient);
+      expect(encode(['address'], [res[1]])).to.be.eq(recipient);
       expect(res[2]).to.be.eq(amount);
     });
 
     it('Another message to the same chain', async () => {
-      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
       const amount = randomBigInt(10);
+
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'uint256'],
         [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
       );
-
       const payload = getGMPPayload(
         smailbox.address,
         lChainId,
@@ -452,13 +500,44 @@ describe('BridgeV2', function () {
         globalNonce++,
         sBridgeBytes,
         dBridgeBytes,
-        destinationCaller,
+        dCaller,
         body
       );
 
-      await expect(sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, amount, destinationCaller))
+      const fee = await sbridge.getFee(signer1);
+      const tx = sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+      await expect(tx)
+        .to.emit(sbridge, 'DepositToBridge')
+        .withArgs(signer1, recipient, ethers.sha256(payload))
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload);
+    });
+
+    it('Other token pair to the same chain', async () => {
+      const sLBTC = await deployContract<LBTC & Addressable>('LBTC', [
+        consortium.address,
+        0,
+        owner.address,
+        owner.address
+      ]);
+      sLBTC.address = await sLBTC.getAddress();
+      await sLBTC.connect(owner).addMinter(minter.address);
+      await sLBTC.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
+      await sLBTC.connect(signer1).approve(sbridge, AMOUNT);
+      let newDstToken = ethers.Wallet.createRandom().address;
+      let newDstBridge = encode(['address'], [ethers.Wallet.createRandom().address]);
+
+      await sbridge.connect(owner).setDestinationBridge(lChainId, newDstBridge);
+      await sbridge.connect(owner).addDestinationToken(lChainId, sLBTC.address, encode(['address'], [newDstToken]));
+
+      const amount = randomBigInt(6);
+      const fee = await sbridge.getFee(signer1);
+      await expect(
+        sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee })
+      )
+        .to.emit(smailbox, 'MessageSent')
+        .withArgs(lChainId, sbridge.address, newDstBridge, anyValue);
+      globalNonce++;
     });
 
     it('To the new destination chain', async () => {
@@ -471,8 +550,6 @@ describe('BridgeV2', function () {
       await sbridge.connect(owner).setDestinationBridge(newDstChain, newDstBridge);
       await sbridge.connect(owner).addDestinationToken(newDstChain, sLBTC.address, encode(['address'], [newDstToken]));
 
-      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-      const destinationCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
       const amount = randomBigInt(10);
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'uint256'],
@@ -486,53 +563,84 @@ describe('BridgeV2', function () {
         globalNonce++,
         sBridgeBytes,
         newDstBridge,
-        destinationCaller,
+        dCaller,
         body
       );
 
-      await expect(sbridge.connect(signer1).deposit(newDstChain, sLBTC.address, recipient, amount, destinationCaller))
+      const fee = await sbridge.getFee(signer1);
+      await expect(
+        sbridge.connect(signer1).deposit(newDstChain, sLBTC.address, recipient, amount, dCaller, { value: fee })
+      )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(newDstChain, sbridge.address, newDstBridge, payload);
     });
 
-    //TODO: deposit different token
-
     const invalidArgs = [
       {
         name: 'Unsupported destination chain',
+        sender: () => signer1,
         destinationChain: () => encode(['uint256'], [123]),
         token: () => sLBTC.address,
         recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         amount: () => 10000_0000,
-        destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        feeFunc: async (sender: Signer) => await sbridge.getFee(sender),
         customError: () => [sbridge, 'BridgeV2_PathNotAllowed']
       },
       {
         name: 'Unsupported token',
+        sender: () => signer1,
         destinationChain: () => lChainId,
         token: () => ethers.Wallet.createRandom().address,
         recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         amount: () => 10000_0000,
-        destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        feeFunc: async (sender: Signer) => await sbridge.getFee(sender),
         customError: () => [sbridge, 'BridgeV2_TokenNotAllowed']
       },
       {
         name: 'Recipient is 0 address',
+        sender: () => signer1,
         destinationChain: () => lChainId,
         token: () => sLBTC.address,
         recipient: () => encode(['address'], [ethers.ZeroAddress]),
         amount: () => 10000_0000,
-        destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        feeFunc: async (sender: Signer) => await sbridge.getFee(sender),
         customError: () => [sbridge, 'BridgeV2_ZeroRecipient']
       },
       {
         name: 'Amount is 0',
+        sender: () => signer1,
         destinationChain: () => lChainId,
         token: () => sLBTC.address,
         recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
         amount: () => 0,
-        destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        feeFunc: async (sender: Signer) => await sbridge.getFee(sender),
         customError: () => [sbridge, 'BridgeV2_ZeroAmount']
+      },
+      {
+        name: 'User is not whitelisted',
+        sender: () => signer2,
+        destinationChain: () => lChainId,
+        token: () => sLBTC.address,
+        recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        amount: () => 10000_0000,
+        feeFunc: async (sender: Signer) => await sbridge.getFee(sender),
+        dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        customError: () => [sbridge, 'BridgeV2_SenderNotWhitelisted']
+      },
+      {
+        name: 'Insufficient fees',
+        sender: () => signer1,
+        destinationChain: () => lChainId,
+        token: () => sLBTC.address,
+        recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        amount: () => 10000_0000,
+        feeFunc: async (sender: Signer) => (await sbridge.getFee(sender)) - 1n,
+        dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+        customError: () => [sbridge, 'BridgeV2_NotEnoughFee']
       }
       // {
       //   name: 'Correct case',
@@ -540,16 +648,18 @@ describe('BridgeV2', function () {
       //   token: () => sLBTC.address,
       //   recipient: () => encode(['address'], [ethers.Wallet.createRandom().address]),
       //   amount: () => 10000_0000,
-      //   destinationCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
+      //   dCaller: () => encode(['address'], [ethers.Wallet.createRandom().address]),
       // },
     ];
 
     invalidArgs.forEach(function (arg) {
       it(`Reverts when ${arg.name}`, async () => {
+        const sender = arg.sender();
+        const fee = await arg.feeFunc(sender);
         await expect(
           sbridge
-            .connect(signer1)
-            .deposit(arg.destinationChain(), arg.token(), arg.recipient(), arg.amount(), arg.destinationCaller())
+            .connect(sender)
+            .deposit(arg.destinationChain(), arg.token(), arg.recipient(), arg.amount(), arg.dCaller(), { value: fee })
         )
           // @ts-ignore
           .to.be.revertedWithCustomError(...arg.customError());
@@ -557,25 +667,145 @@ describe('BridgeV2', function () {
     });
   });
 
+  describe('Whitelist and fees', () => {
+    describe('Set config', () => {
+      let sbridge: BridgeV2 & Addressable;
+
+      beforeEach(async () => {
+        await snapshot.restore();
+
+        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
+        sbridge.address = await sbridge.getAddress();
+      });
+
+      it('setSenderConfig owner can add to whitelist', async () => {
+        const discount = randomBigInt(2);
+        const sender = signer3;
+        await expect(sbridge.connect(owner).setSenderConfig(sender, discount, true))
+          .to.emit(sbridge, 'SenderConfigChanged')
+          .withArgs(sender, discount, true);
+
+        const conf = await sbridge.getSenderConfig(sender);
+        expect(conf.whitelisted).to.be.true;
+        expect(conf.feeDiscount).to.be.eq(discount);
+      });
+
+      it('setSenderConfig owner update', async () => {
+        const discount = 0n;
+        await expect(sbridge.connect(owner).setSenderConfig(signer3, discount, false))
+          .to.emit(sbridge, 'SenderConfigChanged')
+          .withArgs(signer3, discount, false);
+
+        const conf = await sbridge.getSenderConfig(signer3);
+        expect(conf.whitelisted).to.be.false;
+        expect(conf.feeDiscount).to.be.eq(discount);
+      });
+
+      it('setSenderConfig reverts when called by not an owner', async () => {
+        await expect(sbridge.connect(deployer).setSenderConfig(ethers.Wallet.createRandom().address, 0, false))
+          .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
+          .withArgs(deployer.address);
+      });
+
+      it('setSenderConfig reverts when discount too big', async () => {
+        await expect(
+          sbridge.connect(owner).setSenderConfig(ethers.Wallet.createRandom().address, 100_01n, true)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_TooBigDiscount');
+      });
+
+      it('setSenderConfig reverts when sender is zero address', async () => {
+        await expect(
+          sbridge.connect(owner).setSenderConfig(ethers.ZeroAddress, 0, false)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroSender');
+      });
+    });
+
+    describe('Fees', () => {
+      let sender: Signer;
+      const dCaller = encode(['address'], [ethers.ZeroAddress]);
+      const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
+      beforeEach(async () => {
+        await snapshot.restore();
+        globalNonce = 1;
+
+        sender = signer1;
+      });
+
+      const args = [
+        {
+          name: 'user has no discount',
+          feeDiscount: 0n,
+          extra: 0n
+        },
+        {
+          name: 'user has discount',
+          feeDiscount: randomBigInt(4),
+          extra: 0n
+        },
+        {
+          name: 'user has discount 100%',
+          feeDiscount: 100_00n,
+          extra: 0n
+        },
+        {
+          name: 'user has no discount and payed extra',
+          feeDiscount: 0n,
+          extra: 10n ** 18n
+        }
+      ];
+
+      args.forEach(arg => {
+        it(`Get fees when ${arg.name}`, async () => {
+          const feeDiscount = arg.feeDiscount;
+          await sbridge.connect(owner).setSenderConfig(sender, feeDiscount, true);
+
+          const amount = randomBigInt(10);
+          const body = ethers.solidityPacked(
+            ['uint8', 'bytes32', 'bytes32', 'uint256'],
+            [await sbridge.MSG_VERSION(), dBridgeBytes, recipient, amount]
+          );
+
+          const { fee } = calcFee(body, weiPerByte);
+          const expectedFee = (fee * (MAX_FEE_DISCOUNT - feeDiscount)) / MAX_FEE_DISCOUNT;
+          const actualFee = await sbridge.getFee(sender);
+          expect(actualFee).to.be.closeTo(expectedFee, 1n);
+
+          const extra = arg.extra;
+          const tx = await sbridge
+            .connect(sender)
+            .deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: actualFee + extra });
+          await expect(tx).to.emit(smailbox, 'MessageSent');
+          await expect(tx).to.changeEtherBalance(sender, -(actualFee + extra), { includeFee: false });
+          await expect(tx).to.changeEtherBalance(smailbox, actualFee + extra, { includeFee: false });
+        });
+      });
+    });
+  });
+
   describe('Deliver and handle', function () {
     describe('Destination caller is specified', function () {
       let recipient: Signer;
-      let destinationCaller: Signer;
+      let dCaller: Signer;
       let amount: bigint;
       let payload: string;
       let proof: string;
       let payloadHash: string;
-      let msgSender: string;
-      let nonce: bigint;
 
       before(async () => {
         await snapshot.restore();
         globalNonce = 1;
 
-        recipient = signer2;
-        destinationCaller = signer3;
-        amount = randomBigInt(8);
+        await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+          chainId: lChainId,
+          limit: AMOUNT * 100n,
+          window: 300n
+        });
+        await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
 
+        amount = randomBigInt(8);
+        dCaller = signer3;
+        recipient = signer2;
+        const fee = await sbridge.getFee(signer1);
         const tx = await sbridge
           .connect(signer1)
           .deposit(
@@ -583,17 +813,15 @@ describe('BridgeV2', function () {
             sLBTC.address,
             encode(['address'], [recipient.address]),
             amount,
-            encode(['address'], [destinationCaller.address])
+            encode(['address'], [dCaller.address]),
+            { value: fee }
           );
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
-        const logData = await payloadFromReceipt(receipt);
-        expect(logData?.payload).to.not.undefined;
         // @ts-ignore
-        payload = logData.payload;
-        msgSender = encode(['address'], [logData?.msgSender]);
-        nonce = ethers.toBigInt(payload.slice(74, 138));
+        payload = (await payloadFromReceipt(receipt))?.payload;
+        expect(payload).to.not.undefined;
 
-        let res = await signPayload([signer1], [true], payload);
+        let res = await signPayload([notary], [true], payload);
         proof = res.proof;
         payloadHash = res.payloadHash;
       });
@@ -601,7 +829,7 @@ describe('BridgeV2', function () {
       it('deliverAndHandle reverts when called by unauthorized caller', async () => {
         await expect(dmailbox.connect(signer1).deliverAndHandle(payload, proof))
           .to.be.revertedWithCustomError(dmailbox, 'Mailbox_UnexpectedDestinationCaller')
-          .withArgs(destinationCaller.address, signer1.address);
+          .withArgs(dCaller.address, signer1.address);
       });
 
       it('handlePayload reverts when called by not a mailbox', async () => {
@@ -615,11 +843,11 @@ describe('BridgeV2', function () {
       it('deliverAndHandle by authorized caller', async () => {
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        const tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
+        const tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
         await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(tx)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, nonce, msgSender, payload);
+          .withArgs(payloadHash, dCaller.address, globalNonce, encode(['address'], [sbridge.address]), payload);
         await expect(tx)
           .to.emit(dbridge, 'WithdrawFromBridge')
           .withArgs(recipient.address, lChainId, dLBTC.address, amount);
@@ -632,10 +860,12 @@ describe('BridgeV2', function () {
       it('repeated deliverAndHandle does not mint', async () => {
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        const tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
-        // emit the event because bridge rejected same payload
-        // TODO: check args
+        const tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
+        const receipt = await tx.wait();
         await expect(tx).to.emit(dmailbox, 'MessageHandleError');
+        // @ts-ignore
+        const errorEvent = receipt?.logs.find(l => l.eventName === 'MessageHandleError')?.args;
+        expect(errorEvent.customError).to.be.eq(dbridge.interface.encodeErrorResult('BridgeV2_PayloadSpent'));
         await expect(tx).to.not.emit(dbridge, 'WithdrawFromBridge');
         await expect(tx).to.changeTokenBalance(dLBTC, recipient.address, 0n);
 
@@ -645,6 +875,7 @@ describe('BridgeV2', function () {
 
       it('deliver another message from the same src', async () => {
         let amount = randomBigInt(6);
+        const fee = await sbridge.getFee(signer1);
         let tx = await sbridge
           .connect(signer1)
           .deposit(
@@ -652,26 +883,23 @@ describe('BridgeV2', function () {
             sLBTC.address,
             encode(['address'], [recipient.address]),
             amount,
-            encode(['address'], [destinationCaller.address])
+            encode(['address'], [dCaller.address]),
+            { value: fee }
           );
+        globalNonce++;
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
-        const logsData = await payloadFromReceipt(receipt);
-        expect(logsData?.payload).to.not.undefined;
         // @ts-ignore
-        payload = logsData.payload;
-        // @ts-ignore
-        msgSender = encode(['address'], [logsData.msgSender]);
-        nonce = ethers.toBigInt(payload.slice(74, 138));
+        payload = (await payloadFromReceipt(receipt))?.payload;
+        expect(payload).to.not.undefined;
 
-        let res = await signPayload([signer1], [true], payload);
-
+        let res = await signPayload([notary], [true], payload);
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, res.proof);
+        tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, res.proof);
         await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(tx)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(res.payloadHash, destinationCaller.address, nonce, msgSender, payload);
+          .withArgs(res.payloadHash, dCaller.address, globalNonce, encode(['address'], [sbridge.address]), payload);
         await expect(tx)
           .to.emit(dbridge, 'WithdrawFromBridge')
           .withArgs(recipient.address, lChainId, dLBTC.address, amount);
@@ -681,17 +909,86 @@ describe('BridgeV2', function () {
         expect(dLbtcSupplyAfter - dLbtcSupplyBefore).to.be.eq(amount);
       });
 
-      it('deliver message from new src', async () => {
+      it('deliver other token on the chain', async () => {
+        const sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
+        const dLBTC2 = await deployContract<LBTC & Addressable>('LBTC', [
+          consortium.address,
+          0,
+          owner.address,
+          owner.address
+        ]);
+        dLBTC2.address = await dLBTC2.getAddress();
+        await dLBTC2.connect(owner).addMinter(dbridge.address);
+        await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
+
+        const amount = randomBigInt(8);
+        const body = ethers.solidityPacked(
+          ['uint8', 'bytes32', 'bytes32', 'uint256'],
+          [
+            await sbridge.MSG_VERSION(),
+            encode(['address'], [dLBTC2.address]),
+            encode(['address'], [recipient.address]),
+            amount
+          ]
+        );
+
+        const payload = getGMPPayload(
+          smailbox.address,
+          lChainId,
+          lChainId,
+          1,
+          sBridgeBytes,
+          dBridgeBytes,
+          encode(['address'], [dCaller.address]),
+          body
+        );
+        const { proof, payloadHash } = await signPayload([notary], [true], payload);
+
+        const dLbtcSupplyBefore = await dLBTC2.totalSupply();
+
+        // first time emit error, because rate limits not set for the new dLBTC
+        let tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
+        await expect(tx).to.emit(dmailbox, 'MessageHandleError');
+        await expect(tx)
+          .to.emit(dmailbox, 'MessageDelivered')
+          .withArgs(payloadHash, dCaller.address, 1, sBridgeBytes, payload);
+
+        // set rate limit to resolve error
+        await dbridge.connect(owner).setTokenRateLimits(dLBTC2, {
+          chainId: lChainId,
+          limit: amount,
+          window: 1000n
+        });
+
+        // proof can be zero array, because message already delivered
+        tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, '0x');
+        await expect(tx).to.not.emit(dmailbox, 'MessageDelivered');
+        await expect(tx)
+          .to.emit(dbridge, 'WithdrawFromBridge')
+          .withArgs(recipient.address, lChainId, dLBTC2.address, amount);
+        await expect(tx).to.changeTokenBalance(dLBTC2, recipient.address, amount);
+
+        const dLbtcSupplyAfter = await dLBTC2.totalSupply();
+        expect(dLbtcSupplyAfter - dLbtcSupplyBefore).to.be.eq(amount);
+      });
+
+      it('deliver token from other chain', async () => {
         const newSrcChain = encode(['uint256'], [12345]);
         const newSrcMailbox = ethers.Wallet.createRandom().address;
         const newSrcBridge = ethers.Wallet.createRandom().address;
         const newSrcBridgeBytes = encode(['address'], [newSrcBridge]);
         await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]));
         await dbridge.connect(owner).setDestinationBridge(newSrcChain, newSrcBridgeBytes);
-        // allow token for new src chain
         await dbridge.connect(owner).addDestinationToken(newSrcChain, dLBTC, encode(['address'], [sLBTC.address]));
 
+        // Set rate limit
         const amount = randomBigInt(8);
+        await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+          chainId: newSrcChain,
+          limit: amount,
+          window: 1000n
+        });
+
         const body = ethers.solidityPacked(
           ['uint8', 'bytes32', 'bytes32', 'uint256'],
           [
@@ -709,29 +1006,15 @@ describe('BridgeV2', function () {
           globalNonce++,
           newSrcBridgeBytes,
           dBridgeBytes,
-          encode(['address'], [destinationCaller.address]),
+          encode(['address'], [dCaller.address]),
           body
         );
 
-        const { proof, payloadHash } = await signPayload([signer1], [true], payload);
+        const { proof } = await signPayload([notary], [true], payload);
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        // first time emit error, because rate limits not set for new newSrcChain
-        let tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
-        await expect(tx).to.emit(dmailbox, 'MessageHandleError');
-        await expect(tx)
-          .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, globalNonce - 1, newSrcBridgeBytes, payload);
-
-        // set rate limit to resolve error
-        await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
-          chainId: newSrcChain,
-          limit: amount,
-          window: 1000n
-        });
-        // proof can be zero array, because message already delivered
-        tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, '0x');
-        await expect(tx).to.not.emit(dmailbox, 'MessageDelivered');
+        let tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
+        await expect(tx).to.emit(dmailbox, 'MessageDelivered');
         await expect(tx)
           .to.emit(dbridge, 'WithdrawFromBridge')
           .withArgs(recipient.address, newSrcChain, dLBTC.address, amount);
@@ -740,28 +1023,29 @@ describe('BridgeV2', function () {
         const dLbtcSupplyAfter = await dLBTC.totalSupply();
         expect(dLbtcSupplyAfter - dLbtcSupplyBefore).to.be.eq(amount);
       });
-
-      //TODO: deposit different token
     });
 
     describe('Caller is arbitrary', function () {
       let recipient: Signer;
-      let destinationCaller: Signer;
       let amount: bigint;
       let payload: string;
       let proof: string;
       let payloadHash: string;
-      let nonce: bigint;
-      let msgSender: string;
 
       before(async () => {
         await snapshot.restore();
         globalNonce = 1;
 
-        recipient = signer2;
-        destinationCaller = signer3;
-        amount = randomBigInt(8);
+        await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+          chainId: lChainId,
+          limit: AMOUNT * 100n,
+          window: 300n
+        });
+        await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
 
+        amount = randomBigInt(8);
+        recipient = signer2;
+        const fee = await sbridge.getFee(signer1);
         const tx = await sbridge
           .connect(signer1)
           .deposit(
@@ -769,32 +1053,29 @@ describe('BridgeV2', function () {
             sLBTC.address,
             encode(['address'], [recipient.address]),
             amount,
-            encode(['address'], [ethers.ZeroAddress])
+            encode(['address'], [ethers.ZeroAddress]),
+            { value: fee }
           );
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
-        const logsData = await payloadFromReceipt(receipt);
-        expect(logsData?.payload).to.not.undefined;
         // @ts-ignore
-        payload = logsData.payload;
-        // @ts-ignore
-        msgSender = encode(['address'], [logsData.msgSender]);
-        nonce = ethers.toBigInt(payload.slice(74, 138));
+        payload = (await payloadFromReceipt(receipt))?.payload;
+        expect(payload).to.not.undefined;
 
-        let res = await signPayload([signer1], [true], payload);
+        let res = await signPayload([notary], [true], payload);
         proof = res.proof;
         payloadHash = res.payloadHash;
       });
 
       it('any address can call deliverAndHandle', async () => {
-        let destinationCaller = signer1;
+        let dCaller = signer1;
 
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        const tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
+        const tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
         await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
         await expect(tx)
           .to.emit(dmailbox, 'MessageDelivered')
-          .withArgs(payloadHash, destinationCaller.address, nonce, msgSender, payload);
+          .withArgs(payloadHash, dCaller.address, globalNonce, encode(['address'], [sbridge.address]), payload);
         await expect(tx)
           .to.emit(dbridge, 'WithdrawFromBridge')
           .withArgs(recipient.address, lChainId, dLBTC.address, amount);
@@ -805,11 +1086,15 @@ describe('BridgeV2', function () {
       });
 
       it('repeat deliverAndHandle with different caller', async () => {
-        let destinationCaller = signer2;
+        let dCaller = signer3;
         const dLbtcSupplyBefore = await dLBTC.totalSupply();
 
-        const tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
-        await expect(tx).to.emit(dmailbox, 'MessageHandleError'); // TODO: check args
+        const tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
+        const receipt = await tx.wait();
+        await expect(tx).to.emit(dmailbox, 'MessageHandleError');
+        // @ts-ignore
+        const errorEvent = receipt?.logs.find(l => l.eventName === 'MessageHandleError')?.args;
+        expect(errorEvent.customError).to.be.eq(dbridge.interface.encodeErrorResult('BridgeV2_PayloadSpent'));
         await expect(tx).to.not.emit(dbridge, 'WithdrawFromBridge');
         await expect(tx).to.changeTokenBalance(dLBTC, recipient.address, 0n);
 
@@ -820,7 +1105,6 @@ describe('BridgeV2', function () {
 
     describe('Payload is invalid', function () {
       let unknownToken: LBTC & Addressable;
-      let nonce = 0;
       let newSrcChain: string;
       let newSrcMailbox: string;
       let newSrcBridge: string;
@@ -926,7 +1210,7 @@ describe('BridgeV2', function () {
 
       args.forEach(function (arg) {
         it(`Reverts when ${arg.name}`, async () => {
-          let destinationCaller = signer1;
+          let dCaller = signer1;
           let body = ethers.solidityPacked(
             ['uint8', 'bytes32', 'bytes32', 'uint256'],
             [
@@ -944,15 +1228,15 @@ describe('BridgeV2', function () {
               encode(['uint256'], [0n]),
               arg.sBridgeBytes(),
               dBridgeBytes,
-              encode(['address'], [destinationCaller.address]),
+              encode(['address'], [dCaller.address]),
               body
             ],
             GMP_V1_SELECTOR
           );
 
-          const { proof } = await signPayload([signer1], [true], payload);
+          const { proof } = await signPayload([notary], [true], payload);
 
-          const tx = await dmailbox.connect(destinationCaller).deliverAndHandle(payload, proof);
+          const tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
           const receipt = await tx.wait();
           await expect(receipt).to.emit(dmailbox, 'MessageHandleError');
           // @ts-ignore
@@ -962,6 +1246,287 @@ describe('BridgeV2', function () {
           expect(errorEvent.customError).to.be.eq(arg.customError(arg));
         });
       });
+    });
+  });
+
+  describe('Rate limits', function () {
+    let sLBTC2: string, sLBTC3: string;
+    let dLBTC2: LBTC & Addressable;
+    const newSrcChain = encode(['uint256'], [12345]);
+    const newSrcMailbox = ethers.Wallet.createRandom().address;
+    const newSrcBridge = ethers.Wallet.createRandom().address;
+    const newSrcBridgeBytes = encode(['address'], [newSrcBridge]);
+    const rateLimits = new Map();
+    let sender: Signer;
+    let recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
+    let dCaller = encode(['address'], [ethers.ZeroAddress]);
+
+    before(async function () {
+      await snapshot.restore();
+      globalNonce = 1;
+      // Map another pair
+      sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
+      dLBTC2 = await deployContract<LBTC & Addressable>('LBTC', [consortium.address, 0, owner.address, owner.address]);
+      dLBTC2.address = await dLBTC2.getAddress();
+      await dLBTC2.connect(owner).addMinter(dbridge.address);
+      await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
+
+      //Link another chain
+      sLBTC3 = encode(['address'], [ethers.Wallet.createRandom().address]);
+      await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]));
+      await dbridge.connect(owner).setDestinationBridge(newSrcChain, newSrcBridgeBytes);
+      await dbridge.connect(owner).addDestinationToken(newSrcChain, dLBTC, sLBTC3);
+
+      sender = signer1;
+      await sbridge.connect(owner).setSenderConfig(sender, 0n, true);
+    });
+
+    it('Reverts when rate limit is not set for the chain', async function () {
+      const rateLimit = {
+        chainId: lChainId,
+        limit: randomBigInt(12),
+        window: 86400n
+      };
+      await expect(dbridge.connect(deployer).setTokenRateLimits(dLBTC, rateLimit))
+        .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
+        .withArgs(deployer.address);
+    });
+
+    it('Admin can set rate limit', async function () {
+      const rateLimit = {
+        chainId: lChainId,
+        limit: randomBigInt(12),
+        window: 86400n
+      };
+      rateLimits.set(dLBTC.address + lChainId, rateLimit);
+
+      const tx = await dbridge.connect(owner).setTokenRateLimits(dLBTC, rateLimit);
+      await expect(tx).to.emit(dbridge, 'RateLimitsSet').withArgs(dLBTC, lChainId, rateLimit.limit, rateLimit.window);
+
+      const res = await dbridge.getTokenRateLimit(dLBTC.address, lChainId);
+      expect(res[0]).to.be.eq(0n);
+      expect(res[1]).to.be.eq(rateLimit.limit);
+    });
+
+    it('Set rate limit for the same token but different chain', async function () {
+      const rateLimit = {
+        chainId: newSrcChain,
+        limit: randomBigInt(12),
+        window: 86400n
+      };
+      rateLimits.set(dLBTC.address + newSrcChain, rateLimit);
+
+      const tx = await dbridge.connect(owner).setTokenRateLimits(dLBTC, rateLimit);
+      await expect(tx)
+        .to.emit(dbridge, 'RateLimitsSet')
+        .withArgs(dLBTC, newSrcChain, rateLimit.limit, rateLimit.window);
+
+      const res = await dbridge.getTokenRateLimit(dLBTC, newSrcChain);
+      expect(res[0]).to.be.eq(0n);
+      expect(res[1]).to.be.eq(rateLimit.limit);
+    });
+
+    it('Set rate limit for other token on the same chain', async function () {
+      const rateLimit = {
+        chainId: lChainId,
+        limit: randomBigInt(12),
+        window: 86400n
+      };
+      rateLimits.set(dLBTC2.address + lChainId, rateLimit);
+
+      const tx = await dbridge.connect(owner).setTokenRateLimits(dLBTC2, rateLimit);
+      await expect(tx).to.emit(dbridge, 'RateLimitsSet').withArgs(dLBTC2, lChainId, rateLimit.limit, rateLimit.window);
+
+      const res = await dbridge.getTokenRateLimit(dLBTC2, lChainId);
+      expect(res[0]).to.be.eq(0n);
+      expect(res[1]).to.be.eq(rateLimit.limit);
+    });
+
+    it('Withdraw less than limit', async function () {
+      const rateLimit = rateLimits.get(dLBTC.address + lChainId)?.limit;
+      let amount = rateLimit / 4n;
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+      );
+      const payload = getGMPPayload(
+        smailbox.address,
+        lChainId,
+        lChainId,
+        globalNonce++,
+        sBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      let { proof } = await signPayload([notary], [true], payload);
+      await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+
+      const limitStatus = await dbridge.getTokenRateLimit(dLBTC, lChainId);
+      expect(limitStatus[0]).to.be.eq(amount);
+      expect(limitStatus[1]).to.be.eq(rateLimit - amount);
+    });
+
+    it('Spent all limit', async function () {
+      const limitConfig = rateLimits.get(dLBTC.address + lChainId);
+      const delta = BigInt(limitConfig.limit / limitConfig.window);
+      const limitStatusBefore = await dbridge.getTokenRateLimit(dLBTC, lChainId);
+      const amount = limitStatusBefore[1];
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+      );
+      const payload = getGMPPayload(
+        smailbox.address,
+        lChainId,
+        lChainId,
+        globalNonce++,
+        sBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      let { proof } = await signPayload([notary], [true], payload);
+      await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+
+      const limitStatus = await dbridge.getTokenRateLimit(dLBTC, lChainId);
+      expect(limitStatus[0]).to.be.closeTo(limitStatusBefore[0] + amount, delta * 2n);
+      expect(limitStatus[1]).to.be.closeTo(0n, delta * 2n);
+
+      const limitStatusOtherChain = await dbridge.getTokenRateLimit(dLBTC, newSrcChain);
+      expect(limitStatusOtherChain[0]).to.be.eq(0n);
+    });
+
+    it('Reverts when limit exceeded', async function () {
+      const limitConfig = rateLimits.get(dLBTC.address + lChainId);
+      const delta = BigInt(limitConfig.limit / limitConfig.window);
+      const limitStatusBefore = await dbridge.getTokenRateLimit(dLBTC, lChainId);
+      console.log(limitStatusBefore);
+      const amount = limitStatusBefore[1] + delta * 1000n;
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+      );
+      const nonce = Number(randomBigInt(2));
+      const payload = getGMPPayload(
+        smailbox.address,
+        lChainId,
+        lChainId,
+        nonce,
+        sBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      let { proof, payloadHash } = await signPayload([notary], [true], payload);
+      const tx = await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+      await expect(tx)
+        .to.emit(dmailbox, 'MessageDelivered')
+        .withArgs(payloadHash, signer1.address, nonce, sBridgeBytes, payload);
+      await expect(tx).to.not.emit(dbridge, 'WithdrawFromBridge');
+      await expect(tx).to.emit(dmailbox, 'MessageHandleError');
+      const receipt = await tx.wait();
+      // @ts-ignore
+      const errorEvent = receipt?.logs.find(l => l.eventName === 'MessageHandleError')?.args;
+      expect(errorEvent.customError).to.be.eq(dbridge.interface.encodeErrorResult('RateLimitExceeded'));
+    });
+
+    it('Wait till rate limit recovered and call again', async function () {
+      const limitConfig = rateLimits.get(dLBTC.address + lChainId);
+      await time.increase(limitConfig.window);
+      const delta = BigInt(limitConfig.limit / limitConfig.window);
+      const amount = limitConfig.limit;
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+      );
+      const payload = getGMPPayload(
+        smailbox.address,
+        lChainId,
+        lChainId,
+        globalNonce++,
+        sBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      let { proof } = await signPayload([notary], [true], payload);
+      await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+
+      const limitStatus = await dbridge.getTokenRateLimit(dLBTC, lChainId);
+      expect(limitStatus[0]).to.be.closeTo(amount, delta * 2n);
+      expect(limitStatus[1]).to.be.closeTo(0n, delta * 2n);
+    });
+
+    it('Withdraw same token but from different chain', async function () {
+      const limitConfig = rateLimits.get(dLBTC.address + newSrcChain);
+      const delta = BigInt(limitConfig.limit / limitConfig.window);
+      const amount = limitConfig.limit;
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+      );
+      const payload = getGMPPayload(
+        newSrcMailbox,
+        newSrcChain,
+        lChainId,
+        globalNonce++,
+        newSrcBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      let { proof } = await signPayload([notary], [true], payload);
+      await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+
+      const limitStatus = await dbridge.getTokenRateLimit(dLBTC, newSrcChain);
+      expect(limitStatus[0]).to.be.closeTo(amount, delta * 2n);
+      expect(limitStatus[1]).to.be.closeTo(0n, delta * 2n);
+    });
+
+    it('Withdraw different token on the same chain', async function () {
+      const limitConfig = rateLimits.get(dLBTC2.address + lChainId);
+      const delta = BigInt(limitConfig.limit / limitConfig.window);
+      const amount = limitConfig.limit;
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC2.address]), recipient, amount]
+      );
+      const payload = getGMPPayload(
+        smailbox.address,
+        lChainId,
+        lChainId,
+        globalNonce++,
+        sBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      let { proof } = await signPayload([notary], [true], payload);
+      await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+
+      const limitStatus = await dbridge.getTokenRateLimit(dLBTC2.address, lChainId);
+      expect(limitStatus[0]).to.be.closeTo(amount, delta * 2n);
+      expect(limitStatus[1]).to.be.closeTo(0n, delta * 2n);
+    });
+
+    it('Wait until all limits recovered', async function () {
+      const limitConfig1 = rateLimits.get(dLBTC2.address + lChainId);
+      await time.increase(limitConfig1.window);
+      const limitStatus1 = await dbridge.getTokenRateLimit(dLBTC2.address, lChainId);
+      expect(limitStatus1[0]).to.be.eq(0n);
+      expect(limitStatus1[1]).to.be.eq(limitConfig1.limit);
+
+      const limitConfig2 = rateLimits.get(dLBTC.address + newSrcChain);
+      const limitStatus2 = await dbridge.getTokenRateLimit(dLBTC.address, newSrcChain);
+      expect(limitStatus2[0]).to.be.eq(0n);
+      expect(limitStatus2[1]).to.be.eq(limitConfig2.limit);
     });
   });
 });

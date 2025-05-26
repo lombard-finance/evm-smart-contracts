@@ -388,3 +388,21 @@ export function calculateStorageSlot(namespace: string) {
   const mask = ethers.toBigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00');
   return ethers.toBigInt(storageSlot) & mask;
 }
+
+export function calcFee(body: string, weiPerByte: bigint): { fee: bigint; payloadLength: number } {
+  const payload = getGMPPayload(
+    ethers.ZeroAddress,
+    ethers.ZeroHash,
+    ethers.ZeroHash,
+    0,
+    ethers.ZeroHash,
+    ethers.ZeroHash,
+    ethers.ZeroHash,
+    body
+  );
+  const payloadLength = ethers.getBytes(payload).length;
+  return {
+    fee: weiPerByte * BigInt(payloadLength),
+    payloadLength
+  };
+}
