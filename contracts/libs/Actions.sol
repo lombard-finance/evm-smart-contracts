@@ -82,7 +82,7 @@ library Actions {
     error ZeroFee();
 
     /// @dev Error thrown when payload length is too big
-    error PayloadTooLarge();
+    error InvalidPayloadSize(uint256 expected, uint256 actual);
 
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
@@ -130,7 +130,8 @@ library Actions {
     function depositBtcV0(
         bytes memory payload
     ) internal view returns (DepositBtcActionV0 memory) {
-        if (payload.length != ABI_SLOT_SIZE * 5) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 5)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 5, payload.length);
 
         (
             uint256 toChain,
@@ -161,7 +162,8 @@ library Actions {
     function depositBtcV1(
         bytes memory payload
     ) internal view returns (DepositBtcActionV1 memory) {
-        if (payload.length != ABI_SLOT_SIZE * 6) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 6)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 6, payload.length);
 
         (
             uint256 toChain,
@@ -204,7 +206,8 @@ library Actions {
     function depositBridge(
         bytes memory payload
     ) internal view returns (DepositBridgeAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 7) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 7)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 7, payload.length);
 
         (
             uint256 fromChain,
@@ -269,7 +272,8 @@ library Actions {
             weightThreshold,
             height
         );
-        if (reEncodedPayload.length != payload.length) revert PayloadTooLarge();
+        if (reEncodedPayload.length != payload.length)
+            revert InvalidPayloadSize(payload.length, reEncodedPayload.length);
 
         if (
             pubKeys.length < MIN_VALIDATOR_SET_SIZE ||
@@ -346,7 +350,8 @@ library Actions {
     function feeApproval(
         bytes memory payload
     ) internal view returns (FeeApprovalAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 2) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 2)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 2, payload.length);
 
         (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
 
