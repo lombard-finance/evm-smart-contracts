@@ -126,18 +126,18 @@ describe('StakedLBTC', function () {
 
       await stakedLbtc.connect(pauser).pause();
       expect(await stakedLbtc.paused()).to.be.true;
-      await expect(stakedLbtc.connect(pauser).unpause()).to.emit(stakedLbtc, 'Unpaused').withArgs(pauser.address);
+      await expect(stakedLbtc.connect(deployer).unpause()).to.emit(stakedLbtc, 'Unpaused').withArgs(deployer.address);
       expect(await stakedLbtc.paused()).to.be.false;
     });
 
-    it('unpause() reverts when called by not an pauser', async function () {
-      await expect(stakedLbtc.transferPauserRole(pauser.address))
+    it('unpause() reverts when called by not a deployer', async function () {
+      await expect(stakedLbtc.connect(deployer).transferPauserRole(pauser.address))
         .to.emit(stakedLbtc, 'PauserRoleTransferred')
         .withArgs(ethers.ZeroAddress, pauser.address);
       await stakedLbtc.connect(pauser).pause();
       expect(await stakedLbtc.paused()).to.be.true;
       await expect(stakedLbtc.connect(signer1).unpause())
-        .to.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
+        .to.revertedWithCustomError(stakedLbtc, 'OwnableUnauthorizedAccount')
         .withArgs(signer1.address);
     });
 
