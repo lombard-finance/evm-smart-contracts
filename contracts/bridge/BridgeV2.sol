@@ -514,7 +514,7 @@ contract BridgeV2 is
         bytes32 destinationToken,
         bytes32 recipient,
         uint256 amount
-    ) internal returns (bytes memory) {
+    ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(MSG_VERSION, destinationToken, recipient, amount);
     }

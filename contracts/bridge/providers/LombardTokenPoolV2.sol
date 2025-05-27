@@ -54,10 +54,10 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         address rmnProxy,
         address router
     ) TokenPool(token_, token_.decimals(), allowlist, rmnProxy, router) {
-        if (address(bridge) == address(0)) {
+        if (address(bridge_) == address(0)) {
             revert ZeroBridge();
         }
-        uint8 bridgeMsgVersion = bridge.MSG_VERSION();
+        uint8 bridgeMsgVersion = bridge_.MSG_VERSION();
         if (bridgeMsgVersion != SUPPORTED_BRIDGE_MSG_VERSION)
             revert InvalidMessageVersion(
                 SUPPORTED_BRIDGE_MSG_VERSION,
