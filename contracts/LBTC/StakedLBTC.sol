@@ -788,7 +788,11 @@ contract StakedLBTC is
         return (amountAfterFee, true, dustLimit, isAboveDust);
     }
 
-    function _getStakedStakedLBTCStorage() private pure returns (StakedLBTCStorage storage $) {
+    function _getStakedStakedLBTCStorage()
+        private
+        pure
+        returns (StakedLBTCStorage storage $)
+    {
         assembly {
             $.slot := STAKED_LBTC_STORAGE_LOCATION
         }
