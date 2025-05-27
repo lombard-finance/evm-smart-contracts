@@ -186,7 +186,7 @@ contract StakedLBTC is
         _pause();
     }
 
-    function unpause() external onlyPauser { // TODO: onlyOwner
+    function unpause() external onlyOwner {
         _unpause();
     }
 
