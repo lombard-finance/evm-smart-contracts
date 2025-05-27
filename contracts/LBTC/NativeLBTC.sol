@@ -538,11 +538,11 @@ contract NativeLBTC is
      * @param amount The withdrawal amount.
      */
     function _confirmDeposit(
-        NativeLBTCStorage storage self,
+        NativeLBTCStorage storage $,
         bytes32 depositID,
         uint256 amount
     ) internal {
-        IBascule bascule = self.bascule;
+        IBascule bascule = $.bascule;
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }

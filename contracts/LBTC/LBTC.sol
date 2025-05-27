@@ -9,7 +9,6 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
-import {INativeLBTC} from "./INativeLBTC.sol";
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {Consortium} from "../consortium/Consortium.sol";
 import {Actions} from "../libs/Actions.sol";
@@ -617,11 +616,11 @@ contract LBTC is
      * @param amount The withdrawal amount.
      */
     function _confirmDeposit(
-        LBTCStorage storage self,
+        LBTCStorage storage $,
         bytes32 depositID,
         uint256 amount
     ) internal {
-        IBascule bascule = self.bascule;
+        IBascule bascule = $.bascule;
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }
