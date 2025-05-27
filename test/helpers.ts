@@ -1,7 +1,7 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, Signature } from 'ethers';
-import { Consortium, ERC20PermitUpgradeable, LBTCMock, NativeLBTC } from '../typechain-types';
+import { Consortium, ERC20PermitUpgradeable, LBTCMock, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 export type Signer = HardhatEthersSigner & {
@@ -188,10 +188,10 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function initLBTC(burnCommission: number, treasury: string, owner: string) {
+export async function initStakedLBTC(burnCommission: number, treasury: string, owner: string) {
   const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
 
-  const lbtc = await deployContract<LBTCMock>('LBTCMock', [
+  const lbtc = await deployContract<StakedLBTC>('StakedLBTC', [
     await consortium.getAddress(),
     burnCommission,
     treasury,

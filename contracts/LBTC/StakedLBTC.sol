@@ -20,15 +20,16 @@ import {IStakedLBTC} from "./IStakedLBTC.sol";
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract LBTC is
+contract StakedLBTC is
     IStakedLBTC,
     ERC20PausableUpgradeable,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable,
     ERC20PermitUpgradeable
 {
+    /// @dev the storage name differs, because contract was renamed from LBTC
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
-    struct LBTCStorage {
+    struct StakedLBTCStorage {
         /// @dev is keccak256(payload[4:]) used
         /// @custom:oz-renamed-from usedProofs
         mapping(bytes32 => bool) legacyUsedPayloads;
@@ -36,8 +37,10 @@ contract LBTC is
         string symbol;
         bool isWithdrawalsEnabled;
         address consortium;
-        bool isWBTCEnabled;
-        IERC20 wbtc;
+        /// @custom:oz-renamed-from isWBTCEnabled
+        bool __removed_isWBTCEnabled;
+        /// @custom:oz-renamed-from wbtc
+        address __removed_wbtc;
         address treasury;
         /// @custom:oz-renamed-from destinations
         mapping(uint256 => address) __removed_destinations;
@@ -47,8 +50,11 @@ contract LBTC is
         mapping(bytes32 => bool) __removed_usedBridgeProofs;
         /// @custom:oz-renamed-from globalNonce
         uint256 __removed_globalNonce;
+        /// @custom:oz-renamed-from destinations
         mapping(bytes32 => bytes32) __removed__destinations;
+        /// @custom:oz-renamed-from depositRelativeCommission
         mapping(bytes32 => uint16) __removed__depositRelativeCommission;
+        /// @custom:oz-renamed-from depositAbsoluteCommission
         mapping(bytes32 => uint64) __removed__depositAbsoluteCommission;
         uint64 burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
@@ -59,13 +65,13 @@ contract LBTC is
         mapping(address => bool) claimers;
         /// Maximum fee to apply on mints
         uint256 maximumFee;
-        // @dev is sha256(payload) used
-        mapping(bytes32 => bool) usedPayloads;
+        mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         address operator;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant LBTC_STORAGE_LOCATION =
+    /// @dev the storage location differs, because contract was renamed from LBTC
+    /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant STAKED_LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -90,21 +96,21 @@ contract LBTC is
 
         __ReentrancyGuard_init();
 
-        __LBTC_init(
-            "Lombard Staked Bitcoin",
-            "LBTC",
+        __StakedLBTC_init(
+            "Lombard Staked Bitcoin", // TODO: set new name
+            "stLBTC", // TODO: set new symbol
             consortium_,
             treasury,
             burnCommission_
         );
 
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
     function reinitialize() external reinitializer(2) {
-        __ERC20Permit_init("Lombard Staked Bitcoin");
+        __ERC20Permit_init("Lombard Staked Bitcoin"); // TODO: set new name
     }
 
     /// MODIFIER ///
@@ -117,21 +123,21 @@ contract LBTC is
     }
 
     modifier onlyMinter() {
-        if (!_getLBTCStorage().minters[_msgSender()]) {
+        if (!_getStakedStakedLBTCStorage().minters[_msgSender()]) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
     }
 
     modifier onlyClaimer() {
-        if (!_getLBTCStorage().claimers[_msgSender()]) {
+        if (!_getStakedStakedLBTCStorage().claimers[_msgSender()]) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
     }
 
     modifier onlyOperator() {
-        if (_getLBTCStorage().operator != _msgSender()) {
+        if (_getStakedStakedLBTCStorage().operator != _msgSender()) {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
@@ -140,7 +146,7 @@ contract LBTC is
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleWithdrawals() external onlyOwner {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
     }
@@ -162,7 +168,7 @@ contract LBTC is
      * @dev zero allowed to disable fee
      */
     function setMintFee(uint256 fee) external onlyOperator {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
         emit FeeChanged(oldFee, fee);
@@ -180,7 +186,7 @@ contract LBTC is
         _pause();
     }
 
-    function unpause() external onlyPauser {
+    function unpause() external onlyPauser { // TODO: onlyOwner
         _unpause();
     }
 
@@ -205,7 +211,7 @@ contract LBTC is
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
     function changeDustFeeRate(uint256 newRate) external onlyOwner {
         if (newRate == 0) revert InvalidDustFeeRate();
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         uint256 oldRate = $.dustFeeRate;
         $.dustFeeRate = newRate;
         emit DustFeeRateChanged(oldRate, newRate);
@@ -242,7 +248,7 @@ contract LBTC is
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getLBTCStorage().maximumFee;
+        return _getStakedStakedLBTCStorage().maximumFee;
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -255,7 +261,7 @@ contract LBTC is
         bytes calldata scriptPubkey,
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
             scriptPubkey,
             amount,
@@ -265,7 +271,7 @@ contract LBTC is
     }
 
     function consortium() external view virtual returns (address) {
-        return _getLBTCStorage().consortium;
+        return _getStakedStakedLBTCStorage().consortium;
     }
 
     /**
@@ -282,7 +288,7 @@ contract LBTC is
      * @dev Returns the name of the token.
      */
     function name() public view virtual override returns (string memory) {
-        return _getLBTCStorage().name;
+        return _getStakedStakedLBTCStorage().name;
     }
 
     /**
@@ -290,44 +296,44 @@ contract LBTC is
      * name.
      */
     function symbol() public view virtual override returns (string memory) {
-        return _getLBTCStorage().symbol;
+        return _getStakedStakedLBTCStorage().symbol;
     }
 
     function getTreasury() public view override returns (address) {
-        return _getLBTCStorage().treasury;
+        return _getStakedStakedLBTCStorage().treasury;
     }
 
     function getBurnCommission() public view returns (uint64) {
-        return _getLBTCStorage().burnCommission;
+        return _getStakedStakedLBTCStorage().burnCommission;
     }
 
     /// @notice Get the current dust fee rate
     /// @return The current dust fee rate (in satoshis per 1000 bytes)
     function getDustFeeRate() public view returns (uint256) {
-        return _getLBTCStorage().dustFeeRate;
+        return _getStakedStakedLBTCStorage().dustFeeRate;
     }
 
     /**
      * Get Bascule contract.
      */
     function Bascule() external view returns (IBascule) {
-        return _getLBTCStorage().bascule;
+        return _getStakedStakedLBTCStorage().bascule;
     }
 
     function pauser() public view returns (address) {
-        return _getLBTCStorage().pauser;
+        return _getStakedStakedLBTCStorage().pauser;
     }
 
     function operator() external view returns (address) {
-        return _getLBTCStorage().operator;
+        return _getStakedStakedLBTCStorage().operator;
     }
 
     function isMinter(address minter) external view returns (bool) {
-        return _getLBTCStorage().minters[minter];
+        return _getStakedStakedLBTCStorage().minters[minter];
     }
 
     function isClaimer(address claimer) external view returns (bool) {
-        return _getLBTCStorage().claimers[claimer];
+        return _getStakedStakedLBTCStorage().claimers[claimer];
     }
 
     /// USER ACTIONS ///
@@ -477,7 +483,7 @@ contract LBTC is
      * @param amount Amount of LBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
             revert WithdrawalsDisabled();
@@ -532,7 +538,7 @@ contract LBTC is
         bytes32 payloadHash,
         bytes32 legacyPayloadHash
     ) public view returns (bool) {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         return
             $.usedPayloads[payloadHash] ||
             $.legacyUsedPayloads[legacyPayloadHash];
@@ -540,7 +546,7 @@ contract LBTC is
 
     /// PRIVATE FUNCTIONS ///
 
-    function __LBTC_init(
+    function __StakedLBTC_init(
         string memory name_,
         string memory symbol_,
         address consortium_,
@@ -557,7 +563,7 @@ contract LBTC is
         string memory name_,
         string memory symbol_
     ) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         $.name = name_;
         $.symbol = symbol_;
         emit NameAndSymbolChanged(name_, symbol_);
@@ -567,7 +573,7 @@ contract LBTC is
         if (newVal == address(0)) {
             revert ZeroAddress();
         }
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
     }
@@ -579,7 +585,7 @@ contract LBTC is
         bytes calldata payload,
         bytes calldata proof
     ) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
 
         if (amountToMint > depositAmount) revert InvalidMintAmount();
 
@@ -604,7 +610,7 @@ contract LBTC is
     }
 
     function _changeBurnCommission(uint64 newValue) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         uint64 prevValue = $.burnCommission;
         $.burnCommission = newValue;
         emit BurnCommissionChanged(prevValue, newValue);
@@ -617,7 +623,7 @@ contract LBTC is
      * @param amount The withdrawal amount.
      */
     function _confirmDeposit(
-        LBTCStorage storage self,
+        StakedLBTCStorage storage self,
         bytes32 depositID,
         uint256 amount
     ) internal {
@@ -634,20 +640,20 @@ contract LBTC is
      * Emits a {BasculeChanged} event.
      */
     function _changeBascule(address newVal) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         emit BasculeChanged(address($.bascule), newVal);
         $.bascule = IBascule(newVal);
     }
 
     function _transferPauserRole(address newPauser) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         address oldPauser = $.pauser;
         $.pauser = newPauser;
         emit PauserRoleTransferred(oldPauser, newPauser);
     }
 
     function _transferOperatorRole(address newOperator) internal {
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         address oldOperator = $.operator;
         $.operator = newOperator;
         emit OperatorRoleTransferred(oldOperator, newOperator);
@@ -675,7 +681,7 @@ contract LBTC is
             feePayload[4:]
         );
 
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         uint256 fee = $.maximumFee;
         if (fee > feeAction.fee) {
             fee = feeAction.fee;
@@ -734,7 +740,7 @@ contract LBTC is
         if (minter == address(0)) {
             revert ZeroAddress();
         }
-        _getLBTCStorage().minters[minter] = _isMinter;
+        _getStakedStakedLBTCStorage().minters[minter] = _isMinter;
         emit MinterUpdated(minter, _isMinter);
     }
 
@@ -742,7 +748,7 @@ contract LBTC is
         if (claimer == address(0)) {
             revert ZeroAddress();
         }
-        _getLBTCStorage().claimers[claimer] = _isClaimer;
+        _getStakedStakedLBTCStorage().claimers[claimer] = _isClaimer;
         emit ClaimerUpdated(claimer, _isClaimer);
     }
 
@@ -750,7 +756,7 @@ contract LBTC is
         if (newValue == address(0)) {
             revert ZeroAddress();
         }
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
@@ -770,7 +776,7 @@ contract LBTC is
             return (0, false, 0, false);
         }
 
-        LBTCStorage storage $ = _getLBTCStorage();
+        StakedLBTCStorage storage $ = _getStakedStakedLBTCStorage();
         uint256 amountAfterFee = amount - fee;
         uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
             outType,
@@ -782,9 +788,9 @@ contract LBTC is
         return (amountAfterFee, true, dustLimit, isAboveDust);
     }
 
-    function _getLBTCStorage() private pure returns (LBTCStorage storage $) {
+    function _getStakedStakedLBTCStorage() private pure returns (StakedLBTCStorage storage $) {
         assembly {
-            $.slot := LBTC_STORAGE_LOCATION
+            $.slot := STAKED_LBTC_STORAGE_LOCATION
         }
     }
 
