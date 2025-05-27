@@ -8,12 +8,12 @@ import {
   generatePermitSignature,
   encode,
   Signer,
-  initLBTC,
-  signDepositBtcV0Payload
+  signDepositBtcV0Payload,
+  initStakedLBTC
 } from './helpers';
 import {
   StakeAndBake,
-  LBTCMock,
+  StakedLBTC,
   TellerWithMultiAssetSupportDepositor,
   TellerWithMultiAssetSupportMock
 } from '../typechain-types';
@@ -31,7 +31,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   let stakeAndBake: StakeAndBake;
   let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
   let teller: TellerWithMultiAssetSupportMock;
-  let lbtc: LBTCMock;
+  let lbtc: StakedLBTC;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let data: any;
@@ -49,7 +49,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     [deployer, signer1, signer2, signer3, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
     const burnCommission = 1000;
-    const result = await initLBTC(burnCommission, treasury.address, deployer.address);
+    const result = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
     lbtc = result.lbtc;
 
     stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
@@ -75,7 +75,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     );
 
     // set deployer as operator
-    await lbtc.transferOperatorRole(deployer.address);
+    await lbtc.changeOperator(deployer.address);
 
     // Initialize the permit module
     await lbtc.reinitialize();

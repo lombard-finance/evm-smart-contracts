@@ -2,16 +2,9 @@
 pragma solidity 0.8.24;
 
 interface IBaseLBTC {
-    error ZeroAddress();
     error WithdrawalsDisabled();
-    error ScriptPubkeyUnsupported();
-    error AmountLessThanCommission(uint256 fee);
-    error AmountBelowDustLimit(uint256 dustLimit);
-    error InvalidDustFeeRate();
-    error UnexpectedAction(bytes4 action);
     error InvalidUserSignature();
     error PayloadAlreadyUsed();
-    error InvalidInputLength();
     error InvalidMintAmount();
 
     event UnstakeRequest(

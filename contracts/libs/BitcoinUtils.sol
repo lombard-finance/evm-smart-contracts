@@ -3,13 +3,6 @@ pragma solidity 0.8.24;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-enum OutputType {
-    UNSUPPORTED,
-    P2TR,
-    P2WPKH,
-    P2WSH
-}
-
 bytes1 constant OP_0 = 0x00;
 bytes1 constant OP_1 = 0x51;
 bytes1 constant OP_DATA_32 = 0x20;
@@ -22,6 +15,13 @@ uint256 constant NON_WITNESS_INPUT_SIZE = 107; // Used for non-witness outputs (
 uint256 constant WITNESS_INPUT_SIZE = 26; // floor(107 / 4), used for witness outputs (P2WPKH, P2WSH, P2TR)
 
 library BitcoinUtils {
+    enum OutputType {
+        UNSUPPORTED,
+        P2TR,
+        P2WPKH,
+        P2WSH
+    }
+
     uint256 public constant DEFAULT_DUST_FEE_RATE = 3000; // Default value - 3 satoshis per byte
 
     function getOutputType(

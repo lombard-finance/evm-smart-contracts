@@ -15,7 +15,8 @@ import {
   signDepositBtcV1Payload,
   Signer,
   initStakedLBTC,
-  DEFAULT_LBTC_DUST_FEE_RATE
+  DEFAULT_LBTC_DUST_FEE_RATE,
+  FEE_APPROVAL_ACTION
 } from './helpers';
 import { Bascule, Consortium, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -65,8 +66,8 @@ describe('StakedLBTC', function () {
     await stakedLbtc2.addClaimer(deployer.address);
 
     // set deployer as operator for stakedLbtc
-    await stakedLbtc.transferOperatorRole(deployer.address);
-    await stakedLbtc2.transferOperatorRole(deployer.address);
+    await stakedLbtc.changeOperator(deployer.address);
+    await stakedLbtc2.changeOperator(deployer.address);
 
     // Initialize the permit module
     await stakedLbtc.reinitialize();
@@ -106,7 +107,7 @@ describe('StakedLBTC', function () {
 
     it('pause() turns on enforced pause', async function () {
       expect(await stakedLbtc.paused()).to.be.false;
-      await expect(stakedLbtc.transferPauserRole(pauser.address))
+      await expect(stakedLbtc.changePauser(pauser.address))
         .to.emit(stakedLbtc, 'PauserRoleTransferred')
         .withArgs(ethers.ZeroAddress, pauser.address);
       await expect(stakedLbtc.connect(pauser).pause()).to.emit(stakedLbtc, 'Paused').withArgs(pauser.address);
@@ -120,7 +121,7 @@ describe('StakedLBTC', function () {
     });
 
     it('unpause() turns off enforced pause', async function () {
-      await expect(stakedLbtc.transferPauserRole(pauser.address))
+      await expect(stakedLbtc.changePauser(pauser.address))
         .to.emit(stakedLbtc, 'PauserRoleTransferred')
         .withArgs(ethers.ZeroAddress, pauser.address);
 
@@ -131,7 +132,7 @@ describe('StakedLBTC', function () {
     });
 
     it('unpause() reverts when called by not a deployer', async function () {
-      await expect(stakedLbtc.connect(deployer).transferPauserRole(pauser.address))
+      await expect(stakedLbtc.connect(deployer).changePauser(pauser.address))
         .to.emit(stakedLbtc, 'PauserRoleTransferred')
         .withArgs(ethers.ZeroAddress, pauser.address);
       await stakedLbtc.connect(pauser).pause();
@@ -234,25 +235,22 @@ describe('StakedLBTC', function () {
       );
     });
 
-    it('transferOperatorRole should be callable by owner', async function () {
-      await expect(stakedLbtc.transferOperatorRole(signer1.address))
+    it('changeOperator should be callable by owner', async function () {
+      await expect(stakedLbtc.changeOperator(signer1.address))
         .to.emit(stakedLbtc, 'OperatorRoleTransferred')
         .withArgs(deployer.address, signer1.address);
       expect(await stakedLbtc.operator()).to.be.equal(signer1.address);
     });
 
     it('should fail to add operator if not owner', async function () {
-      await expect(stakedLbtc.connect(signer1).transferOperatorRole(signer1.address)).to.revertedWithCustomError(
+      await expect(stakedLbtc.connect(signer1).changeOperator(signer1.address)).to.revertedWithCustomError(
         stakedLbtc,
         'OwnableUnauthorizedAccount'
       );
     });
 
     it('should fail to add zero address operator', async function () {
-      await expect(stakedLbtc.transferOperatorRole(ethers.ZeroAddress)).to.revertedWithCustomError(
-        stakedLbtc,
-        'ZeroAddress'
-      );
+      await expect(stakedLbtc.changeOperator(ethers.ZeroAddress)).to.revertedWithCustomError(stakedLbtc, 'ZeroAddress');
     });
 
     it('should set mint fee by operator', async function () {
@@ -660,7 +658,7 @@ describe('StakedLBTC', function () {
       });
 
       it('Reverts when paused', async function () {
-        await stakedLbtc.transferPauserRole(deployer.address);
+        await stakedLbtc.changePauser(deployer.address);
         await stakedLbtc.pause();
 
         // try to use the same proof again
@@ -728,8 +726,8 @@ describe('StakedLBTC', function () {
               )
             )
           )
-            .to.revertedWithCustomError(stakedLbtc, 'UnexpectedAction')
-            .withArgs(feeApprovalPayload.slice(0, 10));
+            .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
+            .withArgs(DEPOSIT_BTC_ACTION_V0, feeApprovalPayload.slice(0, 10));
         });
 
         it('should revert if wrong fee approval btc payload type', async function () {
@@ -746,8 +744,8 @@ describe('StakedLBTC', function () {
               )
             )
           )
-            .to.revertedWithCustomError(stakedLbtc, 'UnexpectedAction')
-            .withArgs(defaultPayload.slice(0, 10));
+            .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
+            .withArgs(FEE_APPROVAL_ACTION, defaultPayload.slice(0, 10));
         });
 
         it('should revert if not claimer', async function () {
@@ -1258,7 +1256,7 @@ describe('StakedLBTC', function () {
       });
 
       it('Reverts when paused', async function () {
-        await stakedLbtc.transferPauserRole(deployer.address);
+        await stakedLbtc.changePauser(deployer.address);
         await stakedLbtc.pause();
 
         // try to use the same proof again
@@ -1326,7 +1324,7 @@ describe('StakedLBTC', function () {
               )
             )
           )
-            .to.revertedWithCustomError(stakedLbtc, 'UnexpectedAction')
+            .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
             .withArgs(feeApprovalPayload.slice(0, 10));
         });
 
@@ -1344,7 +1342,7 @@ describe('StakedLBTC', function () {
               )
             )
           )
-            .to.revertedWithCustomError(stakedLbtc, 'UnexpectedAction')
+            .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
             .withArgs(defaultPayload.slice(0, 10));
         });
 

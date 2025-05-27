@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
-import { BTCBPMM, WBTCMock, LBTC } from '../typechain-types';
+import { BTCBPMM, WBTCMock, StakedLBTC } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 
 describe('BTCBPMM', function () {
   let pmm: BTCBPMM;
   let btcb: WBTCMock;
-  let lbtc: LBTC;
+  let lbtc: StakedLBTC;
 
   let deployer: HardhatEthersSigner;
   let withdrawalAddress: HardhatEthersSigner;
@@ -31,7 +31,7 @@ describe('BTCBPMM', function () {
     btcb = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
     // use btcb decimals of 8
     await btcb.setDecimals(18);
-    lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
+    lbtc = await deploy<StakedLBTC>('StakedLBTC', 'StakedLBTC', [
       ethers.hexlify(ethers.randomBytes(20)), // not relevant for BTCB tests
       1000, // not relevant for BTCB tests
       deployer.address, // not relevant for BTCB tests, but can not be zero
@@ -160,7 +160,7 @@ describe('BTCBPMM', function () {
         .withArgs(await pmm.getAddress());
     });
 
-    it('should fail to swap if amount is to low and will result in 0 LBTC', async function () {
+    it('should fail to swap if amount is to low and will result in 0 StakedLBTC', async function () {
       await btcb.connect(signer1).approve(await pmm.getAddress(), 1);
       await expect(pmm.connect(signer1).swapBTCBToLBTC(1)).to.be.revertedWithCustomError(lbtc, 'ZeroAmount');
     });

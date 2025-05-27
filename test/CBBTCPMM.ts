@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
-import { WBTCMock, LBTC, CBBTCPMM } from '../typechain-types';
+import { WBTCMock, StakedLBTC, CBBTCPMM } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 
 describe('CBBTCPMM', function () {
   let pmm: CBBTCPMM;
   let cbbtc: WBTCMock;
-  let lbtc: LBTC;
+  let lbtc: StakedLBTC;
 
   let deployer: HardhatEthersSigner;
   let withdrawalAddress: HardhatEthersSigner;
@@ -30,7 +30,7 @@ describe('CBBTCPMM', function () {
 
     cbbtc = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
     await cbbtc.setDecimals(8);
-    lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
+    lbtc = await deploy<StakedLBTC>('StakedLBTC', 'StakedLBTC', [
       ethers.hexlify(ethers.randomBytes(20)),
       1000, // not relevant for CBBTC tests
       deployer.address, // not relevant for CBBTC tests, but can not be zero

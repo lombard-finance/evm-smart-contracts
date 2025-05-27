@@ -1,15 +1,14 @@
-import { LBTCMock, EndpointV2Mock, LBTCOFTAdapter, LBTCBurnMintOFTAdapter } from '../typechain-types';
+import { EndpointV2Mock, LBTCOFTAdapter, LBTCBurnMintOFTAdapter, StakedLBTC } from '../typechain-types';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { getSignersWithPrivateKeys, deployContract, encode, Signer } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { Options } from '@layerzerolabs/lz-v2-utilities';
-import { Result } from 'ethers';
 
 describe('OFTAdapter', function () {
   let deployer: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
 
-  let lbtc: LBTCMock;
+  let lbtc: StakedLBTC;
   let snapshot: SnapshotRestorer;
 
   const aEid = 1;
@@ -26,7 +25,7 @@ describe('OFTAdapter', function () {
   before(async function () {
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
-    lbtc = await deployContract<LBTCMock>('LBTCMock', [
+    lbtc = await deployContract<StakedLBTC>('StakedLBTC', [
       deployer.address, // consortium - not relevant for this test, but can not be zero
       100,
       deployer.address, // treasury - not relevant for this test, but can not be zero
@@ -63,6 +62,7 @@ describe('OFTAdapter', function () {
     await aLZEndpoint.setDestLzEndpoint(await bBMOFTAdapter.getAddress(), await bLZEndpoint.getAddress());
     await bLZEndpoint.setDestLzEndpoint(await aOFTAdapter.getAddress(), await aLZEndpoint.getAddress());
 
+    await lbtc.addMinter(deployer);
     // rate limits (inbound)
     await aOFTAdapter.setRateLimits(
       [
@@ -237,7 +237,7 @@ describe('OFTAdapter', function () {
     it('should lock (Chain A) and mint (Chain B)', async () => {
       const amountLD = 200n;
 
-      await lbtc.mintTo(signer1.address, amountLD);
+      await lbtc['mint(address,uint256)'](signer1.address, amountLD);
 
       const opts = Options.newOptions().addExecutorLzReceiveOption(100_000, 0);
 
@@ -422,7 +422,7 @@ describe('OFTAdapter', function () {
     it('should burn (Chain A) and mint (Chain B)', async () => {
       const amountLD = 10_000n;
 
-      await lbtc.mintTo(signer1.address, amountLD);
+      await lbtc['mint(address,uint256)'](signer1.address, amountLD);
 
       const opts = Options.newOptions().addExecutorLzReceiveOption(110_000, 0);
 
@@ -472,7 +472,7 @@ describe('OFTAdapter', function () {
 
       beforeEach(async function () {
         await snapshot.restore();
-        await lbtc.mintTo(signer1.address, AMOUNT);
+        await lbtc['mint(address,uint256)'](signer1.address, AMOUNT);
       });
 
       it('LBTCOFTAdapter::send() by outbound limit', async () => {

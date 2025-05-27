@@ -34,6 +34,7 @@ export function rawSign(signer: Signer, message: string): string {
 
 export const DEFAULT_LBTC_DUST_FEE_RATE = 3000;
 
+export const FEE_APPROVAL_ACTION = '0x8175ca94';
 export const DEPOSIT_BTC_ACTION_V0 = '0xf2e73f7c';
 export const DEPOSIT_BTC_ACTION_V1 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
@@ -204,7 +205,7 @@ export async function initStakedLBTC(burnCommission: number, treasury: string, o
 export async function initNativeLBTC(burnCommission: number, treasury: string, owner: string) {
   const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
 
-  const lbtc = await deployContract<NativeLBTC>('NativeLBTCMock', [
+  const lbtc = await deployContract<NativeLBTC>('NativeLBTC', [
     await consortium.getAddress(),
     burnCommission,
     treasury,

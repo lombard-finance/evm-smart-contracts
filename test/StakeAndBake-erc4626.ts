@@ -8,10 +8,10 @@ import {
   generatePermitSignature,
   encode,
   Signer,
-  initLBTC,
-  signDepositBtcV0Payload
+  signDepositBtcV0Payload,
+  initStakedLBTC
 } from './helpers';
-import { StakeAndBake, ERC4626Depositor, LBTCMock, ERC4626Mock } from '../typechain-types';
+import { StakeAndBake, ERC4626Depositor, ERC4626Mock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
@@ -26,7 +26,7 @@ describe('ERC4626Depositor', function () {
   let stakeAndBake: StakeAndBake;
   let erc4626Depositor: ERC4626Depositor;
   let vault: ERC4626Mock;
-  let lbtc: LBTCMock;
+  let lbtc: StakedLBTC;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let data;
@@ -43,7 +43,7 @@ describe('ERC4626Depositor', function () {
     [deployer, signer1, signer2, signer3, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
     const burnCommission = 1000;
-    const result = await initLBTC(burnCommission, treasury.address, deployer.address);
+    const result = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
     lbtc = result.lbtc;
 
     stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
@@ -65,7 +65,7 @@ describe('ERC4626Depositor', function () {
     );
 
     // set deployer as operator
-    await lbtc.transferOperatorRole(deployer.address);
+    await lbtc.changeOperator(deployer.address);
 
     // Initialize the permit module
     await lbtc.reinitialize();
@@ -228,12 +228,12 @@ describe('ERC4626Depositor', function () {
     });
 
     it('should allow pauser to pause', async function () {
-      await expect(stakeAndBake.connect(pauser).pause());
+      await stakeAndBake.connect(pauser).pause();
     });
 
     it('should allow admin to unpause', async function () {
-      await expect(stakeAndBake.connect(pauser).pause());
-      await expect(stakeAndBake.unpause());
+      await stakeAndBake.connect(pauser).pause();
+      await stakeAndBake.unpause();
     });
 
     it('should stake and bake properly with the correct setup', async function () {

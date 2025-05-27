@@ -1,5 +1,4 @@
 import {
-  LBTCMock,
   Bascule,
   Consortium,
   Bridge,
@@ -7,7 +6,8 @@ import {
   MockRMN,
   LombardTokenPool,
   CLAdapter,
-  EndpointV2Mock
+  EndpointV2Mock,
+  StakedLBTC
 } from '../typechain-types';
 import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -37,8 +37,8 @@ describe('Bridge', function () {
     reporter: Signer,
     admin: Signer,
     pauser: Signer;
-  let lbtcSource: LBTCMock;
-  let lbtcDestination: LBTCMock;
+  let stakedLbtcSource: StakedLBTC;
+  let stakedLbtcDestination: StakedLBTC;
   let consortium: Consortium;
   let bascule: Bascule;
   let bridgeSource: Bridge;
@@ -55,41 +55,44 @@ describe('Bridge', function () {
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
-    lbtcSource = await deployContract<LBTCMock>('LBTCMock', [
+    stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [
       await consortium.getAddress(),
       100,
       treasurySource.address,
       deployer.address
     ]);
     bridgeSource = await deployContract<Bridge>('Bridge', [
-      await lbtcSource.getAddress(),
+      await stakedLbtcSource.getAddress(),
       treasurySource.address,
       deployer.address
     ]);
     bascule = await deployContract<Bascule>(
       'Bascule',
-      [admin.address, pauser.address, reporter.address, await lbtcSource.getAddress(), 100],
+      [admin.address, pauser.address, reporter.address, await stakedLbtcSource.getAddress(), 100],
       false
     );
 
     // chain 2
-    lbtcDestination = await deployContract<LBTCMock>('LBTCMock', [
+    stakedLbtcDestination = await deployContract<StakedLBTC>('StakedLBTC', [
       await consortium.getAddress(),
       100,
       treasuryDestination.address,
       deployer.address
     ]);
     bridgeDestination = await deployContract<Bridge>('Bridge', [
-      await lbtcDestination.getAddress(),
+      await stakedLbtcDestination.getAddress(),
       treasuryDestination.address,
       deployer.address
     ]);
 
-    await lbtcSource.addMinter(await bridgeSource.getAddress());
-    await lbtcDestination.addMinter(await bridgeDestination.getAddress());
+    await stakedLbtcSource.addMinter(await bridgeSource.getAddress());
+    await stakedLbtcDestination.addMinter(await bridgeDestination.getAddress());
 
     await bridgeSource.changeConsortium(await consortium.getAddress());
     await bridgeDestination.changeConsortium(await consortium.getAddress());
+
+    await stakedLbtcSource.addMinter(deployer);
+    await stakedLbtcDestination.addMinter(deployer);
 
     // set rate limits
     const oo = {
@@ -141,7 +144,7 @@ describe('Bridge', function () {
     const AMOUNT = 1_0000_0000n; // 1 LBTC
 
     beforeEach(async function () {
-      await lbtcSource.mintTo(signer1.address, AMOUNT);
+      await stakedLbtcSource.connect(deployer)['mint(address,uint256)'](signer1.address, AMOUNT);
     });
 
     it('full flow', async () => {
@@ -164,17 +167,17 @@ describe('Bridge', function () {
         DEPOSIT_BRIDGE_ACTION
       );
 
-      await lbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), amount);
+      await stakedLbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), amount);
       await expect(bridgeSource.connect(signer1).deposit(CHAIN_ID, encode(['address'], [receiver]), amount))
         .to.emit(bridgeSource, 'DepositToBridge')
         .withArgs(signer1.address, encode(['address'], [receiver]), ethers.sha256(payload), payload);
 
-      expect(await lbtcSource.balanceOf(signer1.address)).to.be.equal(0);
-      expect(await lbtcSource.balanceOf(treasurySource.address)).to.be.equal(fee);
-      expect((await lbtcSource.totalSupply()).toString()).to.be.equal(fee);
+      expect(await stakedLbtcSource.balanceOf(signer1.address)).to.be.equal(0);
+      expect(await stakedLbtcSource.balanceOf(treasurySource.address)).to.be.equal(fee);
+      expect((await stakedLbtcSource.totalSupply()).toString()).to.be.equal(fee);
 
-      expect(await lbtcDestination.balanceOf(signer2.address)).to.be.equal(0);
-      expect(await lbtcDestination.totalSupply()).to.be.equal(0);
+      expect(await stakedLbtcDestination.balanceOf(signer2.address)).to.be.equal(0);
+      expect(await stakedLbtcDestination.totalSupply()).to.be.equal(0);
 
       const data1 = await signDepositBridgePayload(
         [signer1],
@@ -195,8 +198,8 @@ describe('Bridge', function () {
         .to.emit(bridgeDestination, 'WithdrawFromBridge')
         .withArgs(receiver, ethers.sha256(data1.payload), data1.payload, amountWithoutFee);
 
-      expect((await lbtcDestination.totalSupply()).toString()).to.be.equal(amount - fee);
-      expect((await lbtcDestination.balanceOf(signer2.address)).toString()).to.be.equal(amountWithoutFee);
+      expect((await stakedLbtcDestination.totalSupply()).toString()).to.be.equal(amount - fee);
+      expect((await stakedLbtcDestination.balanceOf(signer2.address)).toString()).to.be.equal(amountWithoutFee);
 
       // bridge back
 
@@ -218,14 +221,14 @@ describe('Bridge', function () {
         DEPOSIT_BRIDGE_ACTION
       );
 
-      await lbtcDestination.connect(signer2).approve(await bridgeDestination.getAddress(), amount);
+      await stakedLbtcDestination.connect(signer2).approve(await bridgeDestination.getAddress(), amount);
       await expect(bridgeDestination.connect(signer2).deposit(CHAIN_ID, encode(['address'], [receiver]), amount))
         .to.emit(bridgeDestination, 'DepositToBridge')
         .withArgs(signer2.address, encode(['address'], [receiver]), ethers.sha256(payload), payload);
 
-      expect(await lbtcDestination.balanceOf(signer2.address)).to.be.equal(0);
-      expect(await lbtcDestination.balanceOf(treasuryDestination.address)).to.be.equal(fee);
-      expect(await lbtcDestination.totalSupply()).to.be.equal(fee);
+      expect(await stakedLbtcDestination.balanceOf(signer2.address)).to.be.equal(0);
+      expect(await stakedLbtcDestination.balanceOf(treasuryDestination.address)).to.be.equal(fee);
+      expect(await stakedLbtcDestination.totalSupply()).to.be.equal(fee);
 
       const data2 = await signDepositBridgePayload(
         [signer1],
@@ -249,7 +252,7 @@ describe('Bridge', function () {
 
     describe('With failing rate limits', function () {
       it('should fail to deposit if rate limit is exceeded', async function () {
-        await lbtcSource.mintTo(signer1.address, 1);
+        await stakedLbtcSource['mint(address,uint256)'](signer1.address, 1);
 
         await expect(
           bridgeSource.connect(signer1).deposit(CHAIN_ID, encode(['address'], [signer2.address]), AMOUNT + 1n)
@@ -257,7 +260,7 @@ describe('Bridge', function () {
       });
 
       it('should fail to deposit if aggregated deposit exceeds rate limit', async function () {
-        await lbtcSource.mintTo(signer1.address, 1);
+        await stakedLbtcSource['mint(address,uint256)'](signer1.address, 1);
 
         // set rate limit for a non empty window
         await bridgeSource.setRateLimits(
@@ -270,7 +273,7 @@ describe('Bridge', function () {
           ],
           []
         );
-        await lbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), AMOUNT + 1n);
+        await stakedLbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), AMOUNT + 1n);
         await bridgeSource.connect(signer1).deposit(CHAIN_ID, encode(['address'], [signer2.address]), AMOUNT / 2n);
         await expect(
           bridgeSource
@@ -280,7 +283,7 @@ describe('Bridge', function () {
       });
 
       it('should allow more deposits over time', async function () {
-        await lbtcSource.mintTo(signer1.address, AMOUNT);
+        await stakedLbtcSource['mint(address,uint256)'](signer1.address, AMOUNT);
 
         // set rate limit for a non empty window
         await bridgeSource.setRateLimits(
@@ -293,7 +296,7 @@ describe('Bridge', function () {
           ],
           []
         );
-        await lbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), AMOUNT * 2n);
+        await stakedLbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), AMOUNT * 2n);
         await bridgeSource.connect(signer1).deposit(CHAIN_ID, encode(['address'], [signer2.address]), AMOUNT);
         await bridgeSource.connect(signer1).deposit(CHAIN_ID, encode(['address'], [signer2.address]), AMOUNT);
       });
@@ -396,8 +399,8 @@ describe('Bridge', function () {
 
       it('should fail to deposit if rate limit is exceeded', async function () {
         const bridgeLimit = AMOUNT / 2n;
-        await lbtcSource.mintTo(signer2, AMOUNT);
-        await lbtcSource.connect(signer2).approve(await bridgeSource.getAddress(), AMOUNT);
+        await stakedLbtcSource['mint(address,uint256)'](signer2, AMOUNT);
+        await stakedLbtcSource.connect(signer2).approve(await bridgeSource.getAddress(), AMOUNT);
 
         await bridgeSource.setRateLimits(
           [
@@ -417,8 +420,8 @@ describe('Bridge', function () {
 
       it('should not allow to deposit above limit after half of window', async function () {
         const bridgeLimit = AMOUNT / 2n;
-        await lbtcSource.mintTo(signer2, AMOUNT);
-        await lbtcSource.connect(signer2).approve(await bridgeSource.getAddress(), AMOUNT);
+        await stakedLbtcSource['mint(address,uint256)'](signer2, AMOUNT);
+        await stakedLbtcSource.connect(signer2).approve(await bridgeSource.getAddress(), AMOUNT);
 
         await bridgeSource.setRateLimits(
           [
@@ -525,7 +528,7 @@ describe('Bridge', function () {
             remoteChainSelector: bChainSelector,
             allowed: true,
             remotePoolAddress: await bTokenPool.getAddress(),
-            remoteTokenAddress: await lbtcDestination.getAddress(),
+            remoteTokenAddress: await stakedLbtcDestination.getAddress(),
             inboundRateLimiterConfig: {
               isEnabled: false,
               rate: 0,
@@ -544,7 +547,7 @@ describe('Bridge', function () {
             remoteChainSelector: aChainSelector,
             allowed: true,
             remotePoolAddress: await aTokenPool.getAddress(),
-            remoteTokenAddress: await lbtcSource.getAddress(),
+            remoteTokenAddress: await stakedLbtcSource.getAddress(),
             inboundRateLimiterConfig: {
               isEnabled: false,
               rate: 0,
@@ -582,7 +585,7 @@ describe('Bridge', function () {
 
         // await routerSource.setOffchainData(data.payload, data.proof);
 
-        await lbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), amount);
+        await stakedLbtcSource.connect(signer1).approve(await bridgeSource.getAddress(), amount);
 
         await expect(
           bridgeSource.connect(signer1).deposit(CHAIN_ID, ethers.zeroPadValue(receiver, 32), amount, {
