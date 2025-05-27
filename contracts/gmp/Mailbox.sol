@@ -421,7 +421,13 @@ contract Mailbox is
         return (payloadHash, success);
     }
 
-    function _deliver(MailboxStorage storage $, GMPUtils.Payload memory payload, bytes32 payloadHash, bytes calldata rawPayload, bytes calldata proof) internal {
+    function _deliver(
+        MailboxStorage storage $,
+        GMPUtils.Payload memory payload,
+        bytes32 payloadHash,
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) internal {
         // revert if message path disabled
         if ($.inboundMessagePath[payload.msgPath] == bytes32(0)) {
             revert Mailbox_MessagePathDisabled(payload.msgPath);
@@ -460,7 +466,11 @@ contract Mailbox is
     }
 
     // @return bool False if handler reverts
-    function _handle(MailboxStorage storage $, GMPUtils.Payload memory payload, bytes32 payloadHash) internal returns (bool) {
+    function _handle(
+        MailboxStorage storage $,
+        GMPUtils.Payload memory payload,
+        bytes32 payloadHash
+    ) internal returns (bool) {
         address msgSender = _msgSender();
         // verify who is able to execute the message
         if (
@@ -476,9 +486,9 @@ contract Mailbox is
         // check recipient interface
         if (
             !ERC165Checker.supportsInterface(
-            payload.msgRecipient,
-            type(IHandler).interfaceId
-        )
+                payload.msgRecipient,
+                type(IHandler).interfaceId
+            )
         ) {
             revert Mailbox_HandlerNotImplemented();
         }

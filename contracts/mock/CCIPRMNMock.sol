@@ -11,9 +11,13 @@ contract CCIPRMNMock is IRMN {
 
     bool private s_globalCursed;
     mapping(bytes16 subject => bool cursed) private s_cursedBySubject;
-    mapping(address commitStore => mapping(bytes32 root => bool blessed)) private s_blessedByRoot;
+    mapping(address commitStore => mapping(bytes32 root => bool blessed))
+        private s_blessedByRoot;
 
-    function setTaggedRootBlessed(IRMN.TaggedRoot calldata taggedRoot, bool blessed) external {
+    function setTaggedRootBlessed(
+        IRMN.TaggedRoot calldata taggedRoot,
+        bool blessed
+    ) external {
         s_blessedByRoot[taggedRoot.commitStore][taggedRoot.root] = blessed;
     }
 
@@ -47,7 +51,9 @@ contract CCIPRMNMock is IRMN {
         return s_globalCursed || s_cursedBySubject[subject];
     }
 
-    function isBlessed(IRMN.TaggedRoot calldata taggedRoot) external view returns (bool) {
+    function isBlessed(
+        IRMN.TaggedRoot calldata taggedRoot
+    ) external view returns (bool) {
         return s_blessedByRoot[taggedRoot.commitStore][taggedRoot.root];
     }
 }

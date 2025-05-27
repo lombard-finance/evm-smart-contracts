@@ -245,13 +245,7 @@ contract BridgeV2 is
     }
 
     function getFee(address sender) external view returns (uint256) {
-        bytes memory body = abi.encodePacked(
-            MSG_VERSION,
-            bytes32(0),
-            bytes32(0),
-            uint256(0)
-        );
-
+        bytes memory body = _encodeMsg(bytes32(0), bytes32(0), uint256(0));
         return _getFee(_getStorage(), sender, body);
     }
 
@@ -272,7 +266,14 @@ contract BridgeV2 is
         uint256 amount,
         bytes32 destinationCaller
     ) external payable override nonReentrant returns (uint256, bytes32) {
-        return _deposit(destinationChain, IERC20MintableBurnable(token), recipient, amount, destinationCaller);
+        return
+            _deposit(
+                destinationChain,
+                IERC20MintableBurnable(token),
+                recipient,
+                amount,
+                destinationCaller
+            );
     }
 
     function _deposit(
@@ -317,12 +318,7 @@ contract BridgeV2 is
 
         _burnToken(token, amount);
 
-        bytes memory body = abi.encodePacked(
-            MSG_VERSION,
-            destinationToken,
-            recipient,
-            amount
-        );
+        bytes memory body = _encodeMsg(destinationToken, recipient, amount);
 
         _assertFee($, body);
 
@@ -512,6 +508,15 @@ contract BridgeV2 is
         return
             type(IHandler).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    function _encodeMsg(
+        bytes32 destinationToken,
+        bytes32 recipient,
+        uint256 amount
+    ) internal returns (bytes memory) {
+        return
+            abi.encodePacked(MSG_VERSION, destinationToken, recipient, amount);
     }
 
     function _calcAllowedTokenId(

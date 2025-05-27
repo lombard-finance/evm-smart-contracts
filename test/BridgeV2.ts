@@ -367,7 +367,6 @@ describe('BridgeV2', function () {
     });
   });
 
-
   describe('Base flow', function () {
     before(async () => {
       await snapshot.restore();
