@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {EIP1271SignatureUtils} from "../../libs/EIP1271SignatureUtils.sol";
+
 /// @dev collection of assertions used in ERC20 contracts
 library Assert {
     error InvalidDustFeeRate();
     error InvalidInputLength(uint256 a, uint256 b);
     error InvalidAction(bytes4 expected, bytes4 actual);
+    error InvalidFeeApprovalSignature();
 
     error ZeroAddress();
 
@@ -27,5 +30,17 @@ library Assert {
     ) internal pure {
         if (bytes4(payload) != expectedAction)
             revert InvalidAction(expectedAction, bytes4(payload));
+    }
+
+    function feeApproval(
+        bytes32 digest,
+        address recipient,
+        bytes calldata signature
+    ) internal view {
+        if (
+            !EIP1271SignatureUtils.checkSignature(recipient, digest, signature)
+        ) {
+            revert InvalidFeeApprovalSignature();
+        }
     }
 }

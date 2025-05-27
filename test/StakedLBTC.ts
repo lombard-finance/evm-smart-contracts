@@ -795,7 +795,7 @@ describe('StakedLBTC', function () {
               getPayloadForAction([1, snapshotTimestamp + 100], 'feeApproval'),
               await getFeeTypedMessage(deployer, await stakedLbtc.getAddress(), 1, snapshotTimestamp + 100)
             )
-          ).to.revertedWithCustomError(stakedLbtc, 'InvalidUserSignature');
+          ).to.revertedWithCustomError(stakedLbtc, 'InvalidFeeApprovalSignature');
         });
 
         it("should revert if fee signature doesn't match fee payload", async function () {
@@ -811,7 +811,7 @@ describe('StakedLBTC', function () {
                 snapshotTimestamp + 100
               )
             )
-          ).to.revertedWithCustomError(stakedLbtc, 'InvalidUserSignature');
+          ).to.revertedWithCustomError(stakedLbtc, 'InvalidFeeApprovalSignature');
         });
 
         describe('With batch', function () {
@@ -1393,7 +1393,7 @@ describe('StakedLBTC', function () {
               getPayloadForAction([1, snapshotTimestamp + 100], 'feeApproval'),
               await getFeeTypedMessage(deployer, await stakedLbtc.getAddress(), 1, snapshotTimestamp + 100)
             )
-          ).to.revertedWithCustomError(stakedLbtc, 'InvalidUserSignature');
+          ).to.revertedWithCustomError(stakedLbtc, 'InvalidFeeApprovalSignature');
         });
 
         it("should revert if fee signature doesn't match fee payload", async function () {
@@ -1409,7 +1409,7 @@ describe('StakedLBTC', function () {
                 snapshotTimestamp + 100
               )
             )
-          ).to.revertedWithCustomError(stakedLbtc, 'InvalidUserSignature');
+          ).to.revertedWithCustomError(stakedLbtc, 'InvalidFeeApprovalSignature');
         });
 
         describe('With batch', function () {

@@ -533,17 +533,13 @@ contract NativeLBTC is
         );
 
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 fee = $.maximumFee;
-        if (fee > feeAction.fee) {
-            fee = feeAction.fee;
-        }
+        uint256 fee = Math.max($.maximumFee, feeAction.fee);
 
         if (fee >= mintAction.amount) {
             revert FeeGreaterThanAmount();
         }
 
         {
-            // Fee validation
             bytes32 digest = _hashTypedDataV4(
                 keccak256(
                     abi.encode(
@@ -555,15 +551,11 @@ contract NativeLBTC is
                 )
             );
 
-            if (
-                !EIP1271SignatureUtils.checkSignature(
-                    mintAction.recipient,
-                    digest,
-                    userSignature
-                )
-            ) {
-                revert InvalidUserSignature();
-            }
+            Assert.feeApproval(
+                digest,
+                mintAction.recipient,
+                userSignature
+            );
         }
 
         // modified payload to be signed
@@ -575,8 +567,10 @@ contract NativeLBTC is
             proof
         );
 
-        // mint fee to treasury
-        _mint($.treasury, fee);
+        if (fee > 0) {
+            // mint fee to treasury
+            _mint($.treasury, fee);
+        }
 
         emit FeeCharged(fee, userSignature);
     }

@@ -3,7 +3,6 @@ pragma solidity 0.8.24;
 
 interface IBaseLBTC {
     error WithdrawalsDisabled();
-    error InvalidUserSignature();
     error PayloadAlreadyUsed();
     error InvalidMintAmount();
 

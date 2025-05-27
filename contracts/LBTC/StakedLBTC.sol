@@ -11,7 +11,6 @@ import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {Consortium} from "../consortium/Consortium.sol"; // TODO: use interface
 import {Actions} from "../libs/Actions.sol";
-import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {IStakedLBTC} from "./IStakedLBTC.sol";
 import {Assert} from "./utils/Assert.sol";
 import {Validation} from "./utils/Validation.sol";
@@ -611,17 +610,13 @@ contract StakedLBTC is
         );
 
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 fee = $.maximumFee; // TODO: use math.Max
-        if (fee > feeAction.fee) {
-            fee = feeAction.fee;
-        }
+        uint256 fee = Math.min($.maximumFee, feeAction.fee);
 
         if (fee >= mintAction.amount) {
             revert FeeGreaterThanAmount();
         }
 
         {
-            // Fee validation
             bytes32 digest = _hashTypedDataV4(
                 keccak256(
                     abi.encode(
@@ -633,15 +628,11 @@ contract StakedLBTC is
                 )
             );
 
-            if (
-                !EIP1271SignatureUtils.checkSignature(
-                    mintAction.recipient,
-                    digest,
-                    userSignature
-                )
-            ) {
-                revert InvalidUserSignature();
-            }
+            Assert.feeApproval(
+                digest,
+                mintAction.recipient,
+                userSignature
+            );
         }
 
         // modified payload to be signed
@@ -653,12 +644,15 @@ contract StakedLBTC is
             proof
         );
 
-        // mint fee to treasury
-        _mint($.treasury, fee);
+        if (fee > 0) {
+            // mint fee to treasury
+            _mint($.treasury, fee);
+        }
 
         emit FeeCharged(fee, userSignature);
     }
 
+    /// @dev zero rate not allowed
     function _changeDustFeeRate(uint256 newRate) internal {
         Assert.dustFeeRate(newRate);
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
@@ -683,13 +677,7 @@ contract StakedLBTC is
         emit BurnCommissionChanged(prevValue, newValue);
     }
 
-    /**
-     * Change the address of the Bascule drawbridge contract.
-     * @param newVal The new address.
-     * @dev Zero Address allowed to disable bascule check
-     *
-     * Emits a {BasculeChanged} event.
-     */
+    /// @dev Zero Address allowed to disable bascule check
     function _changeBascule(address newVal) internal {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         emit BasculeChanged(address($.bascule), newVal);
@@ -740,16 +728,13 @@ contract StakedLBTC is
     function _getStakedLBTCStorage()
         private
         pure
-        returns (
-            StakedLBTCStorage storage $
-        )
+        returns (StakedLBTCStorage storage $)
     {
         assembly {
             $.slot := STAKED_LBTC_STORAGE_LOCATION
         }
     }
 
-    // move to base contract
     /**
      * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
      */
