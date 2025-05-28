@@ -533,7 +533,7 @@ contract NativeLBTC is
 
     /**
      * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param self LBTC storage.
+     * @param $ LBTC storage.
      * @param depositID The unique ID of the deposit.
      * @param amount The withdrawal amount.
      */
