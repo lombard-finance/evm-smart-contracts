@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 library Actions {
-
     /// @dev toChain, recipient, amount, txid are validated
     struct DepositBtcActionV0 {
         uint256 toChain;
@@ -204,14 +203,7 @@ library Actions {
         }
 
         return
-            DepositBtcActionV1(
-                toChain,
-                recipient,
-                amount,
-                txid,
-                vout,
-                token
-            );
+            DepositBtcActionV1(toChain, recipient, amount, txid, vout, token);
     }
 
     /**

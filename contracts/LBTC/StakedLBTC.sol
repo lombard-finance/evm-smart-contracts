@@ -395,7 +395,13 @@ contract StakedLBTC is
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
             bytes32 legacyPayloadHash = keccak256(payload[i][4:]);
-            if (_isPayloadUsed(_getStakedLBTCStorage(), payloadHash, legacyPayloadHash)) {
+            if (
+                _isPayloadUsed(
+                    _getStakedLBTCStorage(),
+                    payloadHash,
+                    legacyPayloadHash
+                )
+            ) {
                 emit BatchMintSkipped(payloadHash, payload[i]);
                 continue;
             }
@@ -441,7 +447,13 @@ contract StakedLBTC is
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
             bytes32 legacyPayloadHash = keccak256(mintPayload[i][4:]);
-            if (_isPayloadUsed(_getStakedLBTCStorage(), payloadHash, legacyPayloadHash)) {
+            if (
+                _isPayloadUsed(
+                    _getStakedLBTCStorage(),
+                    payloadHash,
+                    legacyPayloadHash
+                )
+            ) {
                 emit BatchMintSkipped(payloadHash, mintPayload[i]);
                 continue;
             }
@@ -544,7 +556,6 @@ contract StakedLBTC is
         bytes32 legacyHash = keccak256(payload[4:]);
         if (_isPayloadUsed($, payloadHash, legacyHash)) {
             revert PayloadAlreadyUsed();
-
         }
         INotaryConsortium($.consortium).checkProof(payloadHash, proof);
         $.usedPayloads[payloadHash] = true;

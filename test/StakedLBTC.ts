@@ -372,7 +372,7 @@ describe('StakedLBTC', function () {
               CHAIN_ID,
               args.recipient().address,
               args.amount,
-              encode(['uint256'], [i * 2 + j]) // // txid
+              encode(['uint256'], [(i + 1) * 2 + j]) // // txid
             );
             const userSignature = await getFeeTypedMessage(
               args.recipient(),
