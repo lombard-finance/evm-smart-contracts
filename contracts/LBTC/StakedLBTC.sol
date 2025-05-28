@@ -368,7 +368,6 @@ contract StakedLBTC is
         bytes calldata proof
     ) public nonReentrant {
         Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V0);
-
         Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
             rawPayload[4:]
         );
@@ -392,7 +391,6 @@ contract StakedLBTC is
         bytes[] calldata proof
     ) external {
         Assert.inputLength(payload.length, proof.length);
-
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
@@ -439,7 +437,6 @@ contract StakedLBTC is
         Assert.inputLength(mintPayload.length, proof.length);
         Assert.inputLength(mintPayload.length, feePayload.length);
         Assert.inputLength(mintPayload.length, userSignature.length);
-
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
@@ -578,16 +575,16 @@ contract StakedLBTC is
 
     /**
      * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param self LBTC storage.
+     * @param $ LBTC storage.
      * @param depositID The unique ID of the deposit.
      * @param amount The withdrawal amount.
      */
     function _confirmDeposit(
-        StakedLBTCStorage storage self,
+        StakedLBTCStorage storage $,
         bytes32 depositID,
         uint256 amount
     ) internal {
-        IBascule bascule = self.bascule;
+        IBascule bascule = $.bascule;
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }

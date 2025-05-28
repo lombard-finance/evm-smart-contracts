@@ -305,7 +305,7 @@ describe('StakedLBTC', function () {
     });
   });
 
-  describe('Mint V1', function () {
+  describe('Mint V0', function () {
     let mintWithoutFee: [string[], string[], any[][]] = [[], [], []];
     let mintWithFee: [string[], string[], string[], string[], any[][]] = [[], [], [], [], []];
 
@@ -895,7 +895,7 @@ describe('StakedLBTC', function () {
     });
   });
 
-  describe('Mint V2', function () {
+  describe('Mint V1', function () {
     // disable tests before we implement support of new payload
     return;
 

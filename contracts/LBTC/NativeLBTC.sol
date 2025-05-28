@@ -500,16 +500,16 @@ contract NativeLBTC is
 
     /**
      * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param self LBTC storage.
+     * @param $ LBTC storage.
      * @param depositID The unique ID of the deposit.
      * @param amount The withdrawal amount.
      */
     function _confirmDeposit(
-        NativeLBTCStorage storage self,
+        NativeLBTCStorage storage $,
         bytes32 depositID,
         uint256 amount
     ) internal {
-        IBascule bascule = self.bascule;
+        IBascule bascule = $.bascule;
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }
