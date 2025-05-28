@@ -2,6 +2,8 @@
 pragma solidity 0.8.24;
 
 library Actions {
+
+    /// @dev toChain, recipient, amount, txid are validated
     struct DepositBtcActionV0 {
         uint256 toChain;
         address recipient;
@@ -10,13 +12,14 @@ library Actions {
         uint32 vout;
     }
 
+    /// @dev toChain, recipient, amount, txid, token are validated
     struct DepositBtcActionV1 {
         uint256 toChain;
         address recipient;
         uint256 amount;
         bytes32 txid;
         uint32 vout;
-        address tokenAddress;
+        address token;
     }
 
     struct DepositBridgeAction {
@@ -84,6 +87,10 @@ library Actions {
     /// @dev Error thrown when payload length is too big
     error InvalidPayloadSize(uint256 expected, uint256 actual);
 
+    error ZeroTxId();
+
+    error InvalidDestinationToken(address expected, address actual);
+
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
     // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
@@ -150,6 +157,9 @@ library Actions {
         if (amount == 0) {
             revert ZeroAmount();
         }
+        if (txid == bytes32(0)) {
+            revert ZeroTxId();
+        }
 
         return DepositBtcActionV0(toChain, recipient, amount, txid, vout);
     }
@@ -171,7 +181,7 @@ library Actions {
             uint256 amount,
             bytes32 txid,
             uint32 vout,
-            address tokenAddress
+            address token
         ) = abi.decode(
                 payload,
                 (uint256, address, uint256, bytes32, uint32, address)
@@ -186,6 +196,12 @@ library Actions {
         if (amount == 0) {
             revert ZeroAmount();
         }
+        if (txid == bytes32(0)) {
+            revert ZeroTxId();
+        }
+        if (token == address(this)) {
+            revert InvalidDestinationToken(address(this), token);
+        }
 
         return
             DepositBtcActionV1(
@@ -194,7 +210,7 @@ library Actions {
                 amount,
                 txid,
                 vout,
-                tokenAddress
+                token
             );
     }
 

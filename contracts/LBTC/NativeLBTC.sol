@@ -292,7 +292,6 @@ contract NativeLBTC is
         Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             rawPayload[4:]
         );
-        _assertToken(action.tokenAddress);
 
         _validateAndMint(
             action.recipient,
@@ -451,12 +450,6 @@ contract NativeLBTC is
         emit NameAndSymbolChanged(name_, symbol_);
     }
 
-    function _assertToken(address token) internal view {
-        if (token != address(this)) {
-            revert InvalidDestinationToken(address(this), token);
-        }
-    }
-
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,
@@ -515,7 +508,6 @@ contract NativeLBTC is
         Actions.DepositBtcActionV1 memory mintAction = Actions.depositBtcV1(
             mintPayload[4:]
         );
-        _assertToken(mintAction.tokenAddress);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
         Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
