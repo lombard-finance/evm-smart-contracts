@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity ^0.8.4;
 
-// import artifacts to project
-import {MockRMN} from "@chainlink/contracts-ccip/src/v0.8/ccip/test/mocks/MockRMN.sol";
+import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/contracts/interfaces/IAny2EVMMessageReceiver.sol";
+import {IRouter} from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
+import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
 
-import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IAny2EVMMessageReceiver.sol";
-import {IRouter} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouter.sol";
-import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import {Internal} from "@chainlink/contracts-ccip/contracts/libraries/Internal.sol";
+import {CallWithExactGas} from "@chainlink/contracts/src/v0.8/shared/call/CallWithExactGas.sol";
 
-import {CallWithExactGas} from "@chainlink/contracts-ccip/src/v0.8/shared/call/CallWithExactGas.sol";
-import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {Internal} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Internal.sol";
+import {IERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC165Checker} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v5.0.2/contracts/utils/introspection/ERC165Checker.sol";
 
-import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC165Checker} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v5.0.2/contracts/utils/introspection/ERC165Checker.sol";
-
+// copy of node_modules/@chainlink/contracts-ccip/contracts/test/mocks/MockRouter.sol
 contract MockCCIPRouter is IRouter, IRouterClient {
     using SafeERC20 for IERC20;
     using ERC165Checker for address;
@@ -159,17 +157,27 @@ contract MockCCIPRouter is IRouter, IRouterClient {
 
     function _fromBytes(
         bytes calldata extraArgs
-    ) internal pure returns (Client.EVMExtraArgsV2 memory) {
+    ) internal pure returns (Client.GenericExtraArgsV2 memory) {
         if (extraArgs.length == 0) {
             return
-                Client.EVMExtraArgsV2({
+                Client.GenericExtraArgsV2({
                     gasLimit: DEFAULT_GAS_LIMIT,
-                    allowOutOfOrderExecution: true
+                    allowOutOfOrderExecution: false
                 });
         }
-        if (bytes4(extraArgs) != Client.EVM_EXTRA_ARGS_V2_TAG)
-            revert InvalidExtraArgsTag();
-        return abi.decode(extraArgs[4:], (Client.EVMExtraArgsV2));
+
+        bytes4 extraArgsTag = bytes4(extraArgs);
+        if (extraArgsTag == Client.GENERIC_EXTRA_ARGS_V2_TAG) {
+            return abi.decode(extraArgs[4:], (Client.GenericExtraArgsV2));
+        } else if (extraArgsTag == Client.EVM_EXTRA_ARGS_V1_TAG) {
+            return
+                Client.GenericExtraArgsV2({
+                    gasLimit: abi.decode(extraArgs[4:], (uint256)),
+                    allowOutOfOrderExecution: false
+                });
+        }
+
+        revert InvalidExtraArgsTag();
     }
 
     /// @notice Always returns true to make sure this check can be performed on any chain.

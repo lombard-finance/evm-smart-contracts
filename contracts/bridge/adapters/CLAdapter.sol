@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
-import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 import {AbstractAdapter} from "./AbstractAdapter.sol";
 import {IBridge} from "../IBridge.sol";
-import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
+import {Pool} from "@chainlink/contracts-ccip/contracts/libraries/Pool.sol";
 import {LombardTokenPool} from "./TokenPool.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20 as OZIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title CCIP bridge adapter
  * @author Lombard.finance
  * @notice CLAdapter present an intermediary to enforce TokenPool compatibility
+ * @dev NOT TESTED AFTER CCIP UPGRADE
  */
 contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
     error CLZeroChain();
@@ -118,7 +118,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
         returns (uint256 lastBurnedAmount, bytes memory lastPayload)
     {
         SafeERC20.safeTransferFrom(
-            OZIERC20(address(lbtc())),
+            IERC20(address(lbtc())),
             _msgSender(),
             address(this),
             amount
@@ -156,7 +156,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
 
         // transfer assets from bridge
         SafeERC20.safeTransferFrom(
-            OZIERC20(address(lbtc())),
+            IERC20(address(lbtc())),
             _msgSender(),
             address(this),
             _amount
@@ -255,7 +255,7 @@ contract CLAdapter is AbstractAdapter, Ownable, ReentrancyGuard {
                 data: "",
                 tokenAmounts: tokenAmounts,
                 extraArgs: Client._argsToBytes(
-                    Client.EVMExtraArgsV2({
+                    Client.GenericExtraArgsV2({
                         gasLimit: getExecutionGasLimit,
                         allowOutOfOrderExecution: true
                     })
