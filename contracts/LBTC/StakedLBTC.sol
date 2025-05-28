@@ -9,7 +9,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
-import {Consortium} from "../consortium/Consortium.sol"; // TODO: use interface
+import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {Actions} from "../libs/Actions.sol";
 import {IStakedLBTC} from "./IStakedLBTC.sol";
 import {Assert} from "./utils/Assert.sol";
@@ -546,7 +546,7 @@ contract StakedLBTC is
             revert PayloadAlreadyUsed();
 
         }
-        Consortium($.consortium).checkProof(payloadHash, proof);
+        INotaryConsortium($.consortium).checkProof(payloadHash, proof);
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
