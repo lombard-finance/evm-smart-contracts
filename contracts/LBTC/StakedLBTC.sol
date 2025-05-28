@@ -625,11 +625,7 @@ contract StakedLBTC is
                 )
             );
 
-            Assert.feeApproval(
-                digest,
-                mintAction.recipient,
-                userSignature
-            );
+            Assert.feeApproval(digest, mintAction.recipient, userSignature);
         }
 
         // modified payload to be signed
