@@ -198,7 +198,7 @@ library Actions {
         if (txid == bytes32(0)) {
             revert ZeroTxId();
         }
-        if (token == address(this)) {
+        if (token != address(this)) {
             revert InvalidDestinationToken(address(this), token);
         }
 

@@ -89,7 +89,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       CHAIN_ID,
       signer2.address,
       value,
-      encode(['uint256'], [0]) // txid
+      encode(['uint256'], [1]) // txid
     );
 
     // create permit payload
@@ -122,7 +122,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       CHAIN_ID,
       signer3.address,
       value,
-      encode(['uint256'], [0]) // txid
+      encode(['uint256'], [1]) // txid
     );
 
     {
@@ -239,12 +239,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     });
 
     it('should allow pauser to pause', async function () {
-      await expect(stakeAndBake.connect(pauser).pause());
+      await expect(stakeAndBake.connect(pauser).pause()).to.be.not.reverted;
     });
 
     it('should allow admin to unpause', async function () {
-      await expect(stakeAndBake.connect(pauser).pause());
-      await expect(stakeAndBake.unpause());
+      await expect(stakeAndBake.connect(pauser).pause()).to.be.not.reverted;
+      await expect(stakeAndBake.unpause()).to.be.not.reverted;
     });
 
     it('should stake and bake properly with the correct setup', async function () {

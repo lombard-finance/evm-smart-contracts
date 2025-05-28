@@ -79,7 +79,7 @@ describe('ERC4626Depositor', function () {
       CHAIN_ID,
       signer2.address,
       value,
-      encode(['uint256'], [0]) // txid
+      encode(['uint256'], [1]) // txid
     );
 
     // create permit payload
@@ -112,7 +112,7 @@ describe('ERC4626Depositor', function () {
       CHAIN_ID,
       signer3.address,
       value,
-      encode(['uint256'], [0]) // txid
+      encode(['uint256'], [1]) // txid
     );
 
     {

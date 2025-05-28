@@ -16,7 +16,8 @@ import {
   Signer,
   initStakedLBTC,
   DEFAULT_LBTC_DUST_FEE_RATE,
-  FEE_APPROVAL_ACTION
+  FEE_APPROVAL_ACTION,
+  DEPOSIT_BTC_ACTION_V1
 } from './helpers';
 import { Bascule, Consortium, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -418,41 +419,41 @@ describe('StakedLBTC', function () {
       });
 
       it('should do permissioned batch mint', async function () {
-        await expect(stakedLbtc['batchMint(address[],uint256[])']([signer1.address, signer2.address], [1, 2]))
+        await expect(stakedLbtc.batchMint([signer1.address, signer2.address], [1, 2]))
           .to.emit(stakedLbtc, 'Transfer')
           .withArgs(ethers.ZeroAddress, signer1.address, 1)
           .to.emit(stakedLbtc, 'Transfer')
           .withArgs(ethers.ZeroAddress, signer2.address, 2);
       });
 
-      it('should do batch mint for free', async function () {
-        const mintPromise = stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], mintWithoutFee[1]);
+      // it('should do batch mint for free', async function () {
+      //   const mintPromise = stakedLbtc.batchMintV1(mintWithoutFee[0], mintWithoutFee[1]);
+      //
+      //   const transferPromises = mintWithoutFee[2].map(async args =>
+      //     expect(mintPromise)
+      //       .to.emit(stakedLbtc, 'Transfer')
+      //       .withArgs(...args)
+      //   );
+      //
+      //   await mintPromise;
+      //   await Promise.all(transferPromises);
+      // });
 
-        const transferPromises = mintWithoutFee[2].map(async args =>
-          expect(mintPromise)
-            .to.emit(stakedLbtc, 'Transfer')
-            .withArgs(...args)
-        );
-
-        await mintPromise;
-        await Promise.all(transferPromises);
-      });
-
-      it('should do batch mint with fee', async function () {
-        // set the maximum fee from args
-        await stakedLbtc.setMintFee(args.reduce((x, y) => (x.amount > y.amount ? x : y)).amount + 100n);
-
-        const mintPromise = stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
-
-        const transferPromises = mintWithFee[4].map(async args =>
-          expect(mintPromise)
-            .to.emit(stakedLbtc, 'Transfer')
-            .withArgs(...args)
-        );
-
-        await mintPromise;
-        await Promise.all(transferPromises);
-      });
+      // it('should do batch mint with fee', async function () {
+      //   // set the maximum fee from args
+      //   await stakedLbtc.setMintFee(args.reduce((x, y) => (x.amount > y.amount ? x : y)).amount + 100n);
+      //
+      //   const mintPromise = stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
+      //
+      //   const transferPromises = mintWithFee[4].map(async args =>
+      //     expect(mintPromise)
+      //       .to.emit(stakedLbtc, 'Transfer')
+      //       .withArgs(...args)
+      //   );
+      //
+      //   await mintPromise;
+      //   await Promise.all(transferPromises);
+      // });
 
       describe('With bascule', function () {
         beforeEach(async function () {
@@ -815,66 +816,64 @@ describe('StakedLBTC', function () {
         });
 
         describe('With batch', function () {
-          it('should fail to batch if something is wrong with the data', async function () {
-            const proofs = [...mintWithFee[1]];
-            proofs[proofs.length - 1] = '0x';
-            await expect(stakedLbtc.batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])).to.be
-              .reverted;
-          });
-
-          it('should fail to batch if not claimer', async function () {
-            const proofs = [...mintWithFee[1]];
-            proofs[proofs.length - 1] = '0x';
-            await expect(
-              stakedLbtc.connect(signer1).batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])
-            )
-              .to.be.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
-              .withArgs(signer1.address);
-          });
-
-          it('should fail to batch if parameters length missmatch', async function () {
-            let pop = (arg: string[]) => {
-              const data = [...arg];
-              data.pop();
-              return data;
-            };
-            await expect(
-              stakedLbtc.batchMintWithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3])
-            ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-            await expect(
-              stakedLbtc.batchMintWithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3])
-            ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-            await expect(
-              stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3])
-            ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-            await expect(
-              stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3]))
-            ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-          });
+          // it('should fail to batch if something is wrong with the data', async function () {
+          //   const proofs = [...mintWithFee[1]];
+          //   proofs[proofs.length - 1] = '0x';
+          //   await expect(stakedLbtc.batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])).to.be
+          //     .reverted;
+          // });
+          // it('should fail to batch if not claimer', async function () {
+          //   const proofs = [...mintWithFee[1]];
+          //   proofs[proofs.length - 1] = '0x';
+          //   await expect(
+          //     stakedLbtc.connect(signer1).batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])
+          //   )
+          //     .to.be.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
+          //     .withArgs(signer1.address);
+          // });
+          // it('should fail to batch if parameters length missmatch', async function () {
+          //   let pop = (arg: string[]) => {
+          //     const data = [...arg];
+          //     data.pop();
+          //     return data;
+          //   };
+          //   await expect(
+          //     stakedLbtc.batchMintWithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3])
+          //   ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
+          //   await expect(
+          //     stakedLbtc.batchMintWithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3])
+          //   ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
+          //   await expect(
+          //     stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3])
+          //   ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
+          //   await expect(
+          //     stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3]))
+          //   ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
+          // });
         });
       });
 
-      it('should fail to batch mint for free if something is wrong in a mint', async function () {
-        const proofs = [...mintWithoutFee[1]];
-        proofs[proofs.length - 1] = '0x';
+      // it('should fail to batch mint for free if something is wrong in a mint', async function () {
+      //   const proofs = [...mintWithoutFee[1]];
+      //   proofs[proofs.length - 1] = '0x';
+      //
+      //   await expect(stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], proofs)).to.be.reverted;
+      // });
 
-        await expect(stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], proofs)).to.be.reverted;
-      });
-
-      it('should fail to batch mint for free if parameters size missmatch', async function () {
-        const payloads = [...mintWithoutFee[0]];
-        const proofs = [...mintWithoutFee[1]];
-        payloads.pop();
-        proofs.pop();
-
-        await expect(stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], proofs)).to.be.revertedWithCustomError(
-          stakedLbtc,
-          'InvalidInputLength'
-        );
-        await expect(
-          stakedLbtc['batchMint(bytes[],bytes[])'](payloads, mintWithoutFee[1])
-        ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-      });
+      // it('should fail to batch mint for free if parameters size missmatch', async function () {
+      //   const payloads = [...mintWithoutFee[0]];
+      //   const proofs = [...mintWithoutFee[1]];
+      //   payloads.pop();
+      //   proofs.pop();
+      //
+      //   await expect(stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], proofs)).to.be.revertedWithCustomError(
+      //     stakedLbtc,
+      //     'InvalidInputLength'
+      //   );
+      //   await expect(
+      //     stakedLbtc['batchMint(bytes[],bytes[])'](payloads, mintWithoutFee[1])
+      //   ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
+      // });
     });
 
     it('should fail to do permissioned batch mint if parameters size missmatch', async function () {
@@ -896,9 +895,6 @@ describe('StakedLBTC', function () {
   });
 
   describe('Mint V1', function () {
-    // disable tests before we implement support of new payload
-    return;
-
     let mintWithoutFee: [string[], string[], any[][]] = [[], [], []];
     let mintWithFee: [string[], string[], string[], string[], any[][]] = [[], [], [], [], []];
 
@@ -933,7 +929,7 @@ describe('StakedLBTC', function () {
             await stakedLbtc.getAddress()
           );
 
-          await expect(stakedLbtc.connect(args.msgSender())['mint(bytes,bytes)'](data.payload, data.proof))
+          await expect(stakedLbtc.connect(args.msgSender()).mintV1(data.payload, data.proof))
             .to.emit(stakedLbtc, 'Transfer')
             .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount);
 
@@ -966,7 +962,7 @@ describe('StakedLBTC', function () {
               CHAIN_ID,
               args.recipient().address,
               args.amount,
-              encode(['uint256'], [i * 2 + j]), // // txid
+              encode(['uint256'], [(i + 1) * 2 + j]), // // txid
               await stakedLbtc.getAddress()
             );
             const userSignature = await getFeeTypedMessage(
@@ -982,7 +978,7 @@ describe('StakedLBTC', function () {
             const approval = getPayloadForAction([fee, snapshotTimestamp + 100], 'feeApproval');
 
             const appliedFee = fee < max ? fee : max;
-            await expect(stakedLbtc.mintWithFee(data.payload, data.proof, approval, userSignature))
+            await expect(stakedLbtc.mintV1WithFee(data.payload, data.proof, approval, userSignature))
               .to.emit(stakedLbtc, 'Transfer')
               .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount - appliedFee)
               .to.emit(stakedLbtc, 'Transfer')
@@ -1012,16 +1008,8 @@ describe('StakedLBTC', function () {
         });
       });
 
-      it('should do permissioned batch mint', async function () {
-        await expect(stakedLbtc['batchMint(address[],uint256[])']([signer1.address, signer2.address], [1, 2]))
-          .to.emit(stakedLbtc, 'Transfer')
-          .withArgs(ethers.ZeroAddress, signer1.address, 1)
-          .to.emit(stakedLbtc, 'Transfer')
-          .withArgs(ethers.ZeroAddress, signer2.address, 2);
-      });
-
       it('should do batch mint for free', async function () {
-        const mintPromise = stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], mintWithoutFee[1]);
+        const mintPromise = stakedLbtc.batchMintV1(mintWithoutFee[0], mintWithoutFee[1]);
 
         const transferPromises = mintWithoutFee[2].map(async args =>
           expect(mintPromise)
@@ -1037,7 +1025,12 @@ describe('StakedLBTC', function () {
         // set the maximum fee from args
         await stakedLbtc.setMintFee(args.reduce((x, y) => (x.amount > y.amount ? x : y)).amount + 100n);
 
-        const mintPromise = stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[1], mintWithFee[2], mintWithFee[3]);
+        const mintPromise = stakedLbtc.batchMintV1WithFee(
+          mintWithFee[0],
+          mintWithFee[1],
+          mintWithFee[2],
+          mintWithFee[3]
+        );
 
         const transferPromises = mintWithFee[4].map(async args =>
           expect(mintPromise)
@@ -1072,7 +1065,7 @@ describe('StakedLBTC', function () {
 
             // mint without report fails
             await expect(
-              stakedLbtc.connect(args.msgSender())['mint(bytes,bytes)'](data.payload, data.proof)
+              stakedLbtc.connect(args.msgSender()).mintV1(data.payload, data.proof)
             ).to.be.revertedWithCustomError(bascule, 'WithdrawalFailedValidation');
 
             // report deposit
@@ -1086,7 +1079,7 @@ describe('StakedLBTC', function () {
               .withArgs(reportId, 1);
 
             // mint works
-            await expect(stakedLbtc.connect(args.msgSender())['mint(bytes,bytes)'](data.payload, data.proof))
+            await expect(stakedLbtc.connect(args.msgSender()).mintV1(data.payload, data.proof))
               .to.emit(stakedLbtc, 'Transfer')
               .withArgs(ethers.ZeroAddress, args.recipient().address, args.amount);
 
@@ -1243,12 +1236,13 @@ describe('StakedLBTC', function () {
               encode(['address'], [args.mintRecipient().address]),
               args.mintAmount,
               args.txId,
-              0
+              0,
+              encode(['address'], [await stakedLbtc.getAddress()])
             ],
-            DEPOSIT_BTC_ACTION_V0
+            DEPOSIT_BTC_ACTION_V1
           );
 
-          await expect(stakedLbtc['mint(bytes,bytes)'](payload, data.proof)).to.revertedWithCustomError(
+          await expect(stakedLbtc.mintV1(payload, data.proof)).to.revertedWithCustomError(
             args.interface(),
             args.customError
           );
@@ -1260,7 +1254,7 @@ describe('StakedLBTC', function () {
         await stakedLbtc.pause();
 
         // try to use the same proof again
-        await expect(stakedLbtc['mint(bytes,bytes)'](defaultPayload, defaultProof)).to.revertedWithCustomError(
+        await expect(stakedLbtc.mintV1(defaultPayload, defaultProof)).to.revertedWithCustomError(
           stakedLbtc,
           'EnforcedPause'
         );
@@ -1268,15 +1262,15 @@ describe('StakedLBTC', function () {
 
       it('Reverts when payload is already used', async function () {
         // use the payload
-        await stakedLbtc['mint(bytes,bytes)'](defaultPayload, defaultProof);
+        await stakedLbtc.mintV1(defaultPayload, defaultProof);
         // try to use the same payload again
-        await expect(stakedLbtc['mint(bytes,bytes)'](defaultPayload, defaultProof)).to.revertedWithCustomError(
+        await expect(stakedLbtc.mintV1(defaultPayload, defaultProof)).to.revertedWithCustomError(
           stakedLbtc,
           'PayloadAlreadyUsed'
         );
 
         await expect(
-          stakedLbtc.mintWithFee(
+          stakedLbtc.mintV1WithFee(
             defaultPayload,
             defaultProof,
             getPayloadForAction([1, snapshotTimestamp + 100], 'feeApproval'),
@@ -1293,7 +1287,7 @@ describe('StakedLBTC', function () {
       describe('With fee', function () {
         it('should revert if expired', async function () {
           await expect(
-            stakedLbtc.mintWithFee(
+            stakedLbtc.mintV1WithFee(
               defaultPayload,
               defaultProof,
               getPayloadForAction([1, snapshotTimestamp], 'feeApproval'),
@@ -1312,7 +1306,7 @@ describe('StakedLBTC', function () {
         it('should revert if wrong deposit btc payload type', async function () {
           let feeApprovalPayload = getPayloadForAction([1, snapshotTimestamp], 'feeApproval');
           await expect(
-            stakedLbtc.mintWithFee(
+            stakedLbtc.mintV1WithFee(
               feeApprovalPayload,
               defaultProof,
               feeApprovalPayload,
@@ -1325,12 +1319,12 @@ describe('StakedLBTC', function () {
             )
           )
             .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
-            .withArgs(feeApprovalPayload.slice(0, 10));
+            .withArgs(DEPOSIT_BTC_ACTION_V1, feeApprovalPayload.slice(0, 10));
         });
 
         it('should revert if wrong fee approval btc payload type', async function () {
           await expect(
-            stakedLbtc.mintWithFee(
+            stakedLbtc.mintV1WithFee(
               defaultPayload,
               defaultProof,
               defaultPayload,
@@ -1343,14 +1337,14 @@ describe('StakedLBTC', function () {
             )
           )
             .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
-            .withArgs(defaultPayload.slice(0, 10));
+            .withArgs(FEE_APPROVAL_ACTION, defaultPayload.slice(0, 10));
         });
 
         it('should revert if not claimer', async function () {
           await expect(
             stakedLbtc
               .connect(signer1)
-              .mintWithFee(
+              .mintV1WithFee(
                 defaultPayload,
                 defaultProof,
                 getPayloadForAction([1, snapshotTimestamp + 100], 'feeApproval'),
@@ -1371,7 +1365,7 @@ describe('StakedLBTC', function () {
           await stakedLbtc.setMintFee(defaultArgs.mintAmount + 10n);
 
           await expect(
-            stakedLbtc.mintWithFee(
+            stakedLbtc.mintV1WithFee(
               defaultPayload,
               defaultProof,
               getPayloadForAction([defaultArgs.mintAmount, snapshotTimestamp + 100], 'feeApproval'),
@@ -1387,7 +1381,7 @@ describe('StakedLBTC', function () {
 
         it('should revert if signature is not from receiver', async function () {
           await expect(
-            stakedLbtc.mintWithFee(
+            stakedLbtc.mintV1WithFee(
               defaultPayload,
               defaultProof,
               getPayloadForAction([1, snapshotTimestamp + 100], 'feeApproval'),
@@ -1398,7 +1392,7 @@ describe('StakedLBTC', function () {
 
         it("should revert if fee signature doesn't match fee payload", async function () {
           await expect(
-            stakedLbtc.mintWithFee(
+            stakedLbtc.mintV1WithFee(
               defaultPayload,
               defaultProof,
               getPayloadForAction([1, snapshotTimestamp + 100], 'feeApproval'),
@@ -1416,7 +1410,7 @@ describe('StakedLBTC', function () {
           it('should fail to batch if something is wrong with the data', async function () {
             const proofs = [...mintWithFee[1]];
             proofs[proofs.length - 1] = '0x';
-            await expect(stakedLbtc.batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])).to.be
+            await expect(stakedLbtc.batchMintV1WithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])).to.be
               .reverted;
           });
 
@@ -1424,7 +1418,7 @@ describe('StakedLBTC', function () {
             const proofs = [...mintWithFee[1]];
             proofs[proofs.length - 1] = '0x';
             await expect(
-              stakedLbtc.connect(signer1).batchMintWithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])
+              stakedLbtc.connect(signer1).batchMintV1WithFee(mintWithFee[0], proofs, mintWithFee[2], mintWithFee[3])
             )
               .to.be.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
               .withArgs(signer1.address);
@@ -1437,16 +1431,16 @@ describe('StakedLBTC', function () {
               return data;
             };
             await expect(
-              stakedLbtc.batchMintWithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3])
+              stakedLbtc.batchMintV1WithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3])
             ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
             await expect(
-              stakedLbtc.batchMintWithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3])
+              stakedLbtc.batchMintV1WithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3])
             ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
             await expect(
-              stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3])
+              stakedLbtc.batchMintV1WithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3])
             ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
             await expect(
-              stakedLbtc.batchMintWithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3]))
+              stakedLbtc.batchMintV1WithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3]))
             ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
           });
         });
@@ -1456,7 +1450,7 @@ describe('StakedLBTC', function () {
         const proofs = [...mintWithoutFee[1]];
         proofs[proofs.length - 1] = '0x';
 
-        await expect(stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], proofs)).to.be.reverted;
+        await expect(stakedLbtc.batchMintV1(mintWithoutFee[0], proofs)).to.be.reverted;
       });
 
       it('should fail to batch mint for free if parameters size missmatch', async function () {
@@ -1465,31 +1459,15 @@ describe('StakedLBTC', function () {
         payloads.pop();
         proofs.pop();
 
-        await expect(stakedLbtc['batchMint(bytes[],bytes[])'](mintWithoutFee[0], proofs)).to.be.revertedWithCustomError(
+        await expect(stakedLbtc.batchMintV1(mintWithoutFee[0], proofs)).to.be.revertedWithCustomError(
           stakedLbtc,
           'InvalidInputLength'
         );
-        await expect(
-          stakedLbtc['batchMint(bytes[],bytes[])'](payloads, mintWithoutFee[1])
-        ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
+        await expect(stakedLbtc.batchMintV1(payloads, mintWithoutFee[1])).to.be.revertedWithCustomError(
+          stakedLbtc,
+          'InvalidInputLength'
+        );
       });
-    });
-
-    it('should fail to do permissioned batch mint if parameters size missmatch', async function () {
-      await expect(
-        stakedLbtc['batchMint(address[],uint256[])']([signer1.address], [1, 2])
-      ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-      await expect(
-        stakedLbtc['batchMint(address[],uint256[])']([signer1.address, signer2.address], [1])
-      ).to.be.revertedWithCustomError(stakedLbtc, 'InvalidInputLength');
-    });
-
-    it('should fail to do permissioned batch mint if no minter', async function () {
-      await expect(
-        stakedLbtc.connect(signer1)['batchMint(address[],uint256[])']([signer1.address, signer1.address], [1, 2])
-      )
-        .to.be.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
-        .withArgs(signer1.address);
     });
   });
 
