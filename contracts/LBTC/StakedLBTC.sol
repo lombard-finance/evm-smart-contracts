@@ -395,7 +395,7 @@ contract StakedLBTC is
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
             bytes32 legacyPayloadHash = keccak256(payload[i][4:]);
-            if (isPayloadUsed(payloadHash, legacyPayloadHash)) {
+            if (_isPayloadUsed(_getStakedLBTCStorage(), payloadHash, legacyPayloadHash)) {
                 emit BatchMintSkipped(payloadHash, payload[i]);
                 continue;
             }
@@ -441,7 +441,7 @@ contract StakedLBTC is
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
             bytes32 legacyPayloadHash = keccak256(mintPayload[i][4:]);
-            if (isPayloadUsed(payloadHash, legacyPayloadHash)) {
+            if (_isPayloadUsed(_getStakedLBTCStorage(), payloadHash, legacyPayloadHash)) {
                 emit BatchMintSkipped(payloadHash, mintPayload[i]);
                 continue;
             }
@@ -501,22 +501,6 @@ contract StakedLBTC is
         _burn(from, amount);
     }
 
-    // TODO: remove
-    /**
-     * @dev Returns whether a minting payload has been used already
-     * @param payloadHash The minting payload hash
-     * @param legacyPayloadHash The legacy minting payload hash
-     */
-    function isPayloadUsed(
-        bytes32 payloadHash,
-        bytes32 legacyPayloadHash
-    ) public view returns (bool) {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        return
-            $.usedPayloads[payloadHash] ||
-            $.legacyUsedPayloads[legacyPayloadHash];
-    }
-
     /// PRIVATE FUNCTIONS ///
 
     function __StakedLBTC_init(
@@ -558,8 +542,9 @@ contract StakedLBTC is
         /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
         bytes32 legacyHash = keccak256(payload[4:]);
-        if ($.usedPayloads[payloadHash] || $.legacyUsedPayloads[legacyHash]) {
+        if (_isPayloadUsed($, payloadHash, legacyHash)) {
             revert PayloadAlreadyUsed();
+
         }
         Consortium($.consortium).checkProof(payloadHash, proof);
         $.usedPayloads[payloadHash] = true;
@@ -643,6 +628,21 @@ contract StakedLBTC is
         }
 
         emit FeeCharged(fee, userSignature);
+    }
+
+    /**
+     * @dev Returns whether a minting payload has been used already
+     * @param payloadHash The minting payload hash
+     * @param legacyPayloadHash The legacy minting payload hash
+     */
+    function _isPayloadUsed(
+        StakedLBTCStorage storage $,
+        bytes32 payloadHash,
+        bytes32 legacyPayloadHash
+    ) internal view returns (bool) {
+        return
+            $.usedPayloads[payloadHash] ||
+            $.legacyUsedPayloads[legacyPayloadHash];
     }
 
     /// @dev zero rate not allowed

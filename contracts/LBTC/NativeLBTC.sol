@@ -317,7 +317,7 @@ contract NativeLBTC is
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
-            if (isPayloadUsed(payloadHash)) {
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
                 emit BatchMintSkipped(payloadHash, payload[i]);
                 continue;
             }
@@ -363,7 +363,7 @@ contract NativeLBTC is
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
-            if (isPayloadUsed(payloadHash)) {
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
                 emit BatchMintSkipped(payloadHash, mintPayload[i]);
                 continue;
             }
@@ -424,16 +424,6 @@ contract NativeLBTC is
         uint256 amount
     ) external override onlyRole(MINTER_ROLE) {
         _burn(from, amount);
-    }
-
-    /**
-     * @dev Returns whether a minting payload has been used already
-     *
-     * @param payloadHash The minting payload hash
-     */
-    function isPayloadUsed(bytes32 payloadHash) public view returns (bool) {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        return $.usedPayloads[payloadHash];
     }
 
     /// PRIVATE FUNCTIONS ///
