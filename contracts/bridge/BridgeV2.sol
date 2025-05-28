@@ -9,7 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {FeeUtils} from "../libs/FeeUtils.sol";
 import {IAdapter} from "./adapters/IAdapter.sol";
-import {ILBTC, INotaryConsortium} from "./IBridge.sol";
+import {IBaseLBTC, INotaryConsortium} from "./IBridge.sol";
 import {IBridgeV2} from "./IBridgeV2.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";

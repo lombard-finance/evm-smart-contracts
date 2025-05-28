@@ -1,4 +1,4 @@
-import { Consortium, GMPHandlerMock, LBTCMock, Mailbox, MailboxTreasuryMock } from '../typechain-types';
+import { Consortium, GMPHandlerMock, Mailbox, MailboxTreasuryMock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   calcFee,
@@ -522,7 +522,7 @@ describe('Mailbox', function () {
   });
 
   describe('Rescue ERC20', function () {
-    let token: LBTCMock & Addressable;
+    let token: StakedLBTC & Addressable;
     let dummy: Signer;
 
     before(async () => {
@@ -530,7 +530,7 @@ describe('Mailbox', function () {
       globalNonce = 1;
 
       const rndAddr = ethers.Wallet.createRandom();
-      token = await deployContract<LBTCMock & Addressable>('LBTCMock', [
+      token = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
         rndAddr.address,
         0,
         rndAddr.address,
@@ -538,7 +538,8 @@ describe('Mailbox', function () {
       ]);
       token.address = await token.getAddress();
       dummy = signer2;
-      await token.mintTo(dummy, e18);
+      await token.connect(owner).addMinter(owner);
+      await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 
     it('Treasury can transfer ERC20 from mailbox', async () => {

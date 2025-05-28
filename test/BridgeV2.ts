@@ -1,4 +1,4 @@
-import { BridgeV2, Consortium, LBTC, LBTCMock, Mailbox } from '../typechain-types';
+import { BridgeV2, Consortium, Mailbox, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   calcFee,
@@ -49,7 +49,7 @@ describe('BridgeV2', function () {
     signer3: Signer;
   let consortium: Consortium & Addressable;
   let smailbox: Mailbox & Addressable, dmailbox: Mailbox & Addressable;
-  let sLBTC: LBTC & Addressable, dLBTC: LBTC & Addressable;
+  let sLBTC: StakedLBTC & Addressable, dLBTC: StakedLBTC & Addressable;
   let sbridge: BridgeV2 & Addressable, dbridge: BridgeV2 & Addressable;
 
   let lChainId: string;
@@ -94,10 +94,20 @@ describe('BridgeV2', function () {
     dBridgeBytes = encode(['address'], [dbridge.address]);
 
     // Tokens
-    sLBTC = await deployContract<LBTC & Addressable>('LBTC', [consortium.address, 0, owner.address, owner.address]);
+    sLBTC = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
+      consortium.address,
+      0,
+      owner.address,
+      owner.address
+    ]);
     sLBTC.address = await sLBTC.getAddress();
     await sLBTC.connect(owner).addMinter(minter.address);
-    dLBTC = await deployContract<LBTC & Addressable>('LBTC', [consortium.address, 0, owner.address, owner.address]);
+    dLBTC = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
+      consortium.address,
+      0,
+      owner.address,
+      owner.address
+    ]);
     dLBTC.address = await dLBTC.getAddress();
     await dLBTC.connect(owner).addMinter(minter.address);
     await dLBTC.connect(owner).addMinter(dbridge.address);
@@ -326,7 +336,7 @@ describe('BridgeV2', function () {
   });
 
   describe('Rescue ERC20', function () {
-    let token: LBTCMock & Addressable;
+    let token: StakedLBTC & Addressable;
     let dummy: Signer;
     const e18 = 10n ** 18n;
 
@@ -335,7 +345,7 @@ describe('BridgeV2', function () {
       globalNonce = 1;
 
       const rndAddr = ethers.Wallet.createRandom();
-      token = await deployContract<LBTCMock & Addressable>('LBTCMock', [
+      token = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
         rndAddr.address,
         0,
         rndAddr.address,
@@ -343,7 +353,8 @@ describe('BridgeV2', function () {
       ]);
       token.address = await token.getAddress();
       dummy = signer2;
-      await token.mintTo(dummy, e18);
+      await token.connect(owner).addMinter(owner);
+      await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 
     it('Owner can transfer ERC20 from mailbox', async () => {
@@ -513,7 +524,7 @@ describe('BridgeV2', function () {
     });
 
     it('Other token pair to the same chain', async () => {
-      const sLBTC = await deployContract<LBTC & Addressable>('LBTC', [
+      const sLBTC = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
         consortium.address,
         0,
         owner.address,
@@ -910,7 +921,7 @@ describe('BridgeV2', function () {
 
       it('deliver other token on the chain', async () => {
         const sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-        const dLBTC2 = await deployContract<LBTC & Addressable>('LBTC', [
+        const dLBTC2 = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
           consortium.address,
           0,
           owner.address,
@@ -1103,7 +1114,7 @@ describe('BridgeV2', function () {
     });
 
     describe('Payload is invalid', function () {
-      let unknownToken: LBTC & Addressable;
+      let unknownToken: StakedLBTC & Addressable;
       let newSrcChain: string;
       let newSrcMailbox: string;
       let newSrcBridge: string;
@@ -1127,7 +1138,7 @@ describe('BridgeV2', function () {
           encode(['address', 'bytes32', 'bytes32'], [newSrcMailbox, newSrcChain, lChainId])
         );
 
-        unknownToken = await deployContract<LBTC & Addressable>('LBTC', [
+        unknownToken = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
           consortium.address,
           0,
           owner.address,
@@ -1250,7 +1261,7 @@ describe('BridgeV2', function () {
 
   describe('Rate limits', function () {
     let sLBTC2: string, sLBTC3: string;
-    let dLBTC2: LBTC & Addressable;
+    let dLBTC2: StakedLBTC & Addressable;
     const newSrcChain = encode(['uint256'], [12345]);
     const newSrcMailbox = ethers.Wallet.createRandom().address;
     const newSrcBridge = ethers.Wallet.createRandom().address;
@@ -1265,7 +1276,12 @@ describe('BridgeV2', function () {
       globalNonce = 1;
       // Map another pair
       sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-      dLBTC2 = await deployContract<LBTC & Addressable>('LBTC', [consortium.address, 0, owner.address, owner.address]);
+      dLBTC2 = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
+        consortium.address,
+        0,
+        owner.address,
+        owner.address
+      ]);
       dLBTC2.address = await dLBTC2.getAddress();
       await dLBTC2.connect(owner).addMinter(dbridge.address);
       await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
