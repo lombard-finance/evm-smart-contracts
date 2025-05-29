@@ -287,8 +287,7 @@ contract NativeLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) public nonReentrant {
-        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V0);
-
+        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
         Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             rawPayload[4:]
         );
@@ -504,7 +503,7 @@ contract NativeLBTC is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) internal nonReentrant {
-        Assert.selector(mintPayload, Actions.DEPOSIT_BTC_ACTION_V0);
+        Assert.selector(mintPayload, Actions.DEPOSIT_BTC_ACTION_V1);
         Actions.DepositBtcActionV1 memory mintAction = Actions.depositBtcV1(
             mintPayload[4:]
         );
@@ -515,7 +514,7 @@ contract NativeLBTC is
         );
 
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 fee = Math.max($.maximumFee, feeAction.fee);
+        uint256 fee = Math.min($.maximumFee, feeAction.fee);
 
         if (fee >= mintAction.amount) {
             revert FeeGreaterThanAmount();
