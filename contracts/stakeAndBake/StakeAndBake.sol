@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IBaseLBTC} from "../LBTC/IBaseLBTC.sol";
+import {IStakedLBTC} from "../LBTC/IStakedLBTC.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -56,7 +56,7 @@ contract StakeAndBake is
 
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
     struct StakeAndBakeStorage {
-        IBaseLBTC lbtc;
+        IStakedLBTC lbtc;
         IDepositor depositor;
         uint256 fee;
         uint256 gasLimit;
@@ -86,7 +86,7 @@ contract StakeAndBake is
     }
 
     function initialize(
-        IBaseLBTC lbtc_,
+        IStakedLBTC lbtc_,
         address owner_,
         address operator_,
         uint256 fee_,
