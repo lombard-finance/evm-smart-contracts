@@ -47,6 +47,5 @@ interface IBaseLBTC {
     function burn(uint256 amount) external;
     function burn(address from, uint256 amount) external;
     function mint(address to, uint256 amount) external;
-    function mint(bytes calldata payload, bytes calldata proof) external;
     function getTreasury() external returns (address);
 }

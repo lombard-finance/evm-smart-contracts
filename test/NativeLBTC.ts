@@ -269,7 +269,7 @@ describe('NativeLBTC', function () {
 
         const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
 
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(nativeLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
           .to.emit(nativeLbtc, 'UnstakeRequest')
           .withArgs(signer1.address, p2wpkh, expectedAmountAfterFee);
@@ -282,7 +282,7 @@ describe('NativeLBTC', function () {
         const burnCommission = await nativeLbtc.getBurnCommission();
 
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
           .to.emit(nativeLbtc, 'UnstakeRequest')
           .withArgs(signer1.address, p2tr, expectedAmountAfterFee);
@@ -295,7 +295,7 @@ describe('NativeLBTC', function () {
 
         await nativeLbtc.changeBurnCommission(commission);
 
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
 
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
           .to.emit(nativeLbtc, 'UnstakeRequest')
@@ -305,7 +305,7 @@ describe('NativeLBTC', function () {
       it('Unstake full with P2WSH', async () => {
         const amount = 100_000_000n;
         const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
 
         // Get the burn commission
         const burnCommission = await nativeLbtc.getBurnCommission();
@@ -323,7 +323,7 @@ describe('NativeLBTC', function () {
       it('Reverts when withdrawals off', async function () {
         await nativeLbtc.toggleWithdrawals();
         const amount = 100_000_000n;
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(
           nativeLbtc.redeem('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
         ).to.revertedWithCustomError(nativeLbtc, 'WithdrawalsDisabled');
@@ -333,7 +333,7 @@ describe('NativeLBTC', function () {
         const burnCommission = await nativeLbtc.getBurnCommission();
         const amountLessThanCommission = BigInt(burnCommission) - 1n;
 
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amountLessThanCommission);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amountLessThanCommission);
 
         await expect(
           nativeLbtc.connect(signer1).redeem('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amountLessThanCommission)
@@ -359,7 +359,7 @@ describe('NativeLBTC', function () {
         // Now 'amount' is just above the dust limit. Let's use an amount 1 less than this.
         const amountJustBelowDustLimit = amount - 1n;
 
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amountJustBelowDustLimit);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amountJustBelowDustLimit);
 
         await expect(nativeLbtc.connect(signer1).redeem(p2wsh, amountJustBelowDustLimit)).to.be.revertedWithCustomError(
           nativeLbtc,
@@ -370,7 +370,7 @@ describe('NativeLBTC', function () {
       it('Revert with P2SH', async () => {
         const amount = 100_000_000n;
         const p2sh = '0xa914aec38a317950a98baa9f725c0cb7e50ae473ba2f87';
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(nativeLbtc.connect(signer1).redeem(p2sh, amount)).to.be.revertedWithCustomError(
           nativeLbtc,
           'ScriptPubkeyUnsupported'
@@ -380,7 +380,7 @@ describe('NativeLBTC', function () {
       it('Reverts with P2PKH', async () => {
         const amount = 100_000_000n;
         const p2pkh = '0x76a914aec38a317950a98baa9f725c0cb7e50ae473ba2f88ac';
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(nativeLbtc.connect(signer1).redeem(p2pkh, amount)).to.be.revertedWithCustomError(
           nativeLbtc,
           'ScriptPubkeyUnsupported'
@@ -391,7 +391,7 @@ describe('NativeLBTC', function () {
         const amount = 100_000_000n;
         const p2pk =
           '0x4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac';
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(nativeLbtc.connect(signer1).redeem(p2pk, amount)).to.be.revertedWithCustomError(
           nativeLbtc,
           'ScriptPubkeyUnsupported'
@@ -402,7 +402,7 @@ describe('NativeLBTC', function () {
         const amount = 100_000_000n;
         const p2ms =
           '0x524104d81fd577272bbe73308c93009eec5dc9fc319fc1ee2e7066e17220a5d47a18314578be2faea34b9f1f8ca078f8621acd4bc22897b03daa422b9bf56646b342a24104ec3afff0b2b66e8152e9018fe3be3fc92b30bf886b3487a525997d00fd9da2d012dce5d5275854adc3106572a5d1e12d4211b228429f5a7b2f7ba92eb0475bb14104b49b496684b02855bc32f5daefa2e2e406db4418f3b86bca5195600951c7d918cdbe5e6d3736ec2abf2dd7610995c3086976b2c0c7b4e459d10b34a316d5a5e753ae';
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
         await expect(nativeLbtc.connect(signer1).redeem(p2ms, amount)).to.be.revertedWithCustomError(
           nativeLbtc,
           'ScriptPubkeyUnsupported'
@@ -416,7 +416,7 @@ describe('NativeLBTC', function () {
 
         await nativeLbtc.changeBurnCommission(commission);
 
-        await nativeLbtc.connect(deployer)['mint(address,uint256)'](signer1.address, amount);
+        await nativeLbtc.connect(deployer).mint(signer1.address, amount);
 
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
           .to.revertedWithCustomError(nativeLbtc, 'AmountLessThanCommission')
@@ -437,7 +437,7 @@ describe('NativeLBTC', function () {
 
     beforeEach(async function () {
       // Mint some tokens
-      await nativeLbtc['mint(address,uint256)'](signer1.address, 100_000_000n);
+      await nativeLbtc.mint(signer1.address, 100_000_000n);
     });
 
     afterEach(async function () {
