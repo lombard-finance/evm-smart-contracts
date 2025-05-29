@@ -54,7 +54,7 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     }
 
     /**
-     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+     * @dev Override of the _update function to satisfy both ERC20 and ERC20Votes
      */
     function _update(
         address from,
