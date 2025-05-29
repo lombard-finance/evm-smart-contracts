@@ -6,9 +6,9 @@ interface IBARD {
 
     error ZeroAddressException();
 
-    error MintWaitPeriodNotClosed();
+    error MintWaitPeriodNotClosed(uint256 timeToWait);
 
-    error MaxInflationExceeded();
+    error MaxInflationExceeded(uint256 maxAllowedAmount);
 
     error CantRenounceOwnership();
 }

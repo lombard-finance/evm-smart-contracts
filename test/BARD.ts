@@ -117,11 +117,11 @@ describe('BARD', function () {
     });
 
     it('owner cannot mint earlier than 365 days after deploy', async function () {
-      await time.increaseTo(deployTimestamp + oneYear - 1)
-      expect(await bard.connect(admin).mint(treasury2, ethers2.parseEther("100000000"))).to.revertedWithCustomError(
+      await time.increaseTo(deployTimestamp + oneYear - 10)
+      await expect(bard.connect(admin).mint(treasury2, ethers2.parseEther("100000000"))).to.revertedWithCustomError(
         bard,
         'MintWaitPeriodNotClosed'
-      )
+      ).withArgs(9)
     });
 
     it('owner cannot mint earlier than 365 days after previous mint', async function () {
@@ -137,15 +137,15 @@ describe('BARD', function () {
       await expect(bard.connect(admin).mint(treasury2, ethers2.parseEther("100000000"))).to.revertedWithCustomError(
         bard,
         'MintWaitPeriodNotClosed'
-      )
+      ).withArgs(10000-2)
     });
 
-    it('owner cannot mint mit more than 10% of the current total supply', async function () {
+    it('owner cannot mint more than 10% of the current total supply', async function () {
       await time.increaseTo(deployTimestamp + oneYear + 1)
-      expect(await bard.connect(admin).mint(treasury2, ethers2.parseEther("100000000"))).to.revertedWithCustomError(
+      await expect(bard.connect(admin).mint(treasury2, ethers2.parseEther("100000001"))).to.revertedWithCustomError(
         bard,
         'MaxInflationExceeded'
-      )
+      ).withArgs(ethers2.parseEther("100000000"))
     });
   });
 });

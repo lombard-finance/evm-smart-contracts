@@ -6,7 +6,7 @@ import { deploy } from '../helpers/simpleDeployment';
  * 1. Nothing
  */
 
-task('deploy-bard', 'Deploys the BARD contract (non-upfradable)')
+task('deploy-bard', 'Deploys the BARD contract (non-upgradable)')
   .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('admin', 'The address of the owner', 'self')
   .addParam('treasury', 'The address of the treasury')

@@ -40,9 +40,9 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
      * @dev Only callable by the owner once per year and amount must be less than max inflation rate
      */
     function mint(address to, uint256 amount) external onlyOwner {
-        if (block.timestamp - lastMintTimestamp < MINT_WAIT_PERIOD) revert MintWaitPeriodNotClosed();
+        if (block.timestamp - lastMintTimestamp < MINT_WAIT_PERIOD) revert MintWaitPeriodNotClosed(MINT_WAIT_PERIOD - (block.timestamp - lastMintTimestamp));
         uint256 _maxInflationAmount = totalSupply() * MAX_INFLATION / 100;
-        if (amount > _maxInflationAmount) revert MaxInflationExceeded();
+        if (amount > _maxInflationAmount) revert MaxInflationExceeded(_maxInflationAmount);
         lastMintTimestamp = uint40(block.timestamp);
         _mint(to, amount);
         emit Mint(to, amount);
