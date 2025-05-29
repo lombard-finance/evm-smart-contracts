@@ -14,7 +14,8 @@ import {
   getFeeTypedMessage,
   DEPOSIT_BTC_ACTION_V1,
   generatePermitSignature,
-  DEFAULT_LBTC_DUST_FEE_RATE
+  DEFAULT_LBTC_DUST_FEE_RATE,
+  FEE_APPROVAL_ACTION
 } from './helpers';
 import { Bascule, Consortium, NativeLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -262,7 +263,7 @@ describe('NativeLBTC', function () {
               CHAIN_ID,
               args.recipient().address,
               args.amount,
-              encode(['uint256'], [i * 2 + j]), // // txid
+              encode(['uint256'], [(i + 1) * 2 + j]), // // txid
               await nativeLbtc.getAddress()
             );
             const userSignature = await getFeeTypedMessage(
@@ -633,8 +634,8 @@ describe('NativeLBTC', function () {
               )
             )
           )
-            .to.revertedWithCustomError(nativeLbtc, 'UnexpectedAction')
-            .withArgs(feeApprovalPayload.slice(0, 10));
+            .to.revertedWithCustomError(nativeLbtc, 'InvalidAction')
+            .withArgs(DEPOSIT_BTC_ACTION_V1, feeApprovalPayload.slice(0, 10));
         });
 
         it('should revert if wrong fee approval btc payload type', async function () {
@@ -653,8 +654,8 @@ describe('NativeLBTC', function () {
               )
             )
           )
-            .to.revertedWithCustomError(nativeLbtc, 'UnexpectedAction')
-            .withArgs(defaultPayload.slice(0, 10));
+            .to.revertedWithCustomError(nativeLbtc, 'InvalidAction')
+            .withArgs(FEE_APPROVAL_ACTION, defaultPayload.slice(0, 10));
         });
 
         it('should revert if not claimer', async function () {
@@ -712,7 +713,7 @@ describe('NativeLBTC', function () {
                 (await nativeLbtc.eip712Domain()).name
               )
             )
-          ).to.revertedWithCustomError(nativeLbtc, 'InvalidUserSignature');
+          ).to.revertedWithCustomError(nativeLbtc, 'InvalidFeeApprovalSignature');
         });
 
         it("should revert if fee signature doesn't match fee payload", async function () {
@@ -729,7 +730,7 @@ describe('NativeLBTC', function () {
                 (await nativeLbtc.eip712Domain()).name
               )
             )
-          ).to.revertedWithCustomError(nativeLbtc, 'InvalidUserSignature');
+          ).to.revertedWithCustomError(nativeLbtc, 'InvalidFeeApprovalSignature');
         });
 
         describe('With batch', function () {
