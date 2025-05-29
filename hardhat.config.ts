@@ -177,6 +177,14 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    katanaTatara: {
+      loggingEnabled: true,
+      url: vars.get('KATANA_TATARA_RPC', 'https://rpc.tatara.katanarpc.com'),
+      chainId: 129399,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
@@ -191,7 +199,7 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('MANTLE_TESTNET_RPC', 'https://mantle.drpc.org'),
       chainId: 5000,
-      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
     },
@@ -199,7 +207,7 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('LINEA_RPC', 'https://linea.decubate.com'),
       chainId: 59144,
-      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
     },
@@ -280,6 +288,14 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('INK_RPC', 'https://rpc-gel.inkonchain.com'),
       chainId: 57073,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    katana: {
+      loggingEnabled: true,
+      url: vars.get('KATANA_RPC', 'https://rpc.katanarpc.com'),
+      chainId: 747474,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
@@ -384,6 +400,14 @@ const config: HardhatUserConfig = {
           browserURL: 'https://sepolia.inkonscan.xyz/'
         }
       },
+      {
+        network: 'katanaTatara',
+        chainId: 129399,
+        urls: {
+          apiURL: 'https://explorer.tatara.katana.network/api',
+          browserURL: 'https://explorer.tatara.katana.network/'
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -464,6 +488,14 @@ const config: HardhatUserConfig = {
           apiURL: 'https://api.routescan.io/v2/network/mainnet/evm/57073/etherscan',
           browserURL: 'https://57073.routescan.io/'
         }
+      },
+      {
+        network: 'katana',
+        chainId: 747474,
+        urls: {
+          apiURL: 'https://explorer.katanarpc.com/api',
+          browserURL: 'https://explorer.katanarpc.com'
+        }
       }
     ],
     apiKey: {
@@ -484,6 +516,7 @@ const config: HardhatUserConfig = {
       sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
       etherlinkTestnet: 'no',
       inkSepolia: 'no',
+      katanaTatara: 'no',
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
