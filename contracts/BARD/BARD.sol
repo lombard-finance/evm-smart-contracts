@@ -65,7 +65,7 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     }
 
     /**
-     * @dev Override of the nonec function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+     * @dev Override of the nonces function to satisfy both IERC20Permit and Nonces
      */
     function nonces(address owner) public view virtual override(ERC20Permit, Nonces) returns (uint256) {
         return super.nonces(owner);
