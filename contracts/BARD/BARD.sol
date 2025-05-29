@@ -30,7 +30,7 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
         lastMintTimestamp = uint40(block.timestamp);
         if (_treasury == address(0)) revert ZeroAddressException();
         // mint initial supply
-        _mint(_treasury, 1_000_000_000 * 10 ** 18);
+        _mint(_treasury, 1_000_000_000 * 1 ether);
     }
 
     /**
