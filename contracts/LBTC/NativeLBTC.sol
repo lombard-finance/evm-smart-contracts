@@ -178,7 +178,7 @@ contract NativeLBTC is
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
     /// @dev This function can be used by front-ends to verify burn amounts before submitting a transaction
     /// @param scriptPubkey The Bitcoin script public key as a byte array
-    /// @param amount The amount of LBTC to be burned
+    /// @param amount The amount of NativeLBTC to be burned
     /// @return amountAfterFee The amount that will be unstaked (after deducting the burn commission)
     /// @return isAboveDust Whether the amountAfterFee is equal to or above the dust limit
     function calcUnstakeRequestAmount(
@@ -203,7 +203,7 @@ contract NativeLBTC is
     /**
      * @dev Returns the number of decimals used to get its user representation.
      *
-     * Because LBTC repsents BTC we use the same decimals.
+     * Because NativeLBTC repsents BTC we use the same decimals.
      *
      */
     function decimals() public view virtual override returns (uint8) {
@@ -249,9 +249,9 @@ contract NativeLBTC is
     /// USER ACTIONS ///
 
     /**
-     * @notice Mint LBTC to the specified address
+     * @notice Mint NativeLBTC to the specified address
      * @param to The address to mint to
-     * @param amount The amount of LBTC to mint
+     * @param amount The amount of NativeLBTC to mint
      * @dev Only callable by whitelisted minters
      */
     function mint(
@@ -262,9 +262,9 @@ contract NativeLBTC is
     }
 
     /**
-     * @notice Mint LBTC in batches
+     * @notice Mint NativeLBTC in batches
      * @param to The addresses to mint to
-     * @param amount The amounts of LBTC to mint
+     * @param amount The amounts of NativeLBTC to mint
      * @dev Only callable by whitelisted minters
      */
     function batchMint(
@@ -279,11 +279,11 @@ contract NativeLBTC is
     }
 
     /**
-     * @notice Mint NativeLBTC by proving a stake action happened
+     * @notice Mint NativeLBTC by proving DepositV1 payload
      * @param rawPayload The message with the stake data
      * @param proof Signature of the consortium approving the mint
      */
-    function mint(
+    function mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
     ) public nonReentrant {
@@ -303,11 +303,11 @@ contract NativeLBTC is
     }
 
     /**
-     * @notice Mint LBTC in batches by proving stake actions happened
+     * @notice Mint NativeLBTC in batches by DepositV1 payloads
      * @param payload The messages with the stake data
      * @param proof Signatures of the consortium approving the mints
      */
-    function batchMint(
+    function batchMintV1(
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external {
@@ -321,35 +321,35 @@ contract NativeLBTC is
                 continue;
             }
 
-            mint(payload[i], proof[i]);
+            mintV1(payload[i], proof[i]);
         }
     }
 
     /**
-     * @notice Mint LBTC applying a commission to the amount
+     * @notice Mint NativeLBTC applying a commission to the amount
      * @dev Payload should be same as mint to avoid reusing them with and without fee
-     * @param mintPayload The message with the stake data
+     * @param mintPayload DepositV1 payload
      * @param proof Signature of the consortium approving the mint
      * @param feePayload Contents of the fee approval signed by the user
      * @param userSignature Signature of the user to allow Fee
      */
-    function mintWithFee(
+    function mintV1WithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
     ) external onlyRole(CLAIMER_ROLE) {
-        _mintWithFee(mintPayload, proof, feePayload, userSignature);
+        _mintV1WithFee(mintPayload, proof, feePayload, userSignature);
     }
 
     /**
-     * @notice Mint LBTC in batches proving stake actions happened
-     * @param mintPayload The messages with the stake data
+     * @notice Mint NativeLBTC in batches proving stake actions happened
+     * @param mintPayload DepositV1 payloads
      * @param proof Signatures of the consortium approving the mints
      * @param feePayload Contents of the fee approvals signed by the user
      * @param userSignature Signatures of the user to allow Fees
      */
-    function batchMintWithFee(
+    function batchMintV1WithFee(
         bytes[] calldata mintPayload,
         bytes[] calldata proof,
         bytes[] calldata feePayload,
@@ -367,7 +367,7 @@ contract NativeLBTC is
                 continue;
             }
 
-            _mintWithFee(
+            _mintV1WithFee(
                 mintPayload[i],
                 proof[i],
                 feePayload[i],
@@ -377,10 +377,10 @@ contract NativeLBTC is
     }
 
     /**
-     * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
+     * @dev Burns NativeLBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
      * @param scriptPubkey scriptPubkey for output
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of NativeLBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
@@ -405,18 +405,18 @@ contract NativeLBTC is
     }
 
     /**
-     * @dev Burns LBTC
+     * @dev Burns NativeLBTC
      *
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of NativeLBTC to burn
      */
     function burn(uint256 amount) external {
         _burn(_msgSender(), amount);
     }
 
     /**
-     * @dev Allows minters to burn LBTC
+     * @dev Allows minters to burn NativeLBTC
      *
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of NativeLBTC to burn
      */
     function burn(
         address from,
@@ -483,7 +483,7 @@ contract NativeLBTC is
 
     /**
      * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param $ LBTC storage.
+     * @param $ NativeLBTC storage.
      * @param depositID The unique ID of the deposit.
      * @param amount The withdrawal amount.
      */
@@ -498,7 +498,7 @@ contract NativeLBTC is
         }
     }
 
-    function _mintWithFee(
+    function _mintV1WithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
         bytes calldata feePayload,
