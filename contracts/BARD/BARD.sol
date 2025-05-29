@@ -26,7 +26,7 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     //The last time the mint function was called
     uint40 public lastMintTimestamp;
 
-    constructor(address _initialOwner, address _treasury) ERC20("Lombard Governance token", "BARD") ERC20Permit("BARD") Ownable(_initialOwner) {
+    constructor(address _initialOwner, address _treasury) ERC20("Lombard", "BARD") ERC20Permit("BARD") Ownable(_initialOwner) {
         // first mint not allowed until 1 year after deployment
         lastMintTimestamp = uint40(block.timestamp);
         if (_treasury == address(0)) revert ZeroAddressException();
