@@ -404,8 +404,8 @@ const config: HardhatUserConfig = {
         network: 'katanaTatara',
         chainId: 129399,
         urls: {
-          apiURL: 'https://explorer.tatara.katana.network/api',
-          browserURL: 'https://explorer.tatara.katana.network/'
+          apiURL: 'https://explorer-tatara-s4atxtv7sq.t.conduit.xyz/api',
+          browserURL: 'https://explorer-tatara-s4atxtv7sq.t.conduit.xyz:443'
         }
       },
       // mainnets

@@ -18,10 +18,11 @@ task('deploy-native-lbtc', 'Deploys the NativeLBTC contract')
   .addParam('treasury', 'The address of the treasury')
   .addParam('admin', 'The owner of the proxy', 'self')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
+  .addOptionalParam('adminChangeDelay', 'The delay of admin role change', '0')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
-    const { ledgerNetwork, consortium, burnCommission, treasury, admin, proxyFactoryAddr } = taskArgs;
+    const { ledgerNetwork, consortium, burnCommission, treasury, admin, proxyFactoryAddr, adminChangeDelay } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     let owner = await signer.getAddress();
@@ -32,14 +33,10 @@ task('deploy-native-lbtc', 'Deploys the NativeLBTC contract')
 
     const data = await create3(
       'NativeLBTC',
-      [consortium, burnCommission, treasury, admin],
+      [consortium, burnCommission, treasury, admin, adminChangeDelay],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
       hre
     );
-
-    // reinitialize
-    const lbtc = await ethers.getContractAt('NativeLBTC', data.proxy);
-    await lbtc.reinitialize();
   });
