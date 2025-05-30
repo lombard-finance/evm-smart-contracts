@@ -9,7 +9,6 @@ import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Vo
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import "./IBARD.sol";
 
-
 /**
  * @title ERC20 representation of Lombard Governance Token (BARD)
  * @author Lombard.Finance
@@ -25,7 +24,10 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     //The last time the mint function was called
     uint40 public lastMintTimestamp;
 
-    constructor(address _initialOwner, address _treasury) ERC20("Lombard", "BARD") ERC20Permit("BARD") Ownable(_initialOwner) {
+    constructor(
+        address _initialOwner,
+        address _treasury
+    ) ERC20("Lombard", "BARD") ERC20Permit("BARD") Ownable(_initialOwner) {
         // first mint not allowed until 1 year after deployment
         lastMintTimestamp = uint40(block.timestamp);
         if (_treasury == address(0)) revert ZeroAddressException();
@@ -40,9 +42,13 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
      * @dev Only callable by the owner once per year and amount must be less than max inflation rate
      */
     function mint(address to, uint256 amount) external onlyOwner {
-        if (block.timestamp - lastMintTimestamp < MINT_WAIT_PERIOD) revert MintWaitPeriodNotClosed(MINT_WAIT_PERIOD - (block.timestamp - lastMintTimestamp));
-        uint256 _maxInflationAmount = totalSupply() * MAX_INFLATION / 100;
-        if (amount > _maxInflationAmount) revert MaxInflationExceeded(_maxInflationAmount);
+        if (block.timestamp - lastMintTimestamp < MINT_WAIT_PERIOD)
+            revert MintWaitPeriodNotClosed(
+                MINT_WAIT_PERIOD - (block.timestamp - lastMintTimestamp)
+            );
+        uint256 _maxInflationAmount = (totalSupply() * MAX_INFLATION) / 100;
+        if (amount > _maxInflationAmount)
+            revert MaxInflationExceeded(_maxInflationAmount);
         lastMintTimestamp = uint40(block.timestamp);
         _mint(to, amount);
         emit Mint(to, amount);
@@ -67,7 +73,9 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     /**
      * @dev Override of the nonces function to satisfy both IERC20Permit and Nonces
      */
-    function nonces(address owner) public view virtual override(ERC20Permit, Nonces) returns (uint256) {
+    function nonces(
+        address owner
+    ) public view virtual override(ERC20Permit, Nonces) returns (uint256) {
         return super.nonces(owner);
     }
 }

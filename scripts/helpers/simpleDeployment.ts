@@ -11,7 +11,7 @@ export async function deploy(
   const impl = await ethers.deployContract(contract, args);
   await impl.waitForDeployment();
 
-  const contractAddress = await impl.getAddress()
+  const contractAddress = await impl.getAddress();
   await verify(run, contractAddress);
 
   return { contractAddress };
