@@ -7,7 +7,6 @@ import { deploy } from '../helpers/simpleDeployment';
  */
 
 task('deploy-bard', 'Deploys the BARD contract (non-upgradable)')
-  .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('admin', 'The address of the owner', 'self')
   .addParam('treasury', 'The address of the treasury')
   .setAction(async (taskArgs, hre) => {
@@ -16,5 +15,5 @@ task('deploy-bard', 'Deploys the BARD contract (non-upgradable)')
     const [signer] = await hre.ethers.getSigners();
     const admin = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
 
-    await deploy('BARD', [admin, treasury], ledgerNetwork, hre);
+    await deploy('BARD', [admin, treasury], hre);
   });
