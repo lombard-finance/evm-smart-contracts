@@ -1,141 +1,217 @@
-import { ethers as ethers2 } from 'ethers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { mine, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { deployContract, getSignersWithPrivateKeys, Signer } from './helpers';
-import { BARD, BARDMock } from '../typechain-types';
+import { BARD } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
+const e18 = 10n ** 18n;
+
 describe('BARD', function () {
-  let deployer: Signer,
-    signer1: Signer,
-    signer2: Signer,
-    signer3: Signer,
-    treasury: Signer,
-    treasury2: Signer,
-    admin: Signer;
-  let bardMock: BARDMock;
+  let deployer: Signer, owner: Signer, treasury: Signer, signer1: Signer, signer2: Signer;
   let bard: BARD;
   let snapshot: SnapshotRestorer;
-  let snapshotTimestamp: number;
+  let deployTimestamp: number;
   const oneYear = 60 * 60 * 24 * 365;
 
   before(async function () {
-    [deployer, signer1, signer2, signer3, treasury, treasury2, admin] = await getSignersWithPrivateKeys();
+    [deployer, owner, treasury, signer1, signer2] = await getSignersWithPrivateKeys();
 
-    bardMock = await deployContract<BARDMock>('BARDMock', [], false);
+    bard = await deployContract<BARD>('BARD', [owner, treasury], false);
 
     snapshot = await takeSnapshot();
-    snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
+    deployTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
   });
 
-  afterEach(async function () {
-    // clean the state after each test
-    await snapshot.restore();
-  });
-
-  describe('Constructor', function () {
-    afterEach(async function () {
-      // clean the state after each test
-      await snapshot.restore();
-    });
-
-    it('treasury receives expected number of tokens. total supply is correct', async function () {
-      const token = await deployContract<BARD>('BARD', [admin, treasury], false);
-      expect(await token.balanceOf(treasury)).to.equal(ethers2.parseEther('1000000000'));
-      expect(await token.totalSupply()).to.equal(ethers2.parseEther('1000000000'));
-    });
-
-    it('treasury canot be empty', async function () {
-      await expect(
-        deployContract<BARD>('BARD', [admin, '0x0000000000000000000000000000000000000000'], false)
-      ).to.revertedWithCustomError(bardMock, 'ZeroAddressException');
-    });
-
-    it('owner canot be empty', async function () {
-      await expect(
-        deployContract<BARD>('BARD', ['0x0000000000000000000000000000000000000000', treasury], false)
-      ).to.revertedWithCustomError(bardMock, 'OwnableInvalidOwner');
-    });
-  });
-
-  describe('Time and volume constrained minting', function () {
-    let deployTimestamp: number;
-
+  describe('Deployment', function () {
     beforeEach(async function () {
-      bard = await deployContract<BARD>('BARD', [admin, treasury], false);
-      deployTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
-    });
-
-    afterEach(async function () {
-      // clean the state after each test
       await snapshot.restore();
     });
 
-    it('owner can mint 365 days after deploy', async function () {
-      await time.increaseTo(deployTimestamp + oneYear + 1);
-      expect(await bard.connect(admin).mint(treasury2, ethers2.parseEther('100000000')))
-        .to.emit(bard, 'Mint')
-        .withArgs(treasury2, ethers2.parseEther('100000000'));
-      expect(await bard.balanceOf(treasury)).to.equal(ethers2.parseEther('1000000000'));
-      expect(await bard.balanceOf(treasury2)).to.equal(ethers2.parseEther('100000000'));
-      expect(await bard.totalSupply()).to.equal(ethers2.parseEther('1100000000'));
+    it('Treasury receives expected number of tokens. total supply is correct', async function () {
+      expect(await bard.balanceOf(treasury)).to.equal(1_000_000_000n * e18);
+      expect(await bard.totalSupply()).to.equal(1_000_000_000n * e18);
     });
 
-    it('owner can mint second time 365 days after previous mint', async function () {
-      await time.increaseTo(deployTimestamp + oneYear + 1);
-      expect(await bard.connect(admin).mint(treasury2, ethers2.parseEther('100000000')))
-        .to.emit(bard, 'Mint')
-        .withArgs(treasury2, ethers2.parseEther('100000000'));
-      expect(await bard.balanceOf(treasury)).to.equal(ethers2.parseEther('1000000000'));
-      expect(await bard.balanceOf(treasury2)).to.equal(ethers2.parseEther('100000000'));
-      expect(await bard.totalSupply()).to.equal(ethers2.parseEther('1100000000'));
-
-      const mintTimetsamp = (await ethers.provider.getBlock('latest'))!.timestamp;
-      await time.increaseTo(mintTimetsamp + oneYear + 1);
-      expect(await bard.connect(admin).mint(treasury2, ethers2.parseEther('50000000')))
-        .to.emit(bard, 'Mint')
-        .withArgs(treasury2, ethers2.parseEther('50000000'));
-
-      expect(await bard.balanceOf(treasury)).to.equal(ethers2.parseEther('1000000000'));
-      expect(await bard.balanceOf(treasury2)).to.equal(ethers2.parseEther('150000000'));
-      expect(await bard.totalSupply()).to.equal(ethers2.parseEther('1150000000'));
+    it('Name', async function () {
+      expect(await bard.name()).to.equal('Lombard');
     });
 
-    it('non-owner cannot mint after 365 days', async function () {
-      await time.increaseTo(deployTimestamp + oneYear + 1);
-      await expect(bard.connect(deployer).mint(treasury2, ethers2.parseEther('100000000')))
-        .to.revertedWithCustomError(bard, 'OwnableUnauthorizedAccount')
-        .withArgs(deployer.address);
+    it('Symbol', async function () {
+      expect(await bard.symbol()).to.equal('BARD');
     });
 
-    it('owner cannot mint earlier than 365 days after deploy', async function () {
+    it('Reverts when treasury is 0 address', async function () {
+      await expect(deployContract<BARD>('BARD', [owner, ethers.ZeroAddress], false)).to.revertedWithCustomError(
+        bard,
+        'ZeroAddressException'
+      );
+    });
+
+    it('Reverts when owner is 0 address', async function () {
+      await expect(deployContract<BARD>('BARD', [ethers.ZeroAddress, treasury], false)).to.revertedWithCustomError(
+        bard,
+        'OwnableInvalidOwner'
+      );
+    });
+
+    it('Reverts when renounces ownership', async function () {
+      await expect(bard.connect(owner).renounceOwnership()).to.revertedWithCustomError(bard, 'CantRenounceOwnership');
+    });
+  });
+
+  describe('Mint', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+    });
+
+    it('Reverts when already minted this epoch', async function () {
       await time.increaseTo(deployTimestamp + oneYear - 10);
-      await expect(bard.connect(admin).mint(treasury2, ethers2.parseEther('100000000')))
+      await expect(bard.connect(owner).mint(signer1, e18))
         .to.revertedWithCustomError(bard, 'MintWaitPeriodNotClosed')
         .withArgs(9);
     });
 
-    it('owner cannot mint earlier than 365 days after previous mint', async function () {
-      await time.increaseTo(deployTimestamp + oneYear + 10000);
-      expect(await bard.connect(admin).mint(treasury2, ethers2.parseEther('100000000')))
-        .to.emit(bard, 'Mint')
-        .withArgs(treasury2, ethers2.parseEther('100000000'));
-      expect(await bard.balanceOf(treasury)).to.equal(ethers2.parseEther('1000000000'));
-      expect(await bard.balanceOf(treasury2)).to.equal(ethers2.parseEther('100000000'));
-      expect(await bard.totalSupply()).to.equal(ethers2.parseEther('1100000000'));
-
-      await time.increaseTo(deployTimestamp + oneYear * 2 + 2);
-      await expect(bard.connect(admin).mint(treasury2, ethers2.parseEther('100000000')))
-        .to.revertedWithCustomError(bard, 'MintWaitPeriodNotClosed')
-        .withArgs(10000 - 2);
+    it('Reverts when called by not an owner', async function () {
+      await time.increaseTo(deployTimestamp + oneYear);
+      await expect(bard.connect(deployer).mint(signer1, e18))
+        .to.revertedWithCustomError(bard, 'OwnableUnauthorizedAccount')
+        .withArgs(deployer.address);
     });
 
-    it('owner cannot mint more than 10% of the current total supply', async function () {
+    it('Owner can mint since 1y has passed after deployment', async function () {
+      await time.increaseTo(deployTimestamp + oneYear);
+      const supplyBefore = await bard.totalSupply();
+
+      const amount = 1_00_000_000n * e18;
+      const tx = await bard.connect(owner).mint(signer1, amount);
+      await expect(tx).to.emit(bard, 'Mint').withArgs(signer1, amount);
+      await expect(tx).to.changeTokenBalance(bard, signer1, amount);
+      await expect(tx).to.changeTokenBalance(bard, treasury, 0n);
+
+      const supplyAfter = await bard.totalSupply();
+      expect(supplyAfter - supplyBefore).to.equal(amount);
+    });
+
+    it('Owner can mint in the year after next', async function () {
+      await time.increaseTo(deployTimestamp + oneYear);
+      const amount1 = 1_00_000_000n * e18;
+      await bard.connect(owner).mint(signer1, amount1);
+
+      await time.increaseTo(deployTimestamp + oneYear * 2);
+      const supplyBefore = await bard.totalSupply();
+
+      const recipient = ethers.Wallet.createRandom().address;
+      const amount2 = 50_000_000n * e18;
+      const tx = await bard.connect(owner).mint(recipient, amount2);
+      await expect(tx).to.emit(bard, 'Mint').withArgs(recipient, amount2);
+      await expect(tx).to.changeTokenBalance(bard, recipient, amount2);
+      await expect(tx).to.changeTokenBalance(bard, treasury, 0n);
+
+      const supplyAfter = await bard.totalSupply();
+      expect(supplyAfter - supplyBefore).to.equal(amount2);
+    });
+
+    it('Owner cannot mint earlier than 365 days after previous mint', async function () {
+      await time.increaseTo(deployTimestamp + oneYear);
+      const amount1 = 1_00_000_000n * e18;
+      await bard.connect(owner).mint(signer1, amount1);
+
+      const amount = 50_000_000n * e18;
+      await expect(bard.connect(owner).mint(signer1, amount))
+        .to.revertedWithCustomError(bard, 'MintWaitPeriodNotClosed')
+        .withArgs(oneYear - 1);
+    });
+
+    it('Owner cannot mint more than 10% of the current total supply', async function () {
       await time.increaseTo(deployTimestamp + oneYear + 1);
-      await expect(bard.connect(admin).mint(treasury2, ethers2.parseEther('100000001')))
+      await expect(bard.connect(owner).mint(signer1, 1_00_000_000n * e18 + 1n))
         .to.revertedWithCustomError(bard, 'MaxInflationExceeded')
-        .withArgs(ethers2.parseEther('100000000'));
+        .withArgs(1_00_000_000n * e18);
     });
   });
+
+  describe('Permit', function () {
+    before(async function () {
+      await snapshot.restore();
+    })
+
+    it("Permit with mock token", async () => {
+      const factory = await ethers.getContractFactory('PermitMock');
+      const bard = await factory.deploy('Name', 'Symbol');
+      const value = e18;
+      const deadline = deployTimestamp + oneYear;
+      const nonce = await bard.nonces(treasury.address);
+
+      const domain = {
+        name: await bard.name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await bard.getAddress(),
+      };
+
+      const types = {
+        Permit: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+        ],
+      };
+
+      const message = {
+        owner: treasury.address,
+        spender: signer1.address,
+        value,
+        nonce,
+        deadline,
+      };
+
+      const signature = await treasury.signTypedData(domain, types, message);
+      const { v, r, s } = ethers.Signature.from(signature);
+
+      // Expect the permit to revert due to expired deadline
+      await bard.permit(treasury.address, signer1.address, value, deadline, v, r, s);
+    });
+
+    it("Permit with bard token", async () => {
+      const factory = await ethers.getContractFactory('PermitMock');
+      const bard = await factory.deploy('Name', 'Symbol');
+      const value = e18;
+      const deadline = deployTimestamp + oneYear;
+      const nonce = await bard.nonces(treasury.address);
+
+      const domain = {
+        name: await bard.name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await bard.getAddress(),
+      };
+
+      const types = {
+        Permit: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+        ],
+      };
+
+      const message = {
+        owner: treasury.address,
+        spender: signer1.address,
+        value,
+        nonce,
+        deadline,
+      };
+
+      const signature = await treasury.signTypedData(domain, types, message);
+      const { v, r, s } = ethers.Signature.from(signature);
+
+      // Expect the permit to revert due to expired deadline
+      await bard.permit(treasury.address, signer1.address, value, deadline, v, r, s);
+    });
+  })
 });
