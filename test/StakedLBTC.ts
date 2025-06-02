@@ -1740,7 +1740,9 @@ describe('StakedLBTC', function () {
       stakedLbtcBytes32 = encode(['address'], [await stakedLbtc.getAddress()]);
 
       // set swap router
-      await stakedLbtc.connect(deployer).changeSwapRouter(swapRouter);
+      await expect(stakedLbtc.connect(deployer).changeSwapRouter(swapRouter))
+        .to.emit(stakedLbtc, 'SwapRouterChanged')
+        .withArgs(ethers.ZeroAddress, swapRouter);
 
       // set StakedLBTC => NativeLBTC
       await swapRouter

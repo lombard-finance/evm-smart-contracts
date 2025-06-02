@@ -6,14 +6,14 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
 
 /**
- * @title Registry to store xxxLBTC tokens addresses
+ * @title Router to store xxxLBTC swap paths and token's name.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
 contract SwapRouter is ISwapRouter, Ownable2StepUpgradeable {
     using EnumerableMap for EnumerableMap.Bytes32ToBytes32Map;
-    /// @custom:storage-location erc7201:lombardfinance.storage.TokenRegistry
-    struct TokenRegistryStorage {
+    /// @custom:storage-location erc7201:lombardfinance.storage.SwapRouter
+    struct SwapRouterStorage {
         mapping(bytes32 => Route) routes;
         EnumerableMap.Bytes32ToBytes32Map namedTokens;
     }
@@ -24,8 +24,8 @@ contract SwapRouter is ISwapRouter, Ownable2StepUpgradeable {
     }
 
     /// TODO: calcualte
-    /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant TOKEN_REGISTRY_STORAGE_LOCATION =
+    /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.SwapRouter")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant SWAP_ROUTER_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -36,16 +36,16 @@ contract SwapRouter is ISwapRouter, Ownable2StepUpgradeable {
 
     function initialize(address owner) external initializer {
         __Ownable_init(owner);
-        __TokenRegistry_init();
+        __SwapRouter_init();
     }
 
-    function __TokenRegistry_init() internal onlyInitializing {}
+    function __SwapRouter_init() internal onlyInitializing {}
 
     function getRoute(
         bytes32 fromToken,
         bytes32 toChainId
     ) external view override returns (bytes32 toToken) {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route memory r = $.routes[key];
         return r.toToken;
@@ -57,9 +57,10 @@ contract SwapRouter is ISwapRouter, Ownable2StepUpgradeable {
         bytes32 toToken,
         bytes32 toChainId
     ) external onlyOwner {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         $.routes[key] = Route(toToken, toChainId);
+        emit RouteSet(fromToken, fromChainId, toToken, toChainId);
     }
 
     function isAllowedRoute(
@@ -67,28 +68,29 @@ contract SwapRouter is ISwapRouter, Ownable2StepUpgradeable {
         bytes32 toChainId,
         bytes32 toToken
     ) external view override returns (bool) {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route memory r = $.routes[key];
         return r.toToken == toToken && r.toChainId == toChainId;
     }
 
     function setNamedToken(bytes32 name, address token) external onlyOwner {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         $.namedTokens.set(name, bytes32(uint256(uint160(token))));
+        emit NamedTokenSet(name, token);
     }
 
     function getNamedToken(
         bytes32 name
     ) external view override returns (address) {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         return address(uint160(uint256($.namedTokens.get(name))));
     }
 
     function containsNamedToken(
         bytes32 name
     ) external view override returns (bool) {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         return $.namedTokens.contains(name);
     }
 
@@ -98,17 +100,17 @@ contract SwapRouter is ISwapRouter, Ownable2StepUpgradeable {
         override
         returns (bytes32[] memory)
     {
-        TokenRegistryStorage storage $ = _getTokenRegistryStorage();
+        SwapRouterStorage storage $ = _getSwapRouterStorage();
         return $.namedTokens.keys();
     }
 
-    function _getTokenRegistryStorage()
+    function _getSwapRouterStorage()
         private
         pure
-        returns (TokenRegistryStorage storage $)
+        returns (SwapRouterStorage storage $)
     {
         assembly {
-            $.slot := TOKEN_REGISTRY_STORAGE_LOCATION
+            $.slot := SWAP_ROUTER_STORAGE_LOCATION
         }
     }
 }

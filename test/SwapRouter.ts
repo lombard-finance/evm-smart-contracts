@@ -21,7 +21,9 @@ describe('SwapRouter', function () {
 
   describe('Named Tokens', function () {
     it('should allow owner to set and get a named token', async () => {
-      await swapRouter.connect(owner).setNamedToken(tokenName, dummyToken);
+      await expect(swapRouter.connect(owner).setNamedToken(tokenName, dummyToken))
+        .to.emit(swapRouter, 'NamedTokenSet')
+        .withArgs(tokenName, dummyToken);
       const result = await swapRouter.getNamedToken(tokenName);
       expect(result).to.equal(dummyToken);
     });
@@ -44,7 +46,9 @@ describe('SwapRouter', function () {
     const toChainId = ethers.keccak256(ethers.toUtf8Bytes('Chain2'));
 
     it('should get the correct route toToken', async () => {
-      await swapRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId);
+      await expect(swapRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId))
+        .to.emit(swapRouter, 'RouteSet')
+        .withArgs(fromToken, fromChainId, toToken, toChainId);
       const result = await swapRouter.getRoute(fromToken, toChainId);
       expect(result).to.equal(toToken);
     });
