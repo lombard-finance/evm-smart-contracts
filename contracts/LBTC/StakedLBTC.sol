@@ -615,7 +615,7 @@ contract StakedLBTC is
 
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         address nativeToken = $.swapRouter.getNamedToken(
-            keccak256("NativeLbtc")
+            keccak256("NativeLBTC")
         );
         if (nativeToken == address(0)) {
             // TODO: use different error
@@ -634,7 +634,7 @@ contract StakedLBTC is
             nonce,
             recipient,
             amount,
-            address(this),
+            nativeToken,
             toToken,
             tolChainId
         );

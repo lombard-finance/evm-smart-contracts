@@ -1727,11 +1727,12 @@ describe('StakedLBTC', function () {
     let nativeLbtc: NativeLBTC;
     let nativeLbtcBytes32: BytesLike;
     let stakedLbtcBytes32: BytesLike;
-    let nonce: bigint = 1n;
+    let nonce: bigint;
 
     const AMOUNT = 1_000_000n;
 
     beforeEach(async function () {
+      nonce = 1n;
       swapRouter = await deployContract('SwapRouter', [deployer.address]);
       const { lbtc } = await initNativeLBTC(1, treasury.address, deployer.address);
       nativeLbtc = lbtc;
@@ -1777,7 +1778,7 @@ describe('StakedLBTC', function () {
       await expect(stakedLbtc.connect(signer1).swapToNative(CHAIN_ID, recipient, AMOUNT))
         .to.emit(stakedLbtc, 'SwapRequest')
         .withArgs(signer1, recipient, stakedLbtc, AMOUNT, expectedRequestPayload)
-        .and.emit(stakedLbtc, 'Transfer')
+        .and.emit(stakedLbtc, 'Transfer') // burn StakedLBTC from sender
         .withArgs(signer1, ethers.ZeroAddress, AMOUNT);
 
       const { payload: receiptPayload, proof } = await signSwapReceiptPayload(
@@ -1794,10 +1795,52 @@ describe('StakedLBTC', function () {
       await expect(stakedLbtc.finishSwap(receiptPayload, proof))
         .to.emit(stakedLbtc, 'SwapFinished')
         .withArgs(signer2, nativeLbtc, AMOUNT)
-        .and.emit(nativeLbtc, 'Transfer')
+        .and.emit(nativeLbtc, 'Transfer') // mint tokens
         .withArgs(ethers.ZeroAddress, stakedLbtc, AMOUNT)
-        .and.emit(nativeLbtc, 'Transfer')
+        .and.emit(nativeLbtc, 'Transfer') // transfer to recipient
         .withArgs(stakedLbtc, signer2, AMOUNT);
+    });
+
+    it('should swap from native', async () => {
+      const recipient = encode(['address'], [signer3.address]);
+      const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signSwapRequestPayload(
+        [signer1],
+        [false],
+        nonce++,
+        recipient,
+        AMOUNT,
+        nativeLbtcBytes32,
+        stakedLbtcBytes32,
+        CHAIN_ID,
+        CHAIN_ID
+      );
+      await nativeLbtc.connect(signer1).approve(stakedLbtc, AMOUNT);
+      await expect(stakedLbtc.connect(signer1).swapFromNative(CHAIN_ID, recipient, AMOUNT))
+        .to.emit(stakedLbtc, 'SwapRequest')
+        .withArgs(signer1, recipient, nativeLbtc, AMOUNT, expectedRequestPayload)
+        .and.emit(nativeLbtc, 'Transfer') // swap tokens from sender
+        .withArgs(signer1, stakedLbtc, AMOUNT)
+        .and.emit(nativeLbtc, 'Transfer')
+        .withArgs(stakedLbtc, ethers.ZeroAddress, AMOUNT); // finally burn
+
+      const { payload: receiptPayload, proof } = await signSwapReceiptPayload(
+        [signer1],
+        [true],
+        requestPayloadHash,
+        recipient,
+        AMOUNT,
+        nativeLbtcBytes32,
+        stakedLbtcBytes32,
+        CHAIN_ID
+      );
+
+      await expect(stakedLbtc.finishSwap(receiptPayload, proof))
+        .to.emit(stakedLbtc, 'SwapFinished')
+        .withArgs(signer3, stakedLbtc, AMOUNT)
+        .and.emit(stakedLbtc, 'Transfer') // mint to stakedLbtc
+        .withArgs(ethers.ZeroAddress, stakedLbtc, AMOUNT)
+        .and.emit(stakedLbtc, 'Transfer') // transfer to recipient
+        .withArgs(stakedLbtc, signer3, AMOUNT);
     });
   });
 });

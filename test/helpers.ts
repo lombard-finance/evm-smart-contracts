@@ -19,7 +19,7 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32) external',
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
   'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
-  'function payload(uint256,bytes32,uint256,bytes32,bytes32,bytes32,bytes32) external', // SwapRequest
+  'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes32) external', // SwapRequest
   'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external' // SwapReceipt
 ]);
 
@@ -41,7 +41,7 @@ export const DEPOSIT_BTC_ACTION_V0 = '0xf2e73f7c';
 export const DEPOSIT_BTC_ACTION_V1 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
-export const SWAP_REQUEST_SELECTOR = '0x45f952fa';
+export const SWAP_REQUEST_SELECTOR = '0x0de719dc';
 export const SWAP_RECEIPT_SELECTOR = '0x965597b5';
 
 export async function signDepositBridgePayload(
@@ -147,7 +147,7 @@ export async function signSwapRequestPayload(
   toLChainID: BytesLike
 ) {
   let msg = getPayloadForAction(
-    [nonce, recipient, amount, fromToken, toToken, fromLChainId, toLChainID],
+    [nonce, amount, recipient, fromToken, toToken, fromLChainId, toLChainID],
     SWAP_REQUEST_SELECTOR
   );
   return signPayload(signers, signatures, msg);

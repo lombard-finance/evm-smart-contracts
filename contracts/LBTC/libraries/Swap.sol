@@ -23,8 +23,8 @@ library Swap {
         bytes32 lChainId;
     }
 
-    // bytes4(keccak256("payload(uint256,bytes32,uint256,bytes32,bytes32,bytes32,bytes32)")
-    bytes4 internal constant REQUEST_SELECTOR = 0x45f952fa;
+    // bytes4(keccak256("payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes32)")
+    bytes4 internal constant REQUEST_SELECTOR = 0x0de719dc;
 
     // bytes4(keccak256("payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32)")
     bytes4 internal constant RECEIPT_SELECTOR = 0x965597b5;
@@ -44,9 +44,9 @@ library Swap {
             abi.encodeWithSelector(
                 REQUEST_SELECTOR,
                 nonce,
-                recipient,
                 amount,
-                fromToken,
+                recipient,
+                bytes32(uint256(uint160(fromToken))),
                 toToken,
                 bytes32(block.chainid), // TODO: use Lombard Chain Id library later
                 toChain
