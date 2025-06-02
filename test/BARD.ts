@@ -138,7 +138,8 @@ describe('BARD', function () {
 
     it("Permit with mock token", async () => {
       const factory = await ethers.getContractFactory('PermitMock');
-      const bard = await factory.deploy('Name', 'Symbol');
+      // const bard = await factory.deploy('Name', 'Symbol');
+      const bard = await deployContract<BARD>('BARD', [owner, treasury], false);
       const value = e18;
       const deadline = deployTimestamp + oneYear;
       const nonce = await bard.nonces(treasury.address);
@@ -176,8 +177,9 @@ describe('BARD', function () {
     });
 
     it("Permit with bard token", async () => {
-      const factory = await ethers.getContractFactory('PermitMock');
-      const bard = await factory.deploy('Name', 'Symbol');
+      // const factory = await ethers.getContractFactory('PermitMock');
+      // const bard = await factory.deploy('Name', 'Symbol');
+      const bard = await deployContract<BARD>('BARD', [owner, treasury], false);
       const value = e18;
       const deadline = deployTimestamp + oneYear;
       const nonce = await bard.nonces(treasury.address);
