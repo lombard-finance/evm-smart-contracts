@@ -40,6 +40,12 @@ library Swap {
         bytes32 toToken,
         bytes32 toChain
     ) internal view returns (bytes memory) {
+        if (amount == 0) {
+            revert Swap_ZeroAmount();
+        }
+        if (recipient == bytes32(0)) {
+            revert Swap_ZeroRecipient();
+        }
         return
             abi.encodeWithSelector(
                 REQUEST_SELECTOR,

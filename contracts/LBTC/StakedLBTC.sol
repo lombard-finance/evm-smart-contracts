@@ -283,6 +283,10 @@ contract StakedLBTC is
         return _getStakedLBTCStorage().consortium;
     }
 
+    function swapRouter() external view returns (ISwapRouter) {
+        return _getStakedLBTCStorage().swapRouter;
+    }
+
     /**
      * @dev Returns the number of decimals used to get its user representation.
      *
@@ -574,8 +578,6 @@ contract StakedLBTC is
         bytes32 recipient,
         uint256 amount
     ) external nonReentrant {
-        // TODO: validations
-
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         bytes32 toToken = $.swapRouter.getRoute(
             bytes32(uint256(uint160(address(this)))),
@@ -611,16 +613,11 @@ contract StakedLBTC is
         bytes32 recipient,
         uint256 amount
     ) external nonReentrant {
-        // TODO: validations
-
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        // if token not found will revert with Enum error
         address nativeToken = $.swapRouter.getNamedToken(
             keccak256("NativeLBTC")
         );
-        if (nativeToken == address(0)) {
-            // TODO: use different error
-            revert SwapNotAllowed();
-        }
         bytes32 toToken = $.swapRouter.getRoute(
             bytes32(uint256(uint160(nativeToken))),
             tolChainId
