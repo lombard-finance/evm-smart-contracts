@@ -99,7 +99,7 @@ describe('BARD', function () {
       expect(supplyAfter - supplyBefore).to.equal(amount);
     });
 
-    it('Owner can mint in the year after next', async function () {
+    it('Owner can mint in the year after the next one', async function () {
       await time.increaseTo(deployTimestamp + oneYear);
       const amount1 = 1_00_000_000n * e18;
       await bard.connect(owner).mint(signer1, amount1);
