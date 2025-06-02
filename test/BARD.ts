@@ -4,6 +4,7 @@ import { takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-hel
 import { deployContract, getSignersWithPrivateKeys, Signer } from './helpers';
 import { BARD } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
+import { TypedDataDomain } from 'ethers';
 
 const e18 = 10n ** 18n;
 
@@ -57,6 +58,11 @@ describe('BARD', function () {
 
     it('Reverts when renounces ownership', async function () {
       await expect(bard.connect(owner).renounceOwnership()).to.revertedWithCustomError(bard, 'CantRenounceOwnership');
+    });
+
+    it('Reverts when renounces ownership', async function () {
+      await expect(bard.connect(signer1).renounceOwnership()).to.revertedWithCustomError(bard, 'OwnableUnauthorizedAccount')
+        .withArgs(signer1.address);
     });
   });
 
@@ -131,25 +137,22 @@ describe('BARD', function () {
     });
   });
 
-  describe('Permit', function () {
+  describe('Permit and delegate', function () {
+    let domain: TypedDataDomain;
     before(async function () {
       await snapshot.restore();
+      domain = {
+        name: await bard.name(),
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await bard.getAddress(),
+      };
     })
 
-    it("Permit with mock token", async () => {
-      const factory = await ethers.getContractFactory('PermitMock');
-      // const bard = await factory.deploy('Name', 'Symbol');
-      const bard = await deployContract<BARD>('BARD', [owner, treasury], false);
+    it("Use permit", async () => {
       const value = e18;
       const deadline = deployTimestamp + oneYear;
       const nonce = await bard.nonces(treasury.address);
-
-      const domain = {
-        name: await bard.name(),
-        version: "1",
-        chainId: (await ethers.provider.getNetwork()).chainId,
-        verifyingContract: await bard.getAddress(),
-      };
 
       const types = {
         Permit: [
@@ -173,47 +176,36 @@ describe('BARD', function () {
       const { v, r, s } = ethers.Signature.from(signature);
 
       // Expect the permit to revert due to expired deadline
-      await bard.permit(treasury.address, signer1.address, value, deadline, v, r, s);
+      const tx = await bard.permit(treasury.address, signer1.address, value, deadline, v, r, s);
+      await expect(tx).to.emit(bard, 'Approval').withArgs(treasury.address, signer1.address, value);
+      expect(await bard.nonces(treasury.address)).to.be.eq(nonce+1n);
     });
 
-    it("Permit with bard token", async () => {
-      // const factory = await ethers.getContractFactory('PermitMock');
-      // const bard = await factory.deploy('Name', 'Symbol');
-      const bard = await deployContract<BARD>('BARD', [owner, treasury], false);
-      const value = e18;
-      const deadline = deployTimestamp + oneYear;
-      const nonce = await bard.nonces(treasury.address);
-
-      const domain = {
-        name: await bard.name(),
-        version: "1",
-        chainId: (await ethers.provider.getNetwork()).chainId,
-        verifyingContract: await bard.getAddress(),
-      };
+    it("Use vote delegate", async () => {
+      const nonce = await bard.nonces(treasury);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // +1 hour
 
       const types = {
-        Permit: [
-          { name: "owner", type: "address" },
-          { name: "spender", type: "address" },
-          { name: "value", type: "uint256" },
+        Delegation: [
+          { name: "delegatee", type: "address" },
           { name: "nonce", type: "uint256" },
-          { name: "deadline", type: "uint256" },
+          { name: "expiry", type: "uint256" },
         ],
       };
 
       const message = {
-        owner: treasury.address,
-        spender: signer1.address,
-        value,
+        delegatee: signer1.address,
         nonce,
-        deadline,
+        expiry: deadline,
       };
 
       const signature = await treasury.signTypedData(domain, types, message);
       const { v, r, s } = ethers.Signature.from(signature);
 
-      // Expect the permit to revert due to expired deadline
-      await bard.permit(treasury.address, signer1.address, value, deadline, v, r, s);
+      await bard.delegateBySig(signer1, nonce, deadline, v, r, s);
+
+      expect(await bard.delegates(treasury)).to.equal(signer1);
+      expect(await bard.nonces(treasury.address)).to.be.eq(nonce+1n);
     });
   })
 });
