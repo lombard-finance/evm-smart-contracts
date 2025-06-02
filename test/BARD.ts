@@ -21,7 +21,7 @@ describe('BARD', function () {
     bard = await deployContract<BARD>('BARD', [owner, treasury], false);
 
     snapshot = await takeSnapshot();
-    deployTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
+    deployTimestamp = await time.latest();
   });
 
   describe('Deployment', function () {
@@ -71,7 +71,7 @@ describe('BARD', function () {
       await snapshot.restore();
     });
 
-    it('Reverts when already minted this epoch', async function () {
+    it('Reverts when less than a year has passed', async function () {
       await time.increaseTo(deployTimestamp + oneYear - 10);
       await expect(bard.connect(owner).mint(signer1, e18))
         .to.revertedWithCustomError(bard, 'MintWaitPeriodNotClosed')
@@ -99,12 +99,13 @@ describe('BARD', function () {
       expect(supplyAfter - supplyBefore).to.equal(amount);
     });
 
-    it('Owner can mint in the year after the next one', async function () {
-      await time.increaseTo(deployTimestamp + oneYear);
+    it('Owner can mint when more than a year has passed since last mint', async function () {
+      await time.increaseTo(deployTimestamp + oneYear * 1.5);
       const amount1 = 1_00_000_000n * e18;
       await bard.connect(owner).mint(signer1, amount1);
+      const lastMintTime = await time.latest();
 
-      await time.increaseTo(deployTimestamp + oneYear * 2);
+      await time.increaseTo(lastMintTime + oneYear);
       const supplyBefore = await bard.totalSupply();
 
       const recipient = ethers.Wallet.createRandom().address;
@@ -118,15 +119,18 @@ describe('BARD', function () {
       expect(supplyAfter - supplyBefore).to.equal(amount2);
     });
 
-    it('Owner cannot mint earlier than 365 days after previous mint', async function () {
-      await time.increaseTo(deployTimestamp + oneYear);
+    it('Owner cannot mint again until 1 year passed', async function () {
+      await time.increaseTo(deployTimestamp + oneYear * 1.5);
       const amount1 = 1_00_000_000n * e18;
       await bard.connect(owner).mint(signer1, amount1);
+      const lastMintTime = await time.latest();
+
+      await time.increaseTo(lastMintTime + oneYear - 2);
 
       const amount = 50_000_000n * e18;
       await expect(bard.connect(owner).mint(signer1, amount))
         .to.revertedWithCustomError(bard, 'MintWaitPeriodNotClosed')
-        .withArgs(oneYear - 1);
+        .withArgs(1);
     });
 
     it('Owner cannot mint more than 10% of the current total supply', async function () {
