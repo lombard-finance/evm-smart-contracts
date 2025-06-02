@@ -17,10 +17,14 @@ import {
   initStakedLBTC,
   DEFAULT_LBTC_DUST_FEE_RATE,
   FEE_APPROVAL_ACTION,
-  DEPOSIT_BTC_ACTION_V1
+  DEPOSIT_BTC_ACTION_V1,
+  initNativeLBTC,
+  signSwapRequestPayload,
+  signSwapReceiptPayload
 } from './helpers';
-import { Bascule, Consortium, StakedLBTC } from '../typechain-types';
+import { Bascule, Consortium, NativeLBTC, StakedLBTC, SwapRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 describe('StakedLBTC', function () {
   let deployer: Signer,
@@ -1715,6 +1719,85 @@ describe('StakedLBTC', function () {
           ).to.be.revertedWithCustomError(stakedLbtc, 'ERC2612InvalidSigner');
         });
       });
+    });
+  });
+
+  describe('Swap', function () {
+    let swapRouter: SwapRouter;
+    let nativeLbtc: NativeLBTC;
+    let nativeLbtcBytes32: BytesLike;
+    let stakedLbtcBytes32: BytesLike;
+    let nonce: bigint = 1n;
+
+    const AMOUNT = 1_000_000n;
+
+    beforeEach(async function () {
+      swapRouter = await deployContract('SwapRouter', [deployer.address]);
+      const { lbtc } = await initNativeLBTC(1, treasury.address, deployer.address);
+      nativeLbtc = lbtc;
+      nativeLbtcBytes32 = encode(['address'], [await nativeLbtc.getAddress()]);
+      stakedLbtcBytes32 = encode(['address'], [await stakedLbtc.getAddress()]);
+
+      // set swap router
+      await stakedLbtc.connect(deployer).changeSwapRouter(swapRouter);
+
+      // set StakedLBTC => NativeLBTC
+      await swapRouter
+        .connect(deployer)
+        .setRoute(encode(['address'], [await stakedLbtc.getAddress()]), CHAIN_ID, nativeLbtcBytes32, CHAIN_ID);
+      // set NativeLBTC => StakedLBTC
+      await swapRouter
+        .connect(deployer)
+        .setRoute(nativeLbtcBytes32, CHAIN_ID, encode(['address'], [await stakedLbtc.getAddress()]), CHAIN_ID);
+
+      // set named token
+      await swapRouter.connect(deployer).setNamedToken(ethers.keccak256(ethers.toUtf8Bytes('NativeLBTC')), nativeLbtc);
+      // give mint permission
+      await nativeLbtc.connect(deployer).grantRole(await nativeLbtc.MINTER_ROLE(), stakedLbtc);
+      await nativeLbtc.connect(deployer).grantRole(await nativeLbtc.MINTER_ROLE(), deployer);
+      // mint tokens
+      await stakedLbtc.connect(deployer)['mint(address,uint256)'](signer1, AMOUNT);
+      await nativeLbtc.connect(deployer).mint(signer1, AMOUNT);
+    });
+
+    it('should swap to native', async () => {
+      const recipient = encode(['address'], [signer2.address]);
+      const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signSwapRequestPayload(
+        [signer1],
+        [false],
+        nonce++,
+        recipient,
+        AMOUNT,
+        stakedLbtcBytes32,
+        nativeLbtcBytes32,
+        CHAIN_ID,
+        CHAIN_ID
+      );
+      // no need to approve
+      await expect(stakedLbtc.connect(signer1).swapToNative(CHAIN_ID, recipient, AMOUNT))
+        .to.emit(stakedLbtc, 'SwapRequest')
+        .withArgs(signer1, recipient, stakedLbtc, AMOUNT, expectedRequestPayload)
+        .and.emit(stakedLbtc, 'Transfer')
+        .withArgs(signer1, ethers.ZeroAddress, AMOUNT);
+
+      const { payload: receiptPayload, proof } = await signSwapReceiptPayload(
+        [signer1],
+        [true],
+        requestPayloadHash,
+        recipient,
+        AMOUNT,
+        stakedLbtcBytes32,
+        nativeLbtcBytes32,
+        CHAIN_ID
+      );
+
+      await expect(stakedLbtc.finishSwap(receiptPayload, proof))
+        .to.emit(stakedLbtc, 'SwapFinished')
+        .withArgs(signer2, nativeLbtc, AMOUNT)
+        .and.emit(nativeLbtc, 'Transfer')
+        .withArgs(ethers.ZeroAddress, stakedLbtc, AMOUNT)
+        .and.emit(nativeLbtc, 'Transfer')
+        .withArgs(stakedLbtc, signer2, AMOUNT);
     });
   });
 });

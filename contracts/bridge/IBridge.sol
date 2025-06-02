@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IBaseLBTC} from "../LBTC/IBaseLBTC.sol";
+import {IBaseLBTC} from "../LBTC/interfaces/IBaseLBTC.sol";
 import "./adapters/IAdapter.sol";
 import {IConsortiumConsumer, INotaryConsortium} from "../interfaces/IConsortiumConsumer.sol";
 

@@ -6,14 +6,20 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {ISwap} from "./interfaces/ISwap.sol";
+import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
+import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
 import {Actions} from "../libs/Actions.sol";
-import {IStakedLBTC} from "./IStakedLBTC.sol";
-import {Assert} from "./utils/Assert.sol";
-import {Validation} from "./utils/Validation.sol";
+import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
+import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
+import {Assert} from "./libraries/Assert.sol";
+import {Validation} from "./libraries/Validation.sol";
+import {Swap} from "./libraries/Swap.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -21,11 +27,14 @@ import {Validation} from "./utils/Validation.sol";
  */
 contract StakedLBTC is
     IStakedLBTC,
+    ISwap,
     ERC20PausableUpgradeable,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable,
     ERC20PermitUpgradeable
 {
+    using SafeERC20 for IERC20;
+
     /// @dev the storage name differs, because contract was renamed from LBTC
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct StakedLBTCStorage {
@@ -35,7 +44,7 @@ contract StakedLBTC is
         string name;
         string symbol;
         bool isWithdrawalsEnabled;
-        address consortium;
+        INotaryConsortium consortium;
         /// @custom:oz-renamed-from isWBTCEnabled
         bool __removed_isWBTCEnabled;
         /// @custom:oz-renamed-from wbtc
@@ -66,6 +75,8 @@ contract StakedLBTC is
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         address operator;
+        uint256 swapNonce;
+        ISwapRouter swapRouter;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -92,6 +103,7 @@ contract StakedLBTC is
 
         __Ownable_init(owner_);
         __Ownable2Step_init();
+        __ERC20Permit_init("Lombard Staked Bitcoin"); // TODO: set new name
 
         __ReentrancyGuard_init();
 
@@ -108,8 +120,8 @@ contract StakedLBTC is
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
-    function reinitialize() external reinitializer(2) {
-        __ERC20Permit_init("Lombard Staked Bitcoin"); // TODO: set new name
+    function reinitialize() external reinitializer(3) {
+        _getStakedLBTCStorage().swapNonce = 1; // start count nonce from 1
     }
 
     /// MODIFIER ///
@@ -207,6 +219,10 @@ contract StakedLBTC is
         _updateClaimer(oldClaimer, false);
     }
 
+    function changeSwapRouter(address newVal) external onlyOwner {
+        _changeSwapRouter(newVal);
+    }
+
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
@@ -263,7 +279,7 @@ contract StakedLBTC is
         return (amountAfterFee, isAboveDust);
     }
 
-    function consortium() external view virtual returns (address) {
+    function consortium() external view virtual returns (INotaryConsortium) {
         return _getStakedLBTCStorage().consortium;
     }
 
@@ -553,6 +569,132 @@ contract StakedLBTC is
         _burn(from, amount);
     }
 
+    function swapToNative(
+        bytes32 tolChainId,
+        bytes32 recipient,
+        uint256 amount
+    ) external nonReentrant {
+        // TODO: validations
+
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        bytes32 toToken = $.swapRouter.getRoute(
+            bytes32(uint256(uint160(address(this)))),
+            tolChainId
+        );
+        if (toToken == bytes32(0)) {
+            revert SwapNotAllowed();
+        }
+
+        uint256 nonce = $.swapNonce++;
+        bytes memory rawPayload = Swap.encodeRequest(
+            nonce,
+            recipient,
+            amount,
+            address(this),
+            toToken,
+            tolChainId
+        );
+
+        _burn(_msgSender(), amount);
+
+        emit SwapRequest(
+            _msgSender(),
+            recipient,
+            address(this),
+            amount,
+            rawPayload
+        );
+    }
+
+    function swapFromNative(
+        bytes32 tolChainId,
+        bytes32 recipient,
+        uint256 amount
+    ) external nonReentrant {
+        // TODO: validations
+
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        address nativeToken = $.swapRouter.getNamedToken(
+            keccak256("NativeLbtc")
+        );
+        if (nativeToken == address(0)) {
+            // TODO: use different error
+            revert SwapNotAllowed();
+        }
+        bytes32 toToken = $.swapRouter.getRoute(
+            bytes32(uint256(uint160(nativeToken))),
+            tolChainId
+        );
+        if (toToken == bytes32(0)) {
+            revert SwapNotAllowed();
+        }
+
+        uint256 nonce = $.swapNonce++;
+        bytes memory rawPayload = Swap.encodeRequest(
+            nonce,
+            recipient,
+            amount,
+            address(this),
+            toToken,
+            tolChainId
+        );
+
+        IERC20(nativeToken).safeTransferFrom(
+            _msgSender(),
+            address(this),
+            amount
+        );
+        IBaseLBTC(nativeToken).burn(amount);
+
+        emit SwapRequest(
+            _msgSender(),
+            recipient,
+            nativeToken,
+            amount,
+            rawPayload
+        );
+    }
+
+    function finishSwap(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) external nonReentrant {
+        // decode SwapReceipt payload
+
+        (Swap.Receipt memory receipt, bytes32 payloadHash) = Swap.decodeReceipt(
+            rawPayload
+        );
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+
+        // spend payload
+        if ($.usedPayloads[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        $.usedPayloads[payloadHash] = true;
+        $.consortium.checkProof(payloadHash, proof);
+
+        // get route and mint token
+        address toToken = address(
+            uint160(
+                uint256(
+                    $.swapRouter.getRoute(receipt.fromToken, receipt.lChainId)
+                )
+            )
+        );
+        if (toToken != receipt.toToken) {
+            revert SwapNotAllowed();
+        }
+
+        if (toToken == address(this)) {
+            _mint(address(this), receipt.amount);
+        } else {
+            IStakedLBTC(toToken).mint(address(this), receipt.amount);
+        }
+        IERC20(toToken).transfer(receipt.recipient, receipt.amount);
+
+        emit SwapFinished(receipt.recipient, toToken, receipt.amount);
+    }
+
     /// PRIVATE FUNCTIONS ///
 
     function __StakedLBTC_init(
@@ -764,8 +906,8 @@ contract StakedLBTC is
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        emit ConsortiumChanged($.consortium, newVal);
-        $.consortium = newVal;
+        emit ConsortiumChanged(address($.consortium), newVal);
+        $.consortium = INotaryConsortium(newVal);
     }
 
     /// @dev allow set to zero
@@ -822,6 +964,14 @@ contract StakedLBTC is
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    /// @dev allow zero address to disable swaps
+    function _changeSwapRouter(address newVal) internal {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        address prevValue = address($.swapRouter);
+        $.swapRouter = ISwapRouter(newVal);
+        emit SwapRouterChanged(prevValue, newVal);
     }
 
     function _getStakedLBTCStorage()
