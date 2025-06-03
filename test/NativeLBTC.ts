@@ -15,7 +15,8 @@ import {
   DEPOSIT_BTC_ACTION_V1,
   generatePermitSignature,
   DEFAULT_LBTC_DUST_FEE_RATE,
-  FEE_APPROVAL_ACTION
+  FEE_APPROVAL_ACTION,
+  buildRedeemRequestPayload
 } from './helpers';
 import { Bascule, Consortium, NativeLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -831,9 +832,10 @@ describe('NativeLBTC', function () {
         const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
 
         await nativeLbtc.mint(signer1.address, amount);
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
         await expect(nativeLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2wpkh, expectedAmountAfterFee);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, halfAmount, burnCommission, expectedPayload);
       });
 
       it('Unstake full with P2TR', async () => {
@@ -844,9 +846,10 @@ describe('NativeLBTC', function () {
 
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
         await nativeLbtc.mint(signer1.address, amount);
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2tr, expectedAmountAfterFee);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
       });
 
       it('Unstake with commission', async () => {
@@ -858,9 +861,10 @@ describe('NativeLBTC', function () {
 
         await nativeLbtc.mint(signer1.address, amount);
 
+        const { payload: expectedPayload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2tr, amount - commission);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, commission, expectedPayload);
       });
 
       it('Unstake full with P2WSH', async () => {
@@ -873,10 +877,10 @@ describe('NativeLBTC', function () {
 
         // Calculate expected amount after fee
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
-
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
         await expect(nativeLbtc.connect(signer1).redeem(p2wsh, amount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2wsh, expectedAmountAfterFee);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
       });
     });
 
