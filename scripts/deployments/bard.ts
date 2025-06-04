@@ -15,5 +15,5 @@ task('deploy-bard', 'Deploys the BARD contract (non-upgradable)')
     const [signer] = await hre.ethers.getSigners();
     const admin = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
 
-    await deploy('BARD', [admin, treasury], hre);
+    await deploy('BARD', [admin, treasury], 'contracts/BARD/BARD.sol:BARD', hre);
   });
