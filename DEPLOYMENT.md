@@ -1,9 +1,13 @@
 # Deployment
 
 ## Envs
-| Ledger network | Name     | json        |
-|----------------|----------|-------------|
-| devnet         | staging  | devnet.json |
+| Ledger network | Name    | json            |
+|----------------|---------|-----------------|
+| devnet         | staging | devnet.json     |
+| gastald        | testnet | gastald.json    |
+| mainnet        | mainnet | mainnet.json    |
+| bft            | bft     | devnet-bft.json |
+| ibc            | ibc     | devnet-ibc.json |
 
 ## Prerequisites
 Use Node 18+
