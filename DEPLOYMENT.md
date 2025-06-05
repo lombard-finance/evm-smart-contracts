@@ -125,6 +125,8 @@ Write proxy address to json file.
 ## CCIP
 > `Bridge` should be deployed before start
 
+Use `ccip-token-pool-1.5.0` tag to deploy v1.5.0 token pool.
+
 ### Adapter & TokenPool
 Deploy `Adapter` (`TokenPool` will be deployed by adapter) on each chain
 ```bash
