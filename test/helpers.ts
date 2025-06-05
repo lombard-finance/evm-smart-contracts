@@ -13,6 +13,9 @@ export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaul
 
 export const CHAIN_ID: string = encode(['uint256'], [31337]);
 
+export const e18: bigint = 10n ** 18n;
+export const e8: bigint = 10n ** 8n;
+
 const ACTIONS_IFACE = ethers.Interface.from([
   'function feeApproval(uint256,uint256)',
   'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
@@ -326,6 +329,20 @@ export async function getFeeTypedMessage(
   const message = { chainId, fee, expiry };
 
   return signer.signTypedData(domain, types, message);
+}
+
+export function randomBigInt(length: number): bigint {
+  if (length <= 0) {
+    return BigInt(0);
+  }
+
+  const min = BigInt(10) ** BigInt(length - 1);
+  const max = BigInt(10) ** BigInt(length) - BigInt(1);
+
+  const range = max - min + BigInt(1);
+  const rand = BigInt(Math.floor(Math.random() * Number(range)));
+
+  return min + rand;
 }
 
 /**
