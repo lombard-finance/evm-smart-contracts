@@ -33,6 +33,9 @@ yarn hardhat vars set ${NAME_API_KEY} ${API_KEY}
 ```
 `NAME_API_KEY` can be found in `hardhat.config.ts`
 
+For some commands `--populate` flag available.
+The result of script will be calldata that can be sent from multisig.
+
 ## Proxy factory
 Before any *deterministic* deployment `ProxyFactory` should be deployed.
 Switch secret key to special once
@@ -119,8 +122,35 @@ Write proxy address to json file.
 > `Bridge` should be deployed before start
 
 ### Adapter & TokenPool
-TBD
+Deploy `Adapter` (`TokenPool` will be deployed by adapter) on each chain
+```bash
+yarn hardhat deploy-chainlink-adapter --admin ${OWNER} --router ${CCIP_ROUTER} --bridge ${BRIDGE} --rmn ${CCIP_RMN} --network ${NETWORK}
+```
+Write contracts address to json file.
 
+### Bridge
+
+Setup Bridge destinations using adapters
+```bash
+yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK}
+```
+Chain ids can be viewed [here](https://chainlist.org)
+
+Enable `TokenPool`
+```bash
+yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} 
+```
+Remote selector can be viewed [here](https://docs.chain.link/ccip/directory/mainnet)
+
+Set `TokenPool` rate limits
+```bash
+yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} 
+```
+
+Setup `Bridge` rate limits, they should ~2x from `TokenPool` limits.
+```bash
+yarn hardhat setup-bridge-rate-limits --bridge ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --network ${NETWORK} --window ${WINDOW_SECONDS} --limit ${WINDOW_LIMIT} [--populate]
+```
 
 ## Upgrades
 

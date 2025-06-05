@@ -1,5 +1,21 @@
 # Lombard EVM bridge contracts
 
+## Bridge with CCIP adapters
+```mermaid
+graph TD
+    BridgeA <--> AdapterA
+    AdapterA <--> TokenPoolA
+
+    TokenPoolA <--> CCIP
+    CCIP <--> TokenPoolB
+
+    TokenPoolB <--> AdapterB
+    AdapterB <--> BridgeB
+
+    BridgeA <--> Consortium
+    Consortium <--> BridgeB
+```
+
 ## Summary:
 * `Bridge.sol` - Consortium compatible bridge for 2-factor LBTC bridging.
 * `adapters` - Adapters to use as security factor for `Bridge.sol`.
