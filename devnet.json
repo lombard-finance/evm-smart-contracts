@@ -8,8 +8,29 @@
     },
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
-      "LBTC": "0xED7bfd5C1790576105Af4649817f6d35A75CD818",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "LBTC": "0xED7bfd5C1790576105Af4649817f6d35A75CD818",
+      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "CLAdapter": "",
+      "LombardTokenPool": ""
+    }
+  },
+  "sepolia": {
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
+      "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
     },
     "chainlink": {
