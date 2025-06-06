@@ -61,7 +61,8 @@ describe('BARD', function () {
     });
 
     it('Reverts when renounces ownership', async function () {
-      await expect(bard.connect(signer1).renounceOwnership()).to.revertedWithCustomError(bard, 'OwnableUnauthorizedAccount')
+      await expect(bard.connect(signer1).renounceOwnership())
+        .to.revertedWithCustomError(bard, 'OwnableUnauthorizedAccount')
         .withArgs(signer1.address);
     });
   });
@@ -147,25 +148,25 @@ describe('BARD', function () {
       await snapshot.restore();
       domain = {
         name: await bard.name(),
-        version: "1",
+        version: '1',
         chainId: (await ethers.provider.getNetwork()).chainId,
-        verifyingContract: await bard.getAddress(),
+        verifyingContract: await bard.getAddress()
       };
-    })
+    });
 
-    it("Use permit", async () => {
+    it('Use permit', async () => {
       const value = e18;
       const deadline = deployTimestamp + oneYear;
       const nonce = await bard.nonces(treasury.address);
 
       const types = {
         Permit: [
-          { name: "owner", type: "address" },
-          { name: "spender", type: "address" },
-          { name: "value", type: "uint256" },
-          { name: "nonce", type: "uint256" },
-          { name: "deadline", type: "uint256" },
-        ],
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' }
+        ]
       };
 
       const message = {
@@ -173,7 +174,7 @@ describe('BARD', function () {
         spender: signer1.address,
         value,
         nonce,
-        deadline,
+        deadline
       };
 
       const signature = await treasury.signTypedData(domain, types, message);
@@ -182,25 +183,25 @@ describe('BARD', function () {
       // Expect the permit to revert due to expired deadline
       const tx = await bard.permit(treasury.address, signer1.address, value, deadline, v, r, s);
       await expect(tx).to.emit(bard, 'Approval').withArgs(treasury.address, signer1.address, value);
-      expect(await bard.nonces(treasury.address)).to.be.eq(nonce+1n);
+      expect(await bard.nonces(treasury.address)).to.be.eq(nonce + 1n);
     });
 
-    it("Use vote delegate", async () => {
+    it('Use vote delegate', async () => {
       const nonce = await bard.nonces(treasury);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // +1 hour
 
       const types = {
         Delegation: [
-          { name: "delegatee", type: "address" },
-          { name: "nonce", type: "uint256" },
-          { name: "expiry", type: "uint256" },
-        ],
+          { name: 'delegatee', type: 'address' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'expiry', type: 'uint256' }
+        ]
       };
 
       const message = {
         delegatee: signer1.address,
         nonce,
-        expiry: deadline,
+        expiry: deadline
       };
 
       const signature = await treasury.signTypedData(domain, types, message);
@@ -209,7 +210,7 @@ describe('BARD', function () {
       await bard.delegateBySig(signer1, nonce, deadline, v, r, s);
 
       expect(await bard.delegates(treasury)).to.equal(signer1);
-      expect(await bard.nonces(treasury.address)).to.be.eq(nonce+1n);
+      expect(await bard.nonces(treasury.address)).to.be.eq(nonce + 1n);
     });
-  })
+  });
 });
