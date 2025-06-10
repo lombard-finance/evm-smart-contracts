@@ -20,6 +20,7 @@ import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
 import {Swap} from "./libraries/Swap.sol";
+import {Redeem} from "./libraries/Redeem.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -77,6 +78,7 @@ contract StakedLBTC is
         address operator;
         uint256 swapNonce;
         ISwapRouter swapRouter;
+        uint256 redeemNonce;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -121,7 +123,10 @@ contract StakedLBTC is
     }
 
     function reinitialize() external reinitializer(3) {
-        _getStakedLBTCStorage().swapNonce = 1; // start count nonce from 1
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        // start count nonces from 1
+        $.swapNonce = 1;
+        $.redeemNonce = 1;
     }
 
     /// MODIFIER ///
@@ -528,17 +533,20 @@ contract StakedLBTC is
     }
 
     /**
-     * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
+     * @dev Burns StakedLBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
      * @param scriptPubkey scriptPubkey for output
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of StakedLBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
+            // TODO: rename to redeem
             revert WithdrawalsDisabled();
         }
+
+        uint256 nonce = $.redeemNonce++;
 
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
@@ -547,12 +555,19 @@ contract StakedLBTC is
             amount,
             fee
         );
-
+        bytes memory rawPayload = Redeem.encodeRequest(
+            amountAfterFee,
+            nonce,
+            scriptPubkey
+        );
         address fromAddress = address(_msgSender());
-        _transfer(fromAddress, getTreasury(), fee);
+
+        if (fee > 0) {
+            _transfer(fromAddress, $.treasury, fee);
+        }
         _burn(fromAddress, amountAfterFee);
 
-        emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
+        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
     }
 
     /**

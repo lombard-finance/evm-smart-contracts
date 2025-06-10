@@ -6,10 +6,12 @@ interface IBaseLBTC {
     error PayloadAlreadyUsed();
     error InvalidMintAmount();
 
-    event UnstakeRequest(
-        address indexed fromAddress,
-        bytes scriptPubKey,
-        uint256 amount
+    event RedeemRequest(
+        address indexed from,
+        uint256 indexed nonce,
+        uint256 amount,
+        uint256 fee,
+        bytes payload
     );
     event WithdrawalsEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);

@@ -21,8 +21,9 @@ import {
   Signer,
   signSwapReceiptPayload,
   signSwapRequestPayload,
+  buildRedeemRequestPayload
   SWAP_RECEIPT_SELECTOR,
-  SWAP_REQUEST_SELECTOR
+  SWAP_REQUEST_SELECTOR,
 } from './helpers';
 import { Bascule, Consortium, NativeLBTC, StakedLBTC, SwapRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -1222,9 +1223,11 @@ describe('StakedLBTC', function () {
         const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
+
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
         await expect(stakedLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
-          .to.emit(stakedLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2wpkh, expectedAmountAfterFee);
+          .to.emit(stakedLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, halfAmount, burnCommission, expectedPayload);
       });
 
       it('Unstake full with P2TR', async () => {
@@ -1235,9 +1238,10 @@ describe('StakedLBTC', function () {
 
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
         await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(stakedLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2tr, expectedAmountAfterFee);
+          .to.emit(stakedLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
       });
 
       it('Unstake with commission', async () => {
@@ -1249,9 +1253,11 @@ describe('StakedLBTC', function () {
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
 
+        const { payload: expectedPayload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
+
         await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(stakedLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2tr, amount - commission);
+          .to.emit(stakedLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, commission, expectedPayload);
       });
 
       it('Unstake full with P2WSH', async () => {
@@ -1265,9 +1271,11 @@ describe('StakedLBTC', function () {
         // Calculate expected amount after fee
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
 
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
+
         await expect(stakedLbtc.connect(signer1).redeem(p2wsh, amount))
-          .to.emit(stakedLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2wsh, expectedAmountAfterFee);
+          .to.emit(stakedLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
       });
     });
 

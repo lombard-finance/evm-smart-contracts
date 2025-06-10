@@ -23,7 +23,8 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
   'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
   'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes32) external', // SwapRequest
-  'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external' // SwapReceipt
+  'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external', // SwapReceipt
+  'function payload(uint256,uint256,bytes) external' // RedeemRequest
 ]);
 
 export function getPayloadForAction(data: any[], action: string) {
@@ -46,6 +47,7 @@ export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 export const SWAP_REQUEST_SELECTOR = '0x0de719dc';
 export const SWAP_RECEIPT_SELECTOR = '0x965597b5';
+export const REDEEM_REQUEST_SELECTOR = '0xdacf41dd';
 
 export async function signDepositBridgePayload(
   signers: Signer[],
@@ -171,6 +173,11 @@ export async function signSwapReceiptPayload(
     SWAP_RECEIPT_SELECTOR
   );
   return signPayload(signers, signatures, msg);
+}
+
+export function buildRedeemRequestPayload(amount: BigInt | number, nonce: BigInt | number, scriptPubkey: BytesLike) {
+  const payload = getPayloadForAction([amount, nonce, scriptPubkey], REDEEM_REQUEST_SELECTOR);
+  return { payload, payloadHash: ethers.sha256(payload) };
 }
 
 export async function signPayload(

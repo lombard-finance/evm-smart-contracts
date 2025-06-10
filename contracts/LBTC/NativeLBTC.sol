@@ -15,6 +15,7 @@ import {Actions} from "../libs/Actions.sol";
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
+import {Redeem} from "./libraries/Redeem.sol";
 /**
  * @title ERC20 representation of Liquid Bitcoin
  * @author Lombard.Finance
@@ -43,6 +44,7 @@ contract NativeLBTC is
         uint256 dustFeeRate;
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        uint256 redeemNonce;
     }
 
     // TODO: recalculate
@@ -385,8 +387,11 @@ contract NativeLBTC is
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
+            // TODO: rename to redeem
             revert WithdrawalsDisabled();
         }
+
+        uint256 nonce = $.redeemNonce++;
 
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
@@ -395,12 +400,19 @@ contract NativeLBTC is
             amount,
             fee
         );
-
+        bytes memory rawPayload = Redeem.encodeRequest(
+            amountAfterFee,
+            nonce,
+            scriptPubkey
+        );
         address fromAddress = address(_msgSender());
-        _transfer(fromAddress, getTreasury(), fee);
+
+        if (fee > 0) {
+            _transfer(fromAddress, $.treasury, fee);
+        }
         _burn(fromAddress, amountAfterFee);
 
-        emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
+        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
     }
 
     /**
@@ -437,6 +449,7 @@ contract NativeLBTC is
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
         _changeBurnCommission(burnCommission_);
+        _getNativeLBTCStorage().redeemNonce = 1; // count from 1
     }
 
     function _changeNameAndSymbol(
