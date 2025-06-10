@@ -6,7 +6,7 @@ import {EIP1271SignatureUtils} from "../../libs/EIP1271SignatureUtils.sol";
 /// @dev collection of assertions used in ERC20 contracts
 library Assert {
     error InvalidDustFeeRate();
-    error InvalidInputLength(uint256 a, uint256 b);
+    error NonEqualLength(uint256 a, uint256 b);
     error InvalidAction(bytes4 expected, bytes4 actual);
     error InvalidFeeApprovalSignature();
 
@@ -20,8 +20,8 @@ library Assert {
         if (rate == 0) revert InvalidDustFeeRate();
     }
 
-    function inputLength(uint256 lengthA, uint256 lengthB) internal pure {
-        if (lengthA != lengthB) revert InvalidInputLength(lengthA, lengthB);
+    function equalLength(uint256 lengthA, uint256 lengthB) internal pure {
+        if (lengthA != lengthB) revert NonEqualLength(lengthA, lengthB);
     }
 
     function selector(

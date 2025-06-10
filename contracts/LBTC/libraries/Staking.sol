@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-library Swap {
+library Staking {
     /// @dev Error thrown when payload length is too big
-    error Swap_InvalidPayloadSize(uint256 expected, uint256 actual);
+    error Staking_InvalidPayloadSize(uint256 expected, uint256 actual);
 
-    error Swap_ZeroRequestHash();
-    error Swap_ChainIdMismatch(bytes32 expected, bytes32 actual);
-    error Swap_ZeroAmount();
-    error Swap_ZeroRecipient();
-    error Swap_InvalidRecipient();
-    error Swap_ZeroFromToken();
-    error Swap_ZeroToToken();
-    error Swap_InvalidToToken();
-    error Swap_InvalidSelector(bytes4 expected, bytes4 actual);
+    error Staking_ZeroRequestHash();
+    error Staking_ChainIdMismatch(bytes32 expected, bytes32 actual);
+    error Staking_ZeroAmount();
+    error Staking_ZeroRecipient();
+    error Staking_InvalidRecipient();
+    error Staking_ZeroFromToken();
+    error Staking_ZeroToToken();
+    error Staking_InvalidToToken();
+    error Staking_InvalidSelector(bytes4 expected, bytes4 actual);
 
     struct Receipt {
         address recipient;
@@ -23,8 +23,8 @@ library Swap {
         bytes32 lChainId;
     }
 
-    // bytes4(keccak256("payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes32)")
-    bytes4 internal constant REQUEST_SELECTOR = 0x0de719dc;
+    // bytes4(keccak256("payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes)")
+    bytes4 internal constant REQUEST_SELECTOR = 0xedff11ea;
 
     // bytes4(keccak256("payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32)")
     bytes4 internal constant RECEIPT_SELECTOR = 0x965597b5;
@@ -34,28 +34,38 @@ library Swap {
 
     function encodeRequest(
         uint256 nonce,
-        bytes32 recipient,
+        bytes memory recipient,
         uint256 amount,
         address fromToken,
         bytes32 toToken,
         bytes32 toChain
     ) internal view returns (bytes memory) {
         if (amount == 0) {
-            revert Swap_ZeroAmount();
+            revert Staking_ZeroAmount();
         }
-        if (recipient == bytes32(0)) {
-            revert Swap_ZeroRecipient();
+        if (recipient.length == 0) {
+            revert Staking_ZeroRecipient();
+        }
+        bool recepientValid = false;
+        for (uint256 i=0; i < recipient.length; ++i) {
+            if (recipient[i] != 0x0) {
+                recepientValid = true;
+                break;
+            }
+        }
+        if (!recepientValid) {
+            revert Staking_ZeroRecipient();
         }
         return
             abi.encodeWithSelector(
                 REQUEST_SELECTOR,
                 nonce,
                 amount,
-                recipient,
                 bytes32(uint256(uint160(fromToken))),
                 toToken,
                 bytes32(block.chainid), // TODO: use Lombard Chain Id library later
-                toChain
+                toChain,
+                recipient
             );
     }
 
@@ -63,13 +73,13 @@ library Swap {
         bytes calldata rawPayload
     ) internal view returns (Receipt memory, bytes32) {
         if (rawPayload.length != ABI_SLOT_SIZE * 6 + 4)
-            revert Swap_InvalidPayloadSize(
-                ABI_SLOT_SIZE * 6,
+            revert Staking_InvalidPayloadSize(
+                ABI_SLOT_SIZE * 6 + 4,
                 rawPayload.length
             );
 
         if (bytes4(rawPayload[:4]) != RECEIPT_SELECTOR) {
-            revert Swap_InvalidSelector(
+            revert Staking_InvalidSelector(
                 RECEIPT_SELECTOR,
                 bytes4(rawPayload[:4])
             );
@@ -88,35 +98,35 @@ library Swap {
             );
 
         if (requestHash == bytes32(0)) {
-            revert Swap_ZeroRequestHash();
+            revert Staking_ZeroRequestHash();
         }
         // TODO: use lChainId lib
         if (chainId != bytes32(block.chainid)) {
-            revert Swap_ChainIdMismatch(bytes32(block.chainid), chainId);
+            revert Staking_ChainIdMismatch(bytes32(block.chainid), chainId);
         }
         if (amount == 0) {
-            revert Swap_ZeroAmount();
+            revert Staking_ZeroAmount();
         }
         if (fromToken == bytes32(0)) {
-            revert Swap_ZeroFromToken();
+            revert Staking_ZeroFromToken();
         }
 
         // Extra check if the top 12 bytes are non-zero
         if (uint256(rawRecipient) >> 160 != 0) {
-            revert Swap_InvalidRecipient();
+            revert Staking_InvalidRecipient();
         }
         address recipient = address(uint160(uint256(rawRecipient)));
         if (recipient == address(0)) {
-            revert Swap_ZeroRecipient();
+            revert Staking_ZeroRecipient();
         }
 
         // Extra check if the top 12 bytes are non-zero
         if (uint256(rawToToken) >> 160 != 0) {
-            revert Swap_InvalidToToken();
+            revert Staking_InvalidToToken();
         }
         address toToken = address(uint160(uint256(rawToToken)));
         if (toToken == address(0)) {
-            revert Swap_ZeroToToken();
+            revert Staking_ZeroToToken();
         }
 
         return (

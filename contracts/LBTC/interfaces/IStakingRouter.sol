@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-interface ISwapRouter {
+interface IStakingRouter {
     event RouteSet(
         bytes32 indexed fromToken,
         bytes32 indexed fromChainId,

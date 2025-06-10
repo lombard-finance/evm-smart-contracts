@@ -273,7 +273,7 @@ contract NativeLBTC is
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyRole(MINTER_ROLE) {
-        Assert.inputLength(to.length, amount.length);
+        Assert.equalLength(to.length, amount.length);
 
         for (uint256 i; i < to.length; ++i) {
             _mint(to[i], amount[i]);
@@ -312,7 +312,7 @@ contract NativeLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external {
-        Assert.inputLength(payload.length, proof.length);
+        Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
@@ -356,9 +356,9 @@ contract NativeLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyRole(CLAIMER_ROLE) {
-        Assert.inputLength(mintPayload.length, proof.length);
-        Assert.inputLength(mintPayload.length, feePayload.length);
-        Assert.inputLength(mintPayload.length, userSignature.length);
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
@@ -388,7 +388,7 @@ contract NativeLBTC is
 
         if (!$.isWithdrawalsEnabled) {
             // TODO: rename to redeem
-            revert WithdrawalsDisabled();
+            revert RedeemsDisabled();
         }
 
         uint256 nonce = $.redeemNonce++;

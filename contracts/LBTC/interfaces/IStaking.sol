@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-interface ISwap {
-    error SwapNotAllowed();
+interface IStaking {
+    error StakingNotAllowed();
 
-    event SwapRequest(
+    event StakingOperationRequested(
         address indexed from,
-        bytes32 indexed to,
+        bytes to,
         address indexed fromToken,
         uint256 amount,
         bytes rawPayload
     );
-    event SwapFinished(
+    event StakingOperationCompleted(
         address indexed recipient,
         address indexed toToken,
         uint256 amount
