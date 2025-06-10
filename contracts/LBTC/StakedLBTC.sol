@@ -567,7 +567,7 @@ contract StakedLBTC is
         }
         _burn(fromAddress, amountAfterFee);
 
-        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
+        emit StakingOperationRequested(fromAddress, scriptPubkey, address(this), amount, rawPayload);
     }
 
     /**
