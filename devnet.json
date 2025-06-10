@@ -34,11 +34,11 @@
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
-      "CLAdapter": "",
-      "LombardTokenPool": ""
+      "ChainSelector": "16015286601757825753",
+      "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+      "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
+      "CLAdapter": "0x3d90195D7c9BB0839652dc6B37bF93294d762cb9",
+      "LombardTokenPool": "0x220699d93e6628289cbeB93503d07426c133253B"
     }
   },
   "bscTestnet": {
@@ -156,11 +156,11 @@
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
-      "CLAdapter": "",
-      "LombardTokenPool": ""
+      "ChainSelector": "9090863410735740267",
+      "Router": "0x1dF1fe714A376f248d51AAB826C3feeC379e80fC",
+      "RMN": "0xAD8BeA8bC5Fe468Dc1F7BbEce59A86584407255f",
+      "CLAdapter": "0x453Fd9F30d0AF5747BE343D92c65Cb8BD5fF2F2F",
+      "LombardTokenPool": "0x148a5A14dB9fC18885e62f9F9B9715CF569b5EDc"
     }
   }
 }

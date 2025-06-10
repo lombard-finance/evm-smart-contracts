@@ -158,6 +158,11 @@ Setup `Bridge` rate limits, they should ~2x from `TokenPool` limits.
 yarn hardhat setup-bridge-rate-limits --bridge ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --network ${NETWORK} --window ${WINDOW_SECONDS} --limit ${WINDOW_LIMIT} [--populate]
 ```
 
+Grant minting ability to bridge
+```bash
+yarn hardhat setup-minter --target ${LBTC} --minter ${SOURCE_BRIDGE} --network ${NETWORK}
+```
+
 ## Upgrades
 
 
