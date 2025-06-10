@@ -9,33 +9,54 @@ describe('SwapRouter', function () {
   let owner: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
   let swapRouter: SwapRouter;
   let snapshot: SnapshotRestorer;
-  let dummyToken: string;
-  const tokenName = ethers.keccak256(ethers.toUtf8Bytes('DummyToken'));
 
   before(async function () {
     [signer3, signer1, signer2, owner] = await getSignersWithPrivateKeys();
     swapRouter = await deployContract('SwapRouter', [owner.address]);
-    dummyToken = '0x000000000000000000000000000000000000dEaD'; // dummy token address
     snapshot = await takeSnapshot();
   });
 
   describe('Named Tokens', function () {
-    it('should allow owner to set and get a named token', async () => {
-      await expect(swapRouter.connect(owner).setNamedToken(tokenName, dummyToken))
+    const dummyToken1 = ethers.Wallet.createRandom().address;
+    const dummyToken2 = ethers.Wallet.createRandom().address;
+    const tokenName1 = ethers.keccak256(ethers.toUtf8Bytes('DummyToken1'));
+    const tokenName2 = ethers.keccak256(ethers.toUtf8Bytes('DummyToken2'));
+
+    it('setNamedToken() owner can set token name', async () => {
+      await expect(swapRouter.connect(owner).setNamedToken(tokenName1, dummyToken1))
         .to.emit(swapRouter, 'NamedTokenSet')
-        .withArgs(tokenName, dummyToken);
-      const result = await swapRouter.getNamedToken(tokenName);
-      expect(result).to.equal(dummyToken);
+        .withArgs(tokenName1, dummyToken1);
+      expect(await swapRouter.getNamedToken(tokenName1)).to.equal(dummyToken1);
     });
 
     it('should confirm presence of a named token', async function () {
-      const result = await swapRouter.containsNamedToken(tokenName);
-      expect(result).to.be.true;
+      expect(await swapRouter.containsNamedToken(tokenName1)).to.be.true;
     });
 
     it('should return all named token keys', async function () {
-      const keys = await swapRouter.getNamedTokenKeys();
-      expect(keys).to.include(tokenName);
+      expect(await swapRouter.getNamedTokenKeys()).to.include(tokenName1);
+    });
+
+    it('setNamedToken() owner can set another named token', async () => {
+      await expect(swapRouter.connect(owner).setNamedToken(tokenName2, dummyToken2))
+        .to.emit(swapRouter, 'NamedTokenSet')
+        .withArgs(tokenName2, dummyToken2);
+      expect(await swapRouter.getNamedToken(tokenName2)).to.equal(dummyToken2);
+      expect([...(await swapRouter.getNamedTokenKeys())]).to.have.members([tokenName1, tokenName2]);
+    });
+
+    it('setNamedToken() owner can change named token address', async () => {
+      await expect(swapRouter.connect(owner).setNamedToken(tokenName2, dummyToken1))
+        .to.emit(swapRouter, 'NamedTokenSet')
+        .withArgs(tokenName2, dummyToken1);
+      expect(await swapRouter.getNamedToken(tokenName2)).to.equal(dummyToken1);
+      expect([...(await swapRouter.getNamedTokenKeys())]).to.have.members([tokenName1, tokenName2]);
+    });
+
+    it('setNamedToken() reverts when called by not an owner', async () => {
+      await expect(swapRouter.connect(signer1).setNamedToken(tokenName2, dummyToken1))
+        .to.revertedWithCustomError(swapRouter, 'OwnableUnauthorizedAccount')
+        .withArgs(signer1);
     });
   });
 
@@ -45,23 +66,37 @@ describe('SwapRouter', function () {
     const toToken = ethers.keccak256(ethers.toUtf8Bytes('TokenB'));
     const toChainId = ethers.keccak256(ethers.toUtf8Bytes('Chain2'));
 
-    it('should get the correct route toToken', async () => {
+    it('setRoute() owner can set route', async () => {
       await expect(swapRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId))
         .to.emit(swapRouter, 'RouteSet')
         .withArgs(fromToken, fromChainId, toToken, toChainId);
-      const result = await swapRouter.getRoute(fromToken, toChainId);
-      expect(result).to.equal(toToken);
+      expect(await swapRouter.getRoute(fromToken, toChainId)).to.equal(toToken);
     });
 
-    it('should validate allowed route correctly', async () => {
+    it('setRoute() reverts when called by not an owner', async () => {
+      await expect(swapRouter.connect(signer1).setRoute(fromToken, fromChainId, toToken, toChainId))
+        .to.revertedWithCustomError(swapRouter, 'OwnableUnauthorizedAccount')
+        .withArgs(signer1);
+    });
+
+    it('isAllowedRoute() is true when route is allowed', async () => {
       const isAllowed = await swapRouter.isAllowedRoute(fromToken, toChainId, toToken);
       expect(isAllowed).to.be.true;
     });
 
-    it('should return false for incorrect route validation', async () => {
+    it('isAllowedRoute() when fromToken is unknown', async () => {
       const invalidToken = ethers.encodeBytes32String('Invalid');
-      const isAllowed = await swapRouter.isAllowedRoute(fromToken, toChainId, invalidToken);
-      expect(isAllowed).to.be.false;
+      expect(await swapRouter.isAllowedRoute(invalidToken, toChainId, toToken)).to.be.false;
+    });
+
+    it('isAllowedRoute() when toChainId is unknown', async () => {
+      const invalidChain = ethers.encodeBytes32String('Invalid');
+      expect(await swapRouter.isAllowedRoute(fromToken, invalidChain, toToken)).to.be.false;
+    });
+
+    it('isAllowedRoute() when toToken is unknown', async () => {
+      const invalidToken = ethers.encodeBytes32String('Invalid');
+      expect(await swapRouter.isAllowedRoute(fromToken, toChainId, invalidToken)).to.be.false;
     });
   });
 });
