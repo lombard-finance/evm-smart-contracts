@@ -21,7 +21,7 @@ import {
   Signer,
   signSwapReceiptPayload,
   signSwapRequestPayload,
-  buildRedeemRequestPayload
+  buildRedeemRequestPayload,
   SWAP_RECEIPT_SELECTOR,
   SWAP_REQUEST_SELECTOR,
 } from './helpers';
@@ -1225,6 +1225,7 @@ describe('StakedLBTC', function () {
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
 
         const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
+
         await expect(stakedLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
           .to.emit(stakedLbtc, 'RedeemRequest')
           .withArgs(signer1.address, 1, halfAmount, burnCommission, expectedPayload);
