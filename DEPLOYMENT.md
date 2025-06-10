@@ -118,7 +118,7 @@ Write proxy address to json file.
 
 Deploy `Bridge` contract
 ```bash
-yarn hardhat deploy-bridge --ledger-network gastald --admin ${OWNER} --lbtc ${LBTC} --treasury ${OWNER} --network ${NETWORK}
+yarn hardhat deploy-bridge --ledger-network ${ENV} --admin ${OWNER} --lbtc ${LBTC} --treasury ${OWNER} --network ${NETWORK}
 ```
 Write proxy address to json file.
 
