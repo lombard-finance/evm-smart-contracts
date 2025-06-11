@@ -15,7 +15,8 @@ import {
   DEPOSIT_BTC_ACTION_V1,
   generatePermitSignature,
   DEFAULT_LBTC_DUST_FEE_RATE,
-  FEE_APPROVAL_ACTION
+  FEE_APPROVAL_ACTION,
+  buildRedeemRequestPayload
 } from './helpers';
 import { Bascule, Consortium, NativeLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -759,16 +760,16 @@ describe('NativeLBTC', function () {
             };
             await expect(
               nativeLbtc.batchMintV1WithFee(pop(mintWithFee[0]), mintWithFee[0], mintWithFee[2], mintWithFee[3])
-            ).to.be.revertedWithCustomError(nativeLbtc, 'InvalidInputLength');
+            ).to.be.revertedWithCustomError(nativeLbtc, 'NonEqualLength');
             await expect(
               nativeLbtc.batchMintV1WithFee(mintWithFee[0], pop(mintWithFee[0]), mintWithFee[2], mintWithFee[3])
-            ).to.be.revertedWithCustomError(nativeLbtc, 'InvalidInputLength');
+            ).to.be.revertedWithCustomError(nativeLbtc, 'NonEqualLength');
             await expect(
               nativeLbtc.batchMintV1WithFee(mintWithFee[0], mintWithFee[0], pop(mintWithFee[2]), mintWithFee[3])
-            ).to.be.revertedWithCustomError(nativeLbtc, 'InvalidInputLength');
+            ).to.be.revertedWithCustomError(nativeLbtc, 'NonEqualLength');
             await expect(
               nativeLbtc.batchMintV1WithFee(mintWithFee[0], mintWithFee[0], mintWithFee[2], pop(mintWithFee[3]))
-            ).to.be.revertedWithCustomError(nativeLbtc, 'InvalidInputLength');
+            ).to.be.revertedWithCustomError(nativeLbtc, 'NonEqualLength');
           });
         });
       });
@@ -788,11 +789,11 @@ describe('NativeLBTC', function () {
 
         await expect(nativeLbtc.batchMintV1(mintWithoutFee[0], proofs)).to.be.revertedWithCustomError(
           nativeLbtc,
-          'InvalidInputLength'
+          'NonEqualLength'
         );
         await expect(nativeLbtc.batchMintV1(payloads, mintWithoutFee[1])).to.be.revertedWithCustomError(
           nativeLbtc,
-          'InvalidInputLength'
+          'NonEqualLength'
         );
       });
     });
@@ -800,11 +801,11 @@ describe('NativeLBTC', function () {
     it('should fail to do permissioned batch mint if parameters size missmatch', async function () {
       await expect(nativeLbtc.batchMint([signer1.address], [1, 2])).to.be.revertedWithCustomError(
         nativeLbtc,
-        'InvalidInputLength'
+        'NonEqualLength'
       );
       await expect(nativeLbtc.batchMint([signer1.address, signer2.address], [1])).to.be.revertedWithCustomError(
         nativeLbtc,
-        'InvalidInputLength'
+        'NonEqualLength'
       );
     });
 
@@ -831,9 +832,10 @@ describe('NativeLBTC', function () {
         const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
 
         await nativeLbtc.mint(signer1.address, amount);
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
         await expect(nativeLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2wpkh, expectedAmountAfterFee);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, halfAmount, burnCommission, expectedPayload);
       });
 
       it('Unstake full with P2TR', async () => {
@@ -844,9 +846,10 @@ describe('NativeLBTC', function () {
 
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
         await nativeLbtc.mint(signer1.address, amount);
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2tr, expectedAmountAfterFee);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
       });
 
       it('Unstake with commission', async () => {
@@ -858,9 +861,10 @@ describe('NativeLBTC', function () {
 
         await nativeLbtc.mint(signer1.address, amount);
 
+        const { payload: expectedPayload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2tr, amount - commission);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, commission, expectedPayload);
       });
 
       it('Unstake full with P2WSH', async () => {
@@ -873,10 +877,10 @@ describe('NativeLBTC', function () {
 
         // Calculate expected amount after fee
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
-
+        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
         await expect(nativeLbtc.connect(signer1).redeem(p2wsh, amount))
-          .to.emit(nativeLbtc, 'UnstakeRequest')
-          .withArgs(signer1.address, p2wsh, expectedAmountAfterFee);
+          .to.emit(nativeLbtc, 'RedeemRequest')
+          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
       });
     });
 
@@ -887,7 +891,7 @@ describe('NativeLBTC', function () {
         await nativeLbtc.mint(signer1.address, amount);
         await expect(
           nativeLbtc.redeem('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
-        ).to.revertedWithCustomError(nativeLbtc, 'WithdrawalsDisabled');
+        ).to.revertedWithCustomError(nativeLbtc, 'RedeemsDisabled');
       });
 
       it('Reverts if amount is less than burn commission', async function () {

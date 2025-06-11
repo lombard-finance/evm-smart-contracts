@@ -16,6 +16,7 @@ interface IStakedLBTC is IBaseLBTC {
         address indexed newPauser
     );
     event MinterUpdated(address indexed minter, bool isMinter);
+    event StakingRouterChanged(address indexed newVal, address indexed prevVal);
 
     function mint(bytes calldata payload, bytes calldata proof) external;
 }

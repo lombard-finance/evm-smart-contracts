@@ -6,14 +6,21 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {IStaking} from "./interfaces/IStaking.sol";
+import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
+import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
 import {Actions} from "../libs/Actions.sol";
-import {IStakedLBTC} from "./IStakedLBTC.sol";
-import {Assert} from "./utils/Assert.sol";
-import {Validation} from "./utils/Validation.sol";
+import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
+import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
+import {Assert} from "./libraries/Assert.sol";
+import {Validation} from "./libraries/Validation.sol";
+import {Staking} from "./libraries/Staking.sol";
+import {Redeem} from "./libraries/Redeem.sol";
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -21,11 +28,14 @@ import {Validation} from "./utils/Validation.sol";
  */
 contract StakedLBTC is
     IStakedLBTC,
+    IStaking,
     ERC20PausableUpgradeable,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable,
     ERC20PermitUpgradeable
 {
+    using SafeERC20 for IERC20;
+
     /// @dev the storage name differs, because contract was renamed from LBTC
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct StakedLBTCStorage {
@@ -35,7 +45,7 @@ contract StakedLBTC is
         string name;
         string symbol;
         bool isWithdrawalsEnabled;
-        address consortium;
+        INotaryConsortium consortium;
         /// @custom:oz-renamed-from isWBTCEnabled
         bool __removed_isWBTCEnabled;
         /// @custom:oz-renamed-from wbtc
@@ -66,6 +76,9 @@ contract StakedLBTC is
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         address operator;
+        uint256 StakingNonce;
+        IStakingRouter StakingRouter;
+        uint256 redeemNonce;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -92,6 +105,7 @@ contract StakedLBTC is
 
         __Ownable_init(owner_);
         __Ownable2Step_init();
+        __ERC20Permit_init("Lombard Staked Bitcoin"); // TODO: set new name
 
         __ReentrancyGuard_init();
 
@@ -108,8 +122,11 @@ contract StakedLBTC is
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
-    function reinitialize() external reinitializer(2) {
-        __ERC20Permit_init("Lombard Staked Bitcoin"); // TODO: set new name
+    function reinitialize() external reinitializer(3) {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        // start count nonces from 1
+        $.StakingNonce = 1;
+        $.redeemNonce = 1;
     }
 
     /// MODIFIER ///
@@ -207,6 +224,10 @@ contract StakedLBTC is
         _updateClaimer(oldClaimer, false);
     }
 
+    function changeStakingRouter(address newVal) external onlyOwner {
+        _changeStakingRouter(newVal);
+    }
+
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
@@ -263,8 +284,12 @@ contract StakedLBTC is
         return (amountAfterFee, isAboveDust);
     }
 
-    function consortium() external view virtual returns (address) {
+    function consortium() external view virtual returns (INotaryConsortium) {
         return _getStakedLBTCStorage().consortium;
+    }
+
+    function StakingRouter() external view returns (IStakingRouter) {
+        return _getStakedLBTCStorage().StakingRouter;
     }
 
     /**
@@ -351,7 +376,7 @@ contract StakedLBTC is
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyMinter {
-        Assert.inputLength(to.length, amount.length);
+        Assert.equalLength(to.length, amount.length);
 
         for (uint256 i; i < to.length; ++i) {
             _mint(to[i], amount[i]);
@@ -413,7 +438,7 @@ contract StakedLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external {
-        Assert.inputLength(payload.length, proof.length);
+        Assert.equalLength(payload.length, proof.length);
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
@@ -480,9 +505,9 @@ contract StakedLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external nonReentrant onlyClaimer {
-        Assert.inputLength(mintPayload.length, proof.length);
-        Assert.inputLength(mintPayload.length, feePayload.length);
-        Assert.inputLength(mintPayload.length, userSignature.length);
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
@@ -508,17 +533,20 @@ contract StakedLBTC is
     }
 
     /**
-     * @dev Burns LBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
+     * @dev Burns StakedLBTC to initiate withdrawal of BTC to provided `scriptPubkey` with `amount`
      *
      * @param scriptPubkey scriptPubkey for output
-     * @param amount Amount of LBTC to burn
+     * @param amount Amount of StakedLBTC to burn
      */
     function redeem(bytes calldata scriptPubkey, uint256 amount) external {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
+            // TODO: rename to redeem
             revert WithdrawalsDisabled();
         }
+
+        uint256 nonce = $.redeemNonce++;
 
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
@@ -527,12 +555,19 @@ contract StakedLBTC is
             amount,
             fee
         );
-
+        bytes memory rawPayload = Redeem.encodeRequest(
+            amountAfterFee,
+            nonce,
+            scriptPubkey
+        );
         address fromAddress = address(_msgSender());
-        _transfer(fromAddress, getTreasury(), fee);
+
+        if (fee > 0) {
+            _transfer(fromAddress, $.treasury, fee);
+        }
         _burn(fromAddress, amountAfterFee);
 
-        emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
+        emit StakingOperationRequested(fromAddress, scriptPubkey, address(this), amount, rawPayload);
     }
 
     /**
@@ -551,6 +586,125 @@ contract StakedLBTC is
      */
     function burn(address from, uint256 amount) external override onlyMinter {
         _burn(from, amount);
+    }
+
+    function startUnstake(
+        bytes32 tolChainId,
+        bytes calldata recipient,
+        uint256 amount
+    ) external nonReentrant {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        bytes32 toToken = $.StakingRouter.getRoute(
+            bytes32(uint256(uint160(address(this)))),
+            tolChainId
+        );
+        if (toToken == bytes32(0)) {
+            revert StakingNotAllowed();
+        }
+
+        uint256 nonce = $.StakingNonce++;
+        bytes memory rawPayload = Staking.encodeRequest(
+            nonce,
+            recipient,
+            amount,
+            address(this),
+            toToken,
+            tolChainId
+        );
+
+        _burn(_msgSender(), amount);
+
+        emit StakingOperationRequested(
+            _msgSender(),
+            bytes(recipient),
+            address(this),
+            amount,
+            rawPayload
+        );
+    }
+
+    function startStake(
+        bytes32 tolChainId,
+        bytes32 recipient,
+        uint256 amount
+    ) external nonReentrant {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        // if token not found will revert with Enum error
+        address nativeToken = $.StakingRouter.getNamedToken(
+            keccak256("NativeLBTC")
+        );
+        bytes32 toToken = $.StakingRouter.getRoute(
+            bytes32(uint256(uint160(nativeToken))),
+            tolChainId
+        );
+        if (toToken == bytes32(0)) {
+            revert StakingNotAllowed();
+        }
+
+        uint256 nonce = $.StakingNonce++;
+        bytes memory recepientBytes = abi.encodePacked(recipient);
+        bytes memory rawPayload = Staking.encodeRequest(
+            nonce,
+            recepientBytes,
+            amount,
+            nativeToken,
+            toToken,
+            tolChainId
+        );
+
+        IERC20(nativeToken).safeTransferFrom(
+            _msgSender(),
+            address(this),
+            amount
+        );
+        IBaseLBTC(nativeToken).burn(amount);
+
+        emit StakingOperationRequested(
+            _msgSender(),
+            recepientBytes,
+            nativeToken,
+            amount,
+            rawPayload
+        );
+    }
+
+    function finalizeStakingOperation(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) external nonReentrant {
+        // decode StakingReceipt payload
+
+        (Staking.Receipt memory receipt, bytes32 payloadHash) = Staking.decodeReceipt(
+            rawPayload
+        );
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+
+        // spend payload
+        if ($.usedPayloads[payloadHash]) {
+            revert PayloadAlreadyUsed();
+        }
+        $.usedPayloads[payloadHash] = true;
+        $.consortium.checkProof(payloadHash, proof);
+
+        // get route and mint token
+        address toToken = address(
+            uint160(
+                uint256(
+                    $.StakingRouter.getRoute(receipt.fromToken, receipt.lChainId)
+                )
+            )
+        );
+        if (toToken != receipt.toToken) {
+            revert StakingNotAllowed();
+        }
+
+        if (toToken == address(this)) {
+            _mint(receipt.recipient, receipt.amount);
+        } else {
+            IStakedLBTC(toToken).mint(receipt.recipient, receipt.amount);
+        }
+
+        emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
     }
 
     /// PRIVATE FUNCTIONS ///
@@ -764,8 +918,8 @@ contract StakedLBTC is
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        emit ConsortiumChanged($.consortium, newVal);
-        $.consortium = newVal;
+        emit ConsortiumChanged(address($.consortium), newVal);
+        $.consortium = INotaryConsortium(newVal);
     }
 
     /// @dev allow set to zero
@@ -822,6 +976,14 @@ contract StakedLBTC is
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    /// @dev allow zero address to disable Stakings
+    function _changeStakingRouter (address newVal) internal {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        address prevValue = address($.StakingRouter);
+        $.StakingRouter = IStakingRouter(newVal);
+        emit StakingRouterChanged(prevValue, newVal);
     }
 
     function _getStakedLBTCStorage()

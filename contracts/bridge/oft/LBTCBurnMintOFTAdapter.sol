@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {OFTAdapter, SafeERC20, IERC20} from "@layerzerolabs/oft-evm/contracts/OFTAdapter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
-import {IBaseLBTC} from "../../LBTC/IBaseLBTC.sol";
+import {IBaseLBTC} from "../../LBTC/interfaces/IBaseLBTC.sol";
 
 contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
     using SafeERC20 for IERC20;

@@ -1,7 +1,7 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, Signature } from 'ethers';
-import { Consortium, ERC20PermitUpgradeable, LBTCMock, NativeLBTC, StakedLBTC } from '../typechain-types';
+import { Consortium, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 export type Signer = HardhatEthersSigner & {
@@ -13,13 +13,19 @@ export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaul
 
 export const CHAIN_ID: string = encode(['uint256'], [31337]);
 
+export const e18: bigint = 10n ** 18n;
+export const e8: bigint = 10n ** 8n;
+
 const ACTIONS_IFACE = ethers.Interface.from([
   'function feeApproval(uint256,uint256)',
   'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
   'function payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32) external',
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
   'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
-  'function MessageV1(bytes32,uint256,bytes32,bytes32,bytes32,bytes) external'
+  'function MessageV1(bytes32,uint256,bytes32,bytes32,bytes32,bytes) external',
+  'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes) external', // StakingOperationRequest
+  'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external', // StakingOperationReceipt
+  'function payload(uint256,uint256,bytes32,bytes) external' // RedeemRequest
 ]);
 
 export function getGMPPayload(
@@ -61,6 +67,9 @@ export const DEPOSIT_BTC_ACTION_V1 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 export const GMP_V1_SELECTOR = '0xe288fb4a';
+export const STAKING_REQUEST_SELECTOR = '0xedff11ea';
+export const STAKING_RECEIPT_SELECTOR = '0x965597b5';
+export const REDEEM_REQUEST_SELECTOR = '0xf86c9e7b';
 
 export async function signDepositBridgePayload(
   signers: Signer[],
@@ -151,6 +160,46 @@ export async function signNewValSetPayload(
 ) {
   let msg = getPayloadForAction([epoch, validators, weights, weightThreshold, height], NEW_VALSET);
   return signPayload(signers, signatures, msg);
+}
+
+export async function signStakingOperationRequestPayload(
+  signers: Signer[],
+  signatures: boolean[],
+  nonce: BigInt | number,
+  recipient: BytesLike,
+  amount: BigInt | number,
+  fromToken: BytesLike,
+  toToken: BytesLike,
+  fromLChainId: BytesLike,
+  toLChainID: BytesLike
+) {
+  let msg = getPayloadForAction(
+    [nonce, amount, fromToken, toToken, fromLChainId, toLChainID, recipient],
+    STAKING_REQUEST_SELECTOR
+  );
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signStakingReceiptPayload(
+  signers: Signer[],
+  signatures: boolean[],
+  requestHash: BytesLike,
+  recipient: BytesLike,
+  amount: BigInt | number,
+  fromToken: BytesLike,
+  toToken: BytesLike,
+  toLChainID: BytesLike
+) {
+  let msg = getPayloadForAction(
+    [requestHash, recipient, amount, fromToken, toToken, toLChainID],
+    STAKING_RECEIPT_SELECTOR
+  );
+  return signPayload(signers, signatures, msg);
+}
+
+export function buildRedeemRequestPayload(amount: BigInt | number, nonce: BigInt | number, scriptPubkey: BytesLike) {
+  const payload = getPayloadForAction([amount, nonce, CHAIN_ID, scriptPubkey], REDEEM_REQUEST_SELECTOR);
+  return { payload, payloadHash: ethers.sha256(payload) };
 }
 
 export async function signPayload(

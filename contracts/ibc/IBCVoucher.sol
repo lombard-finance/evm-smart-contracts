@@ -7,7 +7,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IIBCVoucher} from "./IIBCVoucher.sol";
-import {IBaseLBTC} from "../LBTC/IBaseLBTC.sol";
+import {IBaseLBTC} from "../LBTC/interfaces/IBaseLBTC.sol";
 
 /// @title ERC20 intermediary token
 /// @author Lombard.Finance

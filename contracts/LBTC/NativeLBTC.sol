@@ -9,12 +9,13 @@ import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
-import {INativeLBTC} from "./INativeLBTC.sol";
+import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {Actions} from "../libs/Actions.sol";
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
-import {Assert} from "./utils/Assert.sol";
-import {Validation} from "./utils/Validation.sol";
+import {Assert} from "./libraries/Assert.sol";
+import {Validation} from "./libraries/Validation.sol";
+import {Redeem} from "./libraries/Redeem.sol";
 /**
  * @title ERC20 representation of Liquid Bitcoin
  * @author Lombard.Finance
@@ -43,6 +44,7 @@ contract NativeLBTC is
         uint256 dustFeeRate;
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        uint256 redeemNonce;
     }
 
     // TODO: recalculate
@@ -271,7 +273,7 @@ contract NativeLBTC is
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyRole(MINTER_ROLE) {
-        Assert.inputLength(to.length, amount.length);
+        Assert.equalLength(to.length, amount.length);
 
         for (uint256 i; i < to.length; ++i) {
             _mint(to[i], amount[i]);
@@ -310,7 +312,7 @@ contract NativeLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external {
-        Assert.inputLength(payload.length, proof.length);
+        Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
@@ -354,9 +356,9 @@ contract NativeLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyRole(CLAIMER_ROLE) {
-        Assert.inputLength(mintPayload.length, proof.length);
-        Assert.inputLength(mintPayload.length, feePayload.length);
-        Assert.inputLength(mintPayload.length, userSignature.length);
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
@@ -385,8 +387,11 @@ contract NativeLBTC is
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
-            revert WithdrawalsDisabled();
+            // TODO: rename to redeem
+            revert RedeemsDisabled();
         }
+
+        uint256 nonce = $.redeemNonce++;
 
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
@@ -395,12 +400,19 @@ contract NativeLBTC is
             amount,
             fee
         );
-
+        bytes memory rawPayload = Redeem.encodeRequest(
+            amountAfterFee,
+            nonce,
+            scriptPubkey
+        );
         address fromAddress = address(_msgSender());
-        _transfer(fromAddress, getTreasury(), fee);
+
+        if (fee > 0) {
+            _transfer(fromAddress, $.treasury, fee);
+        }
         _burn(fromAddress, amountAfterFee);
 
-        emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
+        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
     }
 
     /**
@@ -437,6 +449,7 @@ contract NativeLBTC is
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
         _changeBurnCommission(burnCommission_);
+        _getNativeLBTCStorage().redeemNonce = 1; // count from 1
     }
 
     function _changeNameAndSymbol(
