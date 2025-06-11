@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
-import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import {IERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
+import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 import {IBridge} from "../IBridge.sol";
-import {Pool} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Pool.sol";
-import {TokenPool} from "@chainlink/contracts-ccip/src/v0.8/ccip/pools/TokenPool.sol";
+import {Pool} from "@chainlink/contracts-ccip/contracts/libraries/Pool.sol";
+import {TokenPool} from "@chainlink/contracts-ccip/contracts/pools/TokenPool.sol";
 import {CLAdapter} from "./CLAdapter.sol";
 
+/// @dev NOT TESTED AFTER UPGRADE OF CCIP TO 1.6.0
 contract LombardTokenPool is TokenPool {
     CLAdapter public adapter;
 
@@ -20,7 +21,7 @@ contract LombardTokenPool is TokenPool {
         address[] memory allowlist_,
         address rmnProxy_,
         CLAdapter adapter_
-    ) TokenPool(lbtc_, allowlist_, rmnProxy_, ccipRouter_) {
+    ) TokenPool(lbtc_, 8, allowlist_, rmnProxy_, ccipRouter_) {
         adapter = adapter_;
     }
 

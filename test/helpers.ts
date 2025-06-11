@@ -22,10 +22,31 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32) external',
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
   'function payload(uint256,bytes[],uint256[],uint256,uint256) external',
+  'function MessageV1(bytes32,uint256,bytes32,bytes32,bytes32,bytes) external',
   'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes) external', // StakingOperationRequest
   'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external', // StakingOperationReceipt
   'function payload(uint256,uint256,bytes32,bytes) external' // RedeemRequest
 ]);
+
+export function getGMPPayload(
+  sourceContract: string,
+  sourceLChainId: string,
+  destinationLChainId: string,
+  nonce: number,
+  sender: string,
+  recipient: string,
+  destinationCaller: string,
+  msgBody: string
+): string {
+  const messagePath = ethers.keccak256(
+    encode(['address', 'bytes32', 'bytes32'], [sourceContract, sourceLChainId, destinationLChainId])
+  );
+
+  return getPayloadForAction(
+    [messagePath, encode(['uint256'], [nonce]), sender, recipient, destinationCaller, msgBody],
+    GMP_V1_SELECTOR
+  );
+}
 
 export function getPayloadForAction(data: any[], action: string) {
   return ACTIONS_IFACE.encodeFunctionData(action, data);
@@ -45,6 +66,7 @@ export const DEPOSIT_BTC_ACTION_V0 = '0xf2e73f7c';
 export const DEPOSIT_BTC_ACTION_V1 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
+export const GMP_V1_SELECTOR = '0xe288fb4a';
 export const STAKING_REQUEST_SELECTOR = '0xedff11ea';
 export const STAKING_RECEIPT_SELECTOR = '0x965597b5';
 export const REDEEM_REQUEST_SELECTOR = '0xf86c9e7b';
@@ -352,6 +374,19 @@ export function randomBigInt(length: number): bigint {
   return min + rand;
 }
 
+export function randomString(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const charsLength = chars.length;
+
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * charsLength);
+    result += chars[randomIndex];
+  }
+
+  return result;
+}
+
 /**
  * address target,
  * uint256 value,
@@ -429,4 +464,41 @@ export class TxBuilder {
   get eventArgs() {
     return [this._target, this._value, this._data, this._predecessor, this._delay];
   }
+}
+
+// calculate keccak256(abi.encode(uint256(keccak256(namespace)) - 1)) & ~bytes32(uint256(0xff))
+export function calculateStorageSlot(namespace: string) {
+  // Step 1: keccak256 hash of the string
+  const typeHash = ethers.keccak256(ethers.toUtf8Bytes(namespace));
+
+  // Step 2: Convert hash to BigNumber and subtract 1
+  const slotIndex = ethers.toBigInt(typeHash) - 1n;
+
+  // Step 3: abi.encode(uint256) — here, we just use ethers' default zero-padded hex
+  const encoded = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [slotIndex]);
+
+  // Step 4: keccak256 of encoded data
+  const storageSlot = ethers.keccak256(encoded);
+
+  // Step 5: AND with ~bytes32(uint256(0xff)) = mask out last byte (set it to 0)
+  const mask = ethers.toBigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00');
+  return ethers.toBigInt(storageSlot) & mask;
+}
+
+export function calcFee(body: string, weiPerByte: bigint): { fee: bigint; payloadLength: number } {
+  const payload = getGMPPayload(
+    ethers.ZeroAddress,
+    ethers.ZeroHash,
+    ethers.ZeroHash,
+    0,
+    ethers.ZeroHash,
+    ethers.ZeroHash,
+    ethers.ZeroHash,
+    body
+  );
+  const payloadLength = ethers.getBytes(payload).length;
+  return {
+    fee: weiPerByte * BigInt(payloadLength),
+    payloadLength
+  };
 }

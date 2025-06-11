@@ -3,7 +3,7 @@ import {
   Consortium,
   Bridge,
   MockCCIPRouter,
-  MockRMN,
+  CCIPRMNMock,
   LombardTokenPool,
   CLAdapter,
   EndpointV2Mock,
@@ -466,7 +466,7 @@ describe('Bridge', function () {
 
     describe('With Chainlink Adapter', function () {
       let CCIPRouter: MockCCIPRouter,
-        CCIPRMN: MockRMN,
+        CCIPRMN: CCIPRMNMock,
         aTokenPool: LombardTokenPool,
         bTokenPool: LombardTokenPool,
         aCLAdapter: CLAdapter,
@@ -483,7 +483,7 @@ describe('Bridge', function () {
         );
         await CCIPRouter.setFee(aCCIPFee);
 
-        CCIPRMN = await deployContract<MockRMN>('MockRMN', [], false);
+        CCIPRMN = await deployContract<CCIPRMNMock>('CCIPRMNMock', [], false);
 
         aCLAdapter = await deployContract<CLAdapter>(
           'CLAdapter',
@@ -523,46 +523,50 @@ describe('Bridge', function () {
         await bridgeDestination.changeAdapter(CHAIN_ID, await aCLAdapter.getAddress());
 
         /// set token pools
-        await aTokenPool.applyChainUpdates([
-          {
-            remoteChainSelector: bChainSelector,
-            allowed: true,
-            remotePoolAddress: await bTokenPool.getAddress(),
-            remoteTokenAddress: await stakedLbtcDestination.getAddress(),
-            inboundRateLimiterConfig: {
-              isEnabled: false,
-              rate: 0,
-              capacity: 0
-            },
-            outboundRateLimiterConfig: {
-              isEnabled: false,
-              rate: 0,
-              capacity: 0
+        await aTokenPool.applyChainUpdates(
+          [],
+          [
+            {
+              remoteChainSelector: bChainSelector,
+              remotePoolAddresses: [await bTokenPool.getAddress()],
+              remoteTokenAddress: await stakedLbtcDestination.getAddress(),
+              inboundRateLimiterConfig: {
+                isEnabled: false,
+                rate: 0,
+                capacity: 0
+              },
+              outboundRateLimiterConfig: {
+                isEnabled: false,
+                rate: 0,
+                capacity: 0
+              }
             }
-          }
-        ]);
+          ]
+        );
 
-        await bTokenPool.applyChainUpdates([
-          {
-            remoteChainSelector: aChainSelector,
-            allowed: true,
-            remotePoolAddress: await aTokenPool.getAddress(),
-            remoteTokenAddress: await stakedLbtcSource.getAddress(),
-            inboundRateLimiterConfig: {
-              isEnabled: false,
-              rate: 0,
-              capacity: 0
-            },
-            outboundRateLimiterConfig: {
-              isEnabled: false,
-              rate: 0,
-              capacity: 0
+        await bTokenPool.applyChainUpdates(
+          [],
+          [
+            {
+              remoteChainSelector: aChainSelector,
+              remotePoolAddresses: [await aTokenPool.getAddress()],
+              remoteTokenAddress: await stakedLbtcSource.getAddress(),
+              inboundRateLimiterConfig: {
+                isEnabled: false,
+                rate: 0,
+                capacity: 0
+              },
+              outboundRateLimiterConfig: {
+                isEnabled: false,
+                rate: 0,
+                capacity: 0
+              }
             }
-          }
-        ]);
+          ]
+        );
 
-        await aTokenPool.setRemotePool(bChainSelector, ethers.zeroPadValue(await bTokenPool.getAddress(), 32));
-        await bTokenPool.setRemotePool(aChainSelector, ethers.zeroPadValue(await aTokenPool.getAddress(), 32));
+        await aTokenPool.addRemotePool(bChainSelector, ethers.zeroPadValue(await bTokenPool.getAddress(), 32));
+        await bTokenPool.addRemotePool(aChainSelector, ethers.zeroPadValue(await aTokenPool.getAddress(), 32));
       });
 
       it('should route message', async function () {

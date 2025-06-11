@@ -10,7 +10,7 @@
     "test": "hardhat test"
   },
   "devDependencies": {
-    "@chainlink/contracts-ccip": "^1.5.0",
+    "@chainlink/contracts-ccip": "1.6.0",
     "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.9",
     "@layerzerolabs/lz-evm-oapp-v2": "^3.0.7",
     "@layerzerolabs/lz-evm-protocol-v2": "^3.0.7",
