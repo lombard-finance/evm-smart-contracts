@@ -10,6 +10,7 @@ import {IStaking} from "./interfaces/IStaking.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
+import {LChainId} from "../libs/LChainId.sol";
 import {Staking} from "./libraries/Staking.sol";
 
 /**
@@ -30,9 +31,10 @@ contract StakingRouter is
     struct StakingRouterStorage {
         mapping(bytes32 => Route) routes;
         EnumerableMap.Bytes32ToBytes32Map namedTokens;
+        mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         uint256 StakingNonce;
         IMailbox mailbox;
-        mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        mapping(bytes32 => bool) allowedCallers; // tokenAddress => is allowed to use router
     }
 
     struct Route {
@@ -83,6 +85,9 @@ contract StakingRouter is
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route storage r = $.routes[key];
         r.toTokens[toToken] = true;
+        if (fromChainId == LChainId.get()) {
+            $.allowedCallers[fromToken] = true;
+        }
         emit RouteSet(fromToken, fromChainId, toToken, toChainId);
     }
 
@@ -103,6 +108,13 @@ contract StakingRouter is
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route storage r = $.routes[key];
         return r.toTokens[toToken] && r.toChainId == toChainId;
+    }
+
+    function _isAllowedCaller(
+        bytes32 caller
+    ) internal view returns (bool) {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        return $.allowedCallers[caller];
     }
 
     function setNamedToken(bytes32 name, address token) external onlyOwner {
@@ -157,6 +169,9 @@ contract StakingRouter is
         uint256 amount
     ) external nonReentrant returns (address nativeToken) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
+        if (!_isAllowedCaller(bytes32(uint256(uint160(_msgSender()))))) {
+            revert IStaking.NotStakingToken();
+        }
         // if token not found will revert with Enum error
         nativeToken = _getNamedToken(keccak256("NativeLBTC"));
         if (!_isAllowedRoute(
@@ -192,6 +207,9 @@ contract StakingRouter is
         uint256 amount
     ) external nonReentrant {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
+        if (!_isAllowedCaller(bytes32(uint256(uint160(_msgSender()))))) {
+            revert IStaking.NotStakingToken();
+        }
         bytes32 fromTokenBytes = bytes32(uint256(uint160(fromToken)));
         if (!_isAllowedRoute(
                 fromTokenBytes,

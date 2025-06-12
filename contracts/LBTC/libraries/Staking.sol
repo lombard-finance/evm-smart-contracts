@@ -47,10 +47,10 @@ library Staking {
     /// @dev A constant representing the number of bytes for a slot of information in a payload.
     uint256 internal constant ABI_SLOT_SIZE = 32;
 
-    bytes32 public constant LEDGER_LCHAIN_ID = "ToDO";
-    bytes32 public constant LEDGER_RECIPIENT = "ToDO";
-    bytes32 public constant LEDGER_CALLER = "ToDO";
-    bytes32 public constant BITCOIN_LCHAIN_ID = "ToDO";
+    bytes32 public constant LEDGER_LCHAIN_ID = bytes32(uint256(0x112233445566778899000000)); // ToDO
+    bytes32 public constant LEDGER_RECIPIENT = bytes32(uint256(0x222233445566778899000000)); // ToDO
+    bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x332233445566778899000000)); // ToDO
+    bytes32 public constant BITCOIN_LCHAIN_ID = bytes32(uint256(0x442233445566778899000000)); // ToDO
 
     function encodeRequest(
         uint256 nonce,
