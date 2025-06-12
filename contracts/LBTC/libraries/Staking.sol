@@ -199,19 +199,29 @@ library Staking {
     function decodeRelease(
         bytes memory rawPayload
     ) internal view returns (Release memory, bytes32) {
-        if (rawPayload.length != ABI_SLOT_SIZE * 3 + 4)
+        if (rawPayload.length != ABI_SLOT_SIZE * 3 + 4) {
             revert Staking_InvalidPayloadSize(
                 ABI_SLOT_SIZE * 3 + 4,
                 rawPayload.length
             );
-        (
-            bytes32 rawToToken,
-            bytes32 rawRecipient,
-            uint256 amount
-        ) = abi.decode(
-                rawPayload,
-                (bytes32, bytes32, uint256)
+        }
+        bytes4 selector;
+        bytes32 rawToToken;
+        bytes32 rawRecipient;
+        uint256 amount;
+        assembly {
+            selector := mload(add(rawPayload, 0x20)) // first byte
+            rawToToken := mload(add(rawPayload, 0x24)) // bytes 1..32
+            rawRecipient := mload(add(rawPayload, 0x44)) // bytes 33..64
+            amount := mload(add(rawPayload, 0x64)) // bytes 65..96
+        }
+
+        if (selector != RELEASE_SELECTOR) {
+            revert Staking_InvalidSelector(
+                RELEASE_SELECTOR,
+                selector
             );
+        }
 
         if (rawToToken == bytes32(0)) {
             revert Staking_ZeroToToken();
