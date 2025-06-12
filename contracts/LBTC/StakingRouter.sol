@@ -111,9 +111,9 @@ contract StakingRouter is
     }
 
     function _isAllowedCaller(
+        StakingRouterStorage storage $,
         bytes32 caller
     ) internal view returns (bool) {
-        StakingRouterStorage storage $ = _getStakingRouterStorage();
         return $.allowedCallers[caller];
     }
 
@@ -169,7 +169,7 @@ contract StakingRouter is
         uint256 amount
     ) external nonReentrant returns (address nativeToken) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        if (!_isAllowedCaller(bytes32(uint256(uint160(_msgSender()))))) {
+        if (!_isAllowedCaller($, bytes32(uint256(uint160(_msgSender()))))) {
             revert IStaking.NotStakingToken();
         }
         // if token not found will revert with Enum error
@@ -207,7 +207,7 @@ contract StakingRouter is
         uint256 amount
     ) external nonReentrant {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        if (!_isAllowedCaller(bytes32(uint256(uint160(_msgSender()))))) {
+        if (!_isAllowedCaller($, bytes32(uint256(uint160(_msgSender()))))) {
             revert IStaking.NotStakingToken();
         }
         bytes32 fromTokenBytes = bytes32(uint256(uint160(fromToken)));
