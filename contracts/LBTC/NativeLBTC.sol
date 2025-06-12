@@ -11,10 +11,12 @@ import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
+import {Staking} from "./libraries/Staking.sol";
 import {Redeem} from "./libraries/Redeem.sol";
 /**
  * @title ERC20 representation of Liquid Bitcoin
@@ -44,7 +46,7 @@ contract NativeLBTC is
         uint256 dustFeeRate;
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
-        uint256 redeemNonce;
+        IStakingRouter StakingRouter;
     }
 
     // TODO: recalculate
@@ -166,6 +168,10 @@ contract NativeLBTC is
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
+    }
+
+    function changeStakingRouter(address newVal) external  onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeStakingRouter(newVal);
     }
 
     /// GETTERS ///
@@ -391,8 +397,6 @@ contract NativeLBTC is
             revert RedeemsDisabled();
         }
 
-        uint256 nonce = $.redeemNonce++;
-
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
             scriptPubkey,
@@ -400,10 +404,11 @@ contract NativeLBTC is
             amount,
             fee
         );
-        bytes memory rawPayload = Redeem.encodeRequest(
-            amountAfterFee,
-            nonce,
-            scriptPubkey
+        $.StakingRouter.startUnstake(
+            Staking.BITCOIN_LCHAIN_ID,
+            address(this),
+            scriptPubkey,
+            amountAfterFee
         );
         address fromAddress = address(_msgSender());
 
@@ -411,8 +416,6 @@ contract NativeLBTC is
             _transfer(fromAddress, $.treasury, fee);
         }
         _burn(fromAddress, amountAfterFee);
-
-        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
     }
 
     /**
@@ -449,7 +452,6 @@ contract NativeLBTC is
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
         _changeBurnCommission(burnCommission_);
-        _getNativeLBTCStorage().redeemNonce = 1; // count from 1
     }
 
     function _changeNameAndSymbol(
@@ -602,6 +604,14 @@ contract NativeLBTC is
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
+    }
+
+    /// @dev allow zero address to disable Stakings
+    function _changeStakingRouter (address newVal) internal {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        address prevValue = address($.StakingRouter);
+        $.StakingRouter = IStakingRouter(newVal);
+        emit StakingRouterChanged(prevValue, newVal);
     }
 
     function _getNativeLBTCStorage()

@@ -76,7 +76,6 @@ contract StakedLBTC is
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         address operator;
         IStakingRouter StakingRouter;
-        uint256 redeemNonce;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -121,9 +120,6 @@ contract StakedLBTC is
     }
 
     function reinitialize() external reinitializer(3) {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        // start count nonces from 1
-        $.redeemNonce = 1;
     }
 
     /// MODIFIER ///
@@ -417,8 +413,6 @@ contract StakedLBTC is
             revert WithdrawalsDisabled();
         }
 
-        uint256 nonce = $.redeemNonce++;
-
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
             scriptPubkey,
@@ -426,10 +420,11 @@ contract StakedLBTC is
             amount,
             fee
         );
-        bytes memory rawPayload = Redeem.encodeRequest(
-            amountAfterFee,
-            nonce,
-            scriptPubkey
+        $.StakingRouter.startUnstake(
+            Staking.BITCOIN_LCHAIN_ID,
+            address(this),
+            scriptPubkey,
+            amountAfterFee
         );
         address fromAddress = address(_msgSender());
 
@@ -437,8 +432,6 @@ contract StakedLBTC is
             _transfer(fromAddress, $.treasury, fee);
         }
         _burn(fromAddress, amountAfterFee);
-
-        emit StakingOperationRequested(fromAddress, scriptPubkey, address(this), amount, rawPayload);
     }
 
     /**

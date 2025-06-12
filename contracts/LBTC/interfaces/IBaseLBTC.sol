@@ -37,6 +37,7 @@ interface IBaseLBTC {
     );
 
     event BatchMintSkipped(bytes32 indexed payloadHash, bytes payload);
+    event StakingRouterChanged(address indexed newVal, address indexed prevVal);
 
     function burn(uint256 amount) external;
     function burn(address from, uint256 amount) external;

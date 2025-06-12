@@ -26,10 +26,6 @@ contract StakingRouter is
 {
     using EnumerableMap for EnumerableMap.Bytes32ToBytes32Map;
 
-    bytes32 public constant LEDGER_LCHAIN_ID = "ToDO";
-    bytes32 public constant LEDGER_RECIPIENT = "ToDO";
-    bytes32 public constant LEDGER_CALLER = "ToDO";
-
     /// @custom:storage-location erc7201:lombardfinance.storage.StakingRouter
     struct StakingRouterStorage {
         mapping(bytes32 => Route) routes;
@@ -180,9 +176,9 @@ contract StakingRouter is
         );
 
         $.mailbox.send(
-            LEDGER_LCHAIN_ID,
-            LEDGER_RECIPIENT,
-            LEDGER_CALLER,
+            Staking.LEDGER_LCHAIN_ID,
+            Staking.LEDGER_RECIPIENT,
+            Staking.LEDGER_CALLER,
             rawPayload
         );
 
@@ -214,9 +210,9 @@ contract StakingRouter is
         );
 
         $.mailbox.send(
-            LEDGER_LCHAIN_ID,
-            LEDGER_RECIPIENT,
-            LEDGER_CALLER,
+            Staking.LEDGER_LCHAIN_ID,
+            Staking.LEDGER_RECIPIENT,
+            Staking.LEDGER_CALLER,
             rawPayload
         );
     }
