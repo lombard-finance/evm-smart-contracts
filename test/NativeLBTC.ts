@@ -18,8 +18,25 @@ import {
   FEE_APPROVAL_ACTION,
   buildRedeemRequestPayload
 } from './helpers';
-import { Bascule, Consortium, NativeLBTC } from '../typechain-types';
+import { Bascule, Consortium, Mailbox, NativeLBTC, StakingRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
+
+class Addressable {
+  get address(): string {
+    return this._address;
+  }
+
+  set address(value: string) {
+    this._address = value;
+  }
+
+  // @ts-ignore
+  private _address: string;
+}
+
+const BITCOIN_CHAIN_ID: string = encode(['uint256'], ["0x442233445566778899000000"]);
+const LEDGER_CHAIN_ID: string = encode(['uint256'], ["0x112233445566778899000000"]);
+const LEDGER_RECIPIENT: string = encode(['uint256'], ["0x222233445566778899000000"]);
 
 describe('NativeLBTC', function () {
   let deployer: Signer,
@@ -29,15 +46,19 @@ describe('NativeLBTC', function () {
     treasury: Signer,
     reporter: Signer,
     admin: Signer,
-    pauser: Signer;
+    pauser: Signer,
+    owner: Signer;
   let nativeLbtc: NativeLBTC;
   let bascule: Bascule;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let consortium: Consortium;
+  let mailbox: Mailbox & Addressable;
+  let lChainId: string;
+  let stakingRouter: StakingRouter & Addressable;
 
   before(async function () {
-    [deployer, signer1, signer2, signer3, treasury, admin, pauser, reporter] = await getSignersWithPrivateKeys();
+    [deployer, signer1, signer2, signer3, treasury, admin, pauser, reporter, owner] = await getSignersWithPrivateKeys();
 
     const burnCommission = 1000;
 
@@ -61,6 +82,26 @@ describe('NativeLBTC', function () {
     await nativeLbtc.grantRole(await nativeLbtc.OPERATOR_ROLE(), deployer.address);
 
     await nativeLbtc.grantRole(await nativeLbtc.PAUSER_ROLE(), pauser.address);
+
+    // Mainbox
+    const consortiumAddress = await consortium.getAddress();
+    const nativeLbtcAddress = await nativeLbtc.getAddress();
+    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortiumAddress, 0n, 0n]);
+    mailbox.address = await mailbox.getAddress();
+    const { chainId } = await ethers.provider.getNetwork();
+    lChainId = encode(['uint256'], [chainId]); // ToDO: put correct Chain Id here
+    await mailbox.connect(owner).enableMessagePath(LEDGER_CHAIN_ID, LEDGER_RECIPIENT);
+    // StakingRouter
+    stakingRouter = await deployContract<StakingRouter & Addressable>('StakingRouter', [owner.address, mailbox.address]);
+    stakingRouter.address = await stakingRouter.getAddress();
+    const nativeLbtcAddressBytes = encode(['address'], [nativeLbtcAddress]);
+    const zeroAddressBytes = encode(['address'], ["0x0000000000000000000000000000000000000001"]);
+    await stakingRouter.connect(owner).setRoute(nativeLbtcAddressBytes, lChainId, zeroAddressBytes, BITCOIN_CHAIN_ID);
+    const namedToken = ethers.keccak256(ethers.toUtf8Bytes("NativeLBTC"));
+    await stakingRouter.connect(owner).setNamedToken(namedToken, nativeLbtcAddress);
+    await mailbox.connect(owner).setSenderConfig(stakingRouter.address, 500, true);
+    // const check = await stakingRouter.connect(owner).
+    await nativeLbtc.connect(deployer).changeStakingRouter(stakingRouter.address);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -834,8 +875,8 @@ describe('NativeLBTC', function () {
         await nativeLbtc.mint(signer1.address, amount);
         const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
         await expect(nativeLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
-          .to.emit(nativeLbtc, 'RedeemRequest')
-          .withArgs(signer1.address, 1, halfAmount, burnCommission, expectedPayload);
+          .to.emit(mailbox, 'MessageSent')
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_RECIPIENT, expectedPayload);
       });
 
       it('Unstake full with P2TR', async () => {
@@ -848,8 +889,8 @@ describe('NativeLBTC', function () {
         await nativeLbtc.mint(signer1.address, amount);
         const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(nativeLbtc, 'RedeemRequest')
-          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
+          .to.emit(mailbox, 'MessageSent')
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_RECIPIENT, expectedPayload);
       });
 
       it('Unstake with commission', async () => {
@@ -863,8 +904,8 @@ describe('NativeLBTC', function () {
 
         const { payload: expectedPayload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
         await expect(nativeLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(nativeLbtc, 'RedeemRequest')
-          .withArgs(signer1.address, 1, amount, commission, expectedPayload);
+          .to.emit(mailbox, 'MessageSent')
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_RECIPIENT, expectedPayload);
       });
 
       it('Unstake full with P2WSH', async () => {
@@ -879,8 +920,8 @@ describe('NativeLBTC', function () {
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
         const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
         await expect(nativeLbtc.connect(signer1).redeem(p2wsh, amount))
-          .to.emit(nativeLbtc, 'RedeemRequest')
-          .withArgs(signer1.address, 1, amount, burnCommission, expectedPayload);
+          .to.emit(mailbox, 'MessageSent')
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_RECIPIENT, expectedPayload);
       });
     });
 
