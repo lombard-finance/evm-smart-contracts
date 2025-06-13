@@ -6,13 +6,13 @@ import { StakingRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
 describe('StakingRouter', function () {
-  let owner: Signer, signer1: Signer, signer2: Signer, signer3: Signer;
+  let owner: Signer, signer1: Signer, signer2: Signer, signer3: Signer, mailboxAddress: Signer;
   let StakingRouter: StakingRouter;
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [signer3, signer1, signer2, owner] = await getSignersWithPrivateKeys();
-    StakingRouter = await deployContract('StakingRouter', [owner.address]);
+    [signer3, signer1, signer2, owner, mailboxAddress] = await getSignersWithPrivateKeys();
+    StakingRouter = await deployContract('StakingRouter', [owner.address, mailboxAddress.address]);
     snapshot = await takeSnapshot();
   });
 

@@ -34,7 +34,7 @@ class Addressable {
   private _address: string;
 }
 
-const BITCOIN_CHAIN_ID: string = encode(['uint256'], ["0x442233445566778899000000"]);
+const BITCOIN_CHAIN_ID: string = encode(['uint256'], ["0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"]);
 const LEDGER_CHAIN_ID: string = encode(['uint256'], ["0x112233445566778899000000"]);
 const LEDGER_RECIPIENT: string = encode(['uint256'], ["0x222233445566778899000000"]);
 
@@ -83,7 +83,7 @@ describe('NativeLBTC', function () {
 
     await nativeLbtc.grantRole(await nativeLbtc.PAUSER_ROLE(), pauser.address);
 
-    // Mainbox
+    // Mailbox
     const consortiumAddress = await consortium.getAddress();
     const nativeLbtcAddress = await nativeLbtc.getAddress();
     mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortiumAddress, 0n, 0n]);

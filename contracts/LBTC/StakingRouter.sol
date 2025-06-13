@@ -5,6 +5,7 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ERC165Upgradeable, IERC165} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
@@ -35,6 +36,7 @@ contract StakingRouter is
         uint256 StakingNonce;
         IMailbox mailbox;
         mapping(address => bool) allowedCallers; // tokenAddress => is allowed to use router
+        IBascule bascule;
     }
 
     struct Route {
@@ -162,6 +164,21 @@ contract StakingRouter is
         }
     }
 
+    /**
+     * Change the address of the Bascule drawbridge contract.
+     * Setting the address to 0 disables the Bascule check.
+     * @param newVal The new address.
+     *
+     * Emits a {BasculeChanged} event.
+     */
+    function changeBascule(address newVal) external onlyOwner {
+        _changeBascule(newVal);
+    }
+
+    function Bascule() external view returns (IBascule) {
+        return _getStakingRouterStorage().bascule;
+    }
+
     function startStake(
         bytes32 tolChainId,
         address,
@@ -268,9 +285,34 @@ contract StakingRouter is
         (Staking.Release memory receipt, ) = Staking.decodeRelease(
             payload.msgBody
         );
+        _confirmDeposit($, payload.id, receipt.amount);
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
         return new bytes(0);
+    }
+
+    /**
+     * @dev Checks that the deposit was validated by the Bascule drawbridge.
+     * @param $ LBTC storage.
+     * @param depositID The unique ID of the deposit.
+     * @param amount The withdrawal amount.
+     */
+    function _confirmDeposit(
+        StakingRouterStorage storage $,
+        bytes32 depositID,
+        uint256 amount
+    ) internal {
+        IBascule bascule = $.bascule;
+        if (address(bascule) != address(0)) {
+            bascule.validateWithdrawal(depositID, amount);
+        }
+    }
+
+    /// @dev Zero Address allowed to disable bascule check
+    function _changeBascule(address newVal) internal {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        emit StakingRouter_BasculeChanged(address($.bascule), newVal);
+        $.bascule = IBascule(newVal);
     }
 }

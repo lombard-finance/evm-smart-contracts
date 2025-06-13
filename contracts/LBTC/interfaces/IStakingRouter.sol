@@ -12,6 +12,7 @@ interface IStakingRouter {
         bytes32 toChainId
     );
     event NamedTokenSet(bytes32 indexed name, address indexed token);
+    event StakingRouter_BasculeChanged(address indexed prevVal, address indexed newVal);
 
     function isAllowedRoute(
         bytes32 fromToken,

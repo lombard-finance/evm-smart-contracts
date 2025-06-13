@@ -385,70 +385,8 @@ contract StakedLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant {
-        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V0);
-        Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
-            rawPayload[4:]
-        );
-
-        _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
-            rawPayload,
-            proof
-        );
-    }
-
-    /**
-     * @notice Mint StakedLBTC by proving a stake action happened
-     * @param rawPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
-     */
-    function mintV1(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) public nonReentrant {
-        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
-        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
-            rawPayload[4:]
-        );
-
-        _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
-            rawPayload,
-            proof
-        );
-    }
-
-    /**
-     * @notice Mint LBTC in batches by proving stake actions happened
-     * @param payload The messages with the stake data
-     * @param proof Signatures of the consortium approving the mints
-     */
-    function batchMintV1(
-        bytes[] calldata payload,
-        bytes[] calldata proof
-    ) external {
-        Assert.equalLength(payload.length, proof.length);
-        for (uint256 i; i < payload.length; ++i) {
-            // Pre-emptive check if payload was used. If so, we can skip the call.
-            bytes32 payloadHash = sha256(payload[i]);
-            bytes32 legacyPayloadHash = keccak256(payload[i][4:]);
-            if (
-                _isPayloadUsed(
-                    _getStakedLBTCStorage(),
-                    payloadHash,
-                    legacyPayloadHash
-                )
-            ) {
-                emit BatchMintSkipped(payloadHash, payload[i]);
-                continue;
-            }
-
-            mintV1(payload[i], proof[i]);
-        }
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        $.StakingRouter.finalizeStakingOperation(rawPayload, proof);
     }
 
     /**
@@ -466,63 +404,6 @@ contract StakedLBTC is
         bytes calldata userSignature
     ) external onlyClaimer {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
-    }
-
-    /**
-     * @notice Mint LBTC applying a commission to the amount
-     * @dev Payload should be same as mint to avoid reusing them with and without fee
-     * @param mintPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
-     * @param feePayload Contents of the fee approval signed by the user
-     * @param userSignature Signature of the user to allow Fee
-     */
-    function mintV1WithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) external nonReentrant onlyClaimer {
-        _mintV1WithFee(mintPayload, proof, feePayload, userSignature);
-    }
-
-    /**
-     * @notice Mint LBTC in batches proving stake actions happened
-     * @param mintPayload The messages with the stake data
-     * @param proof Signatures of the consortium approving the mints
-     * @param feePayload Contents of the fee approvals signed by the user
-     * @param userSignature Signatures of the user to allow Fees
-     */
-    function batchMintV1WithFee(
-        bytes[] calldata mintPayload,
-        bytes[] calldata proof,
-        bytes[] calldata feePayload,
-        bytes[] calldata userSignature
-    ) external nonReentrant onlyClaimer {
-        Assert.equalLength(mintPayload.length, proof.length);
-        Assert.equalLength(mintPayload.length, feePayload.length);
-        Assert.equalLength(mintPayload.length, userSignature.length);
-        for (uint256 i; i < mintPayload.length; ++i) {
-            // Pre-emptive check if payload was used. If so, we can skip the call.
-            bytes32 payloadHash = sha256(mintPayload[i]);
-            bytes32 legacyPayloadHash = keccak256(mintPayload[i][4:]);
-            if (
-                _isPayloadUsed(
-                    _getStakedLBTCStorage(),
-                    payloadHash,
-                    legacyPayloadHash
-                )
-            ) {
-                emit BatchMintSkipped(payloadHash, mintPayload[i]);
-                continue;
-            }
-
-            _mintV1WithFee(
-                mintPayload[i],
-                proof[i],
-                feePayload[i],
-                userSignature[i]
-            );
-        }
     }
 
     /**
@@ -615,14 +496,6 @@ contract StakedLBTC is
         IBaseLBTC(nativeToken).burn(amount);
     }
 
-    function finalizeStakingOperation(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) external nonReentrant {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        bool success = $.StakingRouter.finalizeStakingOperation(rawPayload, proof);
-    }
-
     /// PRIVATE FUNCTIONS ///
 
     function __StakedLBTC_init(
@@ -704,61 +577,6 @@ contract StakedLBTC is
     ) internal {
         Assert.selector(mintPayload, Actions.DEPOSIT_BTC_ACTION_V0);
         Actions.DepositBtcActionV0 memory mintAction = Actions.depositBtcV0(
-            mintPayload[4:]
-        );
-
-        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
-            feePayload[4:]
-        );
-
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 fee = Math.min($.maximumFee, feeAction.fee);
-
-        if (fee >= mintAction.amount) {
-            revert FeeGreaterThanAmount();
-        }
-
-        {
-            bytes32 digest = _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        Actions.FEE_APPROVAL_EIP712_ACTION,
-                        block.chainid,
-                        feeAction.fee,
-                        feeAction.expiry
-                    )
-                )
-            );
-
-            Assert.feeApproval(digest, mintAction.recipient, userSignature);
-        }
-
-        // modified payload to be signed
-        _validateAndMint(
-            mintAction.recipient,
-            mintAction.amount - fee,
-            mintAction.amount,
-            mintPayload,
-            proof
-        );
-
-        if (fee > 0) {
-            // mint fee to treasury
-            _mint($.treasury, fee);
-        }
-
-        emit FeeCharged(fee, userSignature);
-    }
-
-    function _mintV1WithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) internal {
-        Assert.selector(mintPayload, Actions.DEPOSIT_BTC_ACTION_V1);
-        Actions.DepositBtcActionV1 memory mintAction = Actions.depositBtcV1(
             mintPayload[4:]
         );
 
