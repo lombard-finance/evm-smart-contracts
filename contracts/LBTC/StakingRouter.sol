@@ -60,6 +60,7 @@ contract StakingRouter is
         IMailbox mailbox_
     ) external initializer {
         __Ownable_init(owner_);
+        __Ownable2Step_init();
         __ReentrancyGuard_init();
         __StakingRouter_init(mailbox_);
     }
