@@ -34,7 +34,7 @@ contract StakingRouter is
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         uint256 StakingNonce;
         IMailbox mailbox;
-        mapping(bytes32 => bool) allowedCallers; // tokenAddress => is allowed to use router
+        mapping(address => bool) allowedCallers; // tokenAddress => is allowed to use router
     }
 
     struct Route {
@@ -85,8 +85,9 @@ contract StakingRouter is
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route storage r = $.routes[key];
         r.toTokens[toToken] = true;
+        r.toChainId = toChainId;
         if (fromChainId == LChainId.get()) {
-            $.allowedCallers[fromToken] = true;
+            $.allowedCallers[GMPUtils.bytes32ToAddress(fromToken)] = true;
         }
         emit RouteSet(fromToken, fromChainId, toToken, toChainId);
     }
@@ -112,14 +113,14 @@ contract StakingRouter is
 
     function _isAllowedCaller(
         StakingRouterStorage storage $,
-        bytes32 caller
+        address caller
     ) internal view returns (bool) {
         return $.allowedCallers[caller];
     }
 
     function setNamedToken(bytes32 name, address token) external onlyOwner {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        $.namedTokens.set(name, bytes32(uint256(uint160(token))));
+        $.namedTokens.set(name, GMPUtils.addressToBytes32(token));
         emit NamedTokenSet(name, token);
     }
 
@@ -131,7 +132,7 @@ contract StakingRouter is
 
     function _getNamedToken(bytes32 name) internal view returns (address) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        return address(uint160(uint256($.namedTokens.get(name))));
+        return GMPUtils.bytes32ToAddress($.namedTokens.get(name));
     }
 
     function containsNamedToken(
@@ -169,13 +170,13 @@ contract StakingRouter is
         uint256 amount
     ) external nonReentrant returns (address nativeToken) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        if (!_isAllowedCaller($, bytes32(uint256(uint160(_msgSender()))))) {
+        if (!_isAllowedCaller($, _msgSender())) {
             revert IStaking.NotStakingToken();
         }
         // if token not found will revert with Enum error
         nativeToken = _getNamedToken(keccak256("NativeLBTC"));
         if (!_isAllowedRoute(
-                bytes32(uint256(uint160(nativeToken))),
+                GMPUtils.addressToBytes32(nativeToken),
                 tolChainId,
                 toToken
             )
@@ -207,17 +208,17 @@ contract StakingRouter is
         uint256 amount
     ) external nonReentrant {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        if (!_isAllowedCaller($, bytes32(uint256(uint160(_msgSender()))))) {
+        if (!_isAllowedCaller($, _msgSender())) {
             revert IStaking.NotStakingToken();
         }
-        bytes32 fromTokenBytes = bytes32(uint256(uint160(fromToken)));
+        bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
         if (!_isAllowedRoute(
                 fromTokenBytes,
                 tolChainId,
-                bytes32(0)
+                Staking.BITCOIN_NAITIVE_COIN
             )
         ) {
-            revert IStaking.StakingNotAllowed();
+            revert IStaking.UnstakeNotAllowed();
         }
 
         bytes memory rawPayload = Staking.encodeUnstakeRequest(

@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 interface IStaking {
     error StakingNotAllowed();
     error NotStakingToken();
+    error UnstakeNotAllowed();
 
     event StakingOperationRequested(
         address indexed from,

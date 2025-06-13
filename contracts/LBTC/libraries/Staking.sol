@@ -51,6 +51,7 @@ library Staking {
     bytes32 public constant LEDGER_RECIPIENT = bytes32(uint256(0x222233445566778899000000)); // ToDO
     bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x332233445566778899000000)); // ToDO
     bytes32 public constant BITCOIN_LCHAIN_ID = bytes32(uint256(0x442233445566778899000000)); // ToDO
+    bytes32 public constant BITCOIN_NAITIVE_COIN = bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
 
     function encodeRequest(
         uint256 nonce,
