@@ -2,10 +2,7 @@
 pragma solidity 0.8.24;
 
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
@@ -20,6 +17,8 @@ import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
 import {Staking} from "./libraries/Staking.sol";
 import {Redeem} from "./libraries/Redeem.sol";
+import {BaseLBTC} from "./BaseLBTC.sol";
+
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
@@ -28,10 +27,8 @@ import {Redeem} from "./libraries/Redeem.sol";
 contract StakedLBTC is
     IStakedLBTC,
     IStaking,
-    ERC20PausableUpgradeable,
-    Ownable2StepUpgradeable,
-    ReentrancyGuardUpgradeable,
-    ERC20PermitUpgradeable
+    BaseLBTC,
+    Ownable2StepUpgradeable
 {
     using SafeERC20 for IERC20;
 
@@ -369,11 +366,7 @@ contract StakedLBTC is
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyMinter {
-        Assert.equalLength(to.length, amount.length);
-
-        for (uint256 i; i < to.length; ++i) {
-            _mint(to[i], amount[i]);
-        }
+        _batchMint(to, amount);
     }
 
     /**
@@ -386,6 +379,18 @@ contract StakedLBTC is
         bytes calldata proof
     ) external nonReentrant {
         return _mint(rawPayload, proof);
+    }
+
+    /**
+     * @notice Mint StakedLBTC in batches by DepositV1 payloads
+     * @param payload The messages with the stake data
+     * @param proof Signatures of the consortium approving the mints
+     */
+    function batchMint(
+        bytes[] calldata payload,
+        bytes[] calldata proof
+    ) external nonReentrant {
+        _batchMint(payload, proof);
     }
 
     /**
@@ -403,6 +408,22 @@ contract StakedLBTC is
         bytes calldata userSignature
     ) external onlyClaimer {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
+    }
+
+    /**
+     * @notice Mint Staked LBTC in batches proving stake actions happened
+     * @param mintPayload DepositV1 payloads
+     * @param proof Signatures of the consortium approving the mints
+     * @param feePayload Contents of the fee approvals signed by the user
+     * @param userSignature Signatures of the user to allow Fees
+     */
+    function batchMintWithFee(
+        bytes[] calldata mintPayload,
+        bytes[] calldata proof,
+        bytes[] calldata feePayload,
+        bytes[] calldata userSignature
+    ) external onlyClaimer {
+        return _batchMintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
     /**
@@ -539,52 +560,9 @@ contract StakedLBTC is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal {
+    ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         $.StakingRouter.finalizeStakingOperation(rawPayload, proof);
-    }
-
-    function _mintWithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) internal {
-        _mint(mintPayload, proof);
-
-        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
-            feePayload[4:]
-        );
-
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 fee = Math.min($.maximumFee, feeAction.fee);
-
-        if (fee >= feeAction.amount) {
-            revert FeeGreaterThanAmount();
-        }
-
-        {
-            bytes32 digest = _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        Actions.FEE_APPROVAL_EIP712_ACTION,
-                        block.chainid,
-                        feeAction.fee,
-                        feeAction.expiry
-                    )
-                )
-            );
-
-            Assert.feeApproval(digest, feeAction.recipient, userSignature);
-        }
-
-        if (fee > 0) {
-            _burn(feeAction.recipient, fee);
-            _mint($.treasury, fee);
-        }
-
-        emit FeeCharged(fee, userSignature);
     }
 
     /**
@@ -600,6 +578,18 @@ contract StakedLBTC is
         return
             $.usedPayloads[payloadHash] ||
             $.legacyUsedPayloads[legacyPayloadHash];
+    }
+
+    /**
+     * @dev Returns whether a minting payload has been used already
+     * @param payloadHash The minting payload hash
+     */
+    function _isPayloadUsed(
+        bytes32 payloadHash
+    ) internal view override returns (bool) {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        return
+            $.usedPayloads[payloadHash];
     }
 
     /// @dev zero rate not allowed
@@ -691,16 +681,5 @@ contract StakedLBTC is
         assembly {
             $.slot := STAKED_LBTC_STORAGE_LOCATION
         }
-    }
-
-    /**
-     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
-     */
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
-        super._update(from, to, value);
     }
 }

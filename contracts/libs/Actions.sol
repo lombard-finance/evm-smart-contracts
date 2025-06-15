@@ -43,7 +43,7 @@ library Actions {
         uint256 fee;
         uint256 expiry;
         uint256 amount;
-        address recipient;
+        address feePayer;
     }
 
     /// @dev Error thrown when invalid public key is provided
@@ -360,10 +360,10 @@ library Actions {
     function feeApproval(
         bytes memory payload
     ) internal view returns (FeeApprovalAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 2)
-            revert InvalidPayloadSize(ABI_SLOT_SIZE * 2, payload.length);
+        if (payload.length != ABI_SLOT_SIZE * 4)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 4, payload.length);
 
-        (uint256 fee, uint256 expiry, uint256 amount, address recipient) = abi.decode(payload, (uint256, uint256, uint256, address));
+        (uint256 fee, uint256 expiry, uint256 amount, address feePayer) = abi.decode(payload, (uint256, uint256, uint256, address));
 
         if (block.timestamp > expiry) {
             revert UserSignatureExpired(expiry);
@@ -372,6 +372,6 @@ library Actions {
             revert ZeroFee();
         }
 
-        return FeeApprovalAction(fee, expiry, amount, recipient);
+        return FeeApprovalAction(fee, expiry, amount, feePayer);
     }
 }
