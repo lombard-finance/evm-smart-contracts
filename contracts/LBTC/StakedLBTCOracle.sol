@@ -20,7 +20,7 @@ contract StakedLBTCOracle is
     }
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakedLBTCOracle")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant STAKED_LBTC_ORACLE_STORAGE_LOCATION =
-        0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700; 
+        0x773f82ddc38c293e7e76f6867b0d8bb7a6d27067018d4afff38772df98594200; 
 
     constructor() {
         _disableInitializers();

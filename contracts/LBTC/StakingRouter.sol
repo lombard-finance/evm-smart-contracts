@@ -44,10 +44,9 @@ contract StakingRouter is
         bytes32 toChainId;
     }
 
-    /// TODO: calcualte
-    /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakingRouter")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakingRouter")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant Staking_ROUTER_STORAGE_LOCATION =
-        0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+        0x657e838a5e5e7bc2c6ca514c2bec49dc0f583b9ed809ee15916b1bcccebe3d00;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor

@@ -52,7 +52,7 @@ contract NativeLBTC is
     // TODO: recalculate
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
-        0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+        0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
