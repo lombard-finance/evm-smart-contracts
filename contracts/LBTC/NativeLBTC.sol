@@ -397,6 +397,7 @@ contract NativeLBTC is
             // TODO: rename to redeem
             revert RedeemsDisabled();
         }
+
         uint256 nonce = $.redeemNonce++;
 
         uint64 fee = $.burnCommission;
@@ -455,6 +456,7 @@ contract NativeLBTC is
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
         _changeBurnCommission(burnCommission_);
+        _getNativeLBTCStorage().redeemNonce = 1; // count from 1
     }
 
     function _changeNameAndSymbol(
