@@ -385,8 +385,7 @@ contract StakedLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.StakingRouter.finalizeStakingOperation(rawPayload, proof);
+        return _mint(rawPayload, proof);
     }
 
     /**
@@ -521,37 +520,6 @@ contract StakedLBTC is
         emit NameAndSymbolChanged(name_, symbol_);
     }
 
-    function _validateAndMint(
-        address recipient,
-        uint256 amountToMint,
-        uint256 depositAmount,
-        bytes calldata payload,
-        bytes calldata proof
-    ) internal {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-
-        if (amountToMint > depositAmount) revert InvalidMintAmount();
-
-        /// make sure that hash of payload not used before
-        /// need to check new sha256 hash and legacy keccak256 from payload without selector
-        /// 2 checks made to prevent migration of contract state
-        bytes32 payloadHash = sha256(payload);
-        bytes32 legacyHash = keccak256(payload[4:]);
-        if (_isPayloadUsed($, payloadHash, legacyHash)) {
-            revert PayloadAlreadyUsed();
-        }
-        INotaryConsortium($.consortium).checkProof(payloadHash, proof);
-        $.usedPayloads[payloadHash] = true;
-
-        // Confirm deposit against Bascule
-        _confirmDeposit($, legacyHash, depositAmount);
-
-        // Actually mint
-        _mint(recipient, amountToMint);
-
-        emit MintProofConsumed(recipient, payloadHash, payload);
-    }
-
     /**
      * @dev Checks that the deposit was validated by the Bascule drawbridge.
      * @param $ LBTC storage.
@@ -568,6 +536,13 @@ contract StakedLBTC is
             bascule.validateWithdrawal(depositID, amount);
         }
     }
+    function _mint(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) internal {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        $.StakingRouter.finalizeStakingOperation(rawPayload, proof);
+    }
 
     function _mintWithFee(
         bytes calldata mintPayload,
@@ -575,10 +550,7 @@ contract StakedLBTC is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) internal {
-        Assert.selector(mintPayload, Actions.DEPOSIT_BTC_ACTION_V0);
-        Actions.DepositBtcActionV0 memory mintAction = Actions.depositBtcV0(
-            mintPayload[4:]
-        );
+        _mint(mintPayload, proof);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
         Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
@@ -588,7 +560,7 @@ contract StakedLBTC is
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         uint256 fee = Math.min($.maximumFee, feeAction.fee);
 
-        if (fee >= mintAction.amount) {
+        if (fee >= feeAction.amount) {
             revert FeeGreaterThanAmount();
         }
 
@@ -604,20 +576,11 @@ contract StakedLBTC is
                 )
             );
 
-            Assert.feeApproval(digest, mintAction.recipient, userSignature);
+            Assert.feeApproval(digest, feeAction.recipient, userSignature);
         }
 
-        // modified payload to be signed
-        _validateAndMint(
-            mintAction.recipient,
-            mintAction.amount - fee,
-            mintAction.amount,
-            mintPayload,
-            proof
-        );
-
         if (fee > 0) {
-            // mint fee to treasury
+            _burn(feeAction.recipient, fee);
             _mint($.treasury, fee);
         }
 

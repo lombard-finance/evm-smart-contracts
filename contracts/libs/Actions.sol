@@ -42,6 +42,8 @@ library Actions {
     struct FeeApprovalAction {
         uint256 fee;
         uint256 expiry;
+        uint256 amount;
+        address recipient;
     }
 
     /// @dev Error thrown when invalid public key is provided
@@ -361,7 +363,7 @@ library Actions {
         if (payload.length != ABI_SLOT_SIZE * 2)
             revert InvalidPayloadSize(ABI_SLOT_SIZE * 2, payload.length);
 
-        (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
+        (uint256 fee, uint256 expiry, uint256 amount, address recipient) = abi.decode(payload, (uint256, uint256, uint256, address));
 
         if (block.timestamp > expiry) {
             revert UserSignatureExpired(expiry);
@@ -370,6 +372,6 @@ library Actions {
             revert ZeroFee();
         }
 
-        return FeeApprovalAction(fee, expiry);
+        return FeeApprovalAction(fee, expiry, amount, recipient);
     }
 }

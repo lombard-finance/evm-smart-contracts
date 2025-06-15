@@ -46,6 +46,7 @@ contract NativeLBTC is
         uint256 dustFeeRate;
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        uint256 redeemNonce;
         IStakingRouter StakingRouter;
     }
 
@@ -396,6 +397,7 @@ contract NativeLBTC is
             // TODO: rename to redeem
             revert RedeemsDisabled();
         }
+        uint256 nonce = $.redeemNonce++;
 
         uint64 fee = $.burnCommission;
         uint256 amountAfterFee = Validation.redeemFee(
@@ -404,11 +406,10 @@ contract NativeLBTC is
             amount,
             fee
         );
-        $.StakingRouter.startUnstake(
-            Staking.BITCOIN_LCHAIN_ID,
-            address(this),
-            scriptPubkey,
-            amountAfterFee
+        bytes memory rawPayload = Redeem.encodeRequest(
+            amountAfterFee,
+            nonce,
+            scriptPubkey
         );
         address fromAddress = address(_msgSender());
 
@@ -416,6 +417,8 @@ contract NativeLBTC is
             _transfer(fromAddress, $.treasury, fee);
         }
         _burn(fromAddress, amountAfterFee);
+
+        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
     }
 
     /**
