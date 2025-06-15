@@ -25,19 +25,20 @@ contract StakedLBTCOracle is
     constructor() {
         _disableInitializers();
     }
-    function initialize(address owner_) external initializer {
+    function initialize(address owner_, uint256 ratio_, uint64 switchTime_) external initializer {
         __Ownable_init(owner_);
         __Ownable2Step_init();
+        __StakedLBTCOracle_init(ratio_, switchTime_);
+    }
+
+    function __StakedLBTCOracle_init(
+        uint256 ratio_, uint64 switchTime_
+    ) internal onlyInitializing {
+        _publishNewRatio(ratio_, switchTime_);
     }
 
     function publishNewRatio(uint256 newVal, uint64 switchTime) external onlyOwner {
-        StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        if (block.timestamp >= switchTime && $.switchTime > 0) {
-            revert WrongRatioSwitchTime();
-        }
-        $.prevRatio = $.currRatio;
-        $.currRatio = newVal;
-        $.switchTime = switchTime;
+        return _publishNewRatio(newVal, switchTime);
     }
 
     function ratio() external view override returns (uint256) {
@@ -47,7 +48,17 @@ contract StakedLBTCOracle is
     function getRate() external view override returns (uint256) {
         return Math.mulDiv(1 ether, 1 ether, _ratio(), Math.Rounding.Ceil);
     }
-  
+    
+    function _publishNewRatio(uint256 newVal, uint64 switchTime) internal {
+        StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
+        if (block.timestamp >= switchTime && $.switchTime > 0) {
+            revert WrongRatioSwitchTime();
+        }
+        $.prevRatio = $.currRatio;
+        $.currRatio = newVal;
+        $.switchTime = switchTime;
+    }
+
     function _ratio() internal view returns (uint256) {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (block.timestamp <= $.switchTime) {
