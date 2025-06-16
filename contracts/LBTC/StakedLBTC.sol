@@ -359,8 +359,8 @@ contract StakedLBTC is
     function mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external nonReentrant {
-        _mint(rawPayload, proof);
+    ) external nonReentrant returns (address recipient) {
+        return _mint(rawPayload, proof);
     }
 
     /**

@@ -254,7 +254,7 @@ contract StakeAndBake is
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC.
-        $.lbtc.mint(data.mintPayload, data.proof);
+        address owner = $.lbtc.mint(data.mintPayload, data.proof);
 
         (
             uint256 permitAmount,
@@ -266,12 +266,6 @@ contract StakeAndBake is
                 data.permitPayload,
                 (uint256, uint256, uint8, bytes32, bytes32)
             );
-
-        // Check the recipient.
-        Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
-            data.mintPayload[4:]
-        );
-        address owner = action.recipient;
 
         // We check if we can simply use transferFrom.
         // Otherwise, we permit the depositor to transfer the minted value.
