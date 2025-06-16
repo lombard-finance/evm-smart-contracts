@@ -317,7 +317,7 @@ contract StakingRouter is
         bytes calldata proof
     ) external nonReentrant returns (bool, address) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        (, bool success, bytes memory result) = $.mailbox.deliverAndHandleV1(rawPayload, proof);
+        (, bool success, bytes memory result) = $.mailbox.deliverAndHandle(rawPayload, proof);
         address recipient = abi.decode(result, (address));
         return (success, recipient);
     }

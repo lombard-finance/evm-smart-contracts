@@ -135,7 +135,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             (bytes, bytes)
         );
 
-        (bytes32 payloadHash, bool executed) = IMailbox(bridge.mailbox())
+        (bytes32 payloadHash, bool executed, ) = IMailbox(bridge.mailbox())
             .deliverAndHandle(rawPayload, proof);
         if (!executed) {
             revert ExecutionError();

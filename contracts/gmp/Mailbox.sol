@@ -401,41 +401,10 @@ contract Mailbox is
      * @param rawPayload Payload bytes
      * @param proof ABI encoded array of signatures
      * @return payloadHash The hash of payload
-     */
-    function deliverAndHandle(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) external override whenNotPaused nonReentrant returns (bytes32, bool) {
-        // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
-
-        GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
-            rawPayload
-        );
-        bytes32 payloadHash = GMPUtils.hash(rawPayload);
-        MailboxStorage storage $ = _getStorage();
-
-        _deliver($, payload, payloadHash, rawPayload, proof);
-
-        (bool success, ) = _handle($, payload, payloadHash);
-
-        return (payloadHash, success);
-    }
-
-    /**
-     * @notice Deliver a message. The mailbox does not track the nonce or hash of the payload,
-     * the handler must prevent double-spending if such logic applies.
-     * The valid payload is decoded and passed to the specified receiver, which must
-     * implement the IHandler interface to process the payload.
-     *
-     * @dev Payload is ABI encoded with selector
-     * MessageV1(path bytes32, nonce uint256, sender bytes32, recipient bytes32, destinationCaller bytes32, body bytes)
-     * @param rawPayload Payload bytes
-     * @param proof ABI encoded array of signatures
-     * @return payloadHash The hash of payload
      * @return success The bool value telling if message was delivered successfully
      * @return result Execution result as bytes array
      */
-    function deliverAndHandleV1(
+    function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
     ) external override whenNotPaused nonReentrant returns (bytes32, bool, bytes memory) {
