@@ -78,7 +78,7 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal virtual returns (address) {}
+    ) internal virtual returns (address);
 
     function _mintWithFee(
         bytes calldata mintPayload,
@@ -119,8 +119,8 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
         emit FeeCharged(fee, userSignature);
     }
 
-    function _isPayloadUsed(bytes32 payloadHash) internal view virtual returns (bool) {}
-    function _getMaxFeeAndTreasury() internal view virtual returns (uint256, address) {}
+    function _isPayloadUsed(bytes32 payloadHash) internal view virtual returns (bool);
+    function _getMaxFeeAndTreasury() internal view virtual returns (uint256, address);
 
     /**
      * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
