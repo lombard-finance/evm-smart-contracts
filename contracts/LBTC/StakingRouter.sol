@@ -315,10 +315,11 @@ contract StakingRouter is
     function finalizeStakingOperation(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external nonReentrant returns (bool) {
+    ) external nonReentrant returns (bool, address) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        (, bool success) = $.mailbox.deliverAndHandle(rawPayload, proof);
-        return success;
+        (, bool success, bytes memory result) = $.mailbox.deliverAndHandleV1(rawPayload, proof);
+        address recipient = abi.decode(result, (address));
+        return (success, recipient);
     }
 
     function supportsInterface(
@@ -348,7 +349,7 @@ contract StakingRouter is
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
-        return new bytes(0);
+        return abi.encodePacked(receipt.recipient);
     }
 
     /**

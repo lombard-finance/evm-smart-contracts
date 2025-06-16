@@ -5,6 +5,7 @@ interface IStakingRouter {
     error StakingRouter_ZeroMailbox();
     error StakingRouter_MailboxExpected();
     error StakingRouter_PayloadAlreadyUsed();
+
     event RouteSet(
         bytes32 indexed fromToken,
         bytes32 indexed fromChainId,
@@ -47,5 +48,5 @@ interface IStakingRouter {
     function finalizeStakingOperation(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external returns (bool);
+    ) external returns (bool, address);
 }

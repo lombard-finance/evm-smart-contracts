@@ -360,7 +360,7 @@ contract StakedLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant {
-        return _mint(rawPayload, proof);
+        _mint(rawPayload, proof);
     }
 
     /**
@@ -542,9 +542,10 @@ contract StakedLBTC is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal override {
+    ) internal override returns (address) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.stakingRouter.finalizeStakingOperation(rawPayload, proof);
+        (, address recipient) = $.stakingRouter.finalizeStakingOperation(rawPayload, proof);
+        return recipient;
     }
 
     /**

@@ -78,7 +78,7 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal virtual {}
+    ) internal virtual returns (address) {}
 
     function _mintWithFee(
         bytes calldata mintPayload,
@@ -86,7 +86,7 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
         bytes calldata feePayload,
         bytes calldata userSignature
     ) internal virtual {
-        _mint(mintPayload, proof);
+        address recipient = _mint(mintPayload, proof);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
         Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
@@ -96,10 +96,6 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
         (uint256 maxFee, address treasury) = _getMaxFeeAndTreasury();
         uint256 fee = Math.min(maxFee, feeAction.fee);
 
-        if (fee >= feeAction.amount) {
-            revert FeeGreaterThanAmount();
-        }
-
         {
             bytes32 digest = _hashTypedDataV4(
                 keccak256(
@@ -107,18 +103,16 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
                         Actions.FEE_APPROVAL_EIP712_ACTION,
                         block.chainid,
                         feeAction.fee,
-                        feeAction.expiry,
-                        feeAction.amount,
-                        feeAction.feePayer
+                        feeAction.expiry
                     )
                 )
             );
 
-            Assert.feeApproval(digest, feeAction.feePayer, userSignature);
+            Assert.feeApproval(digest, recipient, userSignature);
         }
 
         if (fee > 0) {
-            _burn(feeAction.feePayer, fee);
+            _burn(recipient, fee);
             _mint(treasury, fee);
         }
 

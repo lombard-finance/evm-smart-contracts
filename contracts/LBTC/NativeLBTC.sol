@@ -413,7 +413,7 @@ contract NativeLBTC is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal override {
+    ) internal override returns (address) {
         Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
         Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             rawPayload[4:]
@@ -426,6 +426,7 @@ contract NativeLBTC is
             rawPayload,
             proof
         );
+        return action.recipient;
     }
 
     function _validateAndMint(
