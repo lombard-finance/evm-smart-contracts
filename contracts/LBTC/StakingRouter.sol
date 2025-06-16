@@ -376,15 +376,15 @@ contract StakingRouter is
         $.bascule = IBascule(newVal);
     }
 
-    /// @dev Zero Address allowed to disable bascule check
     function _changeOracle(address newVal) internal {
+        if (address(newVal) == address(0)) revert StakingRouter_ZeroAddress();
         StakingRouterStorage storage $ = _getStakingRouterStorage();
         emit StakingRouter_OracleChanged(address($.oracle), newVal);
         $.oracle = IOracle(newVal);
     }
 
-    /// @dev Zero Address allowed to disable bascule check
     function _changeMailbox(address newVal) internal {
+        if (address(newVal) == address(0)) revert StakingRouter_ZeroAddress();
         StakingRouterStorage storage $ = _getStakingRouterStorage();
         emit StakingRouter_MailboxChanged(address($.mailbox), newVal);
         $.mailbox = IMailbox(newVal);

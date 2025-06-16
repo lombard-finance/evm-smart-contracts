@@ -5,6 +5,7 @@ interface IStakingRouter {
     error StakingRouter_ZeroMailbox();
     error StakingRouter_MailboxExpected();
     error StakingRouter_PayloadAlreadyUsed();
+    error StakingRouter_ZeroAddress();
 
     event RouteSet(
         bytes32 indexed fromToken,
