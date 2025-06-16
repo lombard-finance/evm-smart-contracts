@@ -69,10 +69,11 @@ contract StakedLBTC is
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
         /// Maximum fee to apply on mints
-        uint256 maximumFee;
+        /// @custom:oz-renamed-from maximumFee
+        uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         address operator;
-        IStakingRouter StakingRouter;
+        IStakingRouter stakingRouter;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -170,18 +171,6 @@ contract StakedLBTC is
         _changeConsortium(newVal);
     }
 
-    /**
-     * @notice Set the contract current fee for mint
-     * @param fee New fee value
-     * @dev zero allowed to disable fee
-     */
-    function setMintFee(uint256 fee) external onlyOperator {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 oldFee = $.maximumFee;
-        $.maximumFee = fee;
-        emit FeeChanged(oldFee, fee);
-    }
-
     function changeTreasuryAddress(address newValue) external onlyOwner {
         _changeTreasury(newValue);
     }
@@ -246,13 +235,6 @@ contract StakedLBTC is
 
     /// GETTERS ///
 
-    /**
-     * @notice Returns the current maximum mint fee
-     */
-    function getMintFee() external view returns (uint256) {
-        return _getStakedLBTCStorage().maximumFee;
-    }
-
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
     /// @dev This function can be used by front-ends to verify burn amounts before submitting a transaction
     /// @param scriptPubkey The Bitcoin script public key as a byte array
@@ -279,7 +261,7 @@ contract StakedLBTC is
     }
 
     function StakingRouter() external view returns (IStakingRouter) {
-        return _getStakedLBTCStorage().StakingRouter;
+        return _getStakedLBTCStorage().stakingRouter;
     }
 
     /**
@@ -447,7 +429,7 @@ contract StakedLBTC is
             amount,
             fee
         );
-        $.StakingRouter.startUnstake(
+        $.stakingRouter.startUnstake(
             Staking.BITCOIN_LCHAIN_ID,
             address(this),
             scriptPubkey,
@@ -485,7 +467,7 @@ contract StakedLBTC is
         uint256 amount
     ) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.StakingRouter.startUnstake(
+        $.stakingRouter.startUnstake(
             tolChainId,
             address(this),
             recipient,
@@ -501,7 +483,7 @@ contract StakedLBTC is
         uint256 amount 
     ) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        address nativeToken = $.StakingRouter.startStake(
+        address nativeToken = $.stakingRouter.startStake(
             tolChainId,
             address(this),
             toToken,
@@ -562,7 +544,7 @@ contract StakedLBTC is
         bytes calldata proof
     ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.StakingRouter.finalizeStakingOperation(rawPayload, proof);
+        $.stakingRouter.finalizeStakingOperation(rawPayload, proof);
     }
 
     /**
@@ -668,8 +650,8 @@ contract StakedLBTC is
     /// @dev allow zero address to disable Stakings
     function _changeStakingRouter (address newVal) internal {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        address prevValue = address($.StakingRouter);
-        $.StakingRouter = IStakingRouter(newVal);
+        address prevValue = address($.stakingRouter);
+        $.stakingRouter = IStakingRouter(newVal);
         emit StakingRouterChanged(prevValue, newVal);
     }
 
@@ -681,5 +663,12 @@ contract StakedLBTC is
         assembly {
             $.slot := STAKED_LBTC_STORAGE_LOCATION
         }
+    }
+
+    function _getMaxFeeAndTreasury() internal view override returns (uint256, address) {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        uint256 ratio = $.stakingRouter.getRatio(address(this));
+        uint256 maxFee = Math.mulDiv($.stakingRouter.getMintFee(), ratio, 1 ether, Math.Rounding.Ceil);
+        return (maxFee, $.treasury);
     }
 }

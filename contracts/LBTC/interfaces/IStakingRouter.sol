@@ -13,6 +13,9 @@ interface IStakingRouter {
     );
     event NamedTokenSet(bytes32 indexed name, address indexed token);
     event StakingRouter_BasculeChanged(address indexed prevVal, address indexed newVal);
+    event StakingRouter_OracleChanged(address indexed prevVal, address indexed newVal);
+    event StakingRouter_MailboxChanged(address indexed prevVal, address indexed newVal);
+    event StakingRouter_FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
 
     function isAllowedRoute(
         bytes32 fromToken,
@@ -23,6 +26,8 @@ interface IStakingRouter {
     function getNamedToken(bytes32 name) external view returns (address);
     function containsNamedToken(bytes32 name) external view returns (bool);
     function getNamedTokenKeys() external view returns (bytes32[] memory);
+    function getMintFee() external view returns (uint256);
+    function getRatio(address token) external view returns (uint256);
 
     function startStake(
         bytes32 tolChainId,

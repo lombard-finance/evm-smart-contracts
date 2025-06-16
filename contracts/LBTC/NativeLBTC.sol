@@ -40,10 +40,11 @@ contract NativeLBTC is
         string name;
         string symbol;
         uint256 dustFeeRate;
-        uint256 maximumFee;
+        /// @custom:oz-renamed-from maximumFee
+        uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         uint256 redeemNonce;
-        IStakingRouter StakingRouter;
+        IStakingRouter stakingRouter;
     }
 
     // TODO: recalculate
@@ -113,18 +114,6 @@ contract NativeLBTC is
         _changeConsortium(newVal);
     }
 
-    /**
-     * @notice Set the contract current fee for mint
-     * @param fee New fee value
-     * @dev zero allowed to disable fee
-     */
-    function setMintFee(uint256 fee) external onlyRole(OPERATOR_ROLE) {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 oldFee = $.maximumFee;
-        $.maximumFee = fee;
-        emit FeeChanged(oldFee, fee);
-    }
-
     function changeTreasuryAddress(
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -177,7 +166,7 @@ contract NativeLBTC is
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getNativeLBTCStorage().maximumFee;
+        return _getNativeLBTCStorage().stakingRouter.getMintFee();
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -529,8 +518,8 @@ contract NativeLBTC is
     /// @dev allow zero address to disable Stakings
     function _changeStakingRouter (address newVal) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        address prevValue = address($.StakingRouter);
-        $.StakingRouter = IStakingRouter(newVal);
+        address prevValue = address($.stakingRouter);
+        $.stakingRouter = IStakingRouter(newVal);
         emit StakingRouterChanged(prevValue, newVal);
     }
 
@@ -554,5 +543,10 @@ contract NativeLBTC is
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         return
             $.usedPayloads[payloadHash];
+    }
+
+    function _getMaxFeeAndTreasury() internal view override returns (uint256, address) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        return ($.stakingRouter.getMintFee(), $.treasury);
     }
 }

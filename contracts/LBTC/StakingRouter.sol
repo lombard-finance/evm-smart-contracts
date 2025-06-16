@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ERC165Upgradeable, IERC165} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
+import {IOracle} from "./interfaces/IOracle.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
@@ -22,9 +23,8 @@ import {Staking} from "./libraries/Staking.sol";
 contract StakingRouter is
     IStakingRouter,
     IHandler,
-    Ownable2StepUpgradeable,
-    ReentrancyGuardUpgradeable,
-    ERC165Upgradeable
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardUpgradeable
 {
     using EnumerableMap for EnumerableMap.Bytes32ToBytes32Map;
 
@@ -37,6 +37,8 @@ contract StakingRouter is
         IMailbox mailbox;
         mapping(address => bool) allowedCallers; // tokenAddress => is allowed to use router
         IBascule bascule;
+        uint256 maximumFee;
+        IOracle oracle;
     }
 
     struct Route {
@@ -48,6 +50,8 @@ contract StakingRouter is
     bytes32 private constant Staking_ROUTER_STORAGE_LOCATION =
         0x657e838a5e5e7bc2c6ca514c2bec49dc0f583b9ed809ee15916b1bcccebe3d00;
 
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -56,19 +60,22 @@ contract StakingRouter is
 
     function initialize(
         address owner_,
-        IMailbox mailbox_
+        uint48 initialOwnerDelay_,
+        IMailbox mailbox_,
+        IOracle oracle_
     ) external initializer {
-        __Ownable_init(owner_);
-        __Ownable2Step_init();
+       __AccessControlDefaultAdminRules_init(initialOwnerDelay_, owner_);
         __ReentrancyGuard_init();
-        __StakingRouter_init(mailbox_);
+        __StakingRouter_init(mailbox_, oracle_);
     }
 
-    function __StakingRouter_init(IMailbox mailbox_) internal onlyInitializing {
+    function __StakingRouter_init(IMailbox mailbox_, IOracle oracle_) internal onlyInitializing {
         if (address(mailbox_) == address(0)) {
             revert StakingRouter_ZeroMailbox();
         }
-        _getStakingRouterStorage().mailbox = mailbox_;
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        $.mailbox = mailbox_;
+        $.oracle = oracle_;
     }
 
     function reinitialize() external reinitializer(3) {
@@ -82,7 +89,7 @@ contract StakingRouter is
         bytes32 fromChainId,
         bytes32 toToken,
         bytes32 toChainId
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route storage r = $.routes[key];
@@ -120,7 +127,7 @@ contract StakingRouter is
         return $.allowedCallers[caller];
     }
 
-    function setNamedToken(bytes32 name, address token) external onlyOwner {
+    function setNamedToken(bytes32 name, address token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
         $.namedTokens.set(name, GMPUtils.addressToBytes32(token));
         emit NamedTokenSet(name, token);
@@ -154,6 +161,11 @@ contract StakingRouter is
         return $.namedTokens.keys();
     }
 
+    function getRatio(address) external view returns (uint256) {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        return $.oracle.ratio();
+    }
+
     function _getStakingRouterStorage()
         private
         pure
@@ -171,12 +183,59 @@ contract StakingRouter is
      *
      * Emits a {BasculeChanged} event.
      */
-    function changeBascule(address newVal) external onlyOwner {
+    function changeBascule(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
     }
 
     function Bascule() external view returns (IBascule) {
         return _getStakingRouterStorage().bascule;
+    }
+
+    /**
+     * Change the address of the Bascule drawbridge contract.
+     * Setting the address to 0 disables the Bascule check.
+     * @param newVal The new address.
+     *
+     * Emits a {BasculeChanged} event.
+     */
+    function changeOracle(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeOracle(newVal);
+    }
+
+    function Oracle() external view returns (IOracle) {
+        return _getStakingRouterStorage().oracle;
+    }
+
+    /**
+     * Change the address of the Bascule drawbridge contract.
+     * Setting the address to 0 disables the Bascule check.
+     * @param newVal The new address.
+     *
+     * Emits a {BasculeChanged} event.
+     */
+    function changeMaibox(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeMailbox(newVal);
+    }
+
+    function Mailbox() external view returns (IMailbox) {
+        return _getStakingRouterStorage().mailbox;
+    }
+
+    /**
+     * @notice Set the contract current fee for mint
+     * @param fee New fee value
+     * @dev zero allowed to disable fee
+     */
+    function setMintFee(uint256 fee) external onlyRole(OPERATOR_ROLE) {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        uint256 oldFee = $.maximumFee;
+        $.maximumFee = fee;
+        emit StakingRouter_FeeChanged(oldFee, fee);
+    }
+
+    function getMintFee() external view returns (uint256) {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        return $.maximumFee;
     }
 
     function startStake(
@@ -264,7 +323,7 @@ contract StakingRouter is
 
     function supportsInterface(
         bytes4 interfaceId
-    ) public view override(ERC165Upgradeable, IERC165) returns (bool) {
+    ) public view override(AccessControlDefaultAdminRulesUpgradeable, IERC165) returns (bool) {
         return
             type(IHandler).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
@@ -314,5 +373,19 @@ contract StakingRouter is
         StakingRouterStorage storage $ = _getStakingRouterStorage();
         emit StakingRouter_BasculeChanged(address($.bascule), newVal);
         $.bascule = IBascule(newVal);
+    }
+
+    /// @dev Zero Address allowed to disable bascule check
+    function _changeOracle(address newVal) internal {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        emit StakingRouter_OracleChanged(address($.oracle), newVal);
+        $.oracle = IOracle(newVal);
+    }
+
+    /// @dev Zero Address allowed to disable bascule check
+    function _changeMailbox(address newVal) internal {
+        StakingRouterStorage storage $ = _getStakingRouterStorage();
+        emit StakingRouter_MailboxChanged(address($.mailbox), newVal);
+        $.mailbox = IMailbox(newVal);
     }
 }
