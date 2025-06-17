@@ -349,7 +349,7 @@ contract StakingRouter is
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
-        return abi.encodePacked(receipt.recipient);
+        return abi.encode(receipt.recipient);
     }
 
     /**
