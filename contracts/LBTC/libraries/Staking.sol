@@ -35,14 +35,14 @@ library Staking {
     // bytes4(keccak256("payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32)")
     bytes4 internal constant RECEIPT_SELECTOR = 0x965597b5;
 
-    // bytes4(keccak256("Stake(bytes32,bytes32,bytes32,uint256)"))
-    bytes4 internal constant STAKE_REQUEST_SELECTOR = 0x54d4a896;
+    // bytes4(keccak256("stake(bytes32,bytes32,bytes32,uint256)"))
+    bytes4 internal constant STAKE_REQUEST_SELECTOR = 0xd582b25b;
 
-    // bytes4(keccak256("Unstake(bytes32,bytes32,bytes,uint256)"))
-    bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x02220bca;
+    // bytes4(keccak256("unstake(bytes32,bytes32,bytes,uint256)"))
+    bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x4a227ef9;
 
-    // bytes4(keccak256("Release(bytes32,bytes32,uint256)"))
-    bytes4 internal constant RELEASE_SELECTOR = 0x6d673bfe;
+    // bytes4(keccak256("release(bytes32,bytes32,uint256)"))
+    bytes4 internal constant RELEASE_SELECTOR = 0x5217c530;
 
     /// @dev A constant representing the number of bytes for a slot of information in a payload.
     uint256 internal constant ABI_SLOT_SIZE = 32;
