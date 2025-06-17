@@ -16,21 +16,20 @@ import "./IBARD.sol";
  */
 contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     // Maximum inflation rate per year (percentage) expressed as an integer
-    uint8 public constant MAX_INFLATION = 10;
+    uint256 public constant MAX_INFLATION = 10;
 
     // The frequency limit on inflationary mint invocations
-    uint32 public constant MINT_WAIT_PERIOD = 365 days;
+    uint256 public constant MINT_WAIT_PERIOD = 365 days;
 
     //The last time the mint function was called
-    uint40 public lastMintTimestamp;
+    uint256 public lastMintTimestamp;
 
     constructor(
         address _initialOwner,
         address _treasury
     ) ERC20("Lombard", "BARD") ERC20Permit("Lombard") Ownable(_initialOwner) {
-        // first mint not allowed until 1 year after deployment
-        lastMintTimestamp = uint40(block.timestamp);
-        if (_treasury == address(0)) revert ZeroAddressException();
+        // The next mint after initial onee not allowed until 1 year after deployment
+        lastMintTimestamp = block.timestamp;
         // mint initial supply
         _mint(_treasury, 1_000_000_000 * 1 ether);
     }
@@ -39,7 +38,7 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
      * @notice Mints new BARD tokens
      * @param to The address to mint tokens to
      * @param amount The amount of tokens to mint
-     * @dev Only callable by the owner once per year and amount must be less than max inflation rate
+     * @dev Only callable by the owner once per year. The amount must be less than the product of the maximum inflation rate and the current total supply.
      */
     function mint(address to, uint256 amount) external onlyOwner {
         if (block.timestamp - lastMintTimestamp < MINT_WAIT_PERIOD)
@@ -49,9 +48,8 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
         uint256 _maxInflationAmount = (totalSupply() * MAX_INFLATION) / 100;
         if (amount > _maxInflationAmount)
             revert MaxInflationExceeded(_maxInflationAmount);
-        lastMintTimestamp = uint40(block.timestamp);
+        lastMintTimestamp = block.timestamp;
         _mint(to, amount);
-        emit Mint(to, amount);
     }
 
     /// @notice Prevents the owner from renouncing ownership
@@ -71,7 +69,7 @@ contract BARD is Ownable2Step, ERC20Burnable, ERC20Permit, ERC20Votes, IBARD {
     }
 
     /**
-     * @dev Override of the nonces function to satisfy both IERC20Permit and Nonces
+     * @dev Override of the nonces function to satisfy both ERC20Permit and Nonces. These nonces are used for both token permits and voting delegation.
      */
     function nonces(
         address owner
