@@ -639,7 +639,7 @@ describe('Mailbox', function () {
       globalNonce = 1;
     });
 
-    it('transmit and withdraw fee successful', async () => {
+    it('transmit a message and withdraw fee', async () => {
       const recipient = encode(['address'], [handlerMock.address]);
       const dCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
