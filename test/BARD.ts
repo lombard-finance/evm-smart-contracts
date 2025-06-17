@@ -45,7 +45,7 @@ describe('BARD', function () {
     it('Reverts when treasury is 0 address', async function () {
       await expect(deployContract<BARD>('BARD', [owner, ethers.ZeroAddress], false)).to.revertedWithCustomError(
         bard,
-        'ZeroAddressException'
+        'ERC20InvalidReceiver'
       );
     });
 
@@ -92,7 +92,7 @@ describe('BARD', function () {
 
       const amount = 1_00_000_000n * e18;
       const tx = await bard.connect(owner).mint(signer1, amount);
-      await expect(tx).to.emit(bard, 'Mint').withArgs(signer1, amount);
+      await expect(tx).to.emit(bard, 'Transfer').withArgs(ethers.ZeroAddress, signer1, amount);
       await expect(tx).to.changeTokenBalance(bard, signer1, amount);
       await expect(tx).to.changeTokenBalance(bard, treasury, 0n);
 
@@ -112,7 +112,7 @@ describe('BARD', function () {
       const recipient = ethers.Wallet.createRandom().address;
       const amount2 = 50_000_000n * e18;
       const tx = await bard.connect(owner).mint(recipient, amount2);
-      await expect(tx).to.emit(bard, 'Mint').withArgs(recipient, amount2);
+      await expect(tx).to.emit(bard, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount2);
       await expect(tx).to.changeTokenBalance(bard, recipient, amount2);
       await expect(tx).to.changeTokenBalance(bard, treasury, 0n);
 
