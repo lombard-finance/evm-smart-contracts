@@ -64,12 +64,15 @@ contract StakingRouter is
         IMailbox mailbox_,
         IOracle oracle_
     ) external initializer {
-       __AccessControlDefaultAdminRules_init(initialOwnerDelay_, owner_);
+        __AccessControlDefaultAdminRules_init(initialOwnerDelay_, owner_);
         __ReentrancyGuard_init();
         __StakingRouter_init(mailbox_, oracle_);
     }
 
-    function __StakingRouter_init(IMailbox mailbox_, IOracle oracle_) internal onlyInitializing {
+    function __StakingRouter_init(
+        IMailbox mailbox_,
+        IOracle oracle_
+    ) internal onlyInitializing {
         if (address(mailbox_) == address(0)) {
             revert StakingRouter_ZeroMailbox();
         }
@@ -127,7 +130,10 @@ contract StakingRouter is
         return $.allowedCallers[caller];
     }
 
-    function setNamedToken(bytes32 name, address token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setNamedToken(
+        bytes32 name,
+        address token
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
         $.namedTokens.set(name, GMPUtils.addressToBytes32(token));
         emit NamedTokenSet(name, token);
@@ -183,7 +189,9 @@ contract StakingRouter is
      *
      * Emits a {BasculeChanged} event.
      */
-    function changeBascule(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeBascule(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
     }
 
@@ -198,7 +206,9 @@ contract StakingRouter is
      *
      * Emits a {BasculeChanged} event.
      */
-    function changeOracle(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeOracle(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeOracle(newVal);
     }
 
@@ -213,7 +223,9 @@ contract StakingRouter is
      *
      * Emits a {BasculeChanged} event.
      */
-    function changeMaibox(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeMaibox(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeMailbox(newVal);
     }
 
@@ -251,7 +263,8 @@ contract StakingRouter is
         }
         // if token not found will revert with Enum error
         nativeToken = _getNamedToken(keccak256("NativeLBTC"));
-        if (!_isAllowedRoute(
+        if (
+            !_isAllowedRoute(
                 GMPUtils.addressToBytes32(nativeToken),
                 tolChainId,
                 toToken
@@ -288,7 +301,8 @@ contract StakingRouter is
             revert IStaking.NotStakingToken();
         }
         bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
-        if (!_isAllowedRoute(
+        if (
+            !_isAllowedRoute(
                 fromTokenBytes,
                 tolChainId,
                 Staking.BITCOIN_NAITIVE_COIN
@@ -317,14 +331,22 @@ contract StakingRouter is
         bytes calldata proof
     ) external nonReentrant returns (bool, address) {
         StakingRouterStorage storage $ = _getStakingRouterStorage();
-        (, bool success, bytes memory result) = $.mailbox.deliverAndHandle(rawPayload, proof);
+        (, bool success, bytes memory result) = $.mailbox.deliverAndHandle(
+            rawPayload,
+            proof
+        );
         address recipient = abi.decode(result, (address));
         return (success, recipient);
     }
 
     function supportsInterface(
         bytes4 interfaceId
-    ) public view override(AccessControlDefaultAdminRulesUpgradeable, IERC165) returns (bool) {
+    )
+        public
+        view
+        override(AccessControlDefaultAdminRulesUpgradeable, IERC165)
+        returns (bool)
+    {
         return
             type(IHandler).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);

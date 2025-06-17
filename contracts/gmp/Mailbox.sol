@@ -407,7 +407,13 @@ contract Mailbox is
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external override whenNotPaused nonReentrant returns (bytes32, bool, bytes memory) {
+    )
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        returns (bytes32, bool, bytes memory)
+    {
         // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
 
         GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(

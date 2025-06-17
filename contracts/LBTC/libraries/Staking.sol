@@ -47,11 +47,19 @@ library Staking {
     /// @dev A constant representing the number of bytes for a slot of information in a payload.
     uint256 internal constant ABI_SLOT_SIZE = 32;
 
-    bytes32 public constant LEDGER_LCHAIN_ID = bytes32(uint256(0x112233445566778899000000)); // ToDO
-    bytes32 public constant LEDGER_RECIPIENT = bytes32(uint256(0x222233445566778899000000)); // ToDO
+    bytes32 public constant LEDGER_LCHAIN_ID =
+        bytes32(uint256(0x112233445566778899000000)); // ToDO
+    bytes32 public constant LEDGER_RECIPIENT =
+        bytes32(uint256(0x222233445566778899000000)); // ToDO
     bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x0)); // ToDO
-    bytes32 public constant BITCOIN_LCHAIN_ID = bytes32(uint256(0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f)); // ToDO
-    bytes32 public constant BITCOIN_NAITIVE_COIN = bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
+    bytes32 public constant BITCOIN_LCHAIN_ID =
+        bytes32(
+            uint256(
+                0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
+            )
+        ); // ToDO
+    bytes32 public constant BITCOIN_NAITIVE_COIN =
+        bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
 
     function encodeRequest(
         uint256 nonce,
@@ -68,7 +76,7 @@ library Staking {
             revert Staking_ZeroRecipient();
         }
         bool recepientValid = false;
-        for (uint256 i=0; i < recipient.length; ++i) {
+        for (uint256 i = 0; i < recipient.length; ++i) {
             if (recipient[i] != 0x0) {
                 recepientValid = true;
                 break;
@@ -125,7 +133,7 @@ library Staking {
             revert Staking_ZeroRecipient();
         }
         bool recepientValid = false;
-        for (uint256 i=0; i < recipient.length; ++i) {
+        for (uint256 i = 0; i < recipient.length; ++i) {
             if (recipient[i] != 0x0) {
                 recepientValid = true;
                 break;
@@ -223,10 +231,7 @@ library Staking {
         }
 
         if (selector != RELEASE_SELECTOR) {
-            revert Staking_InvalidSelector(
-                RELEASE_SELECTOR,
-                selector
-            );
+            revert Staking_InvalidSelector(RELEASE_SELECTOR, selector);
         }
 
         if (rawToToken == bytes32(0)) {
@@ -254,9 +259,6 @@ library Staking {
             revert Staking_ZeroToToken();
         }
 
-        return (
-            Release(toToken, recipient, amount),
-            sha256(rawPayload)
-        );
+        return (Release(toToken, recipient, amount), sha256(rawPayload));
     }
 }

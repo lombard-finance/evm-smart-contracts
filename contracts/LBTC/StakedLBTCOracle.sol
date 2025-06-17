@@ -20,24 +20,32 @@ contract StakedLBTCOracle is
     }
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakedLBTCOracle")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant STAKED_LBTC_ORACLE_STORAGE_LOCATION =
-        0x773f82ddc38c293e7e76f6867b0d8bb7a6d27067018d4afff38772df98594200; 
+        0x773f82ddc38c293e7e76f6867b0d8bb7a6d27067018d4afff38772df98594200;
 
     constructor() {
         _disableInitializers();
     }
-    function initialize(address owner_, uint256 ratio_, uint64 switchTime_) external initializer {
+    function initialize(
+        address owner_,
+        uint256 ratio_,
+        uint64 switchTime_
+    ) external initializer {
         __Ownable_init(owner_);
         __Ownable2Step_init();
         __StakedLBTCOracle_init(ratio_, switchTime_);
     }
 
     function __StakedLBTCOracle_init(
-        uint256 ratio_, uint64 switchTime_
+        uint256 ratio_,
+        uint64 switchTime_
     ) internal onlyInitializing {
         _publishNewRatio(ratio_, switchTime_);
     }
 
-    function publishNewRatio(uint256 newVal, uint64 switchTime) external onlyOwner {
+    function publishNewRatio(
+        uint256 newVal,
+        uint64 switchTime
+    ) external onlyOwner {
         return _publishNewRatio(newVal, switchTime);
     }
 
@@ -48,7 +56,7 @@ contract StakedLBTCOracle is
     function getRate() external view override returns (uint256) {
         return Math.mulDiv(1 ether, 1 ether, _ratio(), Math.Rounding.Ceil);
     }
-    
+
     function _publishNewRatio(uint256 newVal, uint64 switchTime) internal {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (block.timestamp >= switchTime && $.switchTime > 0) {

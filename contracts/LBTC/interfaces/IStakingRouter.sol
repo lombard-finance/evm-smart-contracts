@@ -14,10 +14,22 @@ interface IStakingRouter {
         bytes32 toChainId
     );
     event NamedTokenSet(bytes32 indexed name, address indexed token);
-    event StakingRouter_BasculeChanged(address indexed prevVal, address indexed newVal);
-    event StakingRouter_OracleChanged(address indexed prevVal, address indexed newVal);
-    event StakingRouter_MailboxChanged(address indexed prevVal, address indexed newVal);
-    event StakingRouter_FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event StakingRouter_BasculeChanged(
+        address indexed prevVal,
+        address indexed newVal
+    );
+    event StakingRouter_OracleChanged(
+        address indexed prevVal,
+        address indexed newVal
+    );
+    event StakingRouter_MailboxChanged(
+        address indexed prevVal,
+        address indexed newVal
+    );
+    event StakingRouter_FeeChanged(
+        uint256 indexed oldFee,
+        uint256 indexed newFee
+    );
 
     function isAllowedRoute(
         bytes32 fromToken,

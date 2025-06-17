@@ -17,8 +17,12 @@ import {Actions} from "../libs/Actions.sol";
  * @notice Implements basic communication with Bridge contract.
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
  */
-abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUpgradeable, ReentrancyGuardUpgradeable {
-
+abstract contract BaseLBTC is
+    IBaseLBTC,
+    ERC20PausableUpgradeable,
+    ERC20PermitUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     function _batchMint(
         address[] calldata to,
         uint256[] calldata amount
@@ -119,8 +123,14 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
         emit FeeCharged(fee, userSignature);
     }
 
-    function _isPayloadUsed(bytes32 payloadHash) internal view virtual returns (bool);
-    function _getMaxFeeAndTreasury() internal view virtual returns (uint256, address);
+    function _isPayloadUsed(
+        bytes32 payloadHash
+    ) internal view virtual returns (bool);
+    function _getMaxFeeAndTreasury()
+        internal
+        view
+        virtual
+        returns (uint256, address);
 
     /**
      * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable

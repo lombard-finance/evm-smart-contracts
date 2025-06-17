@@ -117,8 +117,7 @@ contract StakedLBTC is
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
-    function reinitialize() external reinitializer(3) {
-    }
+    function reinitialize() external reinitializer(3) {}
 
     /// MODIFIER ///
     /**
@@ -480,7 +479,7 @@ contract StakedLBTC is
         bytes32 tolChainId,
         bytes32 toToken,
         bytes32 recipient,
-        uint256 amount 
+        uint256 amount
     ) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         address nativeToken = $.stakingRouter.startStake(
@@ -544,7 +543,10 @@ contract StakedLBTC is
         bytes calldata proof
     ) internal override returns (address) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        (, address recipient) = $.stakingRouter.finalizeStakingOperation(rawPayload, proof);
+        (, address recipient) = $.stakingRouter.finalizeStakingOperation(
+            rawPayload,
+            proof
+        );
         return recipient;
     }
 
@@ -571,8 +573,7 @@ contract StakedLBTC is
         bytes32 payloadHash
     ) internal view override returns (bool) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        return
-            $.usedPayloads[payloadHash];
+        return $.usedPayloads[payloadHash];
     }
 
     /// @dev zero rate not allowed
@@ -649,7 +650,7 @@ contract StakedLBTC is
     }
 
     /// @dev allow zero address to disable Stakings
-    function _changeStakingRouter (address newVal) internal {
+    function _changeStakingRouter(address newVal) internal {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         address prevValue = address($.stakingRouter);
         $.stakingRouter = IStakingRouter(newVal);
@@ -666,10 +667,20 @@ contract StakedLBTC is
         }
     }
 
-    function _getMaxFeeAndTreasury() internal view override returns (uint256, address) {
+    function _getMaxFeeAndTreasury()
+        internal
+        view
+        override
+        returns (uint256, address)
+    {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         uint256 ratio = $.stakingRouter.getRatio(address(this));
-        uint256 maxFee = Math.mulDiv($.stakingRouter.getMintFee(), ratio, 1 ether, Math.Rounding.Ceil);
+        uint256 maxFee = Math.mulDiv(
+            $.stakingRouter.getMintFee(),
+            ratio,
+            1 ether,
+            Math.Rounding.Ceil
+        );
         return (maxFee, $.treasury);
     }
 }

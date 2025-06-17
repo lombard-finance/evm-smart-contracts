@@ -156,7 +156,9 @@ contract NativeLBTC is
         _changeBascule(newVal);
     }
 
-    function changeStakingRouter(address newVal) external  onlyRole(DEFAULT_ADMIN_ROLE) {
+    function changeStakingRouter(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeStakingRouter(newVal);
     }
 
@@ -517,7 +519,7 @@ contract NativeLBTC is
     }
 
     /// @dev allow zero address to disable Stakings
-    function _changeStakingRouter (address newVal) internal {
+    function _changeStakingRouter(address newVal) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         address prevValue = address($.stakingRouter);
         $.stakingRouter = IStakingRouter(newVal);
@@ -542,11 +544,15 @@ contract NativeLBTC is
         bytes32 payloadHash
     ) internal view override returns (bool) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        return
-            $.usedPayloads[payloadHash];
+        return $.usedPayloads[payloadHash];
     }
 
-    function _getMaxFeeAndTreasury() internal view override returns (uint256, address) {
+    function _getMaxFeeAndTreasury()
+        internal
+        view
+        override
+        returns (uint256, address)
+    {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         return ($.stakingRouter.getMintFee(), $.treasury);
     }
