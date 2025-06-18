@@ -39,6 +39,11 @@ interface IAssetRouter {
         uint256 indexed oldCommission,
         uint256 indexed newCommission
     );
+    event AssetRouter_BatchMintError(
+        bytes32 indexed payloadHash,
+        string reason,
+        bytes customError
+    );
 
     function isAllowedRoute(
         bytes32 fromToken,

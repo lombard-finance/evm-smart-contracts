@@ -298,8 +298,19 @@ contract NativeLBTC is
     function batchMintV1(
         bytes[] calldata payload,
         bytes[] calldata proof
-    ) external nonReentrant {
-        _batchMint(payload, proof);
+    ) external {
+        Assert.equalLength(payload.length, proof.length);
+
+        for (uint256 i; i < payload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(payload[i]);
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
+                emit BatchMintSkipped(payloadHash, payload[i]);
+                continue;
+            }
+
+            mintV1(payload[i], proof[i]);
+        }
     }
 
     /**
@@ -332,7 +343,25 @@ contract NativeLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyRole(CLAIMER_ROLE) {
-        _batchMintWithFee(mintPayload, proof, feePayload, userSignature);
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
+
+        for (uint256 i; i < mintPayload.length; ++i) {
+            // Pre-emptive check if payload was used. If so, we can skip the call.
+            bytes32 payloadHash = sha256(mintPayload[i]);
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
+                emit BatchMintSkipped(payloadHash, mintPayload[i]);
+                continue;
+            }
+
+            _mintWithFee(
+                mintPayload[i],
+                proof[i],
+                feePayload[i],
+                userSignature[i]
+            );
+        }
     }
 
     /**

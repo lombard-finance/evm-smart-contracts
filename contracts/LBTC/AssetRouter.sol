@@ -460,7 +460,19 @@ contract AssetRouter is
     ) external nonReentrant {
         Assert.equalLength(payload.length, proof.length);
         for (uint256 i; i < payload.length; ++i) {
-            _mint(payload[i], proof[i]);
+            try this.mint(payload[i], proof[i]) returns (
+                address
+            ) {
+                return;
+            } catch Error(string memory reason) {
+                bytes32 payloadHash = sha256(payload[i]);
+                emit AssetRouter_BatchMintError(payloadHash, reason, "");
+                continue;
+            } catch (bytes memory lowLevelData) {
+                bytes32 payloadHash = sha256(payload[i]);
+                emit AssetRouter_BatchMintError(payloadHash, "", lowLevelData);
+                continue;
+            }
         }
     }
     function mintWithFee(
@@ -483,12 +495,22 @@ contract AssetRouter is
         Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
-            _mintWithFee(
+            try this.mintWithFee(
                 mintPayload[i],
                 proof[i],
                 feePayload[i],
                 userSignature[i]
-            );
+            ) {
+                return;
+            } catch Error(string memory reason) {
+                bytes32 payloadHash = sha256(mintPayload[i]);
+                emit AssetRouter_BatchMintError(payloadHash, reason, "");
+                continue;
+            } catch (bytes memory lowLevelData) {
+                bytes32 payloadHash = sha256(mintPayload[i]);
+                emit AssetRouter_BatchMintError(payloadHash, "", lowLevelData);
+                continue;
+            }
         }
     }
 
