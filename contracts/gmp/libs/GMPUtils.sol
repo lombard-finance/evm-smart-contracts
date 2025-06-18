@@ -13,6 +13,7 @@ library GMPUtils {
     error GMP_ZeroRecipient();
     error GMP_WrongPayloadLength();
     error GMP_InvalidAddess();
+    error GMP_InvalidAction(bytes4 expectedVal, bytes4 actualVal);
 
     struct Payload {
         bytes32 id;
@@ -105,6 +106,9 @@ library GMPUtils {
     }
 
     function validatePayload(bytes calldata rawPayload) internal pure {
+        if (bytes4(rawPayload) != GMP_V1_SELECTOR) {
+            revert GMP_InvalidAction(GMP_V1_SELECTOR, bytes4(rawPayload));
+        }
         if (rawPayload.length < MIN_GMP_LENGTH) {
             revert GMP_WrongPayloadLength();
         }
