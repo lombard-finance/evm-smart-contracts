@@ -1228,7 +1228,7 @@ describe('StakedLBTC', function () {
           await expect(
             stakedLbtc
               .connect(signer1)
-              ['batchMint(bytes[],bytes[])']([data1.payload, data1.payload, data2.payload, data2.payload], [data1.proof, data1.proof, data2.proof, data2.proof])
+              ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload], [data1.proof, data2.proof])
           ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
         });
       });
