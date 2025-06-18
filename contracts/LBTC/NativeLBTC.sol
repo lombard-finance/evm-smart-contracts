@@ -439,7 +439,25 @@ contract NativeLBTC is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal override returns (address) {
+    ) internal override {
+        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
+        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
+            rawPayload[4:]
+        );
+
+        _validateAndMint(
+            action.recipient,
+            action.amount,
+            action.amount,
+            rawPayload,
+            proof
+        );
+    }
+
+    function _mintV1(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) internal returns (address) {
         Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
         Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             rawPayload[4:]
@@ -453,6 +471,45 @@ contract NativeLBTC is
             proof
         );
         return action.recipient;
+    }
+
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) internal override {
+        address recipient = _mintV1(mintPayload, proof);
+
+        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
+            feePayload[4:]
+        );
+
+        uint256 maxFee = _getMaxFee();
+        address treasury = _getTreasury();
+        uint256 fee = Math.min(maxFee, feeAction.fee);
+
+        {
+            bytes32 digest = _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        Actions.FEE_APPROVAL_EIP712_ACTION,
+                        block.chainid,
+                        feeAction.fee,
+                        feeAction.expiry
+                    )
+                )
+            );
+
+            Assert.feeApproval(digest, recipient, userSignature);
+        }
+
+        if (fee > 0) {
+            _transfer(recipient, treasury, fee);
+        }
+
+        emit FeeCharged(fee, userSignature);
     }
 
     function _validateAndMint(

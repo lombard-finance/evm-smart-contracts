@@ -11,6 +11,8 @@ interface IAssetRouter {
     error AssetRouter_WrongSender();
     error AssetRouter_WrongNativeToken();
 
+    event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
+
     event AssetRouter_RouteSet(
         bytes32 indexed fromToken,
         bytes32 indexed fromChainId,
@@ -92,5 +94,24 @@ interface IAssetRouter {
     function mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external returns (bool, address);
+    ) external returns (address);
+
+    function mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) external;
+
+    function batchMint(
+        bytes[] calldata payload,
+        bytes[] calldata proof
+    ) external;
+
+    function batchMintWithFee(
+        bytes[] calldata mintPayload,
+        bytes[] calldata proof,
+        bytes[] calldata feePayload,
+        bytes[] calldata userSignature
+    ) external;
 }

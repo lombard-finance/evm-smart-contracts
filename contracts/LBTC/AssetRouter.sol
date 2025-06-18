@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ERC165Upgradeable, IERC165} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
@@ -12,6 +12,7 @@ import {IOracle} from "./interfaces/IOracle.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
+import {Actions} from "../libs/Actions.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {LChainId} from "../libs/LChainId.sol";
 import {Assert} from "./libraries/Assert.sol";
@@ -445,6 +446,14 @@ contract AssetRouter is
         tokenContract.burn(fromAddress, amount);
     }
 
+    function mint(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) external nonReentrant returns (address) {
+        (, address recipient, ) = _mint(rawPayload, proof);
+        return recipient;
+    }
+
     function batchMint(
         bytes[] calldata payload,
         bytes[] calldata proof
@@ -454,25 +463,80 @@ contract AssetRouter is
             _mint(payload[i], proof[i]);
         }
     }
+    function mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) external nonReentrant {
+        _mintWithFee(mintPayload, proof, feePayload, userSignature);
+    }
 
-    function mint(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) external nonReentrant returns (bool, address) {
-        return _mint(rawPayload, proof);
+    function batchMintWithFee(
+        bytes[] calldata mintPayload,
+        bytes[] calldata proof,
+        bytes[] calldata feePayload,
+        bytes[] calldata userSignature
+    ) external nonReentrant {
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
+
+        for (uint256 i; i < mintPayload.length; ++i) {
+            _mintWithFee(
+                mintPayload[i],
+                proof[i],
+                feePayload[i],
+                userSignature[i]
+            );
+        }
     }
 
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal returns (bool, address) {
+    ) internal returns (bool, address, address) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         (, bool success, bytes memory result) = $.mailbox.deliverAndHandle(
             rawPayload,
             proof
         );
-        address recipient = abi.decode(result, (address));
-        return (success, recipient);
+        (address recipient, address token) = abi.decode(result, (address, address));
+        return (success, recipient, token);
+    }
+
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) internal virtual {
+        (,address recipient, address token) = _mint(mintPayload, proof);
+        IBaseLBTC tokenContract = IBaseLBTC(token);
+
+        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
+            feePayload[4:]
+        );
+
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        uint256 maxFee = $.maximumFee;
+        address treasury = tokenContract.getTreasury();
+        uint256 fee = Math.min(maxFee, feeAction.fee);
+
+        {
+            bytes32 digest = tokenContract.getFeeDigest(
+                feeAction.fee,
+                feeAction.expiry
+            );
+            Assert.feeApproval(digest, recipient, userSignature);
+        }
+
+        if (fee > 0) {
+            tokenContract.transfer(recipient, treasury, fee);
+        }
+
+        emit AssetRouter_FeeCharged(fee, userSignature);
     }
 
     function supportsInterface(
@@ -510,7 +574,7 @@ contract AssetRouter is
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
-        return abi.encode(receipt.recipient);
+        return abi.encode(receipt.recipient, receipt.toToken);
     }
 
     /**

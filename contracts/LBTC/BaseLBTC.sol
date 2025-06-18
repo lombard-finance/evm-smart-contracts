@@ -23,6 +23,19 @@ abstract contract BaseLBTC is
     ERC20PermitUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    function getFeeDigest(uint256 fee, uint256 expiry) external view virtual returns(bytes32) {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    Actions.FEE_APPROVAL_EIP712_ACTION,
+                    block.chainid,
+                    fee,
+                    expiry
+                )
+            )
+        );
+    }
+    
     function _batchMint(
         address[] calldata to,
         uint256[] calldata amount
@@ -68,46 +81,14 @@ abstract contract BaseLBTC is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal virtual returns (address);
+    ) internal virtual;
 
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal virtual {
-        address recipient = _mint(mintPayload, proof);
-
-        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
-            feePayload[4:]
-        );
-
-        uint256 maxFee = _getMaxFee();
-        address treasury = _getTreasury();
-        uint256 fee = Math.min(maxFee, feeAction.fee);
-
-        {
-            bytes32 digest = _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        Actions.FEE_APPROVAL_EIP712_ACTION,
-                        block.chainid,
-                        feeAction.fee,
-                        feeAction.expiry
-                    )
-                )
-            );
-
-            Assert.feeApproval(digest, recipient, userSignature);
-        }
-
-        if (fee > 0) {
-            _transfer(recipient, treasury, fee);
-        }
-
-        emit FeeCharged(fee, userSignature);
-    }
+    ) internal virtual;
 
     function _getMaxFee() internal view virtual returns (uint256);
 

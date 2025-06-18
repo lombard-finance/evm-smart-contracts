@@ -48,4 +48,5 @@ interface IBaseLBTC {
     function getTreasury() external returns (address);
     function isNative() external returns (bool);
     function getRedeemFee() external returns (uint256);
+    function getFeeDigest(uint256 fee, uint256 expiry) external returns (bytes32);
 }

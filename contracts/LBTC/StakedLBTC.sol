@@ -338,6 +338,7 @@ contract StakedLBTC is
     function isNative() public pure returns (bool) {
         return false;
     }
+
     /// USER ACTIONS ///
 
     /**
@@ -372,7 +373,8 @@ contract StakedLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (address recipient) {
-        return _mint(rawPayload, proof);
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        return $.assetRouter.mint(rawPayload, proof);
     }
 
     /**
@@ -531,10 +533,24 @@ contract StakedLBTC is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal override returns (address) {
+    ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        (, address recipient) = $.assetRouter.mint(rawPayload, proof);
-        return recipient;
+        $.assetRouter.mint(rawPayload, proof);
+    }
+
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) internal override {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        $.assetRouter.mintWithFee(
+            mintPayload,
+            proof,
+            feePayload,
+            userSignature
+        );
     }
 
     /// @dev zero rate not allowed
