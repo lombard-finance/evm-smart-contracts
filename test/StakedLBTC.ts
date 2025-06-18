@@ -156,7 +156,7 @@ describe('StakedLBTC', function () {
     stakingRouterBytes = encode(['address'], [stakingRouter.address]);
     await stakingRouter.connect(owner).setRoute(zeroAddressBytes, BITCOIN_CHAIN_ID, stakedLbtcBytes, lChainId);
     await stakingRouter.connect(owner).grantRole(await stakingRouter.OPERATOR_ROLE(), operator);
-    // await stakingRouter.connect(owner).setRoute(stakedLbtcAddressBytes, lChainId, zeroAddressBytes, BITCOIN_CHAIN_ID);
+    await stakingRouter.connect(owner).setRoute(stakedLbtcBytes, lChainId, zeroAddressBytes, BITCOIN_CHAIN_ID);
     await stakingRouter.connect(owner).setNamedToken(namedToken, stakedLbtc.address);
     await mailbox.connect(owner).setSenderConfig(stakingRouter.address, 500, true);
     // const check = await stakingRouter.connect(owner).
@@ -1404,11 +1404,11 @@ describe('StakedLBTC', function () {
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
 
-        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
+        const { payload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wpkh);
 
         await expect(stakedLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, expectedPayload);
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
       });
 
       it('Redeem full with P2TR', async () => {
@@ -1419,10 +1419,10 @@ describe('StakedLBTC', function () {
 
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
+        const { payload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
         await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, expectedPayload);
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
       });
 
       it('Redeem with commission', async () => {
@@ -1434,11 +1434,11 @@ describe('StakedLBTC', function () {
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
 
-        const { payload: expectedPayload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
+        const { payload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
 
         await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, expectedPayload);
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
       });
 
       it('Redeem full with P2WSH', async () => {
@@ -1452,11 +1452,11 @@ describe('StakedLBTC', function () {
         // Calculate expected amount after fee
         const expectedAmountAfterFee = amount - BigInt(burnCommission);
 
-        const { payload: expectedPayload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
+        const { payload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
 
         await expect(stakedLbtc.connect(signer1).redeem(p2wsh, amount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, expectedPayload);
+          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
       });
     });
 
