@@ -315,7 +315,7 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Staking.LEDGER_RECIPIENT,
+            Staking.LEDGER_SENDER_RECIPIENT,
             Staking.LEDGER_CALLER,
             rawPayload
         );
@@ -417,7 +417,7 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Staking.LEDGER_RECIPIENT,
+            Staking.LEDGER_SENDER_RECIPIENT,
             Staking.LEDGER_CALLER,
             rawPayload
         );
@@ -481,6 +481,9 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         if (_msgSender() != address($.mailbox)) {
             revert AssetRouter_MailboxExpected();
+        }
+        if (payload.msgSender != Staking.LEDGER_SENDER_RECIPIENT) {
+            revert AssetRouter_WrongSender();
         }
         // spend payload
         if ($.usedPayloads[payload.id]) {

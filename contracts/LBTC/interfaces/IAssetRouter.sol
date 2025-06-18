@@ -8,6 +8,7 @@ interface IAssetRouter {
     error AssetRouter_ZeroAddress();
     error AssetRouter_Unauthorized();
     error AssetRouter_WrongOperation();
+    error AssetRouter_WrongSender();
     error AssetRouter_WrongNativeToken();
 
     event AssetRouter_RouteSet(
