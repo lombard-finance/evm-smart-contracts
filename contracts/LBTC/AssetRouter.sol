@@ -73,6 +73,7 @@ contract AssetRouter is
         bytes32 bitcoinChainId_,
         IMailbox mailbox_,
         IOracle oracle_,
+        IBascule bascule_,
         uint64 toNativeCommission_
     ) external initializer {
         __AccessControlDefaultAdminRules_init(initialOwnerDelay_, owner_);
@@ -82,6 +83,7 @@ contract AssetRouter is
             bitcoinChainId_,
             mailbox_,
             oracle_,
+            bascule_,
             toNativeCommission_
         );
     }
@@ -91,6 +93,7 @@ contract AssetRouter is
         bytes32 bitcoinChainId_,
         IMailbox mailbox_,
         IOracle oracle_,
+        IBascule bascule_,
         uint64 toNativeCommission_
     ) internal onlyInitializing {
         if (address(mailbox_) == address(0)) {
@@ -99,6 +102,7 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         $.mailbox = mailbox_;
         $.oracle = oracle_;
+        $.bascule = bascule_;
         $.ledgerChainId = ledgerChainId_;
         $.bitcoinChainId = bitcoinChainId_;
         $.toNativeCommission = toNativeCommission_;
