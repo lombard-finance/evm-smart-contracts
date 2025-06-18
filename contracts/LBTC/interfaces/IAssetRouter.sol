@@ -29,9 +29,13 @@ interface IAssetRouter {
         address indexed prevVal,
         address indexed newVal
     );
-    event AssetRouter_FeeChanged(
+    event AssetRouter_MintFeeChanged(
         uint256 indexed oldFee,
         uint256 indexed newFee
+    );
+    event AssetRouter_ToNativeCommissionChanged(
+        uint256 indexed oldCommission,
+        uint256 indexed newCommission
     );
 
     function isAllowedRoute(
@@ -44,6 +48,11 @@ interface IAssetRouter {
     function getMintFee() external view returns (uint256);
     function getRatio(address token) external view returns (uint256);
     function getBitcoinChainId() external view returns (bytes32);
+    function getBascule() external view returns (address);
+    function getOracle() external view returns (address);
+    function getMailbox() external view returns (address);
+    function getToNativeCommission() external view returns (uint256);
+    function getNativeToken() external view returns (address);
 
     function deposit(
         address fromAddress,

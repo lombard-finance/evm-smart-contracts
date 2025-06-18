@@ -238,6 +238,12 @@ contract AssetRouter is
         return _getAssetRouterStorage().mailbox;
     }
 
+    function changeToNativeCommission(
+        uint64 newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeToNativeCommission(newValue);
+    }
+
     /**
      * @notice Set the contract current fee for mint
      * @param fee New fee value
@@ -247,7 +253,7 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint256 oldFee = $.maximumFee;
         $.maximumFee = fee;
-        emit AssetRouter_FeeChanged(oldFee, fee);
+        emit AssetRouter_MintFeeChanged(oldFee, fee);
     }
 
     function getMintFee() external view returns (uint256) {
@@ -407,6 +413,10 @@ contract AssetRouter is
         if (!_isAllowedRoute(fromTokenBytes, tolChainId, toToken, true)) {
             revert IStaking.UnstakeNotAllowed();
         }
+        IBaseLBTC tokenContract = IBaseLBTC(fromToken);
+        uint256 redeemFee = tokenContract.getRedeemFee();
+        fee += redeemFee;
+        amount -= redeemFee;
 
         bytes memory rawPayload = Staking.encodeUnstakeRequest(
             tolChainId,
@@ -421,7 +431,6 @@ contract AssetRouter is
             Staking.LEDGER_CALLER,
             rawPayload
         );
-        IBaseLBTC tokenContract = IBaseLBTC(fromToken);
         if (fee > 0) {
             tokenContract.transfer(
                 fromAddress,
@@ -536,5 +545,33 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         emit AssetRouter_MailboxChanged(address($.mailbox), newVal);
         $.mailbox = IMailbox(newVal);
+    }
+
+    /// @dev allow set to zero
+    function _changeToNativeCommission(uint64 newValue) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        uint64 prevValue = $.toNativeCommission;
+        $.toNativeCommission = newValue;
+        emit AssetRouter_ToNativeCommissionChanged(prevValue, newValue);
+    }
+
+    function getBascule() external view override returns (address) {
+        return address(_getAssetRouterStorage().bascule);
+    }
+
+    function getOracle() external view override returns (address) {
+        return address(_getAssetRouterStorage().oracle);
+    }
+
+    function getMailbox() external view override returns (address) {
+        return address(_getAssetRouterStorage().mailbox);
+    }
+
+    function getToNativeCommission() external view override returns (uint256) {
+        return _getAssetRouterStorage().toNativeCommission;
+    }
+
+    function getNativeToken() external view override returns (address) {
+        return _getAssetRouterStorage().nativeToken;
     }
 }

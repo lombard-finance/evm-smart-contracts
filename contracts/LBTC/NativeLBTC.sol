@@ -233,6 +233,10 @@ contract NativeLBTC is
         return _getNativeLBTCStorage().burnCommission;
     }
 
+    function getRedeemFee() public pure returns (uint256) {
+        return 0;
+    }
+
     /// @notice Get the current dust fee rate
     /// @return The current dust fee rate (in satoshis per 1000 bytes)
     function getDustFeeRate() public view returns (uint256) {

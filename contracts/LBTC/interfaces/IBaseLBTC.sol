@@ -28,6 +28,8 @@ interface IBaseLBTC {
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event RedeemFeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+
     error FeeGreaterThanAmount();
 
     event MintProofConsumed(
@@ -45,4 +47,5 @@ interface IBaseLBTC {
     function mint(address to, uint256 amount) external;
     function getTreasury() external returns (address);
     function isNative() external returns (bool);
+    function getRedeemFee() external returns (uint256);
 }

@@ -75,6 +75,7 @@ contract StakedLBTC is
         mapping(bytes32 => bool) __removed__usedPayloads; // sha256(rawPayload) => used
         address operator;
         IAssetRouter assetRouter;
+        uint256 redeemFee;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -207,6 +208,10 @@ contract StakedLBTC is
         _changeAssetRouter(newVal);
     }
 
+    function changeRedeemFee(uint256 newVal) external onlyOwner {
+        _changeRedeemFee(newVal);
+    }
+
     /// @notice Change the dust fee rate used for dust limit calculations
     /// @dev Only the contract owner can call this function. The new rate must be positive.
     /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
@@ -301,6 +306,10 @@ contract StakedLBTC is
     /// @return The current dust fee rate (in satoshis per 1000 bytes)
     function getDustFeeRate() public view returns (uint256) {
         return _getStakedLBTCStorage().dustFeeRate;
+    }
+
+    function getRedeemFee() public view returns (uint256) {
+        return _getStakedLBTCStorage().redeemFee;
     }
 
     /**
@@ -607,6 +616,13 @@ contract StakedLBTC is
         address prevValue = address($.assetRouter);
         $.assetRouter = IAssetRouter(newVal);
         emit AssetRouterChanged(prevValue, newVal);
+    }
+
+    function _changeRedeemFee(uint256 newVal) internal {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        uint256 prevValue = $.redeemFee;
+        $.redeemFee = newVal;
+        emit RedeemFeeChanged(prevValue, newVal);
     }
 
     function _getStakedLBTCStorage()
