@@ -37,10 +37,12 @@ interface IBaseLBTC {
     );
 
     event BatchMintSkipped(bytes32 indexed payloadHash, bytes payload);
-    event StakingRouterChanged(address indexed newVal, address indexed prevVal);
+    event AssetRouterChanged(address indexed newVal, address indexed prevVal);
 
     function burn(uint256 amount) external;
     function burn(address from, uint256 amount) external;
+    function transfer(address from, address to, uint256 amount) external;
     function mint(address to, uint256 amount) external;
     function getTreasury() external returns (address);
+    function isNative() external returns (bool);
 }

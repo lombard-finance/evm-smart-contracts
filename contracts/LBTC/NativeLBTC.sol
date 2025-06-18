@@ -8,7 +8,7 @@ import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
-import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
+import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
@@ -44,7 +44,7 @@ contract NativeLBTC is
         uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         uint256 redeemNonce;
-        IStakingRouter stakingRouter;
+        IAssetRouter assetRouter;
     }
 
     // TODO: recalculate
@@ -156,10 +156,10 @@ contract NativeLBTC is
         _changeBascule(newVal);
     }
 
-    function changeStakingRouter(
+    function changeAssetRouter(
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeStakingRouter(newVal);
+        _changeAssetRouter(newVal);
     }
 
     /// GETTERS ///
@@ -168,7 +168,7 @@ contract NativeLBTC is
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getNativeLBTCStorage().stakingRouter.getMintFee();
+        return _getNativeLBTCStorage().assetRouter.getMintFee();
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -219,6 +219,10 @@ contract NativeLBTC is
      */
     function symbol() public view virtual override returns (string memory) {
         return _getNativeLBTCStorage().symbol;
+    }
+
+    function isNative() public pure returns (bool) {
+        return true;
     }
 
     function getTreasury() public view override returns (address) {
@@ -333,7 +337,10 @@ contract NativeLBTC is
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of NativeLBTC to burn
      */
-    function redeem(bytes calldata scriptPubkey, uint256 amount) external {
+    function redeemForBtc(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
@@ -384,6 +391,19 @@ contract NativeLBTC is
         uint256 amount
     ) external override onlyRole(MINTER_ROLE) {
         _burn(from, amount);
+    }
+
+    /**
+     * @dev Allows minters to transfer NativeLBTC
+     *
+     * @param amount Amount of NativeLBTC to transfer
+     */
+    function transfer(
+        address from,
+        address to,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) {
+        _transfer(from, to, amount);
     }
 
     /// PRIVATE FUNCTIONS ///
@@ -519,11 +539,11 @@ contract NativeLBTC is
     }
 
     /// @dev allow zero address to disable Stakings
-    function _changeStakingRouter(address newVal) internal {
+    function _changeAssetRouter(address newVal) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        address prevValue = address($.stakingRouter);
-        $.stakingRouter = IStakingRouter(newVal);
-        emit StakingRouterChanged(prevValue, newVal);
+        address prevValue = address($.assetRouter);
+        $.assetRouter = IAssetRouter(newVal);
+        emit AssetRouterChanged(prevValue, newVal);
     }
 
     function _getNativeLBTCStorage()
@@ -540,20 +560,18 @@ contract NativeLBTC is
      * @dev Returns whether a minting payload has been used already
      * @param payloadHash The minting payload hash
      */
-    function _isPayloadUsed(
-        bytes32 payloadHash
-    ) internal view override returns (bool) {
+    function _isPayloadUsed(bytes32 payloadHash) internal view returns (bool) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         return $.usedPayloads[payloadHash];
     }
 
-    function _getMaxFeeAndTreasury()
-        internal
-        view
-        override
-        returns (uint256, address)
-    {
+    function _getMaxFee() internal view virtual override returns (uint256) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        return ($.stakingRouter.getMintFee(), $.treasury);
+        return $.assetRouter.getMintFee();
+    }
+
+    function _getTreasury() internal view virtual override returns (address) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        return $.treasury;
     }
 }

@@ -41,13 +41,6 @@ abstract contract BaseLBTC is
         Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
-            // Pre-emptive check if payload was used. If so, we can skip the call.
-            bytes32 payloadHash = sha256(payload[i]);
-            if (_isPayloadUsed(payloadHash)) {
-                emit BatchMintSkipped(payloadHash, payload[i]);
-                continue;
-            }
-
             _mint(payload[i], proof[i]);
         }
     }
@@ -63,13 +56,6 @@ abstract contract BaseLBTC is
         Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
-            // Pre-emptive check if payload was used. If so, we can skip the call.
-            bytes32 payloadHash = sha256(mintPayload[i]);
-            if (_isPayloadUsed(payloadHash)) {
-                emit BatchMintSkipped(payloadHash, mintPayload[i]);
-                continue;
-            }
-
             _mintWithFee(
                 mintPayload[i],
                 proof[i],
@@ -97,7 +83,8 @@ abstract contract BaseLBTC is
             feePayload[4:]
         );
 
-        (uint256 maxFee, address treasury) = _getMaxFeeAndTreasury();
+        uint256 maxFee = _getMaxFee();
+        address treasury = _getTreasury();
         uint256 fee = Math.min(maxFee, feeAction.fee);
 
         {
@@ -116,21 +103,15 @@ abstract contract BaseLBTC is
         }
 
         if (fee > 0) {
-            _burn(recipient, fee);
-            _mint(treasury, fee);
+            _transfer(recipient, treasury, fee);
         }
 
         emit FeeCharged(fee, userSignature);
     }
 
-    function _isPayloadUsed(
-        bytes32 payloadHash
-    ) internal view virtual returns (bool);
-    function _getMaxFeeAndTreasury()
-        internal
-        view
-        virtual
-        returns (uint256, address);
+    function _getMaxFee() internal view virtual returns (uint256);
+
+    function _getTreasury() internal view virtual returns (address);
 
     /**
      * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable

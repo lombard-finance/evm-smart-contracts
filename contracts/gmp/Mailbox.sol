@@ -501,7 +501,6 @@ contract Mailbox is
             revert Mailbox_HandlerNotImplemented();
         }
 
-        bytes memory res;
         try IHandler(payload.msgRecipient).handlePayload(payload) returns (
             bytes memory executionResult
         ) {
@@ -514,7 +513,7 @@ contract Mailbox is
             emit MessageHandleError(payloadHash, msgSender, "", lowLevelData);
         }
 
-        return (false, res);
+        return (false, new bytes(0));
     }
 
     /**
