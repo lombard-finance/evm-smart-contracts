@@ -63,8 +63,7 @@ class DefaultData {
 const BITCOIN_CHAIN_ID: string = encode(['uint256'], ["0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"]);
 const BITCOIN_NAITIVE_COIN: string = encode(['uint256'], ["0x00000000000000000000000000000000000001"]);
 const LEDGER_CHAIN_ID: string = encode(['uint256'], ["0x112233445566778899000000"]);
-const LEDGER_RECIPIENT: string = encode(['uint256'], ["0x222233445566778899000000"]);
-const LEDGER_CALLER: string = encode(['uint256'], [2n]);
+const LEDGER_CALLER: string = encode(['uint256'], ["0x89e3e4e7a699d6f131d893aeef7ee143706ac23a267a54b5d6957e7c1529e4b5"]);
 const LEDGER_MAILBOX: string = encode(['uint256'], ["0x222233445566778899000000"]);
 const namedToken = ethers.keccak256(ethers.toUtf8Bytes("NativeLBTC"));
 
@@ -1493,7 +1492,7 @@ describe('StakedLBTC', function () {
           LEDGER_CHAIN_ID,
           1,
           encode(['address'], [assetRouter.address]),
-          LEDGER_RECIPIENT,
+          LEDGER_CALLER,
           LEDGER_CALLER,
           body
         );
