@@ -9,7 +9,7 @@ import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
-import {IStakingRouter} from "./interfaces/IStakingRouter.sol";
+import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
@@ -71,9 +71,11 @@ contract StakedLBTC is
         /// Maximum fee to apply on mints
         /// @custom:oz-renamed-from maximumFee
         uint256 __removed__maximumFee;
-        mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        /// @custom:oz-renamed-from usedPayloads
+        mapping(bytes32 => bool) __removed__usedPayloads; // sha256(rawPayload) => used
         address operator;
-        IStakingRouter stakingRouter;
+        IAssetRouter assetRouter;
+        uint256 redeemFee;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -117,8 +119,7 @@ contract StakedLBTC is
         emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
-    function reinitialize() external reinitializer(3) {
-    }
+    function reinitialize() external reinitializer(2) {}
 
     /// MODIFIER ///
     /**
@@ -203,8 +204,12 @@ contract StakedLBTC is
         _updateClaimer(oldClaimer, false);
     }
 
-    function changeStakingRouter(address newVal) external onlyOwner {
-        _changeStakingRouter(newVal);
+    function changeAssetRouter(address newVal) external onlyOwner {
+        _changeAssetRouter(newVal);
+    }
+
+    function changeRedeemFee(uint256 newVal) external onlyOwner {
+        _changeRedeemFee(newVal);
     }
 
     /// @notice Change the dust fee rate used for dust limit calculations
@@ -260,8 +265,8 @@ contract StakedLBTC is
         return _getStakedLBTCStorage().consortium;
     }
 
-    function StakingRouter() external view returns (IStakingRouter) {
-        return _getStakedLBTCStorage().stakingRouter;
+    function AssetRouter() external view returns (IAssetRouter) {
+        return _getStakedLBTCStorage().assetRouter;
     }
 
     /**
@@ -303,6 +308,10 @@ contract StakedLBTC is
         return _getStakedLBTCStorage().dustFeeRate;
     }
 
+    function getRedeemFee() public view returns (uint256) {
+        return _getStakedLBTCStorage().redeemFee;
+    }
+
     /**
      * Get Bascule contract.
      */
@@ -324,6 +333,10 @@ contract StakedLBTC is
 
     function isClaimer(address claimer) external view returns (bool) {
         return _getStakedLBTCStorage().claimers[claimer];
+    }
+
+    function isNative() public pure returns (bool) {
+        return false;
     }
 
     /// USER ACTIONS ///
@@ -360,7 +373,8 @@ contract StakedLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (address recipient) {
-        return _mint(rawPayload, proof);
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        return $.assetRouter.mint(rawPayload, proof);
     }
 
     /**
@@ -414,33 +428,22 @@ contract StakedLBTC is
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of StakedLBTC to burn
      */
-    function redeem(bytes calldata scriptPubkey, uint256 amount) external {
+    function redeemForBtc(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
 
         if (!$.isWithdrawalsEnabled) {
             // TODO: rename to redeem
             revert WithdrawalsDisabled();
         }
-
-        uint64 fee = $.burnCommission;
-        uint256 amountAfterFee = Validation.redeemFee(
-            scriptPubkey,
-            $.dustFeeRate,
-            amount,
-            fee
-        );
-        $.stakingRouter.startUnstake(
-            Staking.BITCOIN_LCHAIN_ID,
+        $.assetRouter.redeemForBtc(
+            address(_msgSender()),
             address(this),
             scriptPubkey,
-            amountAfterFee
+            amount
         );
-        address fromAddress = address(_msgSender());
-
-        if (fee > 0) {
-            _transfer(fromAddress, $.treasury, fee);
-        }
-        _burn(fromAddress, amountAfterFee);
     }
 
     /**
@@ -461,41 +464,28 @@ contract StakedLBTC is
         _burn(from, amount);
     }
 
-    function startUnstake(
-        bytes32 tolChainId,
-        bytes calldata recipient,
+    /**
+     * @dev Allows minters to transfer LBTC
+     *
+     * @param amount Amount of LBTC to transfer
+     */
+    function transfer(
+        address from,
+        address to,
         uint256 amount
-    ) external nonReentrant {
+    ) external override onlyMinter {
+        _transfer(from, to, amount);
+    }
+
+    function redeem(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.stakingRouter.startUnstake(
-            tolChainId,
-            address(this),
-            recipient,
-            amount
-        );
+        $.assetRouter.redeem(_msgSender(), address(this), amount);
         _burn(_msgSender(), amount);
     }
 
-    function startStake(
-        bytes32 tolChainId,
-        bytes32 toToken,
-        bytes32 recipient,
-        uint256 amount 
-    ) external nonReentrant {
+    function deposit(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        address nativeToken = $.stakingRouter.startStake(
-            tolChainId,
-            address(this),
-            toToken,
-            recipient,
-            amount
-        );
-        IERC20(nativeToken).safeTransferFrom(
-            _msgSender(),
-            address(this),
-            amount
-        );
-        IBaseLBTC(nativeToken).burn(amount);
+        $.assetRouter.deposit(_msgSender(), address(this), amount);
     }
 
     /// PRIVATE FUNCTIONS ///
@@ -539,40 +529,28 @@ contract StakedLBTC is
             bascule.validateWithdrawal(depositID, amount);
         }
     }
+
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal override returns (address) {
+    ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        (, address recipient) = $.stakingRouter.finalizeStakingOperation(rawPayload, proof);
-        return recipient;
+        $.assetRouter.mint(rawPayload, proof);
     }
 
-    /**
-     * @dev Returns whether a minting payload has been used already
-     * @param payloadHash The minting payload hash
-     * @param legacyPayloadHash The legacy minting payload hash
-     */
-    function _isPayloadUsed(
-        StakedLBTCStorage storage $,
-        bytes32 payloadHash,
-        bytes32 legacyPayloadHash
-    ) internal view returns (bool) {
-        return
-            $.usedPayloads[payloadHash] ||
-            $.legacyUsedPayloads[legacyPayloadHash];
-    }
-
-    /**
-     * @dev Returns whether a minting payload has been used already
-     * @param payloadHash The minting payload hash
-     */
-    function _isPayloadUsed(
-        bytes32 payloadHash
-    ) internal view override returns (bool) {
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
+    ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        return
-            $.usedPayloads[payloadHash];
+        $.assetRouter.mintWithFee(
+            mintPayload,
+            proof,
+            feePayload,
+            userSignature
+        );
     }
 
     /// @dev zero rate not allowed
@@ -649,11 +627,18 @@ contract StakedLBTC is
     }
 
     /// @dev allow zero address to disable Stakings
-    function _changeStakingRouter (address newVal) internal {
+    function _changeAssetRouter(address newVal) internal {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        address prevValue = address($.stakingRouter);
-        $.stakingRouter = IStakingRouter(newVal);
-        emit StakingRouterChanged(prevValue, newVal);
+        address prevValue = address($.assetRouter);
+        $.assetRouter = IAssetRouter(newVal);
+        emit AssetRouterChanged(prevValue, newVal);
+    }
+
+    function _changeRedeemFee(uint256 newVal) internal {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        uint256 prevValue = $.redeemFee;
+        $.redeemFee = newVal;
+        emit RedeemFeeChanged(prevValue, newVal);
     }
 
     function _getStakedLBTCStorage()
@@ -666,10 +651,20 @@ contract StakedLBTC is
         }
     }
 
-    function _getMaxFeeAndTreasury() internal view override returns (uint256, address) {
+    function _getMaxFee() internal view virtual override returns (uint256) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 ratio = $.stakingRouter.getRatio(address(this));
-        uint256 maxFee = Math.mulDiv($.stakingRouter.getMintFee(), ratio, 1 ether, Math.Rounding.Ceil);
-        return (maxFee, $.treasury);
+        uint256 ratio = $.assetRouter.getRatio(address(this));
+        uint256 maxFee = Math.mulDiv(
+            $.assetRouter.getMintFee(),
+            ratio,
+            1 ether,
+            Math.Rounding.Ceil
+        );
+        return maxFee;
+    }
+
+    function _getTreasury() internal view virtual override returns (address) {
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        return $.treasury;
     }
 }

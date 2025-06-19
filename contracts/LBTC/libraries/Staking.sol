@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {GMPUtils} from "../../gmp/libs/GMPUtils.sol";
+
 library Staking {
     /// @dev Error thrown when payload length is too big
     error Staking_InvalidPayloadSize(uint256 expected, uint256 actual);
@@ -35,23 +37,25 @@ library Staking {
     // bytes4(keccak256("payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32)")
     bytes4 internal constant RECEIPT_SELECTOR = 0x965597b5;
 
-    // bytes4(keccak256("Stake(bytes32,bytes32,bytes32,uint256)"))
-    bytes4 internal constant STAKE_REQUEST_SELECTOR = 0x54d4a896;
+    // bytes4(keccak256("stake(bytes32,bytes32,bytes32,uint256)"))
+    bytes4 internal constant STAKE_REQUEST_SELECTOR = 0xd582b25b;
 
-    // bytes4(keccak256("Unstake(bytes32,bytes32,bytes,uint256)"))
-    bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x02220bca;
+    // bytes4(keccak256("unstake(bytes32,bytes32,bytes,uint256)"))
+    bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x4a227ef9;
 
-    // bytes4(keccak256("Release(bytes32,bytes32,uint256)"))
-    bytes4 internal constant RELEASE_SELECTOR = 0x6d673bfe;
+    // bytes4(keccak256("release(bytes32,bytes32,uint256)"))
+    bytes4 internal constant RELEASE_SELECTOR = 0x5217c530;
 
     /// @dev A constant representing the number of bytes for a slot of information in a payload.
     uint256 internal constant ABI_SLOT_SIZE = 32;
 
-    bytes32 public constant LEDGER_LCHAIN_ID = bytes32(uint256(0x112233445566778899000000)); // ToDO
-    bytes32 public constant LEDGER_RECIPIENT = bytes32(uint256(0x222233445566778899000000)); // ToDO
+    bytes32 public constant LEDGER_SENDER_RECIPIENT =
+        bytes32(uint256(0x89e3e4e7a699d6f131d893aeef7ee143706ac23a267a54b5d6957e7c1529e4b5));
     bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x0)); // ToDO
-    bytes32 public constant BITCOIN_LCHAIN_ID = bytes32(uint256(0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f)); // ToDO
-    bytes32 public constant BITCOIN_NAITIVE_COIN = bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
+    bytes32 public constant BITCOIN_NATIVE_COIN =
+        bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
+    bytes32 public constant NATIVE_LBTC_TOKEN =
+        bytes32(uint256(0x00000000000000000000000000000000000002)); // ToDO
 
     function encodeRequest(
         uint256 nonce,
@@ -68,7 +72,7 @@ library Staking {
             revert Staking_ZeroRecipient();
         }
         bool recepientValid = false;
-        for (uint256 i=0; i < recipient.length; ++i) {
+        for (uint256 i = 0; i < recipient.length; ++i) {
             if (recipient[i] != 0x0) {
                 recepientValid = true;
                 break;
@@ -115,7 +119,7 @@ library Staking {
     function encodeUnstakeRequest(
         bytes32 toChain,
         bytes32 fromToken,
-        bytes calldata recipient,
+        bytes memory recipient,
         uint256 amount
     ) internal pure returns (bytes memory) {
         if (amount == 0) {
@@ -125,7 +129,7 @@ library Staking {
             revert Staking_ZeroRecipient();
         }
         bool recepientValid = false;
-        for (uint256 i=0; i < recipient.length; ++i) {
+        for (uint256 i = 0; i < recipient.length; ++i) {
             if (recipient[i] != 0x0) {
                 recepientValid = true;
                 break;
@@ -178,20 +182,12 @@ library Staking {
             revert Staking_ZeroFromToken();
         }
 
-        // Extra check if the top 12 bytes are non-zero
-        if (uint256(rawRecipient) >> 160 != 0) {
-            revert Staking_InvalidRecipient();
-        }
-        address recipient = address(uint160(uint256(rawRecipient)));
+        address recipient = GMPUtils.bytes32ToAddress(rawRecipient);
         if (recipient == address(0)) {
             revert Staking_ZeroRecipient();
         }
 
-        // Extra check if the top 12 bytes are non-zero
-        if (uint256(rawToToken) >> 160 != 0) {
-            revert Staking_InvalidToToken();
-        }
-        address toToken = address(uint160(uint256(rawToToken)));
+        address toToken = GMPUtils.bytes32ToAddress(rawToToken);
         if (toToken == address(0)) {
             revert Staking_ZeroToToken();
         }
@@ -216,47 +212,30 @@ library Staking {
         bytes32 rawRecipient;
         uint256 amount;
         assembly {
-            selector := mload(add(rawPayload, 0x20)) // first byte
-            rawToToken := mload(add(rawPayload, 0x24)) // bytes 1..32
-            rawRecipient := mload(add(rawPayload, 0x44)) // bytes 33..64
-            amount := mload(add(rawPayload, 0x64)) // bytes 65..96
+            selector := mload(add(rawPayload, 0x20)) // first 4 bytes
+            rawToToken := mload(add(rawPayload, 0x24)) // bytes 4..36
+            rawRecipient := mload(add(rawPayload, 0x44)) // bytes 37..68
+            amount := mload(add(rawPayload, 0x64)) // bytes 69..100
         }
 
         if (selector != RELEASE_SELECTOR) {
-            revert Staking_InvalidSelector(
-                RELEASE_SELECTOR,
-                selector
-            );
+            revert Staking_InvalidSelector(RELEASE_SELECTOR, selector);
         }
 
-        if (rawToToken == bytes32(0)) {
-            revert Staking_ZeroToToken();
-        }
         if (amount == 0) {
             revert Staking_ZeroAmount();
         }
 
-        // Extra check if the top 12 bytes are non-zero
-        if (uint256(rawRecipient) >> 160 != 0) {
-            revert Staking_InvalidRecipient();
-        }
-        address recipient = address(uint160(uint256(rawRecipient)));
+        address recipient = GMPUtils.bytes32ToAddress(rawRecipient);
         if (recipient == address(0)) {
             revert Staking_ZeroRecipient();
         }
 
-        // Extra check if the top 12 bytes are non-zero
-        if (uint256(rawToToken) >> 160 != 0) {
-            revert Staking_InvalidToToken();
-        }
-        address toToken = address(uint160(uint256(rawToToken)));
+        address toToken = GMPUtils.bytes32ToAddress(rawToToken);
         if (toToken == address(0)) {
             revert Staking_ZeroToToken();
         }
 
-        return (
-            Release(toToken, recipient, amount),
-            sha256(rawPayload)
-        );
+        return (Release(toToken, recipient, amount), sha256(rawPayload));
     }
 }

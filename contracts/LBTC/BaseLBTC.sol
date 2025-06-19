@@ -17,8 +17,25 @@ import {Actions} from "../libs/Actions.sol";
  * @notice Implements basic communication with Bridge contract.
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
  */
-abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUpgradeable, ReentrancyGuardUpgradeable {
-
+abstract contract BaseLBTC is
+    IBaseLBTC,
+    ERC20PausableUpgradeable,
+    ERC20PermitUpgradeable,
+    ReentrancyGuardUpgradeable
+{
+    function getFeeDigest(uint256 fee, uint256 expiry) external view virtual returns(bytes32) {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    Actions.FEE_APPROVAL_EIP712_ACTION,
+                    block.chainid,
+                    fee,
+                    expiry
+                )
+            )
+        );
+    }
+    
     function _batchMint(
         address[] calldata to,
         uint256[] calldata amount
@@ -37,13 +54,6 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
         Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
-            // Pre-emptive check if payload was used. If so, we can skip the call.
-            bytes32 payloadHash = sha256(payload[i]);
-            if (_isPayloadUsed(payloadHash)) {
-                emit BatchMintSkipped(payloadHash, payload[i]);
-                continue;
-            }
-
             _mint(payload[i], proof[i]);
         }
     }
@@ -59,13 +69,6 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
         Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
-            // Pre-emptive check if payload was used. If so, we can skip the call.
-            bytes32 payloadHash = sha256(mintPayload[i]);
-            if (_isPayloadUsed(payloadHash)) {
-                emit BatchMintSkipped(payloadHash, mintPayload[i]);
-                continue;
-            }
-
             _mintWithFee(
                 mintPayload[i],
                 proof[i],
@@ -78,49 +81,18 @@ abstract contract BaseLBTC is IBaseLBTC, ERC20PausableUpgradeable, ERC20PermitUp
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal virtual returns (address);
+    ) internal virtual;
 
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal virtual {
-        address recipient = _mint(mintPayload, proof);
+    ) internal virtual;
 
-        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
-            feePayload[4:]
-        );
+    function _getMaxFee() internal view virtual returns (uint256);
 
-        (uint256 maxFee, address treasury) = _getMaxFeeAndTreasury();
-        uint256 fee = Math.min(maxFee, feeAction.fee);
-
-        {
-            bytes32 digest = _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        Actions.FEE_APPROVAL_EIP712_ACTION,
-                        block.chainid,
-                        feeAction.fee,
-                        feeAction.expiry
-                    )
-                )
-            );
-
-            Assert.feeApproval(digest, recipient, userSignature);
-        }
-
-        if (fee > 0) {
-            _burn(recipient, fee);
-            _mint(treasury, fee);
-        }
-
-        emit FeeCharged(fee, userSignature);
-    }
-
-    function _isPayloadUsed(bytes32 payloadHash) internal view virtual returns (bool);
-    function _getMaxFeeAndTreasury() internal view virtual returns (uint256, address);
+    function _getTreasury() internal view virtual returns (address);
 
     /**
      * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable

@@ -28,6 +28,8 @@ interface IBaseLBTC {
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+    event RedeemFeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
+
     error FeeGreaterThanAmount();
 
     event MintProofConsumed(
@@ -37,10 +39,14 @@ interface IBaseLBTC {
     );
 
     event BatchMintSkipped(bytes32 indexed payloadHash, bytes payload);
-    event StakingRouterChanged(address indexed newVal, address indexed prevVal);
+    event AssetRouterChanged(address indexed newVal, address indexed prevVal);
 
     function burn(uint256 amount) external;
     function burn(address from, uint256 amount) external;
+    function transfer(address from, address to, uint256 amount) external;
     function mint(address to, uint256 amount) external;
     function getTreasury() external returns (address);
+    function isNative() external returns (bool);
+    function getRedeemFee() external returns (uint256);
+    function getFeeDigest(uint256 fee, uint256 expiry) external returns (bytes32);
 }
