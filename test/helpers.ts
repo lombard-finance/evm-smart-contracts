@@ -26,7 +26,8 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes) external', // StakingOperationRequest
   'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external', // StakingOperationReceipt
   'function payload(uint256,uint256,bytes32,bytes) external', // RedeemRequest
-  'function release(bytes32,bytes32,uint256) external'
+  'function release(bytes32,bytes32,uint256) external',
+  'function unstake(bytes32,bytes32,bytes,uint256) external'
 ]);
 
 export function getGMPPayload(
@@ -72,6 +73,7 @@ export const STAKING_REQUEST_SELECTOR = '0xedff11ea';
 export const STAKING_RECEIPT_SELECTOR = '0x965597b5';
 export const REDEEM_REQUEST_SELECTOR = '0xf86c9e7b';
 export const RELEASE_SELECTOR = '0x5217c530';
+export const UNSTAKE_REQUEST_SELECTOR = '0x4a227ef9';
 
 export async function signDepositBridgePayload(
   signers: Signer[],

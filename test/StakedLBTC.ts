@@ -24,7 +24,7 @@ import {
   buildRedeemRequestPayload,
   STAKING_RECEIPT_SELECTOR,
   STAKING_REQUEST_SELECTOR,
-  RELEASE_SELECTOR, getGMPPayload, signPayload, REDEEM_REQUEST_SELECTOR, GMP_V1_SELECTOR
+  RELEASE_SELECTOR, getGMPPayload, signPayload, REDEEM_REQUEST_SELECTOR, GMP_V1_SELECTOR, UNSTAKE_REQUEST_SELECTOR
 } from './helpers';
 import { Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC, AssetRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -63,7 +63,8 @@ class DefaultData {
 const BITCOIN_CHAIN_ID: string = encode(['uint256'], ["0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"]);
 const BITCOIN_NAITIVE_COIN: string = encode(['uint256'], ["0x00000000000000000000000000000000000001"]);
 const LEDGER_CHAIN_ID: string = encode(['uint256'], ["0x112233445566778899000000"]);
-const LEDGER_CALLER: string = encode(['uint256'], ["0x89e3e4e7a699d6f131d893aeef7ee143706ac23a267a54b5d6957e7c1529e4b5"]);
+const LEDGER_SENDER: string = encode(['uint256'], ["0x89e3e4e7a699d6f131d893aeef7ee143706ac23a267a54b5d6957e7c1529e4b5"]);
+const LEDGER_CALLER: string = encode(['uint256'], [0n]);
 const LEDGER_MAILBOX: string = encode(['uint256'], ["0x222233445566778899000000"]);
 
 describe('StakedLBTC', function () {
@@ -82,12 +83,13 @@ describe('StakedLBTC', function () {
     signer3: Signer;
   let stakedLbtc: StakedLBTC & Addressable;
   let stakedLbtcBytes: string;
-  let stakedLbtc2: StakedLBTC;
+  let nativeLBTC: NativeLBTC & Addressable;
+  let nativeLbtcBytes: string;
   let bascule: Bascule;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let consortium: Consortium & Addressable;
-  const burnCommission = 1000;
+  const toNativeCommission = 1000;
   let mailbox: Mailbox & Addressable;
   let ratioFeed: RatioFeedMock & Addressable;
   let assetRouter: AssetRouter & Addressable;
@@ -105,36 +107,40 @@ describe('StakedLBTC', function () {
 
     stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
       await consortium.getAddress(),
-      burnCommission,
+      0n,
       treasury.address,
       owner.address
     ]);
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
-    stakedLbtc2 = await deployContract<StakedLBTC>('StakedLBTC', [
+    nativeLBTC = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
       await consortium.getAddress(),
-      burnCommission,
+      0n,
       treasury.address,
-      owner.address
+      owner.address,
+      0n //owner delay
     ]);
-
-    bascule = await deployContract<Bascule>('Bascule', [owner.address, pauser.address, reporter.address, stakedLbtc.address, 100], false);
+    nativeLBTC.address = await nativeLBTC.getAddress();
+    nativeLbtcBytes = encode(['address'], [nativeLBTC.address]);
 
     // Minter
     await stakedLbtc.connect(owner).addMinter(minter.address);
-    await stakedLbtc2.connect(owner).addMinter(minter.address);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), minter);
     // Claimer
     await stakedLbtc.connect(owner).addClaimer(claimer.address);
-    await stakedLbtc2.connect(owner).addClaimer(claimer.address);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.CLAIMER_ROLE(), claimer);
     // Operator
     await stakedLbtc.connect(owner).changeOperator(operator.address);
-    await stakedLbtc2.connect(owner).changeOperator(operator.address);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.OPERATOR_ROLE(), operator);
     // Pauser
     await stakedLbtc.connect(owner).changePauser(pauser.address);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
     // Initialize permit module
     await stakedLbtc.connect(owner).reinitialize();
-    await stakedLbtc2.connect(owner).reinitialize();
+    await stakedLbtc.connect(owner).toggleWithdrawals();
+
+    bascule = await deployContract<Bascule>('Bascule', [owner.address, pauser.address, reporter.address, stakedLbtc.address, 100], false);
 
     // Mailbox
     mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
@@ -149,7 +155,7 @@ describe('StakedLBTC', function () {
     ratioFeed.address = await ratioFeed.getAddress();
 
     // AssetRouter
-    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ratioFeed.address, ethers.ZeroAddress, 0n]);
+    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ratioFeed.address, ethers.ZeroAddress, toNativeCommission]);
     assetRouter.address = await assetRouter.getAddress();
     stakingRouterBytes = encode(['address'], [assetRouter.address]);
     await assetRouter.connect(owner).setRoute(BITCOIN_NAITIVE_COIN, BITCOIN_CHAIN_ID, stakedLbtcBytes, false, CHAIN_ID);
@@ -172,7 +178,7 @@ describe('StakedLBTC', function () {
       LEDGER_CHAIN_ID,
       CHAIN_ID,
       Number(randomBigInt(8)),
-      LEDGER_CALLER,
+      LEDGER_SENDER,
       stakingRouterBytes,
       stakingRouterBytes,
       body
@@ -640,7 +646,7 @@ describe('StakedLBTC', function () {
             LEDGER_CHAIN_ID,
             CHAIN_ID,
             Number(randomBigInt(8)),
-            LEDGER_CALLER,
+            LEDGER_SENDER,
             stakingRouterBytes,
             stakingRouterBytes,
             body
@@ -669,7 +675,6 @@ describe('StakedLBTC', function () {
       });
 
       it(`mint() when bascule is enabled`, async function () {
-        this.skip();
         await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await stakedLbtc.totalSupply();
 
@@ -686,7 +691,6 @@ describe('StakedLBTC', function () {
 
         // @ts-ignore
         const tx = stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof);
-        // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
         await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
         await expect(tx).to.changeTokenBalance(stakedLbtc, recipient, amount);
         const totalSupplyAfter = await stakedLbtc.totalSupply();
@@ -751,7 +755,7 @@ describe('StakedLBTC', function () {
             LEDGER_CHAIN_ID,
             arg.chainId,
             Number(randomBigInt(8)),
-            LEDGER_CALLER,
+            LEDGER_SENDER,
             stakingRouterBytes,
             stakingRouterBytes,
             body
@@ -769,7 +773,7 @@ describe('StakedLBTC', function () {
         });
       });
 
-      //TODO: is bascule in use or not?
+      //TODO: BASCULE DOES NOT CHECK DEPOSITS WHEN ENABLED
       it(`mint() reverts when not reported to bascule`, async function () {
         await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
 
@@ -846,7 +850,7 @@ describe('StakedLBTC', function () {
               LEDGER_CHAIN_ID,
               CHAIN_ID,
               Number(randomBigInt(8)),
-              LEDGER_CALLER,
+              LEDGER_SENDER,
               stakingRouterBytes,
               stakingRouterBytes,
               body
@@ -1473,112 +1477,94 @@ describe('StakedLBTC', function () {
   describe('Redeem BTC', function () {
     beforeEach(async function () {
       await snapshot.restore();
-      await stakedLbtc.connect(owner).toggleWithdrawals();
     });
 
+    const args = [
+      {
+        name: 'partial p2wpkh',
+        pubkey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
+        balance: randomBigInt(8),
+        amount: (balance: bigint) : bigint => balance / 2n
+      },
+      {
+        name: 'all p2wpkh',
+        pubkey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
+        balance: randomBigInt(8),
+        amount: (balance: bigint) : bigint => balance
+      },
+      {
+        name: 'all P2TR',
+        pubkey: '0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947',
+        balance: randomBigInt(8),
+        amount: (balance: bigint) : bigint => balance
+      },
+      {
+        name: 'all P2WSH',
+        pubkey: '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3',
+        balance: randomBigInt(8),
+        amount: (balance: bigint) : bigint => balance
+      }
+    ]
+
     describe('Positive cases', function () {
-      it('Redeem half with P2WPKH', async () => {
-        const amount = 100_000_000n;
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
+      args.forEach(function(arg) {
+        it(`redeemForBtc() ${arg.name}`, async () => {
+          const balance = arg.balance;
+          await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, balance);
+          const amount = arg.amount(balance);
+          const pubScript = arg.pubkey;
 
-        const halfAmount = amount / 2n;
-        const p2wpkh = '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03';
+          const burnCommission = await assetRouter.getToNativeCommission();
+          const expectedAmountAfterFee = amount - burnCommission;
+          console.log(expectedAmountAfterFee);
+          console.log(burnCommission);
+          const body = getPayloadForAction([BITCOIN_CHAIN_ID, stakedLbtcBytes, pubScript, expectedAmountAfterFee], UNSTAKE_REQUEST_SELECTOR);
 
-        const burnCommission = await stakedLbtc.getBurnCommission();
-        const expectedAmountAfterFee = halfAmount - BigInt(burnCommission);
-        const body = getPayloadForAction([expectedAmountAfterFee, 1, CHAIN_ID, p2wpkh], REDEEM_REQUEST_SELECTOR);
+          const payload = getGMPPayload(
+            encode(['address'], [mailbox.address]),
+            CHAIN_ID,
+            LEDGER_CHAIN_ID,
+            1,
+            encode(['address'], [assetRouter.address]),
+            LEDGER_SENDER,
+            LEDGER_CALLER,
+            body
+          );
 
-        const payload = getGMPPayload(
-          encode(['address'], [mailbox.address]),
-          CHAIN_ID,
-          LEDGER_CHAIN_ID,
-          1,
-          encode(['address'], [assetRouter.address]),
-          LEDGER_CALLER,
-          LEDGER_CALLER,
-          body
-        );
-        console.log(payload);
-
-        await expect(stakedLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
-          .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
-      });
-
-      it('Redeem full with P2TR', async () => {
-        const amount = 100_000_000n;
-        const p2tr = '0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947';
-
-        const burnCommission = await stakedLbtc.getBurnCommission();
-
-        const expectedAmountAfterFee = amount - BigInt(burnCommission);
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        const { payload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
-        await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
-      });
-
-      it('Redeem with commission', async () => {
-        const amount = 100_000_000n;
-        const commission = 1_000_000n;
-        const p2tr = '0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947';
-
-        await stakedLbtc.connect(owner).changeBurnCommission(commission);
-
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-
-        const { payload } = buildRedeemRequestPayload(amount - commission, 1, p2tr);
-
-        await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
-      });
-
-      it('Redeem full with P2WSH', async () => {
-        const amount = 100_000_000n;
-        const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-
-        // Get the burn commission
-        const burnCommission = await stakedLbtc.getBurnCommission();
-
-        // Calculate expected amount after fee
-        const expectedAmountAfterFee = amount - BigInt(burnCommission);
-
-        const { payload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2wsh);
-
-        await expect(stakedLbtc.connect(signer1).redeem(p2wsh, amount))
-          .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
-      });
+          await expect(stakedLbtc.connect(signer1).redeemForBtc(pubScript, amount))
+            .to.emit(mailbox, 'MessageSent')
+            .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_SENDER, payload);
+        });
+      })
     });
 
     describe('Negative cases', function () {
-      it('redeem() reverts when withdrawals are off', async function () {
-        await stakedLbtc.connect(owner).toggleWithdrawals();
+      it('redeemForBtc() reverts when withdrawals are off', async function () {
+        await expect(stakedLbtc.connect(owner).toggleWithdrawals())
+          .to.emit(stakedLbtc, 'WithdrawalsEnabled')
+          .withArgs(false);
         const amount = 100_000_000n;
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.redeem('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)).to.revertedWithCustomError(
-          stakedLbtc,
-          'WithdrawalsDisabled'
-        );
+        await expect(stakedLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount))
+          .to.revertedWithCustomError(stakedLbtc, 'WithdrawalsDisabled');
       });
 
-      it('redeem() reverts if amount is less than burn commission', async function () {
-        const burnCommission = await stakedLbtc.getBurnCommission();
+      it('redeemForBtc() reverts if amount is less than burn commission', async function () {
+        const burnCommission = await assetRouter.getToNativeCommission();
         const amountLessThanCommission = BigInt(burnCommission) - 1n;
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amountLessThanCommission);
 
-        await expect(stakedLbtc.connect(signer1).redeem('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amountLessThanCommission))
-          .to.be.revertedWithCustomError(stakedLbtc, 'AmountLessThanCommission')
+        // await stakedLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amountLessThanCommission);
+        await expect(stakedLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amountLessThanCommission))
+          .to.be.revertedWithCustomError(assetRouter, 'AmountLessThanCommission')
           .withArgs(burnCommission);
       });
 
-      it('redeem() reverts when amount is below dust limit for P2WSH', async () => {
+      //TODO: find out how to get dust limit
+      it('redeemForBtc() reverts when amount is below dust limit for P2WSH', async () => {
         const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
-        const burnCommission = await stakedLbtc.getBurnCommission();
+        const burnCommission = await assetRouter.getToNativeCommission();
 
         // Start with a very small amount
         let amount = burnCommission + 1n;
@@ -1594,55 +1580,40 @@ describe('StakedLBTC', function () {
         const amountJustBelowDustLimit = amount - 1n;
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amountJustBelowDustLimit);
-
-        await expect(stakedLbtc.connect(signer1).redeem(p2wsh, amountJustBelowDustLimit)).to.be.revertedWithCustomError(
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2wsh, amountJustBelowDustLimit)).to.be.revertedWithCustomError(
           stakedLbtc,
           'AmountBelowDustLimit'
         );
       });
 
-      it('redeem() reverts with P2SH', async () => {
+      it('redeemForBtc() reverts with P2SH', async () => {
         const amount = 100_000_000n;
         const p2sh = '0xa914aec38a317950a98baa9f725c0cb7e50ae473ba2f87';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeem(p2sh, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2sh, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
       });
 
-      it('redeem() reverts with P2PKH', async () => {
+      it('redeemForBtc() reverts with P2PKH', async () => {
         const amount = 100_000_000n;
         const p2pkh = '0x76a914aec38a317950a98baa9f725c0cb7e50ae473ba2f88ac';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeem(p2pkh, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2pkh, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
       });
 
-      it('redeem() reverts with P2PK', async () => {
+      it('redeemForBtc() reverts with P2PK', async () => {
         const amount = 100_000_000n;
         const p2pk =
           '0x4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeem(p2pk, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2pk, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
       });
 
-      it('redeem() reverts with P2MS', async () => {
+      it('redeemForBtc() reverts with P2MS', async () => {
         const amount = 100_000_000n;
         const p2ms =
           '0x524104d81fd577272bbe73308c93009eec5dc9fc319fc1ee2e7066e17220a5d47a18314578be2faea34b9f1f8ca078f8621acd4bc22897b03daa422b9bf56646b342a24104ec3afff0b2b66e8152e9018fe3be3fc92b30bf886b3487a525997d00fd9da2d012dce5d5275854adc3106572a5d1e12d4211b228429f5a7b2f7ba92eb0475bb14104b49b496684b02855bc32f5daefa2e2e406db4418f3b86bca5195600951c7d918cdbe5e6d3736ec2abf2dd7610995c3086976b2c0c7b4e459d10b34a316d5a5e753ae';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeem(p2ms, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
-      });
-
-      it('redeem() reverts when not enough to pay commission', async () => {
-        const amount = 999_999n;
-        const commission = 1_000_000n;
-        const p2tr = '0x5120999d8dd965f148662dc38ab5f4ee0c439cadbcc0ab5c946a45159e30b3713947';
-
-        await stakedLbtc.connect(owner).changeBurnCommission(commission);
-
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-
-        await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
-          .to.revertedWithCustomError(stakedLbtc, 'AmountLessThanCommission')
-          .withArgs(commission);
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2ms, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
       });
     });
   });
@@ -1732,10 +1703,7 @@ describe('StakedLBTC', function () {
   });
 
   describe('Staking', function () {
-    let AssetRouter: AssetRouter;
-    let nativeLbtc: NativeLBTC;
-    let nativeLbtcBytes32: BytesLike;
-    let stakedLbtcBytes32: BytesLike;
+    // let assetRouter: AssetRouter;
     let StakingSnapshot: SnapshotRestorer;
     let nonce: bigint;
     const nativeLBTCName = ethers.keccak256(ethers.toUtf8Bytes('NativeLBTC'));
@@ -1750,37 +1718,19 @@ describe('StakedLBTC', function () {
     const nativeLbtcBytes2 = encode(['address'], [ethers.Wallet.createRandom().address]);
     const nativeLbtcBytes3 = encode(['address'], [ethers.Wallet.createRandom().address]);
 
-    before(async function () {
-      AssetRouter = await deployContract('AssetRouter', [owner.address, mailbox.address]);
-      const { lbtc } = await initNativeLBTC(1, treasury.address, owner.address);
-      nativeLbtc = lbtc;
-      await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), owner);
-
-      nativeLbtcBytes32 = encode(['address'], [await nativeLbtc.getAddress()]);
-      stakedLbtcBytes32 = encode(['address'], [stakedLbtc.address]);
-      StakingSnapshot = await takeSnapshot();
-    });
-
     describe('Base flow', function () {
       const AMOUNT = 1_000_000n;
 
       beforeEach(async function () {
-        await StakingSnapshot.restore();
+        await snapshot.restore();
         nonce = 1n;
-
-        // set Staking router
-        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
-
-        // give mint permission
-        await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), stakedLbtc);
-        // mint tokens
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
-        await nativeLbtc.connect(owner).mint(signer1, AMOUNT);
+        await nativeLBTC.connect(minter).mint(signer1, AMOUNT);
       });
 
       it('should Unstake (to native)', async () => {
         // set StakedLBTC => NativeLBTC
-        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, CHAIN_ID, nativeLbtcBytes32, CHAIN_ID);
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, nativeLbtcBytes, true, CHAIN_ID);
 
         const recipient = encode(['address'], [signer2.address]);
         const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
@@ -1789,13 +1739,13 @@ describe('StakedLBTC', function () {
           nonce++,
           recipient,
           AMOUNT,
-          stakedLbtcBytes32,
-          nativeLbtcBytes32,
+          stakedLbtcBytes,
+          nativeLbtcBytes,
           CHAIN_ID,
           CHAIN_ID
         );
         // no need to approve
-        await expect(stakedLbtc.connect(signer1).startUnstake(CHAIN_ID, recipient, AMOUNT))
+        await expect(stakedLbtc.connect(signer1).redeem(AMOUNT))
           .to.emit(stakedLbtc, 'StakingOperationRequested')
           .withArgs(signer1, recipient, stakedLbtc, AMOUNT, expectedRequestPayload)
           .and.emit(stakedLbtc, 'Transfer') // burn StakedLBTC from sender
@@ -1807,24 +1757,24 @@ describe('StakedLBTC', function () {
           requestPayloadHash,
           recipient,
           AMOUNT,
-          stakedLbtcBytes32,
-          nativeLbtcBytes32,
+          stakedLbtcBytes,
+          nativeLbtcBytes,
           CHAIN_ID
         );
 
         await expect(stakedLbtc.finalizeStakingOperation(receiptPayload, proof))
           .to.emit(stakedLbtc, 'StakingOperationCompleted')
-          .withArgs(signer2, nativeLbtc, AMOUNT)
-          .and.emit(nativeLbtc, 'Transfer') // mint tokens
+          .withArgs(signer2, nativeLBTC, AMOUNT)
+          .and.emit(nativeLBTC, 'Transfer') // mint tokens
           .withArgs(ethers.ZeroAddress, signer2, AMOUNT)
       });
 
       it('should Stake (from native)', async () => {
         // set NativeLBTC => StakedLBTC
-        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, CHAIN_ID, stakedLbtcBytes32, CHAIN_ID);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, stakedLbtcBytes, CHAIN_ID);
 
         // set named token
-        await AssetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
+        await assetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLBTC);
 
         const recipient = encode(['address'], [signer3.address]);
         const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
@@ -1833,18 +1783,18 @@ describe('StakedLBTC', function () {
           nonce++,
           recipient,
           AMOUNT,
-          nativeLbtcBytes32,
-          stakedLbtcBytes32,
+          nativeLbtcBytes,
+          stakedLbtcBytes,
           CHAIN_ID,
           CHAIN_ID
         );
-        await nativeLbtc.connect(signer1).approve(stakedLbtc, AMOUNT);
+        await nativeLBTC.connect(signer1).approve(stakedLbtc, AMOUNT);
         await expect(stakedLbtc.connect(signer1).startStake(CHAIN_ID, recipient, AMOUNT))
           .to.emit(stakedLbtc, 'StakingOperationRequested')
-          .withArgs(signer1, recipient, nativeLbtc, AMOUNT, expectedRequestPayload)
-          .and.emit(nativeLbtc, 'Transfer') // Staking tokens from sender
+          .withArgs(signer1, recipient, nativeLBTC, AMOUNT, expectedRequestPayload)
+          .and.emit(nativeLBTC, 'Transfer') // Staking tokens from sender
           .withArgs(signer1, stakedLbtc, AMOUNT)
-          .and.emit(nativeLbtc, 'Transfer')
+          .and.emit(nativeLBTC, 'Transfer')
           .withArgs(stakedLbtc, ethers.ZeroAddress, AMOUNT); // finally burn
 
         const { payload: receiptPayload, proof } = await signStakingReceiptPayload(
@@ -1853,8 +1803,8 @@ describe('StakedLBTC', function () {
           requestPayloadHash,
           recipient,
           AMOUNT,
-          nativeLbtcBytes32,
-          stakedLbtcBytes32,
+          nativeLbtcBytes,
+          stakedLbtcBytes,
           CHAIN_ID
         );
 
@@ -1871,15 +1821,15 @@ describe('StakedLBTC', function () {
         await StakingSnapshot.restore();
         nonce = 1n;
 
-        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
-        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
-        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes2, CHAIN2);
-        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
-        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes2, CHAIN2);
-        await AssetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
+        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, RND_CHAIN, nativeLbtcBytes2, CHAIN2);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, RND_CHAIN, stakedLbtcBytes2, CHAIN2);
+        await assetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLBTC);
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, 100n * e8);
-        await nativeLbtc.connect(owner).mint(signer1, 100n * e8);
+        await nativeLBTC.connect(owner).mint(signer1, 100n * e8);
       });
 
       const args = [
@@ -1906,7 +1856,7 @@ describe('StakedLBTC', function () {
             nonce++,
             recipient,
             amount,
-            stakedLbtcBytes32,
+            stakedLbtcBytes,
             arg.toTokenNative,
             CHAIN_ID,
             arg.tolChainId
@@ -1927,17 +1877,17 @@ describe('StakedLBTC', function () {
             nonce++,
             recipient,
             amount,
-            nativeLbtcBytes32,
+            nativeLbtcBytes,
             arg.toTokenStaked,
             CHAIN_ID,
             arg.tolChainId
           );
 
-          await nativeLbtc.connect(signer1).approve(stakedLbtc, amount);
+          await nativeLBTC.connect(signer1).approve(stakedLbtc, amount);
           const tx = stakedLbtc.connect(signer1).startStake(arg.tolChainId, recipient, amount);
-          await expect(tx).to.emit(stakedLbtc, 'StakingOperationRequested').withArgs(signer1, recipient, nativeLbtc, amount, expectedRequestPayload);
-          await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(stakedLbtc, ethers.ZeroAddress, amount);
-          await expect(tx).to.changeTokenBalance(nativeLbtc, signer1, -amount);
+          await expect(tx).to.emit(stakedLbtc, 'StakingOperationRequested').withArgs(signer1, recipient, nativeLBTC, amount, expectedRequestPayload);
+          await expect(tx).to.emit(nativeLBTC, 'Transfer').withArgs(stakedLbtc, ethers.ZeroAddress, amount);
+          await expect(tx).to.changeTokenBalance(nativeLBTC, signer1, -amount);
         });
       });
 
@@ -1973,7 +1923,7 @@ describe('StakedLBTC', function () {
         });
 
         it(`Stake reverts when ${arg.name}`, async function () {
-          await nativeLbtc.connect(signer1).approve(stakedLbtc, arg.amount);
+          await nativeLBTC.connect(signer1).approve(stakedLbtc, arg.amount);
           await expect(stakedLbtc.connect(signer1).startStake(arg.tolChainId, arg.recipient, arg.amount)).to.revertedWithCustomError(
             stakedLbtc,
             arg.error
@@ -1983,14 +1933,14 @@ describe('StakedLBTC', function () {
 
       it('startStake reverts when named token is not set', async function () {
         await StakingSnapshot.restore();
-        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
-        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
-        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
+        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
 
         const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
         const amount = randomBigInt(8);
         await expect(stakedLbtc.connect(signer1).startStake(CHAIN1, recipient, amount)).to.be.revertedWithCustomError(
-          AssetRouter,
+          assetRouter,
           'EnumerableMapNonexistentKey'
         );
       });
@@ -2008,14 +1958,14 @@ describe('StakedLBTC', function () {
     describe('Finalize Staking operation', function () {
       before(async function () {
         await StakingSnapshot.restore();
-        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
-        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes1, CHAIN1, stakedLbtcBytes32, CHAIN_ID);
-        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes2, CHAIN2, stakedLbtcBytes32, CHAIN_ID);
-        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes1, CHAIN1, nativeLbtcBytes32, CHAIN_ID);
-        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes2, CHAIN2, nativeLbtcBytes32, CHAIN_ID);
-        await AssetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
+        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes1, CHAIN1, stakedLbtcBytes, CHAIN_ID);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes2, CHAIN2, stakedLbtcBytes, CHAIN_ID);
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes1, CHAIN1, nativeLbtcBytes, CHAIN_ID);
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes2, CHAIN2, nativeLbtcBytes, CHAIN_ID);
+        await assetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLBTC);
 
-        await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), stakedLbtc);
+        await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), stakedLbtc);
       });
 
       const args = [
@@ -2044,7 +1994,7 @@ describe('StakedLBTC', function () {
             recipientBytes,
             amount,
             arg.fromTokenStaked,
-            nativeLbtcBytes32,
+            nativeLbtcBytes,
             arg.fromChainId,
             CHAIN_ID
           );
@@ -2056,14 +2006,14 @@ describe('StakedLBTC', function () {
             recipientBytes,
             amount,
             arg.fromTokenStaked,
-            nativeLbtcBytes32,
+            nativeLbtcBytes,
             CHAIN_ID
           );
 
           const tx = await stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof);
-          await expect(tx).to.emit(stakedLbtc, 'StakingOperationCompleted').withArgs(recipient, nativeLbtc, amount);
-          await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
-          await expect(tx).to.changeTokenBalance(nativeLbtc, recipient, amount);
+          await expect(tx).to.emit(stakedLbtc, 'StakingOperationCompleted').withArgs(recipient, nativeLBTC, amount);
+          await expect(tx).to.emit(nativeLBTC, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
+          await expect(tx).to.changeTokenBalance(nativeLBTC, recipient, amount);
         });
 
         it(`to staked from ${arg.name}`, async function () {
@@ -2077,7 +2027,7 @@ describe('StakedLBTC', function () {
             recipientBytes,
             amount,
             arg.fromTokenNative,
-            stakedLbtcBytes32,
+            stakedLbtcBytes,
             arg.fromChainId,
             CHAIN_ID
           );
@@ -2089,7 +2039,7 @@ describe('StakedLBTC', function () {
             recipientBytes,
             amount,
             arg.fromTokenNative,
-            stakedLbtcBytes32,
+            stakedLbtcBytes,
             CHAIN_ID
           );
 
@@ -2106,7 +2056,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
           amount: randomBigInt(8),
           fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           // @ts-ignore
@@ -2119,7 +2069,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.ZeroAddress]),
           amount: randomBigInt(8),
           fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           hashModifier: (hash: string) => hash,
@@ -2131,7 +2081,7 @@ describe('StakedLBTC', function () {
           recipient: '0x' + Buffer.from(ethers.randomBytes(32)).toString('hex'),
           amount: randomBigInt(8),
           fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           hashModifier: (hash: string) => hash,
@@ -2143,7 +2093,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
           amount: 0n,
           fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           hashModifier: (hash: string) => hash,
@@ -2155,7 +2105,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
           amount: randomBigInt(8),
           fromToken: () => encode(['address'], [ethers.ZeroAddress]),
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           hashModifier: (hash: string) => hash,
@@ -2167,7 +2117,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
           amount: randomBigInt(8),
           fromToken: () => nativeLbtcBytes3,
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           hashModifier: (hash: string) => hash,
@@ -2179,7 +2129,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
           amount: randomBigInt(8),
           fromToken: () => stakedLbtcBytes3,
-          toToken: () => nativeLbtcBytes32,
+          toToken: () => nativeLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN_ID,
           hashModifier: (hash: string) => hash,
@@ -2228,7 +2178,7 @@ describe('StakedLBTC', function () {
           recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
           amount: randomBigInt(8),
           fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes32,
+          toToken: () => stakedLbtcBytes,
           fromChain: CHAIN1,
           toChain: CHAIN2,
           hashModifier: (hash: string) => hash,
@@ -2282,7 +2232,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN1,
           CHAIN_ID
         );
@@ -2294,7 +2244,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN_ID
         );
 
@@ -2313,7 +2263,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN1,
           CHAIN_ID
         );
@@ -2325,7 +2275,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN_ID
         );
         const modifiedPayload = payload.replace(STAKING_RECEIPT_SELECTOR, STAKING_REQUEST_SELECTOR);
@@ -2346,7 +2296,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN1,
           CHAIN_ID
         );
@@ -2367,7 +2317,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN1,
           CHAIN_ID
         );
@@ -2379,7 +2329,7 @@ describe('StakedLBTC', function () {
           recipientBytes,
           amount,
           stakedLbtcBytes1,
-          nativeLbtcBytes32,
+          nativeLbtcBytes,
           CHAIN_ID
         );
 
@@ -2406,23 +2356,23 @@ describe('StakedLBTC', function () {
       });
 
       it('Owner can change again', async function () {
-        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
+        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
 
         const newRouter = ethers.Wallet.createRandom().address;
         await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
           .to.emit(stakedLbtc, 'AssetRouterChanged')
-          .withArgs(await AssetRouter.getAddress(), newRouter);
+          .withArgs(await assetRouter.getAddress(), newRouter);
 
         expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
       });
 
       it('Owner can change to 0 address', async function () {
-        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
+        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
 
         const newRouter = ethers.ZeroAddress;
         await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
           .to.emit(stakedLbtc, 'AssetRouterChanged')
-          .withArgs(await AssetRouter.getAddress(), newRouter);
+          .withArgs(await assetRouter.getAddress(), newRouter);
 
         expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
       });
