@@ -126,19 +126,26 @@ contract AssetRouter is
         });
         r.toChainId = toChainId;
         if (fromChainId == LChainId.get()) {
-            address fromTokenAddress = GMPUtils.bytes32ToAddress(fromToken);
-            $.allowedCallers[fromTokenAddress] = true;
-            if (IBaseLBTC(fromTokenAddress).isNative()) {
+            _checkAndSetNativeToken($, fromToken);
+        }
+        if (toChainId == LChainId.get()) {
+            _checkAndSetNativeToken($, toToken);
+        }
+        emit AssetRouter_RouteSet(fromToken, fromChainId, toToken, toChainId);
+    }
+
+    function _checkAndSetNativeToken(AssetRouterStorage storage $, bytes32 token) internal {
+        address tokenAddress = GMPUtils.bytes32ToAddress(token);
+            $.allowedCallers[tokenAddress] = true;
+            if (IBaseLBTC(tokenAddress).isNative()) {
                 if (
                     $.nativeToken != address(0) &&
-                    $.nativeToken != fromTokenAddress
+                    $.nativeToken != tokenAddress
                 ) {
                     revert AssetRouter_WrongNativeToken();
                 }
-                $.nativeToken = fromTokenAddress;
+                $.nativeToken = tokenAddress;
             }
-        }
-        emit AssetRouter_RouteSet(fromToken, fromChainId, toToken, toChainId);
     }
 
     function isAllowedRoute(
@@ -452,7 +459,8 @@ contract AssetRouter is
     ) external nonReentrant returns (address) {
         (bool success, address recipient, ) = _mint(rawPayload, proof);
         if (!success) {
-            revert AssetRouter_MintProcessingError();
+            // revert AssetRouter_MintProcessingError();
+            return address(0);
         }
         return recipient;
     }

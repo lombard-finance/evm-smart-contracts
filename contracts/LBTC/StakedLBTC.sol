@@ -480,7 +480,6 @@ contract StakedLBTC is
     function redeem(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         $.assetRouter.redeem(_msgSender(), address(this), amount);
-        _burn(_msgSender(), amount);
     }
 
     function deposit(uint256 amount) external nonReentrant {
