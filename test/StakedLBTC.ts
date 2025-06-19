@@ -26,7 +26,7 @@ import {
   STAKING_REQUEST_SELECTOR,
   RELEASE_SELECTOR, getGMPPayload, signPayload, REDEEM_REQUEST_SELECTOR, GMP_V1_SELECTOR
 } from './helpers';
-import { Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC, StakingRouter } from '../typechain-types';
+import { Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC, AssetRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
@@ -64,7 +64,7 @@ const BITCOIN_CHAIN_ID: string = encode(['uint256'], ["0xff0000000019d6689c085ae
 const BITCOIN_NAITIVE_COIN: string = encode(['uint256'], ["0x00000000000000000000000000000000000001"]);
 const LEDGER_CHAIN_ID: string = encode(['uint256'], ["0x112233445566778899000000"]);
 const LEDGER_RECIPIENT: string = encode(['uint256'], ["0x222233445566778899000000"]);
-const LEDGER_CALLER: string = encode(['uint256'], [0n]);
+const LEDGER_CALLER: string = encode(['uint256'], [2n]);
 const LEDGER_MAILBOX: string = encode(['uint256'], ["0x222233445566778899000000"]);
 const namedToken = ethers.keccak256(ethers.toUtf8Bytes("NativeLBTC"));
 
@@ -92,7 +92,7 @@ describe('StakedLBTC', function () {
   const burnCommission = 1000;
   let mailbox: Mailbox & Addressable;
   let ratioFeed: RatioFeedMock & Addressable;
-  let stakingRouter: StakingRouter & Addressable;
+  let assetRouter: AssetRouter & Addressable;
   let stakingRouterBytes: string;
 
   before(async function () {
@@ -150,18 +150,18 @@ describe('StakedLBTC', function () {
     ratioFeed = (await ethers.deployContract('RatioFeedMock', [])) as RatioFeedMock & Addressable;
     ratioFeed.address = await ratioFeed.getAddress();
 
-    // StakingRouter
-    stakingRouter = await deployContract<StakingRouter & Addressable>('StakingRouter', [owner.address, 0n, mailbox.address, ratioFeed.address]);
-    stakingRouter.address = await stakingRouter.getAddress();
-    stakingRouterBytes = encode(['address'], [stakingRouter.address]);
-    await stakingRouter.connect(owner).setRoute(BITCOIN_NAITIVE_COIN, BITCOIN_CHAIN_ID, stakedLbtcBytes, CHAIN_ID);
-    await stakingRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NAITIVE_COIN, BITCOIN_CHAIN_ID);
-    await stakingRouter.connect(owner).grantRole(await stakingRouter.OPERATOR_ROLE(), operator);
-    await stakingRouter.connect(owner).setNamedToken(namedToken, stakedLbtc.address);
-    await mailbox.connect(owner).setSenderConfig(stakingRouter.address, 500, true);
+    // AssetRouter
+    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ratioFeed.address, ethers.ZeroAddress, 0n]);
+    assetRouter.address = await assetRouter.getAddress();
+    stakingRouterBytes = encode(['address'], [assetRouter.address]);
+    await assetRouter.connect(owner).setRoute(BITCOIN_NAITIVE_COIN, BITCOIN_CHAIN_ID, stakedLbtcBytes, false, CHAIN_ID);
+    await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NAITIVE_COIN, true, BITCOIN_CHAIN_ID);
+    await assetRouter.connect(owner).grantRole(await assetRouter.OPERATOR_ROLE(), operator);
+    // await assetRouter.connect(owner).setNamedToken(namedToken, stakedLbtc.address);
+    await mailbox.connect(owner).setSenderConfig(assetRouter.address, 500, true);
     // const check = await stakingRouter.connect(owner).
-    await stakedLbtc.connect(owner).changeStakingRouter(stakingRouter.address);
-    await stakedLbtc.connect(owner).addMinter(stakingRouter.address);
+    await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
+    await stakedLbtc.connect(owner).addMinter(assetRouter.address);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -400,11 +400,11 @@ describe('StakedLBTC', function () {
           canBeZero: true
         },
         {
-          name: 'StakingRouter',
-          setter: 'changeStakingRouter',
-          getter: 'StakingRouter',
-          event: 'StakingRouterChanged',
-          defaultAccount: () => stakingRouter.address,
+          name: 'AssetRouter',
+          setter: 'changeAssetRouter',
+          getter: 'AssetRouter',
+          event: 'AssetRouterChanged',
+          defaultAccount: () => assetRouter.address,
           canBeZero: true
         }
       ];
@@ -629,7 +629,7 @@ describe('StakedLBTC', function () {
       }
     ];
 
-    describe('mint with payload', function() {
+    describe('Anyone can mint with valid payload', function() {
       args.forEach(function (arg) {
         it(`mint() ${arg.name}`, async function () {
           const totalSupplyBefore = await stakedLbtc.totalSupply();
@@ -799,7 +799,7 @@ describe('StakedLBTC', function () {
       });
     })
 
-    describe('mint by claimer', function() {
+    describe('Claimer can mint with fee', function() {
       beforeEach(async function () {
         await snapshot.restore();
       });
@@ -852,7 +852,7 @@ describe('StakedLBTC', function () {
             const { payloadHash, proof } = await signPayload([notary1, notary2], [true, true], payload)
 
             // Set fee and approve
-            await stakingRouter.connect(operator).setMintFee(fee.max);
+            await assetRouter.connect(operator).setMintFee(fee.max);
             const appliedFee = fee.approved < fee.max ? fee.approved : fee.max;
             const feeApprovalPayload = getPayloadForAction([fee.approved, snapshotTimestamp + DAY], 'feeApproval');
             const userSignature = await getFeeTypedMessage(recipient, stakedLbtc.address, fee.approved, snapshotTimestamp + DAY);
@@ -882,7 +882,7 @@ describe('StakedLBTC', function () {
         const feeMax = randomBigInt(2);
         const userSignature = await getFeeTypedMessage(recipient, stakedLbtc.address, feeApproved, snapshotTimestamp + DAY);
         const feeApprovalPayload = getPayloadForAction([feeApproved, snapshotTimestamp + DAY], 'feeApproval');
-        await stakingRouter.connect(operator).setMintFee(feeMax);
+        await assetRouter.connect(operator).setMintFee(feeMax);
         const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
         for (let i = 0; i < 10; i++) {
@@ -903,7 +903,7 @@ describe('StakedLBTC', function () {
         // new
         const feeApproved = randomBigInt(2);
         const feeMax = randomBigInt(2);
-        await stakingRouter.connect(operator).setMintFee(feeMax);
+        await assetRouter.connect(operator).setMintFee(feeMax);
         const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
         const amount = randomBigInt(8);
@@ -975,7 +975,7 @@ describe('StakedLBTC', function () {
         const amount = randomBigInt(3);
         const fee = amount + 1n;
         const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount, fee);
-        await stakingRouter.connect(operator).setMintFee(fee);
+        await assetRouter.connect(operator).setMintFee(fee);
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
@@ -1001,7 +1001,7 @@ describe('StakedLBTC', function () {
       });
     })
 
-    describe('Claimer can mint with fee', function () {
+    describe.skip('mint with fee old', function () {
       beforeEach(async function () {
         await snapshot.restore();
       });
@@ -1048,7 +1048,7 @@ describe('StakedLBTC', function () {
               );
 
               // Set fee and approve
-              await stakingRouter.connect(operator).setMintFee(fee.max);
+              await assetRouter.connect(operator).setMintFee(fee.max);
               const appliedFee = fee.approved < fee.max ? fee.approved : fee.max;
 
               // @ts-ignore
@@ -1075,7 +1075,7 @@ describe('StakedLBTC', function () {
           const feeMax = randomBigInt(2);
           const userSignature = await getFeeTypedMessage(recipient, stakedLbtc.address, feeApproved, snapshotTimestamp + DAY);
           const feeApprovalPayload = getPayloadForAction([feeApproved, snapshotTimestamp + DAY], 'feeApproval');
-          await stakingRouter.connect(operator).setMintFee(feeMax);
+          await assetRouter.connect(operator).setMintFee(feeMax);
           const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
           for (let i = 0; i < 10; i++) {
@@ -1096,7 +1096,7 @@ describe('StakedLBTC', function () {
           // new
           const feeApproved = randomBigInt(2);
           const feeMax = randomBigInt(2);
-          await stakingRouter.connect(operator).setMintFee(feeMax);
+          await assetRouter.connect(operator).setMintFee(feeMax);
           const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
           const amount = randomBigInt(8);
@@ -1175,7 +1175,7 @@ describe('StakedLBTC', function () {
 
         it(`${mint.mintWithFee}() reverts when mint amount equals fee`, async function () {
           const defaultData = await mint.defaultData();
-          await stakingRouter.connect(operator).setMintFee(defaultData.amount);
+          await assetRouter.connect(operator).setMintFee(defaultData.amount);
           const feeApprovalPayload = getPayloadForAction([defaultData.amount, snapshotTimestamp + DAY], 'feeApproval');
           const userSignature = await getFeeTypedMessage(signer1, stakedLbtc.address, defaultData.amount, snapshotTimestamp + DAY);
           await expect(
@@ -1323,7 +1323,7 @@ describe('StakedLBTC', function () {
         beforeEach(async function () {
           await snapshot.restore();
           maxFee = randomBigInt(2);
-          await stakingRouter.connect(operator).setMintFee(maxFee);
+          await assetRouter.connect(operator).setMintFee(maxFee);
           data1 = await defaultData(signer1, amount1, maxFee + 1n);
           data2 = await defaultData(signer2, amount2, maxFee + 1n);
           data3 = await defaultData(signer3, amount3, maxFee + 1n);
@@ -1440,6 +1440,7 @@ describe('StakedLBTC', function () {
             stakedLbtc
               .connect(signer1)
               .batchMintWithFee(
+                //@ts-ignore
                 [data1.payload, data2.payload, data3.payload],
                 [data1.proof, data2.proof, data3.proof],
                 [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
@@ -1456,6 +1457,7 @@ describe('StakedLBTC', function () {
             stakedLbtc
               .connect(claimer)
               .batchMintWithFee(
+                //@ts-ignore
                 [data1.payload, data2.payload, data3.payload],
                 [data1.proof, data2.proof, data3.proof],
                 [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
@@ -1490,7 +1492,7 @@ describe('StakedLBTC', function () {
           CHAIN_ID,
           LEDGER_CHAIN_ID,
           1,
-          encode(['address'], [stakingRouter.address]),
+          encode(['address'], [assetRouter.address]),
           LEDGER_RECIPIENT,
           LEDGER_CALLER,
           body
@@ -1499,7 +1501,7 @@ describe('StakedLBTC', function () {
 
         await expect(stakedLbtc.connect(signer1).redeem(p2wpkh, halfAmount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
+          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
       });
 
       it('Redeem full with P2TR', async () => {
@@ -1513,7 +1515,7 @@ describe('StakedLBTC', function () {
         const { payload } = buildRedeemRequestPayload(expectedAmountAfterFee, 1, p2tr);
         await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
+          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
       });
 
       it('Redeem with commission', async () => {
@@ -1529,7 +1531,7 @@ describe('StakedLBTC', function () {
 
         await expect(stakedLbtc.connect(signer1).redeem(p2tr, amount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
+          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
       });
 
       it('Redeem full with P2WSH', async () => {
@@ -1547,7 +1549,7 @@ describe('StakedLBTC', function () {
 
         await expect(stakedLbtc.connect(signer1).redeem(p2wsh, amount))
           .to.emit(mailbox, 'MessageSent')
-          .withArgs(LEDGER_CHAIN_ID, stakingRouter.address, LEDGER_MAILBOX, payload);
+          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_MAILBOX, payload);
       });
     });
 
@@ -1729,7 +1731,7 @@ describe('StakedLBTC', function () {
   });
 
   describe('Staking', function () {
-    let StakingRouter: StakingRouter;
+    let AssetRouter: AssetRouter;
     let nativeLbtc: NativeLBTC;
     let nativeLbtcBytes32: BytesLike;
     let stakedLbtcBytes32: BytesLike;
@@ -1748,7 +1750,7 @@ describe('StakedLBTC', function () {
     const nativeLbtcBytes3 = encode(['address'], [ethers.Wallet.createRandom().address]);
 
     before(async function () {
-      StakingRouter = await deployContract('StakingRouter', [owner.address, mailbox.address]);
+      AssetRouter = await deployContract('AssetRouter', [owner.address, mailbox.address]);
       const { lbtc } = await initNativeLBTC(1, treasury.address, owner.address);
       nativeLbtc = lbtc;
       await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), owner);
@@ -1766,7 +1768,7 @@ describe('StakedLBTC', function () {
         nonce = 1n;
 
         // set Staking router
-        await stakedLbtc.connect(owner).changeStakingRouter(StakingRouter);
+        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
 
         // give mint permission
         await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), stakedLbtc);
@@ -1777,7 +1779,7 @@ describe('StakedLBTC', function () {
 
       it('should Unstake (to native)', async () => {
         // set StakedLBTC => NativeLBTC
-        await StakingRouter.connect(owner).setRoute(stakedLbtcBytes32, CHAIN_ID, nativeLbtcBytes32, CHAIN_ID);
+        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, CHAIN_ID, nativeLbtcBytes32, CHAIN_ID);
 
         const recipient = encode(['address'], [signer2.address]);
         const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
@@ -1818,10 +1820,10 @@ describe('StakedLBTC', function () {
 
       it('should Stake (from native)', async () => {
         // set NativeLBTC => StakedLBTC
-        await StakingRouter.connect(owner).setRoute(nativeLbtcBytes32, CHAIN_ID, stakedLbtcBytes32, CHAIN_ID);
+        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, CHAIN_ID, stakedLbtcBytes32, CHAIN_ID);
 
         // set named token
-        await StakingRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
+        await AssetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
 
         const recipient = encode(['address'], [signer3.address]);
         const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
@@ -1868,12 +1870,12 @@ describe('StakedLBTC', function () {
         await StakingSnapshot.restore();
         nonce = 1n;
 
-        await stakedLbtc.connect(owner).changeStakingRouter(StakingRouter);
-        await StakingRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
-        await StakingRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes2, CHAIN2);
-        await StakingRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
-        await StakingRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes2, CHAIN2);
-        await StakingRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
+        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
+        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
+        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes2, CHAIN2);
+        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
+        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes2, CHAIN2);
+        await AssetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
 
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, 100n * e8);
         await nativeLbtc.connect(owner).mint(signer1, 100n * e8);
@@ -1980,21 +1982,21 @@ describe('StakedLBTC', function () {
 
       it('startStake reverts when named token is not set', async function () {
         await StakingSnapshot.restore();
-        await stakedLbtc.connect(owner).changeStakingRouter(StakingRouter);
-        await StakingRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
-        await StakingRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
+        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
+        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes32, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
+        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes32, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
 
         const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
         const amount = randomBigInt(8);
         await expect(stakedLbtc.connect(signer1).startStake(CHAIN1, recipient, amount)).to.be.revertedWithCustomError(
-          StakingRouter,
+          AssetRouter,
           'EnumerableMapNonexistentKey'
         );
       });
 
       //TODO: what is the expected error?
       it('startUnstake reverts when router is not set', async function () {
-        await stakedLbtc.connect(owner).changeStakingRouter(ethers.ZeroAddress);
+        await stakedLbtc.connect(owner).changeAssetRouter(ethers.ZeroAddress);
 
         const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
         const amount = randomBigInt(8);
@@ -2005,12 +2007,12 @@ describe('StakedLBTC', function () {
     describe('Finalize Staking operation', function () {
       before(async function () {
         await StakingSnapshot.restore();
-        await stakedLbtc.connect(owner).changeStakingRouter(StakingRouter);
-        await StakingRouter.connect(owner).setRoute(nativeLbtcBytes1, CHAIN1, stakedLbtcBytes32, CHAIN_ID);
-        await StakingRouter.connect(owner).setRoute(nativeLbtcBytes2, CHAIN2, stakedLbtcBytes32, CHAIN_ID);
-        await StakingRouter.connect(owner).setRoute(stakedLbtcBytes1, CHAIN1, nativeLbtcBytes32, CHAIN_ID);
-        await StakingRouter.connect(owner).setRoute(stakedLbtcBytes2, CHAIN2, nativeLbtcBytes32, CHAIN_ID);
-        await StakingRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
+        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
+        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes1, CHAIN1, stakedLbtcBytes32, CHAIN_ID);
+        await AssetRouter.connect(owner).setRoute(nativeLbtcBytes2, CHAIN2, stakedLbtcBytes32, CHAIN_ID);
+        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes1, CHAIN1, nativeLbtcBytes32, CHAIN_ID);
+        await AssetRouter.connect(owner).setRoute(stakedLbtcBytes2, CHAIN2, nativeLbtcBytes32, CHAIN_ID);
+        await AssetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLbtc);
 
         await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), stakedLbtc);
       });
@@ -2390,43 +2392,43 @@ describe('StakedLBTC', function () {
       });
 
       it('Initial Staking router is 0 address', async function () {
-        expect(await stakedLbtc.StakingRouter()).to.be.eq(ethers.ZeroAddress);
+        expect(await stakedLbtc.AssetRouter()).to.be.eq(ethers.ZeroAddress);
       });
 
       it('Owner can change', async function () {
         const newRouter = ethers.Wallet.createRandom().address;
-        await expect(stakedLbtc.connect(owner).changeStakingRouter(newRouter))
-          .to.emit(stakedLbtc, 'StakingRouterChanged')
+        await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
+          .to.emit(stakedLbtc, 'AssetRouterChanged')
           .withArgs(ethers.ZeroAddress, newRouter);
 
-        expect(await stakedLbtc.StakingRouter()).to.be.eq(newRouter);
+        expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
       });
 
       it('Owner can change again', async function () {
-        await stakedLbtc.connect(owner).changeStakingRouter(StakingRouter);
+        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
 
         const newRouter = ethers.Wallet.createRandom().address;
-        await expect(stakedLbtc.connect(owner).changeStakingRouter(newRouter))
-          .to.emit(stakedLbtc, 'StakingRouterChanged')
-          .withArgs(await StakingRouter.getAddress(), newRouter);
+        await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
+          .to.emit(stakedLbtc, 'AssetRouterChanged')
+          .withArgs(await AssetRouter.getAddress(), newRouter);
 
-        expect(await stakedLbtc.StakingRouter()).to.be.eq(newRouter);
+        expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
       });
 
       it('Owner can change to 0 address', async function () {
-        await stakedLbtc.connect(owner).changeStakingRouter(StakingRouter);
+        await stakedLbtc.connect(owner).changeAssetRouter(AssetRouter);
 
         const newRouter = ethers.ZeroAddress;
-        await expect(stakedLbtc.connect(owner).changeStakingRouter(newRouter))
-          .to.emit(stakedLbtc, 'StakingRouterChanged')
-          .withArgs(await StakingRouter.getAddress(), newRouter);
+        await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
+          .to.emit(stakedLbtc, 'AssetRouterChanged')
+          .withArgs(await AssetRouter.getAddress(), newRouter);
 
-        expect(await stakedLbtc.StakingRouter()).to.be.eq(newRouter);
+        expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
       });
 
       it('Reverts when called by not an owner', async function () {
         const newRouter = ethers.Wallet.createRandom().address;
-        await expect(stakedLbtc.connect(signer1).changeStakingRouter(newRouter))
+        await expect(stakedLbtc.connect(signer1).changeAssetRouter(newRouter))
           .to.be.revertedWithCustomError(stakedLbtc, 'OwnableUnauthorizedAccount')
           .withArgs(signer1.address);
       });
