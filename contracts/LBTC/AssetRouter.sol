@@ -523,6 +523,11 @@ contract AssetRouter is
             rawPayload,
             proof
         );
+        if (!success) {
+            bytes32 payloadHash = sha256(rawPayload);
+            emit AssetRouter_BatchMintError(payloadHash, "", "");
+            return (false, address(0), address(0));
+        }
         (address recipient, address token) = abi.decode(result, (address, address));
         return (success, recipient, token);
     }
@@ -533,7 +538,10 @@ contract AssetRouter is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) internal virtual {
-        (,address recipient, address token) = _mint(mintPayload, proof);
+        (bool success,address recipient, address token) = _mint(mintPayload, proof);
+        if (!success) {
+            return;
+        }
         IBaseLBTC tokenContract = IBaseLBTC(token);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
