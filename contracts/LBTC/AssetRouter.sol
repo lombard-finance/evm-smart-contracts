@@ -450,7 +450,10 @@ contract AssetRouter is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (address) {
-        (, address recipient, ) = _mint(rawPayload, proof);
+        (bool success, address recipient, ) = _mint(rawPayload, proof);
+        if (!success) {
+            revert AssetRouter_MintProcessingError();
+        }
         return recipient;
     }
 
@@ -460,18 +463,10 @@ contract AssetRouter is
     ) external nonReentrant {
         Assert.equalLength(payload.length, proof.length);
         for (uint256 i; i < payload.length; ++i) {
-            try this.mint(payload[i], proof[i]) returns (
-                address
-            ) {
-                return;
-            } catch Error(string memory reason) {
+            (bool success,,) = _mint(payload[i], proof[i]);
+            if (!success) {
                 bytes32 payloadHash = sha256(payload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, reason, "");
-                continue;
-            } catch (bytes memory lowLevelData) {
-                bytes32 payloadHash = sha256(payload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, "", lowLevelData);
-                continue;
+                emit AssetRouter_BatchMintError(payloadHash, "", "");
             }
         }
     }
@@ -481,7 +476,10 @@ contract AssetRouter is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) external nonReentrant {
-        _mintWithFee(mintPayload, proof, feePayload, userSignature);
+        bool success = _mintWithFee(mintPayload, proof, feePayload, userSignature);
+        if (!success) {
+            revert AssetRouter_MintProcessingError();
+        }
     }
 
     function batchMintWithFee(
@@ -495,21 +493,15 @@ contract AssetRouter is
         Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
-            try this.mintWithFee(
+            bool success = _mintWithFee(
                 mintPayload[i],
                 proof[i],
                 feePayload[i],
                 userSignature[i]
-            ) {
-                return;
-            } catch Error(string memory reason) {
+            );
+            if (!success) {
                 bytes32 payloadHash = sha256(mintPayload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, reason, "");
-                continue;
-            } catch (bytes memory lowLevelData) {
-                bytes32 payloadHash = sha256(mintPayload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, "", lowLevelData);
-                continue;
+                emit AssetRouter_BatchMintError(payloadHash, "", "");
             }
         }
     }
@@ -537,10 +529,10 @@ contract AssetRouter is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal virtual {
+    ) internal virtual returns (bool) {
         (bool success,address recipient, address token) = _mint(mintPayload, proof);
         if (!success) {
-            return;
+            return false;
         }
         IBaseLBTC tokenContract = IBaseLBTC(token);
 
@@ -567,6 +559,7 @@ contract AssetRouter is
         }
 
         emit AssetRouter_FeeCharged(fee, userSignature);
+        return true;
     }
 
     function supportsInterface(

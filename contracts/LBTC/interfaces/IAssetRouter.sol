@@ -10,6 +10,7 @@ interface IAssetRouter {
     error AssetRouter_WrongOperation();
     error AssetRouter_WrongSender();
     error AssetRouter_WrongNativeToken();
+    error AssetRouter_MintProcessingError();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
 
