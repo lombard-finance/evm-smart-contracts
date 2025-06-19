@@ -59,7 +59,7 @@ interface IAssetRouter {
     function getBascule() external view returns (address);
     function getOracle() external view returns (address);
     function getMailbox() external view returns (address);
-    function getToNativeCommission() external view returns (uint256);
+    function getToNativeCommission() external view returns (uint64);
     function getNativeToken() external view returns (address);
 
     function deposit(
@@ -120,4 +120,9 @@ interface IAssetRouter {
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external;
+
+    function calcUnstakeRequestAmount(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external view returns (uint256 amountAfterFee, bool isAboveDust);
 }

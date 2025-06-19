@@ -166,6 +166,7 @@ describe('StakedLBTC', function () {
     // const check = await stakingRouter.connect(owner).
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).addMinter(assetRouter.address);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), assetRouter.address);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -1771,10 +1772,7 @@ describe('StakedLBTC', function () {
 
       it('should Stake (from native)', async () => {
         // set NativeLBTC => StakedLBTC
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, stakedLbtcBytes, CHAIN_ID);
-
-        // set named token
-        await assetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLBTC);
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, stakedLbtcBytes, false, CHAIN_ID);
 
         const recipient = encode(['address'], [signer3.address]);
         const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
@@ -1789,7 +1787,7 @@ describe('StakedLBTC', function () {
           CHAIN_ID
         );
         await nativeLBTC.connect(signer1).approve(stakedLbtc, AMOUNT);
-        await expect(stakedLbtc.connect(signer1).startStake(CHAIN_ID, recipient, AMOUNT))
+        await expect(stakedLbtc.connect(signer1).deposit(AMOUNT))
           .to.emit(stakedLbtc, 'StakingOperationRequested')
           .withArgs(signer1, recipient, nativeLBTC, AMOUNT, expectedRequestPayload)
           .and.emit(nativeLBTC, 'Transfer') // Staking tokens from sender

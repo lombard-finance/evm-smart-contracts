@@ -340,6 +340,21 @@ contract AssetRouter is
         IBaseLBTC($.nativeToken).burn(fromAddress, amount);
     }
 
+    function calcUnstakeRequestAmount(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
+            scriptPubkey,
+            $.dustFeeRate,
+            amount,
+            $.toNativeCommission,
+            $.oracle.ratio()
+        );
+        return (amountAfterFee, isAboveDust);
+    }
+
     function redeemForBtc(
         address fromAddress,
         address fromToken,
@@ -352,7 +367,8 @@ contract AssetRouter is
             recipient,
             $.dustFeeRate,
             amount,
-            fee
+            fee,
+            $.oracle.ratio()
         );
         _redeem(
             $,
@@ -362,7 +378,7 @@ contract AssetRouter is
             Staking.BITCOIN_NATIVE_COIN,
             recipient,
             amountAfterFee,
-            fee
+            amount - amountAfterFee
         );
     }
 
@@ -666,7 +682,7 @@ contract AssetRouter is
         return address(_getAssetRouterStorage().mailbox);
     }
 
-    function getToNativeCommission() external view override returns (uint256) {
+    function getToNativeCommission() external view override returns (uint64) {
         return _getAssetRouterStorage().toNativeCommission;
     }
 

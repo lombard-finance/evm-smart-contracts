@@ -61,7 +61,8 @@ contract StakedLBTC is
         mapping(bytes32 => uint16) __removed__depositRelativeCommission;
         /// @custom:oz-renamed-from depositAbsoluteCommission
         mapping(bytes32 => uint64) __removed__depositAbsoluteCommission;
-        uint64 burnCommission; // absolute commission to charge on burn (unstake)
+        /// @custom:oz-renamed-from burnCommission
+        uint64 __removed__burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
@@ -176,10 +177,6 @@ contract StakedLBTC is
         _changeTreasury(newValue);
     }
 
-    function changeBurnCommission(uint64 newValue) external onlyOwner {
-        _changeBurnCommission(newValue);
-    }
-
     function pause() external onlyPauser {
         _pause();
     }
@@ -251,14 +248,7 @@ contract StakedLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-
-        (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
-            scriptPubkey,
-            $.dustFeeRate,
-            amount,
-            $.burnCommission
-        );
-        return (amountAfterFee, isAboveDust);
+        return $.assetRouter.calcUnstakeRequestAmount(scriptPubkey, amount);
     }
 
     function consortium() external view virtual returns (INotaryConsortium) {
@@ -299,7 +289,7 @@ contract StakedLBTC is
     }
 
     function getBurnCommission() public view returns (uint64) {
-        return _getStakedLBTCStorage().burnCommission;
+        return _getStakedLBTCStorage().assetRouter.getToNativeCommission();
     }
 
     /// @notice Get the current dust fee rate
@@ -499,7 +489,6 @@ contract StakedLBTC is
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
-        _changeBurnCommission(burnCommission_);
     }
 
     function _changeNameAndSymbol(
@@ -567,14 +556,6 @@ contract StakedLBTC is
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         emit ConsortiumChanged(address($.consortium), newVal);
         $.consortium = INotaryConsortium(newVal);
-    }
-
-    /// @dev allow set to zero
-    function _changeBurnCommission(uint64 newValue) internal {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint64 prevValue = $.burnCommission;
-        $.burnCommission = newValue;
-        emit BurnCommissionChanged(prevValue, newValue);
     }
 
     /// @dev Zero Address allowed to disable bascule check
