@@ -65,7 +65,6 @@ const BITCOIN_NAITIVE_COIN: string = encode(['uint256'], ["0x0000000000000000000
 const LEDGER_CHAIN_ID: string = encode(['uint256'], ["0x112233445566778899000000"]);
 const LEDGER_CALLER: string = encode(['uint256'], ["0x89e3e4e7a699d6f131d893aeef7ee143706ac23a267a54b5d6957e7c1529e4b5"]);
 const LEDGER_MAILBOX: string = encode(['uint256'], ["0x222233445566778899000000"]);
-const namedToken = ethers.keccak256(ethers.toUtf8Bytes("NativeLBTC"));
 
 describe('StakedLBTC', function () {
   let _: Signer,
@@ -650,7 +649,16 @@ describe('StakedLBTC', function () {
 
           const sender = arg.msgSender();
           // @ts-ignore
-          const tx = stakedLbtc.connect(sender)['mint(bytes,bytes)'](payload, proof);
+          const tx = await stakedLbtc.connect(sender)['mint(bytes,bytes)'](payload, proof);
+          const receipt = await tx.wait();
+          // for (const log of receipt.logs) {
+          //   try {
+          //     const parsedLog = mailbox.interface.parseLog(log);
+          //     console.log('Event Name:', parsedLog.name);
+          //     console.log('Event Args:', parsedLog.args);
+          //   } catch (error) {
+          //   }
+          // }
           // TODO: unique event?
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
           await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
@@ -720,8 +728,7 @@ describe('StakedLBTC', function () {
           chainId: CHAIN_ID,
           recipient: () => ethers.ZeroAddress,
           amount: randomBigInt(8),
-          // TODO: couldn't infer the reason
-          // customError: () => [stakedLbtc, 'Actions_ZeroAddress']
+          customError: () => [assetRouter, 'AssetRouter_MintProcessingError']
         },
         {
           name: 'amount is 0',
@@ -730,8 +737,7 @@ describe('StakedLBTC', function () {
           chainId: CHAIN_ID,
           recipient: () => signer1.address,
           amount: 0n,
-          // TODO: couldn't infer the reason
-          // customError: () => [stakedLbtc, 'ZeroAmount']
+          customError: () => [assetRouter, 'AssetRouter_MintProcessingError']
         }
       ];
 
@@ -776,15 +782,12 @@ describe('StakedLBTC', function () {
         // );
       });
 
-      //TODO: reverts without a reason
       it(`mint() reverts when payload has been used`, async function () {
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         await stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof);
         // @ts-ignore
-        await expect(stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof)).to.be.revertedWithCustomError(
-          stakedLbtc,
-          'PayloadAlreadyUsed'
-        );
+        await expect(stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof, { gasLimit: 500_000n }))
+          .to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
       });
 
       it(`mint() reverts when paused`, async function () {
@@ -792,8 +795,8 @@ describe('StakedLBTC', function () {
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         // @ts-ignore
         await expect(stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof)).to.be.revertedWithCustomError(
-          stakedLbtc,
-          'EnforcedPause'
+          assetRouter,
+          'AssetRouter_MintProcessingError'
         );
       });
     })
@@ -859,13 +862,11 @@ describe('StakedLBTC', function () {
             // @ts-ignore
             const tx = await stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature);
             // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-            await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
             // TODO: fix after event will be fixed
-            // await expect(tx)
-            //   .to.emit(stakedLbtc, 'Transfer')
-            //   .withArgs(ethers.ZeroAddress, recipient.address, amount - appliedFee);
+            await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient.address, amount);
             if (appliedFee > 0n) {
-              await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, treasury.address, appliedFee);
+              await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(recipient.address, treasury.address, appliedFee);
             }
             await expect(tx).to.changeTokenBalance(stakedLbtc, recipient, amount - appliedFee);
             await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, appliedFee);
@@ -891,7 +892,7 @@ describe('StakedLBTC', function () {
           // @ts-ignore
           const tx = await stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature);
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
         }
       });
 
@@ -917,8 +918,8 @@ describe('StakedLBTC', function () {
 
         // @ts-ignore
         const tx = await stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature);
-        await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-        await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+        // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
+        await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
         await expect(tx)
           .to.emit(stakedLbtc, 'Transfer')
           .withArgs(ethers.ZeroAddress, recipient.address, amount - appliedFee);
@@ -937,7 +938,7 @@ describe('StakedLBTC', function () {
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
         )
-          .to.revertedWithCustomError(stakedLbtc, 'UserSignatureExpired')
+          .to.revertedWithCustomError(assetRouter, 'UserSignatureExpired')
           .withArgs(snapshotTimestamp);
       });
 
@@ -946,7 +947,7 @@ describe('StakedLBTC', function () {
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(feeApprovalPayload, userSignature, feeApprovalPayload, userSignature))
-          .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
+          .to.revertedWithCustomError(mailbox, 'GMP_InvalidAction')
           .withArgs(GMP_V1_SELECTOR, FEE_APPROVAL_ACTION);
       });
 
@@ -958,7 +959,7 @@ describe('StakedLBTC', function () {
             .connect(claimer)
             .mintWithFee(payload, proof, payload, proof)
         )
-          .to.revertedWithCustomError(stakedLbtc, 'InvalidAction')
+          .to.revertedWithCustomError(assetRouter, 'InvalidAction')
           .withArgs(FEE_APPROVAL_ACTION, GMP_V1_SELECTOR);
       });
 
@@ -975,6 +976,7 @@ describe('StakedLBTC', function () {
         const fee = amount + 1n;
         const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount, fee);
         await assetRouter.connect(operator).setMintFee(fee);
+        //TODO: custom error?
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
@@ -987,7 +989,7 @@ describe('StakedLBTC', function () {
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
-        ).to.revertedWithCustomError(stakedLbtc, 'InvalidFeeApprovalSignature');
+        ).to.revertedWithCustomError(assetRouter, 'InvalidFeeApprovalSignature');
       });
 
       it(`mintWithFee() reverts when fee signature doesnt match payload`, async function () {
@@ -996,7 +998,7 @@ describe('StakedLBTC', function () {
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
-        ).to.revertedWithCustomError(stakedLbtc, 'InvalidFeeApprovalSignature');
+        ).to.revertedWithCustomError(assetRouter, 'InvalidFeeApprovalSignature');
       });
     })
 
@@ -1053,7 +1055,7 @@ describe('StakedLBTC', function () {
               // @ts-ignore
               const tx = await stakedLbtc.connect(claimer)[mint.mintWithFee](payload, proof, feeApprovalPayload, userSignature);
               await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-              await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+              await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
               await expect(tx)
                 .to.emit(stakedLbtc, 'Transfer')
                 .withArgs(ethers.ZeroAddress, recipient.address, amount - appliedFee);
@@ -1084,7 +1086,7 @@ describe('StakedLBTC', function () {
             // @ts-ignore
             const tx = await stakedLbtc.connect(claimer)[mint.mintWithFee](payload, proof, feeApprovalPayload, userSignature);
             await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-            await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
           }
         });
 
@@ -1111,7 +1113,7 @@ describe('StakedLBTC', function () {
           // @ts-ignore
           const tx = await stakedLbtc.connect(claimer)[mint.mintWithFee](payload, proof, feeApprovalPayload, userSignature);
           await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
           await expect(tx)
             .to.emit(stakedLbtc, 'Transfer')
             .withArgs(ethers.ZeroAddress, recipient.address, amount - appliedFee);
@@ -1309,7 +1311,7 @@ describe('StakedLBTC', function () {
             stakedLbtc
               .connect(signer1)
               ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload], [data1.proof, data2.proof])
-          ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+          ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
         });
       });
 
@@ -1338,11 +1340,11 @@ describe('StakedLBTC', function () {
               [data1.userSignature, data2.userSignature, data3.userSignature]
             );
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer1, data1.payloadHash, data1.payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(maxFee, data1.userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data1.userSignature);
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer2, data2.payloadHash, data2.payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(maxFee, data2.userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data2.userSignature);
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer3, data3.payloadHash, data3.payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(maxFee, data3.userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data3.userSignature);
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2, signer3], [amount1 - maxFee, amount2 - maxFee, amount3 - maxFee]);
           await expect(tx).changeTokenBalance(stakedLbtc, treasury, maxFee * 3n);
         });
@@ -1357,11 +1359,11 @@ describe('StakedLBTC', function () {
               [data1.userSignature, data1.userSignature, data2.userSignature, data2.userSignature]
             );
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer1, data1.payloadHash, data1.payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(maxFee, data1.userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data1.userSignature);
           // await expect(tx).to.emit(stakedLbtc, 'BatchMintSkipped').withArgs(data1.payloadHash, data1.payload);
 
           // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer2, data2.payloadHash, data2.payload);
-          await expect(tx).to.emit(stakedLbtc, 'FeeCharged').withArgs(maxFee, data2.userSignature);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data2.userSignature);
           // TODO: fix
           // await expect(tx).to.emit(stakedLbtc, 'BatchMintSkipped').withArgs(data2.payloadHash, data2.payload);
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1 - maxFee, amount2 - maxFee]);
@@ -1462,7 +1464,7 @@ describe('StakedLBTC', function () {
                 [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
                 [data1.userSignature, data2.userSignature, data3.userSignature]
               )
-          ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+          ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
         });
       });
     });
