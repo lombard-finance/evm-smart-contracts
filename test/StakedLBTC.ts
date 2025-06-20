@@ -140,7 +140,7 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
     // Initialize permit module
     await stakedLbtc.connect(owner).reinitialize();
-    await stakedLbtc.connect(owner).toggleWithdrawals();
+    await stakedLbtc.connect(owner).toggleRedeemsForBtc();
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -298,20 +298,20 @@ describe('StakedLBTC', function () {
         await snapshot.restore();
       });
 
-      it('toggleWithdrawals() owner can disable', async function () {
-        await expect(stakedLbtc.connect(owner).toggleWithdrawals())
-          .to.emit(stakedLbtc, 'WithdrawalsEnabled')
+      it('toggleRedeemsForBtc() owner can disable', async function () {
+        await expect(stakedLbtc.connect(owner).toggleRedeemsForBtc())
+          .to.emit(stakedLbtc, 'RedeemsForBtcEnabled')
           .withArgs(false);
       });
 
-      it('toggleWithdrawals() owner can enable', async function () {
-        await expect(stakedLbtc.connect(owner).toggleWithdrawals())
-          .to.emit(stakedLbtc, 'WithdrawalsEnabled')
+      it('toggleRedeemsForBtc() owner can enable', async function () {
+        await expect(stakedLbtc.connect(owner).toggleRedeemsForBtc())
+          .to.emit(stakedLbtc, 'RedeemsForBtcEnabled')
           .withArgs(true);
       });
 
-      it('toggleWithdrawals() reverts when called by not an owner', async function () {
-        await expect(stakedLbtc.connect(signer1).toggleWithdrawals())
+      it('toggleRedeemsForBtc() reverts when called by not an owner', async function () {
+        await expect(stakedLbtc.connect(signer1).toggleRedeemsForBtc())
           .to.revertedWithCustomError(stakedLbtc, 'OwnableUnauthorizedAccount')
           .withArgs(signer1.address);
       });
@@ -1201,7 +1201,7 @@ describe('StakedLBTC', function () {
             stakedLbtc
               .connect(signer1)
               ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload], [data1.proof, data2.proof])
-          ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
+          ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
         });
       });
 
@@ -1353,7 +1353,7 @@ describe('StakedLBTC', function () {
               [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
               [data1.userSignature, data2.userSignature, data3.userSignature]
             )
-          ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
+          ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
         });
       });
     });
@@ -1434,16 +1434,17 @@ describe('StakedLBTC', function () {
       });
     });
 
+    //TODO: (amount - fee1 - fee2 * ratio) / ratio > dust
     describe('Negative cases', function () {
       it('redeemForBtc() reverts when withdrawals are off', async function () {
-        await expect(stakedLbtc.connect(owner).toggleWithdrawals())
-          .to.emit(stakedLbtc, 'WithdrawalsEnabled')
+        await expect(stakedLbtc.connect(owner).toggleRedeemsForBtc())
+          .to.emit(stakedLbtc, 'RedeemsForBtcEnabled')
           .withArgs(false);
         const amount = 100_000_000n;
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
         await expect(
           stakedLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
-        ).to.revertedWithCustomError(stakedLbtc, 'WithdrawalsDisabled');
+        ).to.revertedWithCustomError(assetRouter, 'AssetRouter_RedeemsForBtcDisabled');
       });
 
       it('redeemForBtc() reverts if amount is less than burn commission', async function () {
@@ -1926,6 +1927,8 @@ describe('StakedLBTC', function () {
       await nativeLBTC.connect(minter).mint(sender, randomBigInt(8));
       const amount = await nativeLBTC.balanceOf(sender);
       await stakedLbtc.connect(pauser).pause();
+      await nativeLBTC.connect(pauser).pause();
+
       await expect(stakedLbtc.connect(sender).deposit(amount)).to.be.revertedWithCustomError(
         stakedLbtc,
         'EnforcedPause'
