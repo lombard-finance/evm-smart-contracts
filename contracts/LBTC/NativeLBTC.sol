@@ -42,7 +42,8 @@ contract NativeLBTC is
         /// @custom:oz-renamed-from maximumFee
         uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
-        uint256 redeemNonce;
+        /// @custom:oz-renamed-from maximumFee
+        uint256 __removed__redeemNonce;
         IAssetRouter assetRouter;
     }
 
@@ -437,7 +438,6 @@ contract NativeLBTC is
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
         _changeBurnCommission(burnCommission_);
-        _getNativeLBTCStorage().redeemNonce = 1; // count from 1
     }
 
     function _changeNameAndSymbol(
