@@ -1563,13 +1563,12 @@ describe('StakedLBTC', function () {
           .withArgs(burnCommission);
       });
 
-      //TODO: find out how to get dust limit
       it('redeemForBtc() reverts when amount is below dust limit for P2WSH', async () => {
         const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
-        const burnCommission = await assetRouter.getToNativeCommission();
+        const toNativeCommission = await assetRouter.getToNativeCommission();
 
         // Start with a very small amount
-        let amount = burnCommission + 1n;
+        let amount = toNativeCommission + 1n;
         let isAboveDust = false;
 
         // Incrementally increase the amount until we find the dust limit
@@ -1580,12 +1579,10 @@ describe('StakedLBTC', function () {
 
         // Now 'amount' is just above the dust limit. Let's use an amount 1 less than this.
         const amountJustBelowDustLimit = amount - 1n;
-
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amountJustBelowDustLimit);
-        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2wsh, amountJustBelowDustLimit)).to.be.revertedWithCustomError(
-          stakedLbtc,
-          'AmountBelowDustLimit'
-        );
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2wsh, amountJustBelowDustLimit))
+          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowDustLimit')
+          .withArgs(amountJustBelowDustLimit - toNativeCommission);
       });
 
       it('redeemForBtc() reverts with P2SH', async () => {
@@ -1758,7 +1755,7 @@ describe('StakedLBTC', function () {
 
     it('redeem() reverts when amount less than fee', async function(){
       const sender = signer1;
-      const amount = redeemFee;
+      const amount = redeemFee -1n;
       await stakedLbtc.connect(sender).redeem(amount);
       // await expect(stakedLbtc.connect(sender).redeem(amount))
       //   .to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
@@ -1766,8 +1763,11 @@ describe('StakedLBTC', function () {
 
     it('redeem() reverts when amount greater than balance', async function(){
       const sender = signer1;
-      const amount = await stakedLbtc.balanceOf(sender) + 1n;
-      await stakedLbtc.connect(sender).redeem(amount);
+      const balance = await stakedLbtc.balanceOf(sender);
+      const amount = balance + 1n;
+      await expect(stakedLbtc.connect(sender).redeem(amount))
+        .to.be.revertedWithCustomError(stakedLbtc, 'ERC20InsufficientBalance')
+        .withArgs(sender.address, balance - redeemFee, amount - redeemFee);
     })
 
     it('redeem() reverts when contract paused', async function(){
