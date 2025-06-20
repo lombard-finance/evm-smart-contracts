@@ -382,6 +382,9 @@ contract StakedLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external nonReentrant {
+        if (paused()) {
+            revert EnforcedPause();
+        }
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -419,6 +422,9 @@ contract StakedLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyClaimer {
+        if (paused()) {
+            revert EnforcedPause();
+        }
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
