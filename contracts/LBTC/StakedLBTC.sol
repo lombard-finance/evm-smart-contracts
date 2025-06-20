@@ -254,8 +254,8 @@ contract StakedLBTC is
         return _getStakedLBTCStorage().consortium;
     }
 
-    function AssetRouter() external view returns (IAssetRouter) {
-        return _getStakedLBTCStorage().assetRouter;
+    function getAssetRouter() external view override returns (address) {
+        return address(_getStakedLBTCStorage().assetRouter);
     }
 
     /**
@@ -363,6 +363,9 @@ contract StakedLBTC is
         bytes calldata proof
     ) external nonReentrant returns (address recipient) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         return $.assetRouter.mint(rawPayload, proof);
     }
 
@@ -427,6 +430,9 @@ contract StakedLBTC is
             // TODO: rename to redeem
             revert WithdrawalsDisabled();
         }
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.redeemForBtc(
             address(_msgSender()),
             address(this),
@@ -468,11 +474,17 @@ contract StakedLBTC is
 
     function redeem(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.redeem(_msgSender(), address(this), amount);
     }
 
     function deposit(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.deposit(_msgSender(), address(this), amount);
     }
 
@@ -532,6 +544,9 @@ contract StakedLBTC is
         bytes calldata userSignature
     ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.mintWithFee(
             mintPayload,
             proof,

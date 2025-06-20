@@ -38,7 +38,7 @@ contract NativeLBTC is
         // other slots by 32
         string name;
         string symbol;
-        uint256 dustFeeRate;
+        uint256 dustFeeRate; 
         /// @custom:oz-renamed-from maximumFee
         uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
@@ -167,7 +167,11 @@ contract NativeLBTC is
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getNativeLBTCStorage().assetRouter.getMintFee();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        return IAssetRouter($.assetRouter).getMintFee();
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -193,6 +197,10 @@ contract NativeLBTC is
 
     function consortium() external view virtual returns (address) {
         return _getNativeLBTCStorage().consortium;
+    }
+
+    function getAssetRouter() external view override returns (address) {
+        return address(_getNativeLBTCStorage().assetRouter);
     }
 
     /**
@@ -656,6 +664,9 @@ contract NativeLBTC is
 
     function _getMaxFee() internal view virtual override returns (uint256) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         return $.assetRouter.getMintFee();
     }
 

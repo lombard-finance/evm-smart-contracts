@@ -5,6 +5,7 @@ interface IBaseLBTC {
     error WithdrawalsDisabled();
     error PayloadAlreadyUsed();
     error InvalidMintAmount();
+    error AssetRouterNotSet();
 
     event RedeemRequest(
         address indexed from,
@@ -44,6 +45,7 @@ interface IBaseLBTC {
     function transfer(address from, address to, uint256 amount) external;
     function mint(address to, uint256 amount) external;
     function getTreasury() external view returns (address);
+    function getAssetRouter() external view returns (address);
     function isNative() external view returns (bool);
     function getRedeemFee() external view returns (uint256);
     function getFeeDigest(uint256 fee, uint256 expiry) external view returns (bytes32);
