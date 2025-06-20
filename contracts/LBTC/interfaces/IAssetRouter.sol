@@ -102,6 +102,7 @@ interface IAssetRouter {
         address fromAddress,
         bytes32 tolChainId,
         address fromToken,
+        bytes32 toToken,
         bytes32 recipient,
         uint256 amount
     ) external;

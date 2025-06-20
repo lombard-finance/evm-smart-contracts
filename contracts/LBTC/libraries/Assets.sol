@@ -51,11 +51,11 @@ library Assets {
 
     bytes32 public constant LEDGER_SENDER_RECIPIENT =
         bytes32(uint256(0x0089e3e4e7a699d6f131d893aeef7ee143706ac23a));
+    bytes32 public constant LEDGER_NATIVE_SENDER_RECIPIENT =
+        bytes32(uint256(0x0099e3e4e7a699d6f131d893aeef7ee143706ac23a)); // ToDO
     bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x0)); // ToDO
     bytes32 public constant BITCOIN_NATIVE_COIN =
         bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
-    bytes32 public constant NATIVE_LBTC_TOKEN =
-        bytes32(uint256(0x00000000000000000000000000000000000002)); // ToDO
 
     function encodeRequest(
         uint256 nonce,
