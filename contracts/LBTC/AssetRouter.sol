@@ -366,6 +366,15 @@ contract AssetRouter is
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         uint256 redeemFee = IBaseLBTC(token).getRedeemFee();
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (IBaseLBTC(token).isNative()) {
+            (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
+                scriptPubkey,
+                $.dustFeeRate,
+                amount - redeemFee,
+                $.toNativeCommission
+            );
+            return (amountAfterFee, isAboveDust);
+        }
         (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
             scriptPubkey,
             $.dustFeeRate,
@@ -387,14 +396,27 @@ contract AssetRouter is
         if (!IBaseLBTC(fromToken).isRedeemsEnabled()) {
             revert AssetRouter_RedeemsForBtcDisabled();
         }
+        uint256 amountAfterFee = 0;
         uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
-        uint256 amountAfterFee = Validation.redeemFee(
-            recipient,
-            $.dustFeeRate,
-            amount - redeemFee,
-            fee,
-            $.oracle.ratio()
-        );
+        bytes32 gmpRecipient;
+        if (IBaseLBTC(fromToken).isNative()) {
+            amountAfterFee = Validation.redeemFee(
+                recipient,
+                $.dustFeeRate,
+                amount - redeemFee,
+                fee
+            );
+            gmpRecipient = Assets.LEDGER_NATIVE_SENDER_RECIPIENT;
+        } else {
+            amountAfterFee = Validation.redeemFee(
+                recipient,
+                $.dustFeeRate,
+                amount - redeemFee,
+                fee,
+                $.oracle.ratio()
+            );
+            gmpRecipient = Assets.LEDGER_SENDER_RECIPIENT;
+        }
         _redeem(
             $,
             fromAddress,
@@ -402,8 +424,9 @@ contract AssetRouter is
             fromToken,
             Assets.BITCOIN_NATIVE_COIN,
             recipient,
-            amountAfterFee + redeemFee,
-            amount - redeemFee - amountAfterFee
+            amountAfterFee,
+            amount - amountAfterFee,
+            gmpRecipient
         );
     }
 
@@ -411,6 +434,7 @@ contract AssetRouter is
         address fromAddress,
         bytes32 tolChainId,
         address fromToken,
+        bytes32 toToken,
         bytes32 recipient,
         uint256 amount
     ) external nonReentrant {
@@ -420,10 +444,11 @@ contract AssetRouter is
             fromAddress,
             tolChainId,
             fromToken,
-            Assets.NATIVE_LBTC_TOKEN,
+            toToken,
             abi.encodePacked(recipient),
             amount,
-            0
+            0,
+            Assets.LEDGER_SENDER_RECIPIENT
         );
     }
 
@@ -441,7 +466,8 @@ contract AssetRouter is
             GMPUtils.addressToBytes32($.nativeToken),
             abi.encodePacked(GMPUtils.addressToBytes32(fromAddress)),
             amount,
-            0
+            0,
+            Assets.LEDGER_SENDER_RECIPIENT
         );
     }
 
@@ -453,7 +479,8 @@ contract AssetRouter is
         bytes32 toToken,
         bytes memory recipient,
         uint256 amount,
-        uint256 fee
+        uint256 fee,
+        bytes32 gmpRecipient
     ) internal {
         address sender = address(_msgSender());
         if (sender != fromAddress && sender != fromToken) {
@@ -467,11 +494,14 @@ contract AssetRouter is
             revert IStaking.UnstakeNotAllowed();
         }
         IBaseLBTC tokenContract = IBaseLBTC(fromToken);
-        uint256 redeemFee = tokenContract.getRedeemFee();
-        if (amount <= redeemFee) {
-            revert AssetRouter_FeeGreaterThanAmount();
+        if (fee == 0) {
+            uint256 redeemFee = tokenContract.getRedeemFee();
+            if (amount <= redeemFee) {
+                revert AssetRouter_FeeGreaterThanAmount();
+            }
+            amount -= redeemFee;
+            fee = redeemFee;
         }
-        amount -= redeemFee;
 
         bytes memory rawPayload = Assets.encodeUnstakeRequest(
             tolChainId,
@@ -482,11 +512,10 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Assets.LEDGER_SENDER_RECIPIENT,
+            gmpRecipient,
             Assets.LEDGER_CALLER,
             rawPayload
         );
-        fee += redeemFee;
         if (fee > 0) {
             tokenContract.transfer(
                 fromAddress,

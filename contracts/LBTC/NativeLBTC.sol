@@ -386,34 +386,15 @@ contract NativeLBTC is
         uint256 amount
     ) external {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-
-        if (!$.isWithdrawalsEnabled) {
-            // TODO: rename to redeem
-            revert RedeemForBtcDisabled();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
         }
-
-        uint256 nonce = $.redeemNonce++;
-
-        uint64 fee = $.burnCommission;
-        uint256 amountAfterFee = Validation.redeemFee(
+        $.assetRouter.redeemForBtc(
+            address(_msgSender()),
+            address(this),
             scriptPubkey,
-            $.dustFeeRate,
-            amount,
-            fee
+            amount
         );
-        bytes memory rawPayload = Redeem.encodeRequest(
-            amountAfterFee,
-            nonce,
-            scriptPubkey
-        );
-        address fromAddress = address(_msgSender());
-
-        if (fee > 0) {
-            _transfer(fromAddress, $.treasury, fee);
-        }
-        _burn(fromAddress, amountAfterFee);
-
-        emit RedeemRequest(fromAddress, nonce, amount, fee, rawPayload);
     }
 
     /**
