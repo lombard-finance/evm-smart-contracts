@@ -24,7 +24,7 @@ import {
   buildRedeemRequestPayload,
   STAKING_RECEIPT_SELECTOR,
   STAKING_REQUEST_SELECTOR,
-  RELEASE_SELECTOR, getGMPPayload, signPayload, REDEEM_REQUEST_SELECTOR, GMP_V1_SELECTOR, UNSTAKE_REQUEST_SELECTOR
+  RELEASE_SELECTOR, getGMPPayload, signPayload, REDEEM_REQUEST_SELECTOR, GMP_V1_SELECTOR, UNSTAKE_REQUEST_SELECTOR, e18
 } from './helpers';
 import { Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC, AssetRouter } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -1476,7 +1476,7 @@ describe('StakedLBTC', function () {
     });
   });
 
-  describe('Redeem BTC', function () {
+  describe('Redeem to BTC', function () {
     beforeEach(async function () {
       await snapshot.restore();
     });
@@ -1705,684 +1705,77 @@ describe('StakedLBTC', function () {
     });
   });
 
-  describe('Staking', function () {
-    // let assetRouter: AssetRouter;
-    let StakingSnapshot: SnapshotRestorer;
-    let nonce: bigint;
-    const nativeLBTCName = ethers.keccak256(ethers.toUtf8Bytes('NativeLBTC'));
+  describe('Redeem to NativeLBTC', function () {
+    const redeemFee = randomBigInt(3);
 
-    const CHAIN1 = encode(['uint256'], [12345]);
-    const CHAIN2 = encode(['uint256'], [777]);
-    const RND_CHAIN = encode(['uint256'], [randomBigInt(8)]);
-    const stakedLbtcBytes1 = encode(['address'], [ethers.Wallet.createRandom().address]);
-    const stakedLbtcBytes2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-    const stakedLbtcBytes3 = encode(['address'], [ethers.Wallet.createRandom().address]);
-    const nativeLbtcBytes1 = encode(['address'], [ethers.Wallet.createRandom().address]);
-    const nativeLbtcBytes2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-    const nativeLbtcBytes3 = encode(['address'], [ethers.Wallet.createRandom().address]);
+    beforeEach(async function () {
+      await snapshot.restore();
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, randomBigInt(8));
+      await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, nativeLbtcBytes, true, CHAIN_ID);
+      await stakedLbtc.connect(owner).changeRedeemFee(redeemFee);
+    });
 
-    describe('Base flow', function () {
-      const AMOUNT = 1_000_000n;
+    const args = [
+      {
+        name: 'partially when ratio 1',
+        balance: randomBigInt(8),
+        amount: (balance) => balance / 2n,
+      },
+      {
+        name: 'all when ratio 1',
+        balance: randomBigInt(8),
+        amount: (balance) => balance,
+      }
+    ];
 
-      beforeEach(async function () {
-        await snapshot.restore();
-        nonce = 1n;
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
-        await nativeLBTC.connect(minter).mint(signer1, AMOUNT);
-      });
+    args.forEach(function(arg) {
+      it(`redeem() ${arg.name}`, async () => {
+        const sender = signer1;
+        const balance = await stakedLbtc.balanceOf(sender);
+        const amount = arg.amount(balance);
+        const expectedAmount = amount - redeemFee;
 
-      it('should Unstake (to native)', async () => {
-        // set StakedLBTC => NativeLBTC
-        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, nativeLbtcBytes, true, CHAIN_ID);
-
-        const recipient = encode(['address'], [signer2.address]);
-        const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
-          [notary1, notary2],
-          [false, false],
-          nonce++,
-          recipient,
-          AMOUNT,
-          stakedLbtcBytes,
-          nativeLbtcBytes,
+        const body = getPayloadForAction([CHAIN_ID, stakedLbtcBytes, encode(['address'], [sender.address]), expectedAmount], UNSTAKE_REQUEST_SELECTOR);
+        const redeemPayload = getGMPPayload(
+          encode(['address'], [mailbox.address]),
           CHAIN_ID,
-          CHAIN_ID
-        );
-        // no need to approve
-        await expect(stakedLbtc.connect(signer1).redeem(AMOUNT))
-          // .to.emit(stakedLbtc, 'StakingOperationRequested')
-          // .withArgs(signer1, recipient, stakedLbtc, AMOUNT, expectedRequestPayload)
-          .and.emit(stakedLbtc, 'Transfer') // burn StakedLBTC from sender
-          .withArgs(signer1, ethers.ZeroAddress, AMOUNT);
-
-        // const { payload: receiptPayload, proof } = await signStakingReceiptPayload(
-        //   [notary1, notary2],
-        //   [true, true],
-        //   requestPayloadHash,
-        //   recipient,
-        //   AMOUNT,
-        //   stakedLbtcBytes,
-        //   nativeLbtcBytes,
-        //   CHAIN_ID
-        // );
-
-        // await expect(stakedLbtc.finalizeStakingOperation(receiptPayload, proof))
-        //   .to.emit(stakedLbtc, 'StakingOperationCompleted')
-        //   .withArgs(signer2, nativeLBTC, AMOUNT)
-        //   .and.emit(nativeLBTC, 'Transfer') // mint tokens
-        //   .withArgs(ethers.ZeroAddress, signer2, AMOUNT)
-      });
-
-      it('should Stake (from native)', async () => {
-        // set NativeLBTC => StakedLBTC
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, stakedLbtcBytes, false, CHAIN_ID);
-
-        const recipient = encode(['address'], [signer3.address]);
-        const { payload: expectedRequestPayload, payloadHash: requestPayloadHash } = await signStakingOperationRequestPayload(
-          [notary1, notary2],
-          [false, false],
-          nonce++,
-          recipient,
-          AMOUNT,
-          nativeLbtcBytes,
-          stakedLbtcBytes,
-          CHAIN_ID,
-          CHAIN_ID
-        );
-        await nativeLBTC.connect(signer1).approve(stakedLbtc, AMOUNT);
-        await expect(stakedLbtc.connect(signer1).deposit(AMOUNT))
-          .to.emit(stakedLbtc, 'StakingOperationRequested')
-          .withArgs(signer1, recipient, nativeLBTC, AMOUNT, expectedRequestPayload)
-          .and.emit(nativeLBTC, 'Transfer') // Staking tokens from sender
-          .withArgs(signer1, stakedLbtc, AMOUNT)
-          .and.emit(nativeLBTC, 'Transfer')
-          .withArgs(stakedLbtc, ethers.ZeroAddress, AMOUNT); // finally burn
-
-        const { payload: receiptPayload, proof } = await signStakingReceiptPayload(
-          [notary1, notary2],
-          [true, true],
-          requestPayloadHash,
-          recipient,
-          AMOUNT,
-          nativeLbtcBytes,
-          stakedLbtcBytes,
-          CHAIN_ID
+          LEDGER_CHAIN_ID,
+          1,
+          encode(['address'], [assetRouter.address]),
+          LEDGER_SENDER,
+          LEDGER_CALLER,
+          body
         );
 
-        await expect(stakedLbtc.finalizeStakingOperation(receiptPayload, proof))
-          .to.emit(stakedLbtc, 'StakingOperationCompleted')
-          .withArgs(signer3, stakedLbtc, AMOUNT)
-          .and.emit(stakedLbtc, 'Transfer') // mint to recipient
-          .withArgs(ethers.ZeroAddress, signer3, AMOUNT)
+        const tx = await stakedLbtc.connect(sender).redeem(amount);
+        await expect(tx)
+          .to.emit(mailbox, 'MessageSent')
+          .withArgs(LEDGER_CHAIN_ID, assetRouter.address, LEDGER_SENDER, redeemPayload);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, sender, -amount);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, redeemFee);
       });
-    });
+    })
 
-    describe('Staking', function () {
-      before(async function () {
-        await StakingSnapshot.restore();
-        nonce = 1n;
+    it('redeem() reverts when amount less than fee', async function(){
+      const sender = signer1;
+      const amount = redeemFee;
+      await stakedLbtc.connect(sender).redeem(amount);
+      // await expect(stakedLbtc.connect(sender).redeem(amount))
+      //   .to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
+    })
 
-        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
-        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
-        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, RND_CHAIN, nativeLbtcBytes2, CHAIN2);
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, RND_CHAIN, stakedLbtcBytes2, CHAIN2);
-        await assetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLBTC);
+    it('redeem() reverts when amount greater than balance', async function(){
+      const sender = signer1;
+      const amount = await stakedLbtc.balanceOf(sender) + 1n;
+      await stakedLbtc.connect(sender).redeem(amount);
+    })
 
-        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, 100n * e8);
-        await nativeLBTC.connect(owner).mint(signer1, 100n * e8);
-      });
-
-      const args = [
-        {
-          name: 'chain1',
-          tolChainId: CHAIN1,
-          toTokenNative: nativeLbtcBytes1,
-          toTokenStaked: stakedLbtcBytes1
-        },
-        {
-          name: 'chain2',
-          tolChainId: CHAIN2,
-          toTokenNative: nativeLbtcBytes2,
-          toTokenStaked: stakedLbtcBytes2
-        }
-      ];
-      args.forEach(function (arg) {
-        it(`to native ${arg.name}`, async function () {
-          const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-          const amount = randomBigInt(8);
-          const { payload: expectedRequestPayload } = await signStakingOperationRequestPayload(
-            [notary1, notary2],
-            [false, false],
-            nonce++,
-            recipient,
-            amount,
-            stakedLbtcBytes,
-            arg.toTokenNative,
-            CHAIN_ID,
-            arg.tolChainId
-          );
-
-          const tx = stakedLbtc.connect(signer1).startUnstake(arg.tolChainId, recipient, amount);
-          await expect(tx).to.emit(stakedLbtc, 'StakingOperationRequested').withArgs(signer1, recipient, stakedLbtc, amount, expectedRequestPayload);
-          await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(signer1, ethers.ZeroAddress, amount);
-          await expect(tx).to.changeTokenBalance(stakedLbtc, signer1, -amount);
-        });
-
-        it(`to staked ${arg.name}`, async function () {
-          const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-          const amount = randomBigInt(8);
-          const { payload: expectedRequestPayload } = await signStakingOperationRequestPayload(
-            [notary1, notary2],
-            [false, false],
-            nonce++,
-            recipient,
-            amount,
-            nativeLbtcBytes,
-            arg.toTokenStaked,
-            CHAIN_ID,
-            arg.tolChainId
-          );
-
-          await nativeLBTC.connect(signer1).approve(stakedLbtc, amount);
-          const tx = stakedLbtc.connect(signer1).startStake(arg.tolChainId, recipient, amount);
-          await expect(tx).to.emit(stakedLbtc, 'StakingOperationRequested').withArgs(signer1, recipient, nativeLBTC, amount, expectedRequestPayload);
-          await expect(tx).to.emit(nativeLBTC, 'Transfer').withArgs(stakedLbtc, ethers.ZeroAddress, amount);
-          await expect(tx).to.changeTokenBalance(nativeLBTC, signer1, -amount);
-        });
-      });
-
-      const invalidArgs = [
-        {
-          name: 'amount is 0',
-          tolChainId: CHAIN1,
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: 0n,
-          error: 'Staking_ZeroAmount'
-        },
-        {
-          name: 'destination chain is unknown',
-          tolChainId: encode(['uint256'], [54321]),
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          error: 'StakingNotAllowed'
-        },
-        {
-          name: 'recipient is 0',
-          tolChainId: CHAIN1,
-          recipient: encode(['address'], [ethers.ZeroAddress]),
-          amount: randomBigInt(8),
-          error: 'Staking_ZeroRecipient'
-        }
-      ];
-      invalidArgs.forEach(function (arg) {
-        it(`Unstake reverts when ${arg.name}`, async function () {
-          await expect(stakedLbtc.connect(signer1).startUnstake(arg.tolChainId, arg.recipient, arg.amount)).to.revertedWithCustomError(
-            stakedLbtc,
-            arg.error
-          );
-        });
-
-        it(`Stake reverts when ${arg.name}`, async function () {
-          await nativeLBTC.connect(signer1).approve(stakedLbtc, arg.amount);
-          await expect(stakedLbtc.connect(signer1).startStake(arg.tolChainId, arg.recipient, arg.amount)).to.revertedWithCustomError(
-            stakedLbtc,
-            arg.error
-          );
-        });
-      });
-
-      it('startStake reverts when named token is not set', async function () {
-        await StakingSnapshot.restore();
-        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
-        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, RND_CHAIN, nativeLbtcBytes1, CHAIN1);
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, RND_CHAIN, stakedLbtcBytes1, CHAIN1);
-
-        const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-        const amount = randomBigInt(8);
-        await expect(stakedLbtc.connect(signer1).startStake(CHAIN1, recipient, amount)).to.be.revertedWithCustomError(
-          assetRouter,
-          'EnumerableMapNonexistentKey'
-        );
-      });
-
-      //TODO: what is the expected error?
-      it('startUnstake reverts when router is not set', async function () {
-        await stakedLbtc.connect(owner).changeAssetRouter(ethers.ZeroAddress);
-
-        const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
-        const amount = randomBigInt(8);
-        await expect(stakedLbtc.connect(signer1).startUnstake(CHAIN1, recipient, amount)).to.be.revertedWithoutReason();
-      });
-    });
-
-    describe('Finalize Staking operation', function () {
-      before(async function () {
-        await StakingSnapshot.restore();
-        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes1, CHAIN1, stakedLbtcBytes, CHAIN_ID);
-        await assetRouter.connect(owner).setRoute(nativeLbtcBytes2, CHAIN2, stakedLbtcBytes, CHAIN_ID);
-        await assetRouter.connect(owner).setRoute(stakedLbtcBytes1, CHAIN1, nativeLbtcBytes, CHAIN_ID);
-        await assetRouter.connect(owner).setRoute(stakedLbtcBytes2, CHAIN2, nativeLbtcBytes, CHAIN_ID);
-        await assetRouter.connect(owner).setNamedToken(nativeLBTCName, nativeLBTC);
-
-        await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), stakedLbtc);
-      });
-
-      const args = [
-        {
-          name: 'chain1',
-          fromChainId: CHAIN1,
-          fromTokenStaked: stakedLbtcBytes1,
-          fromTokenNative: nativeLbtcBytes1
-        },
-        {
-          name: 'chain2',
-          fromChainId: CHAIN2,
-          fromTokenStaked: stakedLbtcBytes2,
-          fromTokenNative: nativeLbtcBytes2
-        }
-      ];
-      args.forEach(function (arg) {
-        it(`to native from ${arg.name}`, async function () {
-          const recipient = ethers.Wallet.createRandom().address;
-          const recipientBytes = encode(['address'], [recipient]);
-          const amount = randomBigInt(8);
-          const { payloadHash } = await signStakingOperationRequestPayload(
-            [notary1, notary2],
-            [false, false],
-            randomBigInt(8),
-            recipientBytes,
-            amount,
-            arg.fromTokenStaked,
-            nativeLbtcBytes,
-            arg.fromChainId,
-            CHAIN_ID
-          );
-
-          const { payload, proof } = await signStakingReceiptPayload(
-            [notary1, notary2],
-            [true, true],
-            payloadHash,
-            recipientBytes,
-            amount,
-            arg.fromTokenStaked,
-            nativeLbtcBytes,
-            CHAIN_ID
-          );
-
-          const tx = await stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof);
-          await expect(tx).to.emit(stakedLbtc, 'StakingOperationCompleted').withArgs(recipient, nativeLBTC, amount);
-          await expect(tx).to.emit(nativeLBTC, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
-          await expect(tx).to.changeTokenBalance(nativeLBTC, recipient, amount);
-        });
-
-        it(`to staked from ${arg.name}`, async function () {
-          const recipient = ethers.Wallet.createRandom().address;
-          const recipientBytes = encode(['address'], [recipient]);
-          const amount = randomBigInt(8);
-          const { payloadHash } = await signStakingOperationRequestPayload(
-            [notary1, notary2],
-            [false, false],
-            randomBigInt(8),
-            recipientBytes,
-            amount,
-            arg.fromTokenNative,
-            stakedLbtcBytes,
-            arg.fromChainId,
-            CHAIN_ID
-          );
-
-          const { payload, proof } = await signStakingReceiptPayload(
-            [notary1, notary2],
-            [true, true],
-            payloadHash,
-            recipientBytes,
-            amount,
-            arg.fromTokenNative,
-            stakedLbtcBytes,
-            CHAIN_ID
-          );
-
-          const tx = await stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof);
-          await expect(tx).to.emit(stakedLbtc, 'StakingOperationCompleted').withArgs(recipient, stakedLbtc, amount);
-          await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
-          await expect(tx).to.changeTokenBalance(stakedLbtc, recipient, amount);
-        });
-      });
-
-      const invalidArgs = [
-        {
-          name: 'hash is 0',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          // @ts-ignore
-          hashModifier: hash => '0x' + Buffer.from(new Uint8Array(32)).toString('hex'),
-          error: 'Staking_ZeroRequestHash',
-          args: []
-        },
-        {
-          name: 'recipient is 0 address',
-          recipient: encode(['address'], [ethers.ZeroAddress]),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'Staking_ZeroRecipient',
-          args: []
-        },
-        {
-          name: 'recipient is invalid address',
-          recipient: '0x' + Buffer.from(ethers.randomBytes(32)).toString('hex'),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'Staking_InvalidRecipient',
-          args: []
-        },
-        {
-          name: 'amount is 0',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: 0n,
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'Staking_ZeroAmount',
-          args: []
-        },
-        {
-          name: 'from token is 0 address',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => encode(['address'], [ethers.ZeroAddress]),
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'Staking_ZeroFromToken',
-          args: []
-        },
-        {
-          name: 'from unknown token to staked',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes3,
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'StakingNotAllowed',
-          args: []
-        },
-        {
-          name: 'from unknown token to native',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => stakedLbtcBytes3,
-          toToken: () => nativeLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'StakingNotAllowed',
-          args: []
-        },
-        // //TODO: fix
-        // {
-        //   name: 'from unsupported chain',
-        //   recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-        //   amount: randomBigInt(8),
-        //   fromToken: () => nativeLbtcBytes1,
-        //   toToken: () => stakedLbtcBytes32,
-        //   fromChain: RND_CHAIN,
-        //   toChain: CHAIN_ID,
-        //   hashModifier: (hash: string) => hash,
-        //   error: 'Staking_ZeroRecipient',
-        //   args: []
-        // },
-        {
-          name: 'to unknown token',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes1,
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'StakingNotAllowed',
-          args: []
-        },
-        {
-          name: 'to token is invalid address',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => '0x' + Buffer.from(ethers.randomBytes(32)).toString('hex'),
-          fromChain: CHAIN1,
-          toChain: CHAIN_ID,
-          hashModifier: (hash: string) => hash,
-          error: 'Staking_InvalidToToken',
-          args: []
-        },
-        {
-          name: 'destination chain is different',
-          recipient: encode(['address'], [ethers.Wallet.createRandom().address]),
-          amount: randomBigInt(8),
-          fromToken: () => nativeLbtcBytes1,
-          toToken: () => stakedLbtcBytes,
-          fromChain: CHAIN1,
-          toChain: CHAIN2,
-          hashModifier: (hash: string) => hash,
-          error: 'Staking_ChainIdMismatch',
-          args: [CHAIN_ID, CHAIN2]
-        }
-      ];
-
-      invalidArgs.forEach(function (arg) {
-        it(`finishStaking reverts when ${arg.name}`, async function () {
-          const { payloadHash } = await signStakingOperationRequestPayload(
-            [notary1, notary2],
-            [false, false],
-            randomBigInt(8),
-            arg.recipient,
-            arg.amount,
-            arg.fromToken(),
-            arg.toToken(),
-            arg.fromChain,
-            arg.toChain
-          );
-
-          const requestPayloadHash = arg.hashModifier(payloadHash);
-          const { payload, proof } = await signStakingReceiptPayload(
-            [notary1, notary2],
-            [true, true],
-            requestPayloadHash,
-            arg.recipient,
-            arg.amount,
-            arg.fromToken(),
-            arg.toToken(),
-            arg.toChain
-          );
-
-          // await stakedLbtc.connect(signer1).finishStaking(payload, proof);
-
-          await expect(stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof))
-            .to.revertedWithCustomError(stakedLbtc, arg.error)
-            .withArgs(...arg.args);
-        });
-      });
-
-      it('finishStaking reverts when payload has been used', async function () {
-        const recipient = ethers.Wallet.createRandom().address;
-        const recipientBytes = encode(['address'], [recipient]);
-        const amount = randomBigInt(8);
-        const { payloadHash } = await signStakingOperationRequestPayload(
-          [notary1, notary2],
-          [false, false],
-          randomBigInt(8),
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN1,
-          CHAIN_ID
-        );
-
-        const { payload, proof } = await signStakingReceiptPayload(
-          [notary1, notary2],
-          [true, true],
-          payloadHash,
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN_ID
-        );
-
-        await stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof);
-        await expect(stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof)).to.be.revertedWithCustomError(stakedLbtc, 'PayloadAlreadyUsed');
-      });
-
-      it('finishStaking reverts when payload prefix is invalid', async function () {
-        const recipient = ethers.Wallet.createRandom().address;
-        const recipientBytes = encode(['address'], [recipient]);
-        const amount = randomBigInt(8);
-        const { payloadHash } = await signStakingOperationRequestPayload(
-          [notary1, notary2],
-          [false, false],
-          randomBigInt(8),
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN1,
-          CHAIN_ID
-        );
-
-        const { payload, proof } = await signStakingReceiptPayload(
-          [notary1, notary2],
-          [true, true],
-          payloadHash,
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN_ID
-        );
-        const modifiedPayload = payload.replace(STAKING_RECEIPT_SELECTOR, STAKING_REQUEST_SELECTOR);
-
-        await expect(stakedLbtc.connect(signer1).finalizeStakingOperation(modifiedPayload, proof))
-          .to.be.revertedWithCustomError(stakedLbtc, 'Staking_InvalidSelector')
-          .withArgs(STAKING_RECEIPT_SELECTOR, STAKING_REQUEST_SELECTOR);
-      });
-
-      it('finishStaking reverts when payload size is invalid', async function () {
-        const recipient = ethers.Wallet.createRandom().address;
-        const recipientBytes = encode(['address'], [recipient]);
-        const amount = randomBigInt(8);
-        const { payload, proof } = await signStakingOperationRequestPayload(
-          [notary1, notary2],
-          [false, false],
-          randomBigInt(8),
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN1,
-          CHAIN_ID
-        );
-
-        await expect(stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof))
-          .to.be.revertedWithCustomError(stakedLbtc, 'Staking_InvalidPayloadSize')
-          .withArgs(196, 292);
-      });
-
-      it('finishStaking reverts when proof is invalid', async function () {
-        const recipient = ethers.Wallet.createRandom().address;
-        const recipientBytes = encode(['address'], [recipient]);
-        const amount = randomBigInt(8);
-        const { payloadHash } = await signStakingOperationRequestPayload(
-          [notary1, notary2],
-          [false, false],
-          randomBigInt(8),
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN1,
-          CHAIN_ID
-        );
-
-        const { payload, proof } = await signStakingReceiptPayload(
-          [notary1, signer2],
-          [true, true],
-          payloadHash,
-          recipientBytes,
-          amount,
-          stakedLbtcBytes1,
-          nativeLbtcBytes,
-          CHAIN_ID
-        );
-
-        await expect(stakedLbtc.connect(signer1).finalizeStakingOperation(payload, proof)).to.be.revertedWithCustomError(consortium, 'NotEnoughSignatures');
-      });
-    });
-
-    describe('Set up Staking router', function () {
-      beforeEach(async function () {
-        await StakingSnapshot.restore();
-      });
-
-      it('Initial Staking router is 0 address', async function () {
-        expect(await stakedLbtc.AssetRouter()).to.be.eq(ethers.ZeroAddress);
-      });
-
-      it('Owner can change', async function () {
-        const newRouter = ethers.Wallet.createRandom().address;
-        await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
-          .to.emit(stakedLbtc, 'AssetRouterChanged')
-          .withArgs(ethers.ZeroAddress, newRouter);
-
-        expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
-      });
-
-      it('Owner can change again', async function () {
-        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
-
-        const newRouter = ethers.Wallet.createRandom().address;
-        await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
-          .to.emit(stakedLbtc, 'AssetRouterChanged')
-          .withArgs(await assetRouter.getAddress(), newRouter);
-
-        expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
-      });
-
-      it('Owner can change to 0 address', async function () {
-        await stakedLbtc.connect(owner).changeAssetRouter(assetRouter);
-
-        const newRouter = ethers.ZeroAddress;
-        await expect(stakedLbtc.connect(owner).changeAssetRouter(newRouter))
-          .to.emit(stakedLbtc, 'AssetRouterChanged')
-          .withArgs(await assetRouter.getAddress(), newRouter);
-
-        expect(await stakedLbtc.AssetRouter()).to.be.eq(newRouter);
-      });
-
-      it('Reverts when called by not an owner', async function () {
-        const newRouter = ethers.Wallet.createRandom().address;
-        await expect(stakedLbtc.connect(signer1).changeAssetRouter(newRouter))
-          .to.be.revertedWithCustomError(stakedLbtc, 'OwnableUnauthorizedAccount')
-          .withArgs(signer1.address);
-      });
-    });
+    it('redeem() reverts when contract paused', async function(){
+      await stakedLbtc.connect(pauser).pause();
+      const sender = signer1;
+      const amount = await stakedLbtc.balanceOf(sender);
+      await expect(stakedLbtc.connect(sender).redeem(amount))
+        .to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+    })
   });
 });
