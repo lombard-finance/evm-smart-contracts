@@ -985,7 +985,7 @@ describe('StakedLBTC', function () {
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
-        ).to.revertedWithCustomError(stakedLbtc, 'FeeGreaterThanAmount');
+        ).to.revertedWithCustomError(assetRouter, 'AssetRouter_FeeGreaterThanAmount');
       });
 
       it(`mintWithFee() reverts when fee approve signed by other account`, async function () {
@@ -1593,14 +1593,14 @@ describe('StakedLBTC', function () {
         const p2sh = '0xa914aec38a317950a98baa9f725c0cb7e50ae473ba2f87';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
         await expect(stakedLbtc.connect(signer1).redeemForBtc(p2sh, amount))
-          .to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+          .to.be.revertedWithCustomError(assetRouter, 'ScriptPubkeyUnsupported');
       });
 
       it('redeemForBtc() reverts with P2PKH', async () => {
         const amount = 100_000_000n;
         const p2pkh = '0x76a914aec38a317950a98baa9f725c0cb7e50ae473ba2f88ac';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2pkh, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2pkh, amount)).to.be.revertedWithCustomError(assetRouter, 'ScriptPubkeyUnsupported');
       });
 
       it('redeemForBtc() reverts with P2PK', async () => {
@@ -1608,7 +1608,7 @@ describe('StakedLBTC', function () {
         const p2pk =
           '0x4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2pk, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2pk, amount)).to.be.revertedWithCustomError(assetRouter, 'ScriptPubkeyUnsupported');
       });
 
       it('redeemForBtc() reverts with P2MS', async () => {
@@ -1616,7 +1616,7 @@ describe('StakedLBTC', function () {
         const p2ms =
           '0x524104d81fd577272bbe73308c93009eec5dc9fc319fc1ee2e7066e17220a5d47a18314578be2faea34b9f1f8ca078f8621acd4bc22897b03daa422b9bf56646b342a24104ec3afff0b2b66e8152e9018fe3be3fc92b30bf886b3487a525997d00fd9da2d012dce5d5275854adc3106572a5d1e12d4211b228429f5a7b2f7ba92eb0475bb14104b49b496684b02855bc32f5daefa2e2e406db4418f3b86bca5195600951c7d918cdbe5e6d3736ec2abf2dd7610995c3086976b2c0c7b4e459d10b34a316d5a5e753ae';
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
-        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2ms, amount)).to.be.revertedWithCustomError(stakedLbtc, 'ScriptPubkeyUnsupported');
+        await expect(stakedLbtc.connect(signer1).redeemForBtc(p2ms, amount)).to.be.revertedWithCustomError(assetRouter, 'ScriptPubkeyUnsupported');
       });
     });
   });

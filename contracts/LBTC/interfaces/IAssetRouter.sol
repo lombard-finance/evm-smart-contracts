@@ -11,10 +11,19 @@ interface IAssetRouter {
     error AssetRouter_WrongSender();
     error AssetRouter_WrongNativeToken();
     error AssetRouter_MintProcessingError();
+    error AssetRouter_FeeGreaterThanAmount();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
 
     event AssetRouter_RouteSet(
+        bytes32 indexed fromToken,
+        bytes32 indexed fromChainId,
+        bytes32 indexed toToken,
+        bool isToTokenNative,
+        bytes32 toChainId
+    );
+
+    event AssetRouter_RouteRemoved(
         bytes32 indexed fromToken,
         bytes32 indexed fromChainId,
         bytes32 indexed toToken,
@@ -39,6 +48,10 @@ interface IAssetRouter {
     event AssetRouter_ToNativeCommissionChanged(
         uint256 indexed oldCommission,
         uint256 indexed newCommission
+    );
+    event AssetRouter_NativeTokenChanged(
+        address indexed oldAddress,
+        address indexed newAddress
     );
     event AssetRouter_BatchMintError(
         bytes32 indexed payloadHash,

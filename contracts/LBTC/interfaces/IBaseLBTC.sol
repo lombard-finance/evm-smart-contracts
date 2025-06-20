@@ -30,8 +30,6 @@ interface IBaseLBTC {
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
     event RedeemFeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
 
-    error FeeGreaterThanAmount();
-
     event MintProofConsumed(
         address indexed recipient,
         bytes32 indexed payloadHash,

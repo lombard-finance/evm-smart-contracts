@@ -131,7 +131,20 @@ contract AssetRouter is
         if (toChainId == LChainId.get()) {
             _checkAndSetNativeToken($, toToken);
         }
-        emit AssetRouter_RouteSet(fromToken, fromChainId, toToken, toChainId);
+        emit AssetRouter_RouteSet(fromToken, fromChainId, toToken, toTokenIsNative, toChainId);
+    }
+
+    function removeRoute(
+        bytes32 fromToken,
+        bytes32 fromChainId,
+        bytes32 toToken,
+        bytes32 toChainId
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        bytes32 key = keccak256(abi.encode(fromToken, toChainId));
+        Route storage r = $.routes[key];
+        delete r.toTokens[toToken];
+        emit AssetRouter_RouteRemoved(fromToken, fromChainId, toToken, toChainId);
     }
 
     function _checkAndSetNativeToken(AssetRouterStorage storage $, bytes32 token) internal {
@@ -254,6 +267,12 @@ contract AssetRouter is
         uint64 newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeToNativeCommission(newValue);
+    }
+
+    function changeNativeToken(
+        address newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeNativeToken(newValue);
     }
 
     /**
@@ -473,10 +492,9 @@ contract AssetRouter is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (address) {
-        (bool success, address recipient, ) = _mint(rawPayload, proof);
+        (bool success, address recipient,,) = _mint(rawPayload, proof);
         if (!success) {
-            // revert AssetRouter_MintProcessingError();
-            return address(0);
+            revert AssetRouter_MintProcessingError();
         }
         return recipient;
     }
@@ -487,7 +505,7 @@ contract AssetRouter is
     ) external nonReentrant {
         Assert.equalLength(payload.length, proof.length);
         for (uint256 i; i < payload.length; ++i) {
-            (bool success,,) = _mint(payload[i], proof[i]);
+            (bool success,,,) = _mint(payload[i], proof[i]);
             if (!success) {
                 bytes32 payloadHash = sha256(payload[i]);
                 emit AssetRouter_BatchMintError(payloadHash, "", "");
@@ -533,19 +551,17 @@ contract AssetRouter is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal returns (bool, address, address) {
+    ) internal returns (bool, address, address, uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         (, bool success, bytes memory result) = $.mailbox.deliverAndHandle(
             rawPayload,
             proof
         );
         if (!success) {
-            bytes32 payloadHash = sha256(rawPayload);
-            emit AssetRouter_BatchMintError(payloadHash, "", "");
-            return (false, address(0), address(0));
+            return (false, address(0), address(0), 0);
         }
-        (address recipient, address token) = abi.decode(result, (address, address));
-        return (success, recipient, token);
+        (address recipient, address token, uint256 amount) = abi.decode(result, (address, address, uint256));
+        return (success, recipient, token, amount);
     }
 
     function _mintWithFee(
@@ -554,7 +570,7 @@ contract AssetRouter is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) internal virtual returns (bool) {
-        (bool success,address recipient, address token) = _mint(mintPayload, proof);
+        (bool success,address recipient, address token, uint256 amount) = _mint(mintPayload, proof);
         if (!success) {
             return false;
         }
@@ -566,9 +582,8 @@ contract AssetRouter is
         );
 
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint256 maxFee = $.maximumFee;
         address treasury = tokenContract.getTreasury();
-        uint256 fee = Math.min(maxFee, feeAction.fee);
+        uint256 fee = Math.min($.maximumFee, feeAction.fee);
 
         {
             bytes32 digest = tokenContract.getFeeDigest(
@@ -577,7 +592,9 @@ contract AssetRouter is
             );
             Assert.feeApproval(digest, recipient, userSignature);
         }
-
+        if (amount < fee) {
+            revert AssetRouter_FeeGreaterThanAmount();
+        }
         if (fee > 0) {
             tokenContract.transfer(recipient, treasury, fee);
         }
@@ -621,7 +638,7 @@ contract AssetRouter is
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
-        return abi.encode(receipt.recipient, receipt.toToken);
+        return abi.encode(receipt.recipient, receipt.toToken, receipt.amount);
     }
 
     /**
@@ -668,6 +685,14 @@ contract AssetRouter is
         uint64 prevValue = $.toNativeCommission;
         $.toNativeCommission = newValue;
         emit AssetRouter_ToNativeCommissionChanged(prevValue, newValue);
+    }
+
+    /// @dev allow set to zero
+    function _changeNativeToken(address newValue) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        address prevValue = $.nativeToken;
+        $.nativeToken = newValue;
+        emit AssetRouter_NativeTokenChanged(prevValue, newValue);
     }
 
     function getBascule() external view override returns (address) {
