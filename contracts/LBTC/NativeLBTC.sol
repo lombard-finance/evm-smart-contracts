@@ -12,7 +12,6 @@ import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
-import {Staking} from "./libraries/Staking.sol";
 import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 

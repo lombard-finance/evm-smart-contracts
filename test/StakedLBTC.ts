@@ -1756,9 +1756,8 @@ describe('StakedLBTC', function () {
     it('redeem() reverts when amount less than fee', async function(){
       const sender = signer1;
       const amount = redeemFee -1n;
-      await stakedLbtc.connect(sender).redeem(amount);
-      // await expect(stakedLbtc.connect(sender).redeem(amount))
-      //   .to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
+      await expect(stakedLbtc.connect(sender).redeem(amount))
+        .to.be.revertedWithCustomError(assetRouter, 'AssetRouter_FeeGreaterThanAmount');
     })
 
     it('redeem() reverts when amount greater than balance', async function(){

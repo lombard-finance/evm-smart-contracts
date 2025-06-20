@@ -3,19 +3,19 @@ pragma solidity 0.8.24;
 
 import {GMPUtils} from "../../gmp/libs/GMPUtils.sol";
 
-library Staking {
+library Assets {
     /// @dev Error thrown when payload length is too big
-    error Staking_InvalidPayloadSize(uint256 expected, uint256 actual);
+    error Assets_InvalidPayloadSize(uint256 expected, uint256 actual);
 
-    error Staking_ZeroRequestHash();
-    error Staking_ChainIdMismatch(bytes32 expected, bytes32 actual);
-    error Staking_ZeroAmount();
-    error Staking_ZeroRecipient();
-    error Staking_InvalidRecipient();
-    error Staking_ZeroFromToken();
-    error Staking_ZeroToToken();
-    error Staking_InvalidToToken();
-    error Staking_InvalidSelector(bytes4 expected, bytes4 actual);
+    error Assets_ZeroRequestHash();
+    error Assets_ChainIdMismatch(bytes32 expected, bytes32 actual);
+    error Assets_ZeroAmount();
+    error Assets_ZeroRecipient();
+    error Assets_InvalidRecipient();
+    error Assets_ZeroFromToken();
+    error Assets_ZeroToToken();
+    error Assets_InvalidToToken();
+    error Assets_InvalidSelector(bytes4 expected, bytes4 actual);
 
     struct Receipt {
         address recipient;
@@ -66,10 +66,10 @@ library Staking {
         bytes32 toChain
     ) internal view returns (bytes memory) {
         if (amount == 0) {
-            revert Staking_ZeroAmount();
+            revert Assets_ZeroAmount();
         }
         if (recipient.length == 0) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
         bool recepientValid = false;
         for (uint256 i = 0; i < recipient.length; ++i) {
@@ -79,7 +79,7 @@ library Staking {
             }
         }
         if (!recepientValid) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
         return
             abi.encodeWithSelector(
@@ -101,10 +101,10 @@ library Staking {
         uint256 amount
     ) internal pure returns (bytes memory) {
         if (amount == 0) {
-            revert Staking_ZeroAmount();
+            revert Assets_ZeroAmount();
         }
         if (recipient == bytes32(0)) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
         return
             abi.encodeWithSelector(
@@ -123,10 +123,10 @@ library Staking {
         uint256 amount
     ) internal pure returns (bytes memory) {
         if (amount == 0) {
-            revert Staking_ZeroAmount();
+            revert Assets_ZeroAmount();
         }
         if (recipient.length == 0) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
         bool recepientValid = false;
         for (uint256 i = 0; i < recipient.length; ++i) {
@@ -136,7 +136,7 @@ library Staking {
             }
         }
         if (!recepientValid) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
         return
             abi.encodeWithSelector(
@@ -152,7 +152,7 @@ library Staking {
         bytes memory rawPayload
     ) internal view returns (Receipt memory, bytes32) {
         if (rawPayload.length != ABI_SLOT_SIZE * 6 + 4)
-            revert Staking_InvalidPayloadSize(
+            revert Assets_InvalidPayloadSize(
                 ABI_SLOT_SIZE * 6 + 4,
                 rawPayload.length
             );
@@ -169,27 +169,27 @@ library Staking {
             );
 
         if (requestHash == bytes32(0)) {
-            revert Staking_ZeroRequestHash();
+            revert Assets_ZeroRequestHash();
         }
         // TODO: use lChainId lib
         if (chainId != bytes32(block.chainid)) {
-            revert Staking_ChainIdMismatch(bytes32(block.chainid), chainId);
+            revert Assets_ChainIdMismatch(bytes32(block.chainid), chainId);
         }
         if (amount == 0) {
-            revert Staking_ZeroAmount();
+            revert Assets_ZeroAmount();
         }
         if (fromToken == bytes32(0)) {
-            revert Staking_ZeroFromToken();
+            revert Assets_ZeroFromToken();
         }
 
         address recipient = GMPUtils.bytes32ToAddress(rawRecipient);
         if (recipient == address(0)) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
 
         address toToken = GMPUtils.bytes32ToAddress(rawToToken);
         if (toToken == address(0)) {
-            revert Staking_ZeroToToken();
+            revert Assets_ZeroToToken();
         }
 
         return (
@@ -202,7 +202,7 @@ library Staking {
         bytes memory rawPayload
     ) internal view returns (Release memory, bytes32) {
         if (rawPayload.length != ABI_SLOT_SIZE * 3 + 4) {
-            revert Staking_InvalidPayloadSize(
+            revert Assets_InvalidPayloadSize(
                 ABI_SLOT_SIZE * 3 + 4,
                 rawPayload.length
             );
@@ -219,21 +219,21 @@ library Staking {
         }
 
         if (selector != RELEASE_SELECTOR) {
-            revert Staking_InvalidSelector(RELEASE_SELECTOR, selector);
+            revert Assets_InvalidSelector(RELEASE_SELECTOR, selector);
         }
 
         if (amount == 0) {
-            revert Staking_ZeroAmount();
+            revert Assets_ZeroAmount();
         }
 
         address recipient = GMPUtils.bytes32ToAddress(rawRecipient);
         if (recipient == address(0)) {
-            revert Staking_ZeroRecipient();
+            revert Assets_ZeroRecipient();
         }
 
         address toToken = GMPUtils.bytes32ToAddress(rawToToken);
         if (toToken == address(0)) {
-            revert Staking_ZeroToToken();
+            revert Assets_ZeroToToken();
         }
 
         return (Release(toToken, recipient, amount), sha256(rawPayload));

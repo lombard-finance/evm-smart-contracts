@@ -15,7 +15,6 @@ import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
-import {Staking} from "./libraries/Staking.sol";
 import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 
@@ -248,7 +247,7 @@ contract StakedLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        return $.assetRouter.calcUnstakeRequestAmount(scriptPubkey, amount);
+        return $.assetRouter.calcUnstakeRequestAmount(address(this), scriptPubkey, amount);
     }
 
     function consortium() external view virtual returns (INotaryConsortium) {

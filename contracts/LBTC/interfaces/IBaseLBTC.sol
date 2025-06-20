@@ -43,8 +43,8 @@ interface IBaseLBTC {
     function burn(address from, uint256 amount) external;
     function transfer(address from, address to, uint256 amount) external;
     function mint(address to, uint256 amount) external;
-    function getTreasury() external returns (address);
-    function isNative() external returns (bool);
-    function getRedeemFee() external returns (uint256);
-    function getFeeDigest(uint256 fee, uint256 expiry) external returns (bytes32);
+    function getTreasury() external view returns (address);
+    function isNative() external view returns (bool);
+    function getRedeemFee() external view returns (uint256);
+    function getFeeDigest(uint256 fee, uint256 expiry) external view returns (bytes32);
 }

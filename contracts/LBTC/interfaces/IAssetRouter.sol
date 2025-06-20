@@ -135,6 +135,7 @@ interface IAssetRouter {
     ) external;
 
     function calcUnstakeRequestAmount(
+        address token,
         bytes calldata scriptPubkey,
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust);

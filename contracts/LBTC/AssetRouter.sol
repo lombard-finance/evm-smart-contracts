@@ -16,7 +16,7 @@ import {Actions} from "../libs/Actions.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {LChainId} from "../libs/LChainId.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {Staking} from "./libraries/Staking.sol";
+import {Assets} from "./libraries/Assets.sol";
 import {Validation} from "./libraries/Validation.sol";
 
 /**
@@ -343,7 +343,7 @@ contract AssetRouter is
             revert IStaking.StakingNotAllowed();
         }
 
-        bytes memory rawPayload = Staking.encodeStakeRequest(
+        bytes memory rawPayload = Assets.encodeStakeRequest(
             tolChainId,
             toToken,
             recipient,
@@ -352,22 +352,24 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Staking.LEDGER_SENDER_RECIPIENT,
-            Staking.LEDGER_CALLER,
+            Assets.LEDGER_SENDER_RECIPIENT,
+            Assets.LEDGER_CALLER,
             rawPayload
         );
         IBaseLBTC($.nativeToken).burn(fromAddress, amount);
     }
 
     function calcUnstakeRequestAmount(
+        address token,
         bytes calldata scriptPubkey,
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
+        uint256 redeemFee = IBaseLBTC(token).getRedeemFee();
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
             scriptPubkey,
             $.dustFeeRate,
-            amount,
+            amount - redeemFee,
             $.toNativeCommission,
             $.oracle.ratio()
         );
@@ -382,10 +384,11 @@ contract AssetRouter is
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint64 fee = $.toNativeCommission;
+        uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
         uint256 amountAfterFee = Validation.redeemFee(
             recipient,
             $.dustFeeRate,
-            amount,
+            amount - redeemFee,
             fee,
             $.oracle.ratio()
         );
@@ -394,10 +397,10 @@ contract AssetRouter is
             fromAddress,
             $.bitcoinChainId,
             fromToken,
-            Staking.BITCOIN_NATIVE_COIN,
+            Assets.BITCOIN_NATIVE_COIN,
             recipient,
-            amountAfterFee,
-            amount - amountAfterFee
+            amountAfterFee + redeemFee,
+            amount - redeemFee - amountAfterFee
         );
     }
 
@@ -414,7 +417,7 @@ contract AssetRouter is
             fromAddress,
             tolChainId,
             fromToken,
-            Staking.NATIVE_LBTC_TOKEN,
+            Assets.NATIVE_LBTC_TOKEN,
             abi.encodePacked(recipient),
             amount,
             0
@@ -462,10 +465,12 @@ contract AssetRouter is
         }
         IBaseLBTC tokenContract = IBaseLBTC(fromToken);
         uint256 redeemFee = tokenContract.getRedeemFee();
-        fee += redeemFee;
+        if (amount <= redeemFee) {
+            revert AssetRouter_FeeGreaterThanAmount();
+        }
         amount -= redeemFee;
 
-        bytes memory rawPayload = Staking.encodeUnstakeRequest(
+        bytes memory rawPayload = Assets.encodeUnstakeRequest(
             tolChainId,
             fromTokenBytes,
             recipient,
@@ -474,10 +479,11 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Staking.LEDGER_SENDER_RECIPIENT,
-            Staking.LEDGER_CALLER,
+            Assets.LEDGER_SENDER_RECIPIENT,
+            Assets.LEDGER_CALLER,
             rawPayload
         );
+        fee += redeemFee;
         if (fee > 0) {
             tokenContract.transfer(
                 fromAddress,
@@ -623,7 +629,7 @@ contract AssetRouter is
         if (_msgSender() != address($.mailbox)) {
             revert AssetRouter_MailboxExpected();
         }
-        if (payload.msgSender != Staking.LEDGER_SENDER_RECIPIENT) {
+        if (payload.msgSender != Assets.LEDGER_SENDER_RECIPIENT) {
             revert AssetRouter_WrongSender();
         }
         // spend payload
@@ -631,7 +637,7 @@ contract AssetRouter is
             revert AssetRouter_PayloadAlreadyUsed();
         }
         $.usedPayloads[payload.id] = true;
-        (Staking.Release memory receipt, ) = Staking.decodeRelease(
+        (Assets.Release memory receipt, ) = Assets.decodeRelease(
             payload.msgBody
         );
         _confirmDeposit($, payload.id, receipt.amount);
