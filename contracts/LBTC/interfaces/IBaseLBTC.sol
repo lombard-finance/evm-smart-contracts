@@ -14,7 +14,7 @@ interface IBaseLBTC {
         uint256 fee,
         bytes payload
     );
-    event WithdrawalsEnabled(bool);
+    event RedeemsForBtcEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
     event TreasuryAddressChanged(

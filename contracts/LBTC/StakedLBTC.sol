@@ -155,10 +155,10 @@ contract StakedLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleRedeems() external onlyOwner {
+    function toggleRedeemsForBtc() external onlyOwner {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit WithdrawalsEnabled($.isWithdrawalsEnabled);
+        emit RedeemsForBtcEnabled($.isWithdrawalsEnabled);
     }
 
     function changeNameAndSymbol(

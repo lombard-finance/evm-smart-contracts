@@ -94,10 +94,10 @@ contract NativeLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleRedeems() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function toggleRedeemsForBtc() external onlyRole(DEFAULT_ADMIN_ROLE) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit WithdrawalsEnabled($.isWithdrawalsEnabled);
+        emit RedeemsForBtcEnabled($.isWithdrawalsEnabled);
     }
 
     function changeNameAndSymbol(
