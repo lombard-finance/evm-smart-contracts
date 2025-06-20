@@ -94,7 +94,7 @@ contract NativeLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleWithdrawals() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function toggleRedeems() external onlyRole(DEFAULT_ADMIN_ROLE) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);

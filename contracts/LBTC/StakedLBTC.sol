@@ -155,7 +155,7 @@ contract StakedLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleWithdrawals() external onlyOwner {
+    function toggleRedeems() external onlyOwner {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
         emit WithdrawalsEnabled($.isWithdrawalsEnabled);
