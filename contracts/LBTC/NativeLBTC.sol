@@ -185,14 +185,7 @@ contract NativeLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-
-        (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
-            scriptPubkey,
-            $.dustFeeRate,
-            amount,
-            $.burnCommission
-        );
-        return (amountAfterFee, isAboveDust);
+        return $.assetRouter.calcUnstakeRequestAmount(address(this), scriptPubkey, amount);
     }
 
     function consortium() external view virtual returns (address) {
