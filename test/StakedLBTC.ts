@@ -441,7 +441,7 @@ describe('StakedLBTC', function () {
         {
           name: 'AssetRouter',
           setter: 'changeAssetRouter',
-          getter: 'AssetRouter',
+          getter: 'getAssetRouter',
           event: 'AssetRouterChanged',
           defaultAccount: () => assetRouter.address,
           canBeZero: true
@@ -1165,11 +1165,10 @@ describe('StakedLBTC', function () {
             [
               'batchMint(bytes[],bytes[])'
             ]([data1.payload, data1.payload, data2.payload, data2.payload], [data1.proof, data1.proof, data2.proof, data2.proof]);
-          // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer1, data1.payloadHash, data1.payload);
-          // TODO: AssetRouter_BatchMintError
-          await expect(tx).to.emit(stakedLbtc, 'BatchMintSkipped').withArgs(data1.payloadHash, data1.payload);
-          // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer2, data2.payloadHash, data2.payload);
-          await expect(tx).to.emit(stakedLbtc, 'BatchMintSkipped').withArgs(data2.payloadHash, data2.payload);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
+          await expect(tx).to.emit(mailbox, 'MessageHandleError').withArgs(data1.payloadHash, assetRouter.address, '', '0x9eae5090');
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
+          await expect(tx).to.emit(mailbox, 'MessageHandleError').withArgs(data2.payloadHash, assetRouter.address, '', '0x9eae5090');
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
         });
 
@@ -1253,14 +1252,13 @@ describe('StakedLBTC', function () {
               [data1.feeApprovalPayload, data1.feeApprovalPayload, data2.feeApprovalPayload, data2.feeApprovalPayload],
               [data1.userSignature, data1.userSignature, data2.userSignature, data2.userSignature]
             );
-          // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer1, data1.payloadHash, data1.payload);
-          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data1.userSignature);
-          // await expect(tx).to.emit(stakedLbtc, 'BatchMintSkipped').withArgs(data1.payloadHash, data1.payload);
 
-          // await expect(tx).to.emit(stakedLbtc, 'MintProofConsumed').withArgs(signer2, data2.payloadHash, data2.payload);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data1.userSignature);
           await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(maxFee, data2.userSignature);
-          // TODO: fix
-          // await expect(tx).to.emit(stakedLbtc, 'BatchMintSkipped').withArgs(data2.payloadHash, data2.payload);
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
+          await expect(tx).to.emit(mailbox, 'MessageHandleError').withArgs(data1.payloadHash, assetRouter.address, '', '0x9eae5090');
+          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
+          await expect(tx).to.emit(mailbox, 'MessageHandleError').withArgs(data2.payloadHash, assetRouter.address, '', '0x9eae5090');
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1 - maxFee, amount2 - maxFee]);
           await expect(tx).changeTokenBalance(stakedLbtc, treasury, maxFee * 2n);
         });
@@ -1755,6 +1753,7 @@ describe('StakedLBTC', function () {
 
     it('redeem() reverts when amount greater than balance', async function () {
       const sender = signer1;
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](sender, randomBigInt(8));
       const balance = await stakedLbtc.balanceOf(sender);
       const amount = balance + 1n;
       await expect(stakedLbtc.connect(sender).redeem(amount))
@@ -1875,7 +1874,7 @@ describe('StakedLBTC', function () {
       const sender = signer1;
       const amount = 0n;
       await expect(stakedLbtc.connect(sender).deposit(amount))
-        .to.be.revertedWithCustomError(assetRouter, 'Staking_ZeroAmount');
+        .to.be.revertedWithCustomError(assetRouter, 'Assets_ZeroAmount');
     });
 
     it('deposit() reverts when amount greater than balance', async function () {
