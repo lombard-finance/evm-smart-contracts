@@ -10,10 +10,22 @@ interface IAssetRouter {
     error AssetRouter_WrongOperation();
     error AssetRouter_WrongSender();
     error AssetRouter_WrongNativeToken();
+    error AssetRouter_MintProcessingError();
+    error AssetRouter_FeeGreaterThanAmount();
+    error AssetRouter_RedeemsForBtcDisabled();
+    error AssertRouter_UnauthorizedAccount();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
 
     event AssetRouter_RouteSet(
+        bytes32 indexed fromToken,
+        bytes32 indexed fromChainId,
+        bytes32 indexed toToken,
+        bool isToTokenNative,
+        bytes32 toChainId
+    );
+
+    event AssetRouter_RouteRemoved(
         bytes32 indexed fromToken,
         bytes32 indexed fromChainId,
         bytes32 indexed toToken,
@@ -39,6 +51,10 @@ interface IAssetRouter {
         uint256 indexed oldCommission,
         uint256 indexed newCommission
     );
+    event AssetRouter_NativeTokenChanged(
+        address indexed oldAddress,
+        address indexed newAddress
+    );
     event AssetRouter_BatchMintError(
         bytes32 indexed payloadHash,
         string reason,
@@ -58,7 +74,7 @@ interface IAssetRouter {
     function getBascule() external view returns (address);
     function getOracle() external view returns (address);
     function getMailbox() external view returns (address);
-    function getToNativeCommission() external view returns (uint256);
+    function getToNativeCommission() external view returns (uint64);
     function getNativeToken() external view returns (address);
 
     function deposit(
@@ -119,4 +135,10 @@ interface IAssetRouter {
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external;
+
+    function calcUnstakeRequestAmount(
+        address token,
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external view returns (uint256 amountAfterFee, bool isAboveDust);
 }

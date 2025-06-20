@@ -12,7 +12,6 @@ import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
-import {Staking} from "./libraries/Staking.sol";
 import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 
@@ -39,7 +38,7 @@ contract NativeLBTC is
         // other slots by 32
         string name;
         string symbol;
-        uint256 dustFeeRate;
+        uint256 dustFeeRate; 
         /// @custom:oz-renamed-from maximumFee
         uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
@@ -95,10 +94,10 @@ contract NativeLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleWithdrawals() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function toggleRedeemsForBtc() external onlyRole(DEFAULT_ADMIN_ROLE) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit WithdrawalsEnabled($.isWithdrawalsEnabled);
+        emit RedeemsForBtcEnabled($.isWithdrawalsEnabled);
     }
 
     function changeNameAndSymbol(
@@ -168,7 +167,11 @@ contract NativeLBTC is
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getNativeLBTCStorage().assetRouter.getMintFee();
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        return IAssetRouter($.assetRouter).getMintFee();
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -194,6 +197,10 @@ contract NativeLBTC is
 
     function consortium() external view virtual returns (address) {
         return _getNativeLBTCStorage().consortium;
+    }
+
+    function getAssetRouter() external view override returns (address) {
+        return address(_getNativeLBTCStorage().assetRouter);
     }
 
     /**
@@ -223,6 +230,10 @@ contract NativeLBTC is
 
     function isNative() public pure returns (bool) {
         return true;
+    }
+
+    function isRedeemsEnabled() public view override returns (bool) {
+        return _getNativeLBTCStorage().isWithdrawalsEnabled;
     }
 
     function getTreasury() public view override returns (address) {
@@ -378,7 +389,7 @@ contract NativeLBTC is
 
         if (!$.isWithdrawalsEnabled) {
             // TODO: rename to redeem
-            revert RedeemsDisabled();
+            revert RedeemForBtcDisabled();
         }
 
         uint256 nonce = $.redeemNonce++;
@@ -657,6 +668,9 @@ contract NativeLBTC is
 
     function _getMaxFee() internal view virtual override returns (uint256) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         return $.assetRouter.getMintFee();
     }
 

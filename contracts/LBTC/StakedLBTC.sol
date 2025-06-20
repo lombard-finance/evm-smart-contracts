@@ -15,7 +15,6 @@ import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Validation} from "./libraries/Validation.sol";
-import {Staking} from "./libraries/Staking.sol";
 import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 
@@ -61,7 +60,8 @@ contract StakedLBTC is
         mapping(bytes32 => uint16) __removed__depositRelativeCommission;
         /// @custom:oz-renamed-from depositAbsoluteCommission
         mapping(bytes32 => uint64) __removed__depositAbsoluteCommission;
-        uint64 burnCommission; // absolute commission to charge on burn (unstake)
+        /// @custom:oz-renamed-from burnCommission
+        uint64 __removed__burnCommission; // absolute commission to charge on burn (unstake)
         uint256 dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
@@ -155,10 +155,10 @@ contract StakedLBTC is
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleWithdrawals() external onlyOwner {
+    function toggleRedeemsForBtc() external onlyOwner {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit WithdrawalsEnabled($.isWithdrawalsEnabled);
+        emit RedeemsForBtcEnabled($.isWithdrawalsEnabled);
     }
 
     function changeNameAndSymbol(
@@ -174,10 +174,6 @@ contract StakedLBTC is
 
     function changeTreasuryAddress(address newValue) external onlyOwner {
         _changeTreasury(newValue);
-    }
-
-    function changeBurnCommission(uint64 newValue) external onlyOwner {
-        _changeBurnCommission(newValue);
     }
 
     function pause() external onlyPauser {
@@ -251,22 +247,15 @@ contract StakedLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-
-        (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
-            scriptPubkey,
-            $.dustFeeRate,
-            amount,
-            $.burnCommission
-        );
-        return (amountAfterFee, isAboveDust);
+        return $.assetRouter.calcUnstakeRequestAmount(address(this), scriptPubkey, amount);
     }
 
     function consortium() external view virtual returns (INotaryConsortium) {
         return _getStakedLBTCStorage().consortium;
     }
 
-    function AssetRouter() external view returns (IAssetRouter) {
-        return _getStakedLBTCStorage().assetRouter;
+    function getAssetRouter() external view override returns (address) {
+        return address(_getStakedLBTCStorage().assetRouter);
     }
 
     /**
@@ -299,7 +288,7 @@ contract StakedLBTC is
     }
 
     function getBurnCommission() public view returns (uint64) {
-        return _getStakedLBTCStorage().burnCommission;
+        return _getStakedLBTCStorage().assetRouter.getToNativeCommission();
     }
 
     /// @notice Get the current dust fee rate
@@ -339,6 +328,10 @@ contract StakedLBTC is
         return false;
     }
 
+    function isRedeemsEnabled() public view override returns (bool) {
+        return _getStakedLBTCStorage().isWithdrawalsEnabled;
+    }
+
     /// USER ACTIONS ///
 
     /**
@@ -374,6 +367,9 @@ contract StakedLBTC is
         bytes calldata proof
     ) external nonReentrant returns (address recipient) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         return $.assetRouter.mint(rawPayload, proof);
     }
 
@@ -386,7 +382,14 @@ contract StakedLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external nonReentrant {
-        _batchMint(payload, proof);
+        if (paused()) {
+            revert EnforcedPause();
+        }
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        $.assetRouter.batchMint(payload, proof);
     }
 
     /**
@@ -419,7 +422,14 @@ contract StakedLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyClaimer {
-        return _batchMintWithFee(mintPayload, proof, feePayload, userSignature);
+        if (paused()) {
+            revert EnforcedPause();
+        }
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        $.assetRouter.batchMintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
     /**
@@ -433,10 +443,8 @@ contract StakedLBTC is
         uint256 amount
     ) external {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-
-        if (!$.isWithdrawalsEnabled) {
-            // TODO: rename to redeem
-            revert WithdrawalsDisabled();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
         }
         $.assetRouter.redeemForBtc(
             address(_msgSender()),
@@ -479,12 +487,17 @@ contract StakedLBTC is
 
     function redeem(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.redeem(_msgSender(), address(this), amount);
-        _burn(_msgSender(), amount);
     }
 
     function deposit(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.deposit(_msgSender(), address(this), amount);
     }
 
@@ -500,7 +513,6 @@ contract StakedLBTC is
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
-        _changeBurnCommission(burnCommission_);
     }
 
     function _changeNameAndSymbol(
@@ -545,6 +557,9 @@ contract StakedLBTC is
         bytes calldata userSignature
     ) internal override {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
         $.assetRouter.mintWithFee(
             mintPayload,
             proof,
@@ -568,14 +583,6 @@ contract StakedLBTC is
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         emit ConsortiumChanged(address($.consortium), newVal);
         $.consortium = INotaryConsortium(newVal);
-    }
-
-    /// @dev allow set to zero
-    function _changeBurnCommission(uint64 newValue) internal {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint64 prevValue = $.burnCommission;
-        $.burnCommission = newValue;
-        emit BurnCommissionChanged(prevValue, newValue);
     }
 
     /// @dev Zero Address allowed to disable bascule check

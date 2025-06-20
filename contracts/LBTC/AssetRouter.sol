@@ -16,7 +16,7 @@ import {Actions} from "../libs/Actions.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {LChainId} from "../libs/LChainId.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {Staking} from "./libraries/Staking.sol";
+import {Assets} from "./libraries/Assets.sol";
 import {Validation} from "./libraries/Validation.sol";
 
 /**
@@ -126,19 +126,39 @@ contract AssetRouter is
         });
         r.toChainId = toChainId;
         if (fromChainId == LChainId.get()) {
-            address fromTokenAddress = GMPUtils.bytes32ToAddress(fromToken);
-            $.allowedCallers[fromTokenAddress] = true;
-            if (IBaseLBTC(fromTokenAddress).isNative()) {
+            _checkAndSetNativeToken($, fromToken);
+        }
+        if (toChainId == LChainId.get()) {
+            _checkAndSetNativeToken($, toToken);
+        }
+        emit AssetRouter_RouteSet(fromToken, fromChainId, toToken, toTokenIsNative, toChainId);
+    }
+
+    function removeRoute(
+        bytes32 fromToken,
+        bytes32 fromChainId,
+        bytes32 toToken,
+        bytes32 toChainId
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        bytes32 key = keccak256(abi.encode(fromToken, toChainId));
+        Route storage r = $.routes[key];
+        delete r.toTokens[toToken];
+        emit AssetRouter_RouteRemoved(fromToken, fromChainId, toToken, toChainId);
+    }
+
+    function _checkAndSetNativeToken(AssetRouterStorage storage $, bytes32 token) internal {
+        address tokenAddress = GMPUtils.bytes32ToAddress(token);
+            $.allowedCallers[tokenAddress] = true;
+            if (IBaseLBTC(tokenAddress).isNative()) {
                 if (
                     $.nativeToken != address(0) &&
-                    $.nativeToken != fromTokenAddress
+                    $.nativeToken != tokenAddress
                 ) {
                     revert AssetRouter_WrongNativeToken();
                 }
-                $.nativeToken = fromTokenAddress;
+                $.nativeToken = tokenAddress;
             }
-        }
-        emit AssetRouter_RouteSet(fromToken, fromChainId, toToken, toChainId);
     }
 
     function isAllowedRoute(
@@ -249,6 +269,12 @@ contract AssetRouter is
         _changeToNativeCommission(newValue);
     }
 
+    function changeNativeToken(
+        address newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeNativeToken(newValue);
+    }
+
     /**
      * @notice Set the contract current fee for mint
      * @param fee New fee value
@@ -317,7 +343,7 @@ contract AssetRouter is
             revert IStaking.StakingNotAllowed();
         }
 
-        bytes memory rawPayload = Staking.encodeStakeRequest(
+        bytes memory rawPayload = Assets.encodeStakeRequest(
             tolChainId,
             toToken,
             recipient,
@@ -326,11 +352,28 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Staking.LEDGER_SENDER_RECIPIENT,
-            Staking.LEDGER_CALLER,
+            Assets.LEDGER_SENDER_RECIPIENT,
+            Assets.LEDGER_CALLER,
             rawPayload
         );
         IBaseLBTC($.nativeToken).burn(fromAddress, amount);
+    }
+
+    function calcUnstakeRequestAmount(
+        address token,
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
+        uint256 redeemFee = IBaseLBTC(token).getRedeemFee();
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
+            scriptPubkey,
+            $.dustFeeRate,
+            amount - redeemFee,
+            $.toNativeCommission,
+            $.oracle.ratio()
+        );
+        return (amountAfterFee, isAboveDust);
     }
 
     function redeemForBtc(
@@ -341,21 +384,26 @@ contract AssetRouter is
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint64 fee = $.toNativeCommission;
+        if (!IBaseLBTC(fromToken).isRedeemsEnabled()) {
+            revert AssetRouter_RedeemsForBtcDisabled();
+        }
+        uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
         uint256 amountAfterFee = Validation.redeemFee(
             recipient,
             $.dustFeeRate,
-            amount,
-            fee
+            amount - redeemFee,
+            fee,
+            $.oracle.ratio()
         );
         _redeem(
             $,
             fromAddress,
             $.bitcoinChainId,
             fromToken,
-            Staking.BITCOIN_NATIVE_COIN,
+            Assets.BITCOIN_NATIVE_COIN,
             recipient,
-            amountAfterFee,
-            fee
+            amountAfterFee + redeemFee,
+            amount - redeemFee - amountAfterFee
         );
     }
 
@@ -372,7 +420,7 @@ contract AssetRouter is
             fromAddress,
             tolChainId,
             fromToken,
-            Staking.NATIVE_LBTC_TOKEN,
+            Assets.NATIVE_LBTC_TOKEN,
             abi.encodePacked(recipient),
             amount,
             0
@@ -420,10 +468,12 @@ contract AssetRouter is
         }
         IBaseLBTC tokenContract = IBaseLBTC(fromToken);
         uint256 redeemFee = tokenContract.getRedeemFee();
-        fee += redeemFee;
+        if (amount <= redeemFee) {
+            revert AssetRouter_FeeGreaterThanAmount();
+        }
         amount -= redeemFee;
 
-        bytes memory rawPayload = Staking.encodeUnstakeRequest(
+        bytes memory rawPayload = Assets.encodeUnstakeRequest(
             tolChainId,
             fromTokenBytes,
             recipient,
@@ -432,10 +482,11 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Staking.LEDGER_SENDER_RECIPIENT,
-            Staking.LEDGER_CALLER,
+            Assets.LEDGER_SENDER_RECIPIENT,
+            Assets.LEDGER_CALLER,
             rawPayload
         );
+        fee += redeemFee;
         if (fee > 0) {
             tokenContract.transfer(
                 fromAddress,
@@ -450,7 +501,10 @@ contract AssetRouter is
         bytes calldata rawPayload,
         bytes calldata proof
     ) external nonReentrant returns (address) {
-        (, address recipient, ) = _mint(rawPayload, proof);
+        (bool success, address recipient,,) = _mint(rawPayload, proof);
+        if (!success) {
+            revert AssetRouter_MintProcessingError();
+        }
         return recipient;
     }
 
@@ -460,18 +514,10 @@ contract AssetRouter is
     ) external nonReentrant {
         Assert.equalLength(payload.length, proof.length);
         for (uint256 i; i < payload.length; ++i) {
-            try this.mint(payload[i], proof[i]) returns (
-                address
-            ) {
-                return;
-            } catch Error(string memory reason) {
+            (bool success,,,) = _mint(payload[i], proof[i]);
+            if (!success) {
                 bytes32 payloadHash = sha256(payload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, reason, "");
-                continue;
-            } catch (bytes memory lowLevelData) {
-                bytes32 payloadHash = sha256(payload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, "", lowLevelData);
-                continue;
+                emit AssetRouter_BatchMintError(payloadHash, "", "");
             }
         }
     }
@@ -481,7 +527,10 @@ contract AssetRouter is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) external nonReentrant {
-        _mintWithFee(mintPayload, proof, feePayload, userSignature);
+        bool success = _mintWithFee(mintPayload, proof, feePayload, userSignature);
+        if (!success) {
+            revert AssetRouter_MintProcessingError();
+        }
     }
 
     function batchMintWithFee(
@@ -495,21 +544,15 @@ contract AssetRouter is
         Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
-            try this.mintWithFee(
+            bool success = _mintWithFee(
                 mintPayload[i],
                 proof[i],
                 feePayload[i],
                 userSignature[i]
-            ) {
-                return;
-            } catch Error(string memory reason) {
+            );
+            if (!success) {
                 bytes32 payloadHash = sha256(mintPayload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, reason, "");
-                continue;
-            } catch (bytes memory lowLevelData) {
-                bytes32 payloadHash = sha256(mintPayload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, "", lowLevelData);
-                continue;
+                emit AssetRouter_BatchMintError(payloadHash, "", new bytes(0));
             }
         }
     }
@@ -517,14 +560,17 @@ contract AssetRouter is
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal returns (bool, address, address) {
+    ) internal returns (bool, address, address, uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         (, bool success, bytes memory result) = $.mailbox.deliverAndHandle(
             rawPayload,
             proof
         );
-        (address recipient, address token) = abi.decode(result, (address, address));
-        return (success, recipient, token);
+        if (!success) {
+            return (false, address(0), address(0), 0);
+        }
+        (address recipient, address token, uint256 amount) = abi.decode(result, (address, address, uint256));
+        return (success, recipient, token, amount);
     }
 
     function _mintWithFee(
@@ -532,8 +578,11 @@ contract AssetRouter is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal virtual {
-        (,address recipient, address token) = _mint(mintPayload, proof);
+    ) internal virtual returns (bool) {
+        (bool success,address recipient, address token, uint256 amount) = _mint(mintPayload, proof);
+        if (!success) {
+            return false;
+        }
         IBaseLBTC tokenContract = IBaseLBTC(token);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
@@ -542,9 +591,8 @@ contract AssetRouter is
         );
 
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint256 maxFee = $.maximumFee;
         address treasury = tokenContract.getTreasury();
-        uint256 fee = Math.min(maxFee, feeAction.fee);
+        uint256 fee = Math.min($.maximumFee, feeAction.fee);
 
         {
             bytes32 digest = tokenContract.getFeeDigest(
@@ -553,12 +601,15 @@ contract AssetRouter is
             );
             Assert.feeApproval(digest, recipient, userSignature);
         }
-
+        if (amount < fee) {
+            revert AssetRouter_FeeGreaterThanAmount();
+        }
         if (fee > 0) {
             tokenContract.transfer(recipient, treasury, fee);
         }
 
         emit AssetRouter_FeeCharged(fee, userSignature);
+        return true;
     }
 
     function supportsInterface(
@@ -581,7 +632,7 @@ contract AssetRouter is
         if (_msgSender() != address($.mailbox)) {
             revert AssetRouter_MailboxExpected();
         }
-        if (payload.msgSender != Staking.LEDGER_SENDER_RECIPIENT) {
+        if (payload.msgSender != Assets.LEDGER_SENDER_RECIPIENT) {
             revert AssetRouter_WrongSender();
         }
         // spend payload
@@ -589,14 +640,14 @@ contract AssetRouter is
             revert AssetRouter_PayloadAlreadyUsed();
         }
         $.usedPayloads[payload.id] = true;
-        (Staking.Release memory receipt, ) = Staking.decodeRelease(
+        (Assets.Release memory receipt, ) = Assets.decodeRelease(
             payload.msgBody
         );
         _confirmDeposit($, payload.id, receipt.amount);
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
-        return abi.encode(receipt.recipient, receipt.toToken);
+        return abi.encode(receipt.recipient, receipt.toToken, receipt.amount);
     }
 
     /**
@@ -645,6 +696,14 @@ contract AssetRouter is
         emit AssetRouter_ToNativeCommissionChanged(prevValue, newValue);
     }
 
+    /// @dev allow set to zero
+    function _changeNativeToken(address newValue) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        address prevValue = $.nativeToken;
+        $.nativeToken = newValue;
+        emit AssetRouter_NativeTokenChanged(prevValue, newValue);
+    }
+
     function getBascule() external view override returns (address) {
         return address(_getAssetRouterStorage().bascule);
     }
@@ -657,7 +716,7 @@ contract AssetRouter is
         return address(_getAssetRouterStorage().mailbox);
     }
 
-    function getToNativeCommission() external view override returns (uint256) {
+    function getToNativeCommission() external view override returns (uint64) {
         return _getAssetRouterStorage().toNativeCommission;
     }
 

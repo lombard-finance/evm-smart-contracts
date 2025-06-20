@@ -3,11 +3,11 @@ import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox
 import {
   calcFee,
   calculateStorageSlot,
-  deployContract,
+  deployContract, DEPOSIT_BTC_ACTION_V1,
   encode,
   getGMPPayload,
   getPayloadForAction,
-  getSignersWithPrivateKeys,
+  getSignersWithPrivateKeys, GMP_V1_SELECTOR,
   NEW_VALSET,
   randomBigInt,
   Signer,
@@ -204,7 +204,7 @@ describe('Mailbox', function () {
 
       it('Can not receive when the path is disabled', async () => {
         const payload = getGMPPayload(
-          dMailbox,
+          encode(['address'], [dMailbox]),
           dChain,
           lChainId,
           globalNonce,
@@ -322,7 +322,7 @@ describe('Mailbox', function () {
         await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes);
 
         const testPayload = getGMPPayload(
-          smailbox.address,
+          encode(['address'], [smailbox.address]),
           lChainId,
           lChainId,
           globalNonce,
@@ -357,7 +357,7 @@ describe('Mailbox', function () {
         const dCaller = encode(['address'], [ethers.ZeroAddress]);
         const body = ethers.hexlify(ethers.toUtf8Bytes('LONG TEST MESSAGE TO SEND FROM THE MAILBOX'));
         const payload = getGMPPayload(
-          smailbox.address,
+          encode(['address'], [smailbox.address]),
           lChainId,
           lChainId,
           globalNonce,
@@ -389,7 +389,7 @@ describe('Mailbox', function () {
 
         const longBody = ethers.hexlify(new Uint8Array(512));
         const payload = getGMPPayload(
-          smailbox.address,
+          encode(['address'], [smailbox.address]),
           lChainId,
           lChainId,
           globalNonce,
@@ -544,7 +544,7 @@ describe('Mailbox', function () {
 
     it('Treasury can transfer ERC20 from mailbox', async () => {
       const amount = randomBigInt(8);
-      let tx = await token.connect(dummy).transfer(smailbox, amount);
+      let tx = await token.connect(dummy)['transfer(address,uint256)'](smailbox, amount);
       await expect(tx).changeTokenBalance(token, smailbox, amount);
 
       tx = await smailbox.connect(treasury).rescueERC20(token, dummy, amount);
@@ -554,7 +554,7 @@ describe('Mailbox', function () {
 
     it('Reverts when called by not a treasury', async () => {
       const amount = randomBigInt(8);
-      const tx = await token.connect(dummy).transfer(smailbox, amount);
+      const tx = await token.connect(dummy)['transfer(address,uint256)'](smailbox, amount);
       await expect(tx).changeTokenBalance(token, smailbox, amount);
 
       await expect(smailbox.connect(dummy).rescueERC20(token.address, dummy.address, amount))
@@ -564,7 +564,7 @@ describe('Mailbox', function () {
 
     it('Reverts when mailbox is on pause', async () => {
       const amount = randomBigInt(8);
-      const tx = await token.connect(dummy).transfer(smailbox, amount);
+      const tx = await token.connect(dummy)['transfer(address,uint256)'](smailbox, amount);
       await expect(tx).changeTokenBalance(token, smailbox, amount);
 
       await smailbox.connect(pauser).pause();
@@ -639,7 +639,7 @@ describe('Mailbox', function () {
       globalNonce = 1;
     });
 
-    it('transmit and withdraw fee successful', async () => {
+    it('transmit a message and withdraw fee', async () => {
       const recipient = encode(['address'], [handlerMock.address]);
       const dCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
@@ -647,7 +647,7 @@ describe('Mailbox', function () {
       const signer1Bytes = encode(['address'], [signer1.address]);
 
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -704,13 +704,13 @@ describe('Mailbox', function () {
       const sender = signer1;
 
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
-        encode(['address'], [sender.address]),
-        recipient,
-        dCaller,
+        encode(['address'], [sender.address]), //cosmos
+        recipient, //StakingRouter
+        dCaller, //anyone (StakingRouter)
         body
       );
 
@@ -730,7 +730,7 @@ describe('Mailbox', function () {
       const sender = signer1;
 
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -756,7 +756,7 @@ describe('Mailbox', function () {
       const sender = signer2;
 
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         newDstChain,
         globalNonce++,
@@ -971,7 +971,7 @@ describe('Mailbox', function () {
         let body = ethers.hexlify(ethers.toUtf8Bytes('TEST 3'));
 
         const payload = getGMPPayload(
-          newSrcMailbox.address,
+          encode(['address'], [newSrcMailbox.address]),
           newSrcChain,
           lChainId,
           globalNonce++,
@@ -1222,7 +1222,7 @@ describe('Mailbox', function () {
           let body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
 
           const payload = getGMPPayload(
-            arg.srcContract(),
+            encode(['address'], [arg.srcContract()]),
             arg.srcChain(),
             arg.dstChain(),
             arg.nonce(),
@@ -1240,6 +1240,28 @@ describe('Mailbox', function () {
           ).to.be.revertedWithCustomError(...arg.customError());
         });
       });
+
+      it('Invalid selector', async function() {
+        let body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
+
+        let payload = getGMPPayload(
+          encode(['address'], [smailbox.address]),
+          lChainId,
+          lChainId,
+          1,
+          encode(['address'], [signer1.address]),
+          encode(['address'], [handlerMock.address]),
+          encode(['address'], [ethers.ZeroAddress]),
+          body
+        );
+        console.log(payload);
+        payload = payload.replace(GMP_V1_SELECTOR, DEPOSIT_BTC_ACTION_V1);
+
+        const { proof } = await signPayload([notary], [true], payload);
+        await expect(dmailbox.connect(signer1).deliverAndHandle(payload, proof))
+          .to.be.revertedWithCustomError(dmailbox, 'GMP_InvalidAction')
+          .withArgs(GMP_V1_SELECTOR, DEPOSIT_BTC_ACTION_V1)
+      })
     });
   });
 });
