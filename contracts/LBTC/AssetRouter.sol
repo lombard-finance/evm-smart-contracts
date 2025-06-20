@@ -384,6 +384,9 @@ contract AssetRouter is
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint64 fee = $.toNativeCommission;
+        if (!IBaseLBTC(fromToken).isRedeemsEnabled()) {
+            revert AssetRouter_RedeemsForBtcDisabled();
+        }
         uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
         uint256 amountAfterFee = Validation.redeemFee(
             recipient,
@@ -549,7 +552,7 @@ contract AssetRouter is
             );
             if (!success) {
                 bytes32 payloadHash = sha256(mintPayload[i]);
-                emit AssetRouter_BatchMintError(payloadHash, "", "");
+                emit AssetRouter_BatchMintError(payloadHash, "", new bytes(0));
             }
         }
     }

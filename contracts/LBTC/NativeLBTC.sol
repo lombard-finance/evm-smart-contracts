@@ -232,6 +232,10 @@ contract NativeLBTC is
         return true;
     }
 
+    function isRedeemsEnabled() public view override returns (bool) {
+        return _getNativeLBTCStorage().isWithdrawalsEnabled;
+    }
+
     function getTreasury() public view override returns (address) {
         return _getNativeLBTCStorage().treasury;
     }
@@ -385,7 +389,7 @@ contract NativeLBTC is
 
         if (!$.isWithdrawalsEnabled) {
             // TODO: rename to redeem
-            revert RedeemsDisabled();
+            revert RedeemForBtcDisabled();
         }
 
         uint256 nonce = $.redeemNonce++;

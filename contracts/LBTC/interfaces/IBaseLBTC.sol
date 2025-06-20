@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 interface IBaseLBTC {
-    error WithdrawalsDisabled();
+    error RedeemForBtcDisabled();
     error PayloadAlreadyUsed();
     error InvalidMintAmount();
     error AssetRouterNotSet();
@@ -49,4 +49,5 @@ interface IBaseLBTC {
     function isNative() external view returns (bool);
     function getRedeemFee() external view returns (uint256);
     function getFeeDigest(uint256 fee, uint256 expiry) external view returns (bytes32);
+    function isRedeemsEnabled() external view returns (bool);
 }

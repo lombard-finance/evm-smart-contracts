@@ -328,6 +328,10 @@ contract StakedLBTC is
         return false;
     }
 
+    function isRedeemsEnabled() public view override returns (bool) {
+        return _getStakedLBTCStorage().isWithdrawalsEnabled;
+    }
+
     /// USER ACTIONS ///
 
     /**
@@ -378,7 +382,11 @@ contract StakedLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external nonReentrant {
-        _batchMint(payload, proof);
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        $.assetRouter.batchMint(payload, proof);
     }
 
     /**
@@ -411,7 +419,11 @@ contract StakedLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyClaimer {
-        return _batchMintWithFee(mintPayload, proof, feePayload, userSignature);
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        $.assetRouter.batchMintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
     /**
@@ -425,11 +437,6 @@ contract StakedLBTC is
         uint256 amount
     ) external {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-
-        if (!$.isWithdrawalsEnabled) {
-            // TODO: rename to redeem
-            revert WithdrawalsDisabled();
-        }
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
         }

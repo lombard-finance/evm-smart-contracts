@@ -12,6 +12,8 @@ interface IAssetRouter {
     error AssetRouter_WrongNativeToken();
     error AssetRouter_MintProcessingError();
     error AssetRouter_FeeGreaterThanAmount();
+    error AssetRouter_RedeemsForBtcDisabled();
+    error AssertRouter_UnauthorizedAccount();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
 

@@ -47,37 +47,6 @@ abstract contract BaseLBTC is
         }
     }
 
-    function _batchMint(
-        bytes[] calldata payload,
-        bytes[] calldata proof
-    ) internal {
-        Assert.equalLength(payload.length, proof.length);
-
-        for (uint256 i; i < payload.length; ++i) {
-            _mint(payload[i], proof[i]);
-        }
-    }
-
-    function _batchMintWithFee(
-        bytes[] calldata mintPayload,
-        bytes[] calldata proof,
-        bytes[] calldata feePayload,
-        bytes[] calldata userSignature
-    ) internal {
-        Assert.equalLength(mintPayload.length, proof.length);
-        Assert.equalLength(mintPayload.length, feePayload.length);
-        Assert.equalLength(mintPayload.length, userSignature.length);
-
-        for (uint256 i; i < mintPayload.length; ++i) {
-            _mintWithFee(
-                mintPayload[i],
-                proof[i],
-                feePayload[i],
-                userSignature[i]
-            );
-        }
-    }
-
     function _mint(
         bytes calldata rawPayload,
         bytes calldata proof

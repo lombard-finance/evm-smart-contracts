@@ -932,7 +932,7 @@ describe('NativeLBTC', function () {
         await nativeLbtc.mint(signer1.address, amount);
         await expect(
           nativeLbtc.redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
-        ).to.revertedWithCustomError(nativeLbtc, 'RedeemsDisabled');
+        ).to.revertedWithCustomError(nativeLbtc, 'RedeemsForBtcDisabled');
       });
 
       it('Reverts if amount is less than burn commission', async function () {
