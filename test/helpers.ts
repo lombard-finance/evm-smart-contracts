@@ -491,7 +491,7 @@ export function calculateStorageSlot(namespace: string) {
 
 export function calcFee(body: string, weiPerByte: bigint): { fee: bigint; payloadLength: number } {
   const payload = getGMPPayload(
-    ethers.ZeroAddress,
+    encode(['address'], [ethers.ZeroAddress]),
     ethers.ZeroHash,
     ethers.ZeroHash,
     0,
