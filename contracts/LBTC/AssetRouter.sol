@@ -39,7 +39,7 @@ contract AssetRouter is
         IMailbox mailbox;
         mapping(address => bool) allowedCallers; // tokenAddress => is allowed to use router
         IBascule bascule;
-        uint256 maximumFee;
+        uint256 maximumMintCommission;
         uint256 dustFeeRate;
         IOracle oracle;
         uint64 toNativeCommission;
