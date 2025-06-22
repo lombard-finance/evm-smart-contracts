@@ -225,7 +225,7 @@ contract AssetRouter is
         _changeBascule(newVal);
     }
 
-    function Bascule() external view returns (IBascule) {
+    function bascule() external view returns (IBascule) {
         return _getAssetRouterStorage().bascule;
     }
 
