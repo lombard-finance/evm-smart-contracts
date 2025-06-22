@@ -44,7 +44,7 @@ library Assets {
     bytes4 internal constant REDEEM_REQUEST_SELECTOR = 0x3fbb67f6;
 
     // bytes4(keccak256("redeemForBTC(bytes,uint64)"))
-    bytes4 internal constant REDEEM_FOR_BTC_REQUEST_SELECTOR = 0xf0e2a9da;
+    bytes4 internal constant REDEEM_FROM_NATIVE_TOKEN_SELECTOR = 0xf0e2a9da;
 
     // bytes4(keccak256("mint(bytes32,bytes32,uint256)"))
     bytes4 internal constant MINT_SELECTOR = 0x155b6b13;
