@@ -20,6 +20,12 @@ interface IAssetRouter {
     error AssertRouter_UnauthorizedAccount();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
+    event AssetRouter_RedeemFeeChanged(
+        address indexed token,
+        uint256 oldFee,
+        uint256 newFee
+    );
+    event AssetRouter_RedeemEnabled(address indexed token, bool enabled);
 
     event AssetRouter_RouteSet(
         bytes32 indexed fromToken,
@@ -80,6 +86,9 @@ interface IAssetRouter {
     function mailbox() external view returns (IMailbox);
     function toNativeCommission() external view returns (uint64);
     function nativeToken() external view returns (address);
+    function getTokenConig(
+        address token
+    ) external view returns (uint256 redeemFee, bool isRedeemEnabled);
 
     function deposit(
         bytes32 tolChainId,
@@ -145,4 +154,8 @@ interface IAssetRouter {
         bytes calldata scriptPubkey,
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust);
+
+    function changeRedeemFee(uint256 fee) external;
+
+    function toggleRedeem() external;
 }

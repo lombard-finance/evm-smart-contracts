@@ -39,7 +39,8 @@ contract StakedLBTC is
         mapping(bytes32 => bool) legacyUsedPayloads;
         string name;
         string symbol;
-        bool isWithdrawalsEnabled;
+        /// @custom:oz-renamed-from isWithdrawalsEnabled
+        bool __removed__isWithdrawalsEnabled;
         INotaryConsortium consortium;
         /// @custom:oz-renamed-from isWBTCEnabled
         bool __removed_isWBTCEnabled;
@@ -75,7 +76,8 @@ contract StakedLBTC is
         mapping(bytes32 => bool) __removed__usedPayloads; // sha256(rawPayload) => used
         address operator;
         IAssetRouter assetRouter;
-        uint256 redeemFee;
+        /// @custom:oz-renamed-from redeemFee
+        uint256 __removed__redeemFee;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
@@ -156,9 +158,7 @@ contract StakedLBTC is
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleRedeemsForBtc() external onlyOwner {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit RedeemsForBtcEnabled($.isWithdrawalsEnabled);
+        _getStakedLBTCStorage().assetRouter.toggleRedeem();
     }
 
     function changeNameAndSymbol(
@@ -303,7 +303,10 @@ contract StakedLBTC is
     }
 
     function getRedeemFee() public view returns (uint256) {
-        return _getStakedLBTCStorage().redeemFee;
+        (uint256 redeemFee, ) = _getStakedLBTCStorage()
+            .assetRouter
+            .getTokenConig(address(this));
+        return redeemFee;
     }
 
     /**
@@ -334,7 +337,10 @@ contract StakedLBTC is
     }
 
     function isRedeemsEnabled() public view override returns (bool) {
-        return _getStakedLBTCStorage().isWithdrawalsEnabled;
+        (, bool isRedeemEnabled) = _getStakedLBTCStorage()
+            .assetRouter
+            .getTokenConig(address(this));
+        return isRedeemEnabled;
     }
 
     /// USER ACTIONS ///
@@ -652,10 +658,7 @@ contract StakedLBTC is
     }
 
     function _changeRedeemFee(uint256 newVal) internal {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 prevValue = $.redeemFee;
-        $.redeemFee = newVal;
-        emit RedeemFeeChanged(prevValue, newVal);
+        _getStakedLBTCStorage().assetRouter.changeRedeemFee(newVal);
     }
 
     function _getStakedLBTCStorage()

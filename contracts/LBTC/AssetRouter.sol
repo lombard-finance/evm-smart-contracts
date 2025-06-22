@@ -30,6 +30,11 @@ contract AssetRouter is
     AccessControlDefaultAdminRulesUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    struct TokenConfig {
+        uint256 redeemFee;
+        bool isRedeemEnabled;
+    }
+
     /// @custom:storage-location erc7201:lombardfinance.storage.AssetRouter
     struct AssetRouterStorage {
         bytes32 ledgerChainId;
@@ -43,6 +48,7 @@ contract AssetRouter is
         IOracle oracle;
         uint64 toNativeCommission;
         address nativeToken;
+        mapping(address => TokenConfig) tokenConfigs;
     }
 
     struct Destination {
@@ -156,6 +162,29 @@ contract AssetRouter is
             toToken,
             toChainId
         );
+    }
+
+    function changeRedeemFee(uint256 fee) external onlyRole(CALLER_ROLE) {
+        _setRedeemFeeForToken(_msgSender(), fee);
+    }
+
+    function toggleRedeem() external onlyRole(CALLER_ROLE) {
+        _toggleRedeemForToken(_msgSender());
+    }
+
+    function changeTokenConig(
+        address token,
+        uint256 redeemFee,
+        bool redeemEnabled
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setRedeemFeeForToken(token, redeemFee);
+        _setRedeemForToken(token, redeemEnabled);
+    }
+
+    function getTokenConig(
+        address token
+    ) external view returns (uint256 redeemFee, bool isRedeemEnabled) {
+        _getTokenConig(token);
     }
 
     function _checkAndSetNativeToken(
@@ -365,8 +394,8 @@ contract AssetRouter is
         bytes calldata scriptPubkey,
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
-        uint256 redeemFee = IBaseLBTC(token).getRedeemFee();
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        uint256 redeemFee = $.tokenConfigs[token].redeemFee;
         if (IBaseLBTC(token).isNative()) {
             (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
                 scriptPubkey,
@@ -394,11 +423,11 @@ contract AssetRouter is
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint64 fee = $.toNativeCommission;
-        if (!IBaseLBTC(fromToken).isRedeemsEnabled()) {
+        if (!$.tokenConfigs[fromToken].isRedeemEnabled) {
             revert AssetRouter_RedeemsForBtcDisabled();
         }
         uint256 amountAfterFee = 0;
-        uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
+        uint256 redeemFee = $.tokenConfigs[fromToken].redeemFee;
         if (amount <= redeemFee) {
             revert AssetRouter_FeeGreaterThanAmount();
         }
@@ -505,7 +534,7 @@ contract AssetRouter is
         }
         IBaseLBTC tokenContract = IBaseLBTC(fromToken);
         if (fee == 0) {
-            uint256 redeemFee = tokenContract.getRedeemFee();
+            uint256 redeemFee = $.tokenConfigs[fromToken].redeemFee;
             if (amount <= redeemFee) {
                 revert AssetRouter_FeeGreaterThanAmount();
             }
@@ -759,6 +788,35 @@ contract AssetRouter is
         address prevValue = $.nativeToken;
         $.nativeToken = newValue;
         emit AssetRouter_NativeTokenChanged(prevValue, newValue);
+    }
+
+    function _setRedeemFeeForToken(address token, uint256 fee) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        TokenConfig storage tc = $.tokenConfigs[token];
+        emit AssetRouter_RedeemFeeChanged(token, tc.redeemFee, fee);
+        tc.redeemFee = fee;
+    }
+
+    function _toggleRedeemForToken(address token) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        TokenConfig storage tc = $.tokenConfigs[token];
+        tc.isRedeemEnabled = !tc.isRedeemEnabled;
+        emit AssetRouter_RedeemEnabled(token, tc.isRedeemEnabled);
+    }
+
+    function _setRedeemForToken(address token, bool enabled) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        TokenConfig storage tc = $.tokenConfigs[token];
+        tc.isRedeemEnabled = enabled;
+        emit AssetRouter_RedeemEnabled(token, tc.isRedeemEnabled);
+    }
+
+    function _getTokenConig(
+        address token
+    ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        TokenConfig storage tc = $.tokenConfigs[token];
+        return (tc.redeemFee, tc.isRedeemEnabled);
     }
 
     function toNativeCommission() external view override returns (uint64) {
