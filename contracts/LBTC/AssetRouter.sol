@@ -37,7 +37,6 @@ contract AssetRouter is
         mapping(bytes32 => Route) routes;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IMailbox mailbox;
-        mapping(address => bool) allowedCallers; // tokenAddress => is allowed to use router
         IBascule bascule;
         uint256 maximumMintCommission;
         uint256 dustFeeRate;
@@ -60,6 +59,7 @@ contract AssetRouter is
         0x634af38ba2564e2d74d7d4e289db84afe1b0f1c101e1349f6428c2bd44a09b00;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    bytes32 public constant CALLER_ROLE = keccak256("CALLER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -163,7 +163,7 @@ contract AssetRouter is
         bytes32 token
     ) internal {
         address tokenAddress = GMPUtils.bytes32ToAddress(token);
-        $.allowedCallers[tokenAddress] = true;
+        grantRole(CALLER_ROLE, tokenAddress);
         if (IBaseLBTC(tokenAddress).isNative()) {
             if ($.nativeToken != address(0) && $.nativeToken != tokenAddress) {
                 revert AssetRouter_WrongNativeToken();
@@ -197,10 +197,9 @@ contract AssetRouter is
     }
 
     function _isAllowedCaller(
-        AssetRouterStorage storage $,
         address caller
     ) internal view returns (bool) {
-        return $.allowedCallers[caller];
+        return hasRole(CALLER_ROLE, caller);
     }
 
     function ratio(address) external view override returns (uint256) {
@@ -496,7 +495,7 @@ contract AssetRouter is
         if (sender != fromAddress && sender != fromToken) {
             revert AssetRouter_Unauthorized();
         }
-        if (!_isAllowedCaller($, fromToken)) {
+        if (!_isAllowedCaller(fromToken)) {
             revert IStaking.NotStakingToken();
         }
         bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);

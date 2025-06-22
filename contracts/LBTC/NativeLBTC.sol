@@ -39,15 +39,10 @@ contract NativeLBTC is
         string name;
         string symbol;
         uint256 dustFeeRate; 
-        /// @custom:oz-renamed-from maximumFee
-        uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
-        /// @custom:oz-renamed-from maximumFee
-        uint256 __removed__redeemNonce;
         IAssetRouter assetRouter;
     }
 
-    // TODO: recalculate
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
         0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
