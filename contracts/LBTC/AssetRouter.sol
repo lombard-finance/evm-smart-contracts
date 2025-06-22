@@ -399,6 +399,9 @@ contract AssetRouter is
         }
         uint256 amountAfterFee = 0;
         uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
+        if (amount <= redeemFee) {
+            revert AssetRouter_FeeGreaterThanAmount();
+        }
         bytes32 gmpRecipient;
         bool isNative = false;
         if (IBaseLBTC(fromToken).isNative()) {
