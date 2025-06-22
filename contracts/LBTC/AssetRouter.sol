@@ -56,7 +56,7 @@ contract AssetRouter is
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.AssetRouter")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant Staking_ROUTER_STORAGE_LOCATION =
+    bytes32 private constant ASSETS_ROUTER_STORAGE_LOCATION =
         0x634af38ba2564e2d74d7d4e289db84afe1b0f1c101e1349f6428c2bd44a09b00;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
