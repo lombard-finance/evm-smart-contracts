@@ -242,7 +242,7 @@ contract AssetRouter is
         _changeOracle(newVal);
     }
 
-    function Oracle() external view returns (IOracle) {
+    function oracle() external view returns (IOracle) {
         return _getAssetRouterStorage().oracle;
     }
 
