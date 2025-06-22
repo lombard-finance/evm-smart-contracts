@@ -288,7 +288,7 @@ contract StakedLBTC is
     }
 
     function getBurnCommission() public view returns (uint64) {
-        return _getStakedLBTCStorage().assetRouter.getToNativeCommission();
+        return _getStakedLBTCStorage().assetRouter.toNativeCommission();
     }
 
     /// @notice Get the current dust fee rate
@@ -660,9 +660,9 @@ contract StakedLBTC is
 
     function _getMaxFee() internal view virtual override returns (uint256) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 ratio = $.assetRouter.getRatio(address(this));
+        uint256 ratio = $.assetRouter.ratio(address(this));
         uint256 maxFee = Math.mulDiv(
-            $.assetRouter.getMintFee(),
+            $.assetRouter.maxMintCommission(),
             ratio,
             1 ether,
             Math.Rounding.Ceil

@@ -172,7 +172,7 @@ contract NativeLBTC is
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
         }
-        return IAssetRouter($.assetRouter).getMintFee();
+        return IAssetRouter($.assetRouter).maxMintCommission();
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -645,7 +645,7 @@ contract NativeLBTC is
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
         }
-        return $.assetRouter.getMintFee();
+        return $.assetRouter.maxMintCommission();
     }
 
     function _getTreasury() internal view virtual override returns (address) {

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {IBascule} from "../../bascule/interfaces/IBascule.sol";
+import {IMailbox} from "../../gmp/IMailbox.sol";
+import {IOracle} from "../interfaces/IOracle.sol";
+
 interface IAssetRouter {
     error AssetRouter_ZeroMailbox();
     error AssetRouter_MailboxExpected();
@@ -68,17 +72,16 @@ interface IAssetRouter {
         bool toNative
     ) external view returns (bool);
 
-    function getMintFee() external view returns (uint256);
-    function getRatio(address token) external view returns (uint256);
-    function getBitcoinChainId() external view returns (bytes32);
-    function getBascule() external view returns (address);
-    function getOracle() external view returns (address);
-    function getMailbox() external view returns (address);
-    function getToNativeCommission() external view returns (uint64);
-    function getNativeToken() external view returns (address);
+    function maxMintCommission() external view returns (uint256);
+    function ratio(address token) external view returns (uint256);
+    function bitcoinChainId() external view returns (bytes32);
+    function bascule() external view returns (IBascule);
+    function oracle() external view returns (IOracle);
+    function mailbox() external view returns (IMailbox);
+    function toNativeCommission() external view returns (uint64);
+    function nativeToken() external view returns (address);
 
     function deposit(
-        address fromAddress,
         bytes32 tolChainId,
         bytes32 toToken,
         bytes32 recipient,

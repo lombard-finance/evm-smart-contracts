@@ -37,25 +37,25 @@ library Assets {
     // bytes4(keccak256("payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32)")
     bytes4 internal constant RECEIPT_SELECTOR = 0x965597b5;
 
-    // bytes4(keccak256("stake(bytes32,bytes32,bytes32,uint256)"))
-    bytes4 internal constant STAKE_REQUEST_SELECTOR = 0xd582b25b;
+    // bytes4(keccak256("deposit(bytes32,bytes32,bytes32,uint256)"))
+    bytes4 internal constant DEPOSIT_REQUEST_SELECTOR = 0xa129d186;
 
-    // bytes4(keccak256("unstake(bytes32,bytes32,bytes,uint256)"))
-    bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x4a227ef9;
+    // bytes4(keccak256("redeem(bytes32,bytes32,bytes,uint256)"))
+    bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x3fbb67f6;
 
-    // bytes4(keccak256("release(bytes32,bytes32,uint256)"))
-    bytes4 internal constant RELEASE_SELECTOR = 0x5217c530;
+    // bytes4(keccak256("mint(bytes32,bytes32,uint256)"))
+    bytes4 internal constant MINT_SELECTOR = 0x5217c530; // ToDO
 
     /// @dev A constant representing the number of bytes for a slot of information in a payload.
     uint256 internal constant ABI_SLOT_SIZE = 32;
 
-    bytes32 public constant LEDGER_SENDER_RECIPIENT =
+    bytes32 public constant BTC_STAKING_MODULE_ADDRESS =
         bytes32(uint256(0x0089e3e4e7a699d6f131d893aeef7ee143706ac23a));
-    bytes32 public constant LEDGER_NATIVE_SENDER_RECIPIENT =
-        bytes32(uint256(0x0099e3e4e7a699d6f131d893aeef7ee143706ac23a)); // ToDO
-    bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x0)); // ToDO
+    bytes32 public constant ASSETS_MODULE_ADDRESS =
+        bytes32(uint256(0x008bf729ffe074caee622c02928173467e658e19e2));
+    bytes32 public constant LEDGER_CALLER = bytes32(uint256(0x0));
     bytes32 public constant BITCOIN_NATIVE_COIN =
-        bytes32(uint256(0x00000000000000000000000000000000000001)); // ToDO
+        bytes32(uint256(0x00000000000000000000000000000000000001));
 
     function encodeRequest(
         uint256 nonce,
@@ -108,7 +108,7 @@ library Assets {
         }
         return
             abi.encodeWithSelector(
-                STAKE_REQUEST_SELECTOR,
+                DEPOSIT_REQUEST_SELECTOR,
                 toChain,
                 toToken,
                 recipient,
@@ -218,8 +218,8 @@ library Assets {
             amount := mload(add(rawPayload, 0x64)) // bytes 69..100
         }
 
-        if (selector != RELEASE_SELECTOR) {
-            revert Assets_InvalidSelector(RELEASE_SELECTOR, selector);
+        if (selector != MINT_SELECTOR) {
+            revert Assets_InvalidSelector(MINT_SELECTOR, selector);
         }
 
         if (amount == 0) {
