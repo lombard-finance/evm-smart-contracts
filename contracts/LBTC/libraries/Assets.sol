@@ -173,7 +173,7 @@ library Assets {
         }
         return
             abi.encodeWithSelector(
-                REDEEM_FOR_BTC_REQUEST_SELECTOR,
+                REDEEM_FROM_NATIVE_TOKEN_SELECTOR,
                 recipient,
                 amount
             );

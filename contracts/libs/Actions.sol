@@ -44,6 +44,13 @@ library Actions {
         uint256 expiry;
     }
 
+    /// @dev toChain, recipient, amount, txid, token are validated
+    struct RatioUpdate {
+        bytes32 denom;
+        uint256 ratio;
+        uint256 switchTime;
+    }
+
     /// @dev Error thrown when invalid public key is provided
     error InvalidPublicKey(bytes pubKey);
 
@@ -90,6 +97,10 @@ library Actions {
 
     error InvalidDestinationToken(address expected, address actual);
 
+    error Actions_ZeroDenom();
+
+    error Actions_ZeroRatio();
+
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
     // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
@@ -103,6 +114,8 @@ library Actions {
     bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant NEW_VALSET = 0x4aab1d6f;
+    // bytes4(keccak256("payload(bytes32,uint256,uint256)"))
+    bytes4 internal constant RATIO_UPDATE = 0x6c722c2c;
 
     /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -371,5 +384,31 @@ library Actions {
         }
 
         return FeeApprovalAction(fee, expiry);
+    }
+
+    /**
+     * @notice Returns decoded ratio update message
+     * @dev Message should not contain the selector
+     * @param payload Body of the ration update message
+     */
+    function ratioUpdate(
+        bytes memory payload
+    ) internal view returns (RatioUpdate memory) {
+        if (payload.length != ABI_SLOT_SIZE * 3)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 3, payload.length);
+
+        (bytes32 denom, uint256 ratio, uint256 timestamp) = abi.decode(
+            payload,
+            (bytes32, uint256, uint256)
+        );
+
+        if (denom == bytes32(0)) {
+            revert Actions_ZeroDenom();
+        }
+        if (ratio == uint256(0)) {
+            revert Actions_ZeroRatio();
+        }
+
+        return RatioUpdate(denom, ratio, timestamp);
     }
 }

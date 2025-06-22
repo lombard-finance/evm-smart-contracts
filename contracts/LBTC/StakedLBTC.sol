@@ -247,7 +247,12 @@ contract StakedLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        return $.assetRouter.calcUnstakeRequestAmount(address(this), scriptPubkey, amount);
+        return
+            $.assetRouter.calcUnstakeRequestAmount(
+                address(this),
+                scriptPubkey,
+                amount
+            );
     }
 
     function consortium() external view virtual returns (INotaryConsortium) {
@@ -429,7 +434,12 @@ contract StakedLBTC is
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
         }
-        $.assetRouter.batchMintWithFee(mintPayload, proof, feePayload, userSignature);
+        $.assetRouter.batchMintWithFee(
+            mintPayload,
+            proof,
+            feePayload,
+            userSignature
+        );
     }
 
     /**

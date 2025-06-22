@@ -96,7 +96,7 @@ library Validation {
         if (outType == BitcoinUtils.OutputType.UNSUPPORTED) {
             revert ScriptPubkeyUnsupported();
         }
-        uint256 nativeAmount =  Math.mulDiv(
+        uint256 nativeAmount = Math.mulDiv(
             amount,
             1 ether,
             ratio,
@@ -118,6 +118,11 @@ library Validation {
             scriptPubkey,
             dustFeeRate
         );
-        return (amountAfterFee, true, dustLimit, nativeAmount - fee > dustLimit);
+        return (
+            amountAfterFee,
+            true,
+            dustLimit,
+            nativeAmount - fee > dustLimit
+        );
     }
 }

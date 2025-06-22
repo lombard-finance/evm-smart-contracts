@@ -23,19 +23,23 @@ abstract contract BaseLBTC is
     ERC20PermitUpgradeable,
     ReentrancyGuardUpgradeable
 {
-    function getFeeDigest(uint256 fee, uint256 expiry) external view virtual returns(bytes32) {
-        return _hashTypedDataV4(
-            keccak256(
-                abi.encode(
-                    Actions.FEE_APPROVAL_EIP712_ACTION,
-                    block.chainid,
-                    fee,
-                    expiry
+    function getFeeDigest(
+        uint256 fee,
+        uint256 expiry
+    ) external view virtual returns (bytes32) {
+        return
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        Actions.FEE_APPROVAL_EIP712_ACTION,
+                        block.chainid,
+                        fee,
+                        expiry
+                    )
                 )
-            )
-        );
+            );
     }
-    
+
     function _batchMint(
         address[] calldata to,
         uint256[] calldata amount

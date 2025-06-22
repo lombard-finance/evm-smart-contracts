@@ -48,6 +48,9 @@ interface IBaseLBTC {
     function getAssetRouter() external view returns (address);
     function isNative() external view returns (bool);
     function getRedeemFee() external view returns (uint256);
-    function getFeeDigest(uint256 fee, uint256 expiry) external view returns (bytes32);
+    function getFeeDigest(
+        uint256 fee,
+        uint256 expiry
+    ) external view returns (bytes32);
     function isRedeemsEnabled() external view returns (bool);
 }

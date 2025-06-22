@@ -196,9 +196,7 @@ contract AssetRouter is
             (r.toTokens[toToken].native == toNative);
     }
 
-    function _isAllowedCaller(
-        address caller
-    ) internal view returns (bool) {
+    function _isAllowedCaller(address caller) internal view returns (bool) {
         return hasRole(CALLER_ROLE, caller);
     }
 
@@ -513,10 +511,7 @@ contract AssetRouter is
         }
         bytes memory rawPayload;
         if (isNative) {
-            rawPayload = Assets.encodeRedeemNativeRequest(
-                recipient,
-                amount
-            );
+            rawPayload = Assets.encodeRedeemNativeRequest(recipient, amount);
         } else {
             rawPayload = Assets.encodeRedeemRequest(
                 tolChainId,

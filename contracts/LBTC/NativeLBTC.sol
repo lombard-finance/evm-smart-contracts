@@ -38,7 +38,7 @@ contract NativeLBTC is
         // other slots by 32
         string name;
         string symbol;
-        uint256 dustFeeRate; 
+        uint256 dustFeeRate;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IAssetRouter assetRouter;
     }
@@ -181,7 +181,12 @@ contract NativeLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        return $.assetRouter.calcUnstakeRequestAmount(address(this), scriptPubkey, amount);
+        return
+            $.assetRouter.calcUnstakeRequestAmount(
+                address(this),
+                scriptPubkey,
+                amount
+            );
     }
 
     function consortium() external view virtual returns (address) {
