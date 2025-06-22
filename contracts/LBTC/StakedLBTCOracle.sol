@@ -134,7 +134,7 @@ contract StakedLBTCOracle is
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (
             $.switchTime > action.switchTime ||
-            (action.switchTime - $.switchTime) > $.maxAheadInterval
+            (action.switchTime - block.timestamp) > $.maxAheadInterval
         ) {
             revert WrongRatioSwitchTime();
         }

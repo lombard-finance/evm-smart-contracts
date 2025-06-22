@@ -28,7 +28,7 @@ contract RatioFeedMock is IOracle {
         return address(0);
     }
 
-    function denom() external view returns (bytes32) {
+    function denomHash() external view returns (bytes32) {
         return bytes32(0);
     }
 }
