@@ -11,6 +11,13 @@ library Redeem {
         bytes calldata script
     ) internal view returns (bytes memory) {
         // amount and script already checked during fee calculation
-        return abi.encodeWithSelector(REQUEST_SELECTOR, amount, nonce, bytes32(block.chainid), script);
+        return
+            abi.encodeWithSelector(
+                REQUEST_SELECTOR,
+                amount,
+                nonce,
+                bytes32(block.chainid),
+                script
+            );
     }
 }

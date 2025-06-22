@@ -12,6 +12,8 @@ library GMPUtils {
     error GMP_ZeroSender();
     error GMP_ZeroRecipient();
     error GMP_WrongPayloadLength();
+    error GMP_InvalidAddess();
+    error GMP_InvalidAction(bytes4 expectedVal, bytes4 actualVal);
 
     struct Payload {
         bytes32 id;
@@ -97,10 +99,16 @@ library GMPUtils {
      * @param _buf the bytes32 to convert to address
      */
     function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
+        if (uint256(_buf) >> 160 != 0) {
+            revert GMP_InvalidAddess();
+        }
         return address(uint160(uint256(_buf)));
     }
 
     function validatePayload(bytes calldata rawPayload) internal pure {
+        if (bytes4(rawPayload) != GMP_V1_SELECTOR) {
+            revert GMP_InvalidAction(GMP_V1_SELECTOR, bytes4(rawPayload));
+        }
         if (rawPayload.length < MIN_GMP_LENGTH) {
             revert GMP_WrongPayloadLength();
         }

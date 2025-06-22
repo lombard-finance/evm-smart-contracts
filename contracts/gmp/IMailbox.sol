@@ -96,5 +96,5 @@ interface IMailbox {
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external returns (bytes32, bool);
+    ) external returns (bytes32, bool, bytes memory);
 }

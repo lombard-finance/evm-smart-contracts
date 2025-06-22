@@ -25,7 +25,9 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function MessageV1(bytes32,uint256,bytes32,bytes32,bytes32,bytes) external',
   'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes) external', // StakingOperationRequest
   'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external', // StakingOperationReceipt
-  'function payload(uint256,uint256,bytes32,bytes) external' // RedeemRequest
+  'function payload(uint256,uint256,bytes32,bytes) external', // RedeemRequest
+  'function release(bytes32,bytes32,uint256) external',
+  'function unstake(bytes32,bytes32,bytes,uint256) external'
 ]);
 
 export function getGMPPayload(
@@ -39,7 +41,7 @@ export function getGMPPayload(
   msgBody: string
 ): string {
   const messagePath = ethers.keccak256(
-    encode(['address', 'bytes32', 'bytes32'], [sourceContract, sourceLChainId, destinationLChainId])
+    encode(['bytes32', 'bytes32', 'bytes32'], [sourceContract, sourceLChainId, destinationLChainId])
   );
 
   return getPayloadForAction(
@@ -70,6 +72,8 @@ export const GMP_V1_SELECTOR = '0xe288fb4a';
 export const STAKING_REQUEST_SELECTOR = '0xedff11ea';
 export const STAKING_RECEIPT_SELECTOR = '0x965597b5';
 export const REDEEM_REQUEST_SELECTOR = '0xf86c9e7b';
+export const RELEASE_SELECTOR = '0x5217c530';
+export const UNSTAKE_REQUEST_SELECTOR = '0x4a227ef9';
 
 export async function signDepositBridgePayload(
   signers: Signer[],
@@ -487,7 +491,7 @@ export function calculateStorageSlot(namespace: string) {
 
 export function calcFee(body: string, weiPerByte: bigint): { fee: bigint; payloadLength: number } {
   const payload = getGMPPayload(
-    ethers.ZeroAddress,
+    encode(['address'], [ethers.ZeroAddress]),
     ethers.ZeroHash,
     ethers.ZeroHash,
     0,

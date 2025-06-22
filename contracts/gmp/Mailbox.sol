@@ -401,11 +401,19 @@ contract Mailbox is
      * @param rawPayload Payload bytes
      * @param proof ABI encoded array of signatures
      * @return payloadHash The hash of payload
+     * @return success The bool value telling if message was delivered successfully
+     * @return result Execution result as bytes array
      */
     function deliverAndHandle(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external override whenNotPaused nonReentrant returns (bytes32, bool) {
+    )
+        external
+        override
+        whenNotPaused
+        nonReentrant
+        returns (bytes32, bool, bytes memory)
+    {
         // TODO: implement deliver only method, then relayer can only deliver payload without attempt to execute
 
         GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
@@ -416,9 +424,9 @@ contract Mailbox is
 
         _deliver($, payload, payloadHash, rawPayload, proof);
 
-        bool success = _handle($, payload, payloadHash);
+        (bool success, bytes memory res) = _handle($, payload, payloadHash);
 
-        return (payloadHash, success);
+        return (payloadHash, success, res);
     }
 
     function _deliver(
@@ -470,7 +478,7 @@ contract Mailbox is
         MailboxStorage storage $,
         GMPUtils.Payload memory payload,
         bytes32 payloadHash
-    ) internal returns (bool) {
+    ) internal returns (bool, bytes memory) {
         address msgSender = _msgSender();
         // verify who is able to execute the message
         if (
@@ -498,14 +506,14 @@ contract Mailbox is
         ) {
             emit MessageHandled(payloadHash, msgSender, executionResult);
             $.handledPayload[payloadHash] = true;
-            return true;
+            return (true, executionResult);
         } catch Error(string memory reason) {
             emit MessageHandleError(payloadHash, msgSender, reason, "");
         } catch (bytes memory lowLevelData) {
             emit MessageHandleError(payloadHash, msgSender, "", lowLevelData);
         }
 
-        return false;
+        return (false, new bytes(0));
     }
 
     /**
