@@ -27,7 +27,7 @@ contract StakedLBTCOracle is
     );
 
     struct TokenDetails {
-        bytes32 denom;
+        bytes32 denomHash;
         address token;
     }
 
@@ -51,7 +51,7 @@ contract StakedLBTCOracle is
         address owner_,
         address consortium_,
         address token_,
-        bytes32 denom_,
+        bytes32 denomHash_,
         uint256 ratio_,
         uint256 switchTime_,
         uint256 maxAheadInterval
@@ -61,7 +61,7 @@ contract StakedLBTCOracle is
         __StakedLBTCOracle_init(
             consortium_,
             token_,
-            denom_,
+            denomHash_,
             ratio_,
             switchTime_,
             maxAheadInterval
@@ -71,13 +71,13 @@ contract StakedLBTCOracle is
     function __StakedLBTCOracle_init(
         address consortium_,
         address token_,
-        bytes32 denom_,
+        bytes32 denomHash_,
         uint256 ratio_,
         uint256 switchTime_,
         uint256 maxAheadInterval
     ) internal onlyInitializing {
         _changeConsortium(consortium_);
-        _setTokenDetails(token_, denom_);
+        _setTokenDetails(token_, denomHash_);
         _setNewRatio(ratio_, switchTime_);
     }
 
@@ -101,8 +101,8 @@ contract StakedLBTCOracle is
         return _getStakedLBTCOracleStorage().tokenDetails.token;
     }
 
-    function denom() external view override returns (bytes32) {
-        return _getStakedLBTCOracleStorage().tokenDetails.denom;
+    function denomHash() external view override returns (bytes32) {
+        return _getStakedLBTCOracleStorage().tokenDetails.denomHash;
     }
 
     function publishNewRatio(
@@ -167,11 +167,11 @@ contract StakedLBTCOracle is
     }
 
     /// @dev not zero
-    function _setTokenDetails(address token, bytes32 denom) internal {
+    function _setTokenDetails(address token, bytes32 denomHash) internal {
         Assert.zeroAddress(token);
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        emit Oracle_TokenDetailsSet(token, denom);
-        $.tokenDetails = TokenDetails({token: token, denom: denom});
+        emit Oracle_TokenDetailsSet(token, denomHash);
+        $.tokenDetails = TokenDetails({token: token, denomHash: denomHash});
     }
 
     function _changeMaxAheadInterval(uint256 newVal) internal {

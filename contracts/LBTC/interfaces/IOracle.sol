@@ -5,5 +5,5 @@ interface IOracle {
     function ratio() external view returns (uint256);
     function getRate() external view returns (uint256);
     function token() external view returns (address);
-    function denom() external view returns (bytes32);
+    function denomHash() external view returns (bytes32);
 }

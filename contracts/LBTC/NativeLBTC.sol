@@ -29,7 +29,7 @@ contract NativeLBTC is
     struct NativeLBTCStorage {
         // slot: 20 + 8 + 1 | 29/32
         address consortium;
-        bool isWithdrawalsEnabled;
+        bool isRedeemForBTCEnabled;
         // slot: 20 | 20/32
         address treasury;
         // slot: 20 | 20/32
@@ -89,8 +89,8 @@ contract NativeLBTC is
 
     function toggleRedeemsForBtc() external onlyRole(DEFAULT_ADMIN_ROLE) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit RedeemsForBtcEnabled($.isWithdrawalsEnabled);
+        $.isRedeemForBTCEnabled = !$.isRedeemForBTCEnabled;
+        emit RedeemsForBtcEnabled($.isRedeemForBTCEnabled);
     }
 
     function changeNameAndSymbol(
@@ -218,7 +218,7 @@ contract NativeLBTC is
     }
 
     function isRedeemsEnabled() public view override returns (bool) {
-        return _getNativeLBTCStorage().isWithdrawalsEnabled;
+        return _getNativeLBTCStorage().isRedeemForBTCEnabled;
     }
 
     function getTreasury() public view override returns (address) {
