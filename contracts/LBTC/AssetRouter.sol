@@ -101,7 +101,7 @@ contract AssetRouter is
             revert AssetRouter_ZeroMailbox();
         }
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        $.mailbox = mailbox_;
+        _changeMailbox(mailbox_);
         $.oracle = oracle_;
         _changeBascule(bascule_)
         $.ledgerChainId = ledgerChainId_;
