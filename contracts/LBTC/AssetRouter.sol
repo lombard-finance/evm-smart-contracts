@@ -259,7 +259,7 @@ contract AssetRouter is
         _changeMailbox(newVal);
     }
 
-    function Mailbox() external view returns (IMailbox) {
+    function mailbox() external view returns (IMailbox) {
         return _getAssetRouterStorage().mailbox;
     }
 
