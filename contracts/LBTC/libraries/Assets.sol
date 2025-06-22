@@ -97,7 +97,7 @@ library Assets {
             );
     }
 
-    function encodeStakeRequest(
+    function encodeDepositRequest(
         bytes32 toChain,
         bytes32 toToken,
         bytes32 recipient,
@@ -119,7 +119,7 @@ library Assets {
             );
     }
 
-    function encodeUnstakeRequest(
+    function encodeRedeemRequest(
         bytes32 toChain,
         bytes32 fromToken,
         bytes memory recipient,
@@ -146,6 +146,34 @@ library Assets {
                 REDEEM_REQUEST_SELECTOR,
                 toChain,
                 fromToken,
+                recipient,
+                amount
+            );
+    }
+
+    function encodeRedeemNativeRequest(
+        bytes memory recipient,
+        uint256 amount
+    ) internal pure returns (bytes memory) {
+        if (amount == 0) {
+            revert Assets_ZeroAmount();
+        }
+        if (recipient.length == 0) {
+            revert Assets_ZeroRecipient();
+        }
+        bool recepientValid = false;
+        for (uint256 i = 0; i < recipient.length; ++i) {
+            if (recipient[i] != 0x0) {
+                recepientValid = true;
+                break;
+            }
+        }
+        if (!recepientValid) {
+            revert Assets_ZeroRecipient();
+        }
+        return
+            abi.encodeWithSelector(
+                REDEEM_FOR_BTC_REQUEST_SELECTOR,
                 recipient,
                 amount
             );

@@ -347,7 +347,7 @@ contract AssetRouter is
             revert IStaking.StakingNotAllowed();
         }
 
-        bytes memory rawPayload = Assets.encodeStakeRequest(
+        bytes memory rawPayload = Assets.encodeDepositRequest(
             tolChainId,
             toToken,
             recipient,
@@ -475,6 +475,61 @@ contract AssetRouter is
         );
     }
 
+    function _redeemNative(
+        AssetRouterStorage storage $,
+        address fromAddress,
+        bytes32 tolChainId,
+        address fromToken,
+        bytes32 toToken,
+        bytes memory recipient,
+        uint256 amount,
+        uint256 fee,
+        bytes32 gmpRecipient
+    ) internal {
+        address sender = address(_msgSender());
+        if (sender != fromAddress && sender != fromToken) {
+            revert AssetRouter_Unauthorized();
+        }
+        if (!_isAllowedCaller($, fromToken)) {
+            revert IStaking.NotStakingToken();
+        }
+        bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
+        if (!_isAllowedRoute(fromTokenBytes, tolChainId, toToken, true)) {
+            revert IStaking.UnstakeNotAllowed();
+        }
+        IBaseLBTC tokenContract = IBaseLBTC(fromToken);
+        if (fee == 0) {
+            uint256 redeemFee = tokenContract.getRedeemFee();
+            if (amount <= redeemFee) {
+                revert AssetRouter_FeeGreaterThanAmount();
+            }
+            amount -= redeemFee;
+            fee = redeemFee;
+        }
+
+        bytes memory rawPayload = Assets.encodeRedeemRequest(
+            tolChainId,
+            fromTokenBytes,
+            recipient,
+            amount
+        );
+
+        $.mailbox.send(
+            $.ledgerChainId,
+            gmpRecipient,
+            Assets.LEDGER_CALLER,
+            rawPayload
+        );
+        if (fee > 0) {
+            tokenContract.transfer(
+                fromAddress,
+                tokenContract.getTreasury(),
+                fee
+            );
+        }
+        tokenContract.burn(fromAddress, amount);
+    }
+
     function _redeem(
         AssetRouterStorage storage $,
         address fromAddress,
@@ -507,7 +562,7 @@ contract AssetRouter is
             fee = redeemFee;
         }
 
-        bytes memory rawPayload = Assets.encodeUnstakeRequest(
+        bytes memory rawPayload = Assets.encodeRedeemRequest(
             tolChainId,
             fromTokenBytes,
             recipient,
