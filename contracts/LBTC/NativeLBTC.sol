@@ -29,7 +29,6 @@ contract NativeLBTC is
     struct NativeLBTCStorage {
         // slot: 20 + 8 + 1 | 29/32
         address consortium;
-        uint64 burnCommission; // absolute commission to charge on burn (unstake)
         bool isWithdrawalsEnabled;
         // slot: 20 | 20/32
         address treasury;
@@ -62,7 +61,6 @@ contract NativeLBTC is
 
     function initialize(
         address consortium_,
-        uint64 burnCommission_,
         address treasury,
         address initialOwner,
         uint48 initialOwnerDelay
@@ -79,8 +77,7 @@ contract NativeLBTC is
             "Lombard Liquid Bitcoin", // TODO: set final name
             "XLBTC", // TODO: set final symbol
             consortium_,
-            treasury,
-            burnCommission_
+            treasury
         );
 
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
@@ -113,12 +110,6 @@ contract NativeLBTC is
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasury(newValue);
-    }
-
-    function changeBurnCommission(
-        uint64 newValue
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeBurnCommission(newValue);
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {
@@ -232,10 +223,6 @@ contract NativeLBTC is
 
     function getTreasury() public view override returns (address) {
         return _getNativeLBTCStorage().treasury;
-    }
-
-    function getBurnCommission() public view returns (uint64) {
-        return _getNativeLBTCStorage().burnCommission;
     }
 
     function getRedeemFee() public pure returns (uint256) {
@@ -431,13 +418,11 @@ contract NativeLBTC is
         string memory name_,
         string memory symbol_,
         address consortium_,
-        address treasury,
-        uint64 burnCommission_
+        address treasury
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
-        _changeBurnCommission(burnCommission_);
     }
 
     function _changeNameAndSymbol(
@@ -588,14 +573,6 @@ contract NativeLBTC is
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         emit ConsortiumChanged($.consortium, newVal);
         $.consortium = newVal;
-    }
-
-    /// @dev allow set to zero
-    function _changeBurnCommission(uint64 newValue) internal {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint64 prevValue = $.burnCommission;
-        $.burnCommission = newValue;
-        emit BurnCommissionChanged(prevValue, newValue);
     }
 
     function _changeBascule(address newVal) internal {
