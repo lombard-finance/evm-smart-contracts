@@ -403,6 +403,7 @@ contract AssetRouter is
         uint256 amountAfterFee = 0;
         uint256 redeemFee = IBaseLBTC(fromToken).getRedeemFee();
         bytes32 gmpRecipient;
+        bool isNative = false;
         if (IBaseLBTC(fromToken).isNative()) {
             amountAfterFee = Validation.redeemFee(
                 recipient,
@@ -411,6 +412,7 @@ contract AssetRouter is
                 fee
             );
             gmpRecipient = Assets.ASSETS_MODULE_ADDRESS;
+            isNative = true;
         } else {
             amountAfterFee = Validation.redeemFee(
                 recipient,
@@ -430,7 +432,8 @@ contract AssetRouter is
             recipient,
             amountAfterFee,
             amount - amountAfterFee,
-            gmpRecipient
+            gmpRecipient,
+            isNative
         );
     }
 
@@ -452,7 +455,8 @@ contract AssetRouter is
             abi.encodePacked(recipient),
             amount,
             0,
-            Assets.BTC_STAKING_MODULE_ADDRESS
+            Assets.BTC_STAKING_MODULE_ADDRESS,
+            false
         );
     }
 
@@ -471,63 +475,9 @@ contract AssetRouter is
             abi.encodePacked(GMPUtils.addressToBytes32(fromAddress)),
             amount,
             0,
-            Assets.BTC_STAKING_MODULE_ADDRESS
+            Assets.BTC_STAKING_MODULE_ADDRESS,
+            false
         );
-    }
-
-    function _redeemNative(
-        AssetRouterStorage storage $,
-        address fromAddress,
-        bytes32 tolChainId,
-        address fromToken,
-        bytes32 toToken,
-        bytes memory recipient,
-        uint256 amount,
-        uint256 fee,
-        bytes32 gmpRecipient
-    ) internal {
-        address sender = address(_msgSender());
-        if (sender != fromAddress && sender != fromToken) {
-            revert AssetRouter_Unauthorized();
-        }
-        if (!_isAllowedCaller($, fromToken)) {
-            revert IStaking.NotStakingToken();
-        }
-        bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
-        if (!_isAllowedRoute(fromTokenBytes, tolChainId, toToken, true)) {
-            revert IStaking.UnstakeNotAllowed();
-        }
-        IBaseLBTC tokenContract = IBaseLBTC(fromToken);
-        if (fee == 0) {
-            uint256 redeemFee = tokenContract.getRedeemFee();
-            if (amount <= redeemFee) {
-                revert AssetRouter_FeeGreaterThanAmount();
-            }
-            amount -= redeemFee;
-            fee = redeemFee;
-        }
-
-        bytes memory rawPayload = Assets.encodeRedeemRequest(
-            tolChainId,
-            fromTokenBytes,
-            recipient,
-            amount
-        );
-
-        $.mailbox.send(
-            $.ledgerChainId,
-            gmpRecipient,
-            Assets.LEDGER_CALLER,
-            rawPayload
-        );
-        if (fee > 0) {
-            tokenContract.transfer(
-                fromAddress,
-                tokenContract.getTreasury(),
-                fee
-            );
-        }
-        tokenContract.burn(fromAddress, amount);
     }
 
     function _redeem(
@@ -539,7 +489,8 @@ contract AssetRouter is
         bytes memory recipient,
         uint256 amount,
         uint256 fee,
-        bytes32 gmpRecipient
+        bytes32 gmpRecipient,
+        bool isNative
     ) internal {
         address sender = address(_msgSender());
         if (sender != fromAddress && sender != fromToken) {
@@ -561,13 +512,20 @@ contract AssetRouter is
             amount -= redeemFee;
             fee = redeemFee;
         }
-
-        bytes memory rawPayload = Assets.encodeRedeemRequest(
-            tolChainId,
-            fromTokenBytes,
-            recipient,
-            amount
-        );
+        bytes memory rawPayload;
+        if (isNative) {
+            rawPayload = Assets.encodeRedeemNativeRequest(
+                recipient,
+                amount
+            );
+        } else {
+            rawPayload = Assets.encodeRedeemRequest(
+                tolChainId,
+                fromTokenBytes,
+                recipient,
+                amount
+            );
+        }
 
         $.mailbox.send(
             $.ledgerChainId,
