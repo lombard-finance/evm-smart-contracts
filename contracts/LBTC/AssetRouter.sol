@@ -352,7 +352,7 @@ contract AssetRouter is
 
         $.mailbox.send(
             $.ledgerChainId,
-            Assets.LEDGER_SENDER_RECIPIENT,
+            Assets.BTC_STAKING_MODULE_ADDRESS,
             Assets.LEDGER_CALLER,
             rawPayload
         );
