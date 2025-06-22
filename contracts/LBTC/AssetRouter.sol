@@ -103,7 +103,7 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         $.mailbox = mailbox_;
         $.oracle = oracle_;
-        $.bascule = bascule_;
+        _changeBascule(bascule_)
         $.ledgerChainId = ledgerChainId_;
         $.bitcoinChainId = bitcoinChainId_;
         $.toNativeCommission = toNativeCommission_;
