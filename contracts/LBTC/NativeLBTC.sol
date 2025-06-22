@@ -439,24 +439,13 @@ contract NativeLBTC is
         bytes calldata rawPayload,
         bytes calldata proof
     ) internal override {
-        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
-        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
-            rawPayload[4:]
-        );
-
-        _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
-            rawPayload,
-            proof
-        );
+        _mintV1(rawPayload, proof);
     }
 
     function _mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) internal returns (address) {
+    ) internal returns (address, uint256) {
         Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
         Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
             rawPayload[4:]
@@ -469,7 +458,7 @@ contract NativeLBTC is
             rawPayload,
             proof
         );
-        return action.recipient;
+        return (action.recipient, action.amount);
     }
 
     function _mintWithFee(
@@ -478,7 +467,7 @@ contract NativeLBTC is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) internal override {
-        address recipient = _mintV1(mintPayload, proof);
+        (address recipient, uint256 amount) = _mintV1(mintPayload, proof);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
         Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
@@ -488,6 +477,10 @@ contract NativeLBTC is
         uint256 maxFee = _getMaxFee();
         address treasury = _getTreasury();
         uint256 fee = Math.min(maxFee, feeAction.fee);
+
+        if (fee >= amount) {
+            revert FeeGreaterThanAmount();
+        }
 
         {
             bytes32 digest = _hashTypedDataV4(
