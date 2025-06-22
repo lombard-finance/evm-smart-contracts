@@ -217,7 +217,7 @@ contract NativeLBTC is
     function isRedeemsEnabled() public view override returns (bool) {
         (, bool isRedeemEnabled) = _getNativeLBTCStorage()
             .assetRouter
-            .getTokenConig(address(this));
+            .getTokenConfig(address(this));
         return isRedeemEnabled;
     }
 
