@@ -184,7 +184,7 @@ contract AssetRouter is
     function getTokenConfig(
         address token
     ) external view returns (uint256 redeemFee, bool isRedeemEnabled) {
-        _getTokenConfig(token);
+        (redeemFee, isRedeemEnabled) = _getTokenConfig(token);
     }
 
     function _checkAndSetNativeToken(
