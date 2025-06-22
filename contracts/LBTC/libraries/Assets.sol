@@ -44,7 +44,7 @@ library Assets {
     bytes4 internal constant UNSTAKE_REQUEST_SELECTOR = 0x3fbb67f6;
 
     // bytes4(keccak256("mint(bytes32,bytes32,uint256)"))
-    bytes4 internal constant MINT_SELECTOR = 0x5217c530; // ToDO
+    bytes4 internal constant MINT_SELECTOR = 0x155b6b13;
 
     /// @dev A constant representing the number of bytes for a slot of information in a payload.
     uint256 internal constant ABI_SLOT_SIZE = 32;
