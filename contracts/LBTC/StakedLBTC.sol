@@ -8,7 +8,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
-import {IStaking} from "./interfaces/IStaking.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
@@ -25,7 +24,6 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  */
 contract StakedLBTC is
     IStakedLBTC,
-    IStaking,
     BaseLBTC,
     Ownable2StepUpgradeable
 {
