@@ -393,7 +393,7 @@ library Actions {
      */
     function ratioUpdate(
         bytes memory payload
-    ) internal view returns (RatioUpdate memory) {
+    ) internal pure returns (RatioUpdate memory) {
         if (payload.length != ABI_SLOT_SIZE * 3)
             revert InvalidPayloadSize(ABI_SLOT_SIZE * 3, payload.length);
 
