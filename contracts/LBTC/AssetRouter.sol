@@ -172,7 +172,7 @@ contract AssetRouter is
         _toggleRedeemForToken(_msgSender());
     }
 
-    function changeTokenConig(
+    function changeTokenConfig(
         address token,
         uint256 redeemFee,
         bool redeemEnabled
