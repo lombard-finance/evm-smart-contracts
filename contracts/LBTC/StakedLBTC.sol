@@ -95,7 +95,6 @@ contract StakedLBTC is
 
     function initialize(
         address consortium_,
-        uint64,
         address treasury,
         address owner_
     ) external initializer {
