@@ -181,10 +181,10 @@ contract AssetRouter is
         _setRedeemForToken(token, redeemEnabled);
     }
 
-    function getTokenConig(
+    function getTokenConfig(
         address token
     ) external view returns (uint256 redeemFee, bool isRedeemEnabled) {
-        _getTokenConig(token);
+        (redeemFee, isRedeemEnabled) = _getTokenConfig(token);
     }
 
     function _checkAndSetNativeToken(
@@ -811,7 +811,7 @@ contract AssetRouter is
         emit AssetRouter_RedeemEnabled(token, tc.isRedeemEnabled);
     }
 
-    function _getTokenConig(
+    function _getTokenConfig(
         address token
     ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();

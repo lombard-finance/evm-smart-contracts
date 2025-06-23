@@ -305,7 +305,7 @@ contract StakedLBTC is
     function getRedeemFee() public view returns (uint256) {
         (uint256 redeemFee, ) = _getStakedLBTCStorage()
             .assetRouter
-            .getTokenConig(address(this));
+            .getTokenConfig(address(this));
         return redeemFee;
     }
 
@@ -339,7 +339,7 @@ contract StakedLBTC is
     function isRedeemsEnabled() public view override returns (bool) {
         (, bool isRedeemEnabled) = _getStakedLBTCStorage()
             .assetRouter
-            .getTokenConig(address(this));
+            .getTokenConfig(address(this));
         return isRedeemEnabled;
     }
 

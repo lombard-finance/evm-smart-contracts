@@ -86,7 +86,7 @@ interface IAssetRouter {
     function mailbox() external view returns (IMailbox);
     function toNativeCommission() external view returns (uint64);
     function nativeToken() external view returns (address);
-    function getTokenConig(
+    function getTokenConfig(
         address token
     ) external view returns (uint256 redeemFee, bool isRedeemEnabled);
 
