@@ -7,7 +7,7 @@ import {ERC165Upgradeable, IERC165} from "@openzeppelin/contracts-upgradeable/ut
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
-import {IStaking} from "./interfaces/IStaking.sol";
+import {IAssetOperation} from "./interfaces/IAssetOperation.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
@@ -370,7 +370,7 @@ contract AssetRouter is
                 false
             )
         ) {
-            revert IStaking.StakingNotAllowed();
+            revert IAssetOperation.AssetOperation_DepositNotAllowed();
         }
 
         bytes memory rawPayload = Assets.encodeDepositRequest(
@@ -526,11 +526,11 @@ contract AssetRouter is
             revert AssetRouter_Unauthorized();
         }
         if (!_isAllowedCaller(fromToken)) {
-            revert IStaking.NotStakingToken();
+            revert IAssetOperation.NotStakingToken();
         }
         bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
         if (!_isAllowedRoute(fromTokenBytes, tolChainId, toToken, true)) {
-            revert IStaking.UnstakeNotAllowed();
+            revert IAssetOperation.AssetOperation_RedeemNotAllowed();
         }
         IBaseLBTC tokenContract = IBaseLBTC(fromToken);
         if (fee == 0) {
@@ -732,7 +732,6 @@ contract AssetRouter is
         _confirmDeposit($, payload.id, receipt.amount);
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
-        // emit StakingOperationCompleted(receipt.recipient, toToken, receipt.amount);
         return abi.encode(receipt.recipient, receipt.toToken, receipt.amount);
     }
 
