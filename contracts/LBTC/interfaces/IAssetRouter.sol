@@ -70,6 +70,7 @@ interface IAssetRouter {
         string reason,
         bytes customError
     );
+    event AssetRouter_DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
 
     function isAllowedRoute(
         bytes32 fromToken,
@@ -86,7 +87,8 @@ interface IAssetRouter {
     function mailbox() external view returns (IMailbox);
     function toNativeCommission() external view returns (uint64);
     function nativeToken() external view returns (address);
-    function getTokenConfig(
+    function dustFeeRate() external view returns (uint256);
+    function tokenConfig(
         address token
     ) external view returns (uint256 redeemFee, bool isRedeemEnabled);
 

@@ -181,7 +181,7 @@ contract AssetRouter is
         _setRedeemForToken(token, redeemEnabled);
     }
 
-    function getTokenConfig(
+    function tokenConfig(
         address token
     ) external view returns (uint256 redeemFee, bool isRedeemEnabled) {
         (redeemFee, isRedeemEnabled) = _getTokenConfig(token);
@@ -310,6 +310,16 @@ contract AssetRouter is
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeNativeToken(newValue);
+    }
+
+    function changeDustFeeRate(
+        uint256 newRate
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeDustFeeRate(newRate);
+    }
+
+    function dustFeeRate() public view returns (uint256) {
+        return _getAssetRouterStorage().dustFeeRate;
     }
 
     /**
@@ -808,6 +818,14 @@ contract AssetRouter is
         TokenConfig storage tc = $.tokenConfigs[token];
         tc.isRedeemEnabled = enabled;
         emit AssetRouter_RedeemEnabled(token, tc.isRedeemEnabled);
+    }
+
+    function _changeDustFeeRate(uint256 newRate) internal {
+        Assert.dustFeeRate(newRate);
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        uint256 oldRate = $.dustFeeRate;
+        $.dustFeeRate = newRate;
+        emit AssetRouter_DustFeeRateChanged(oldRate, newRate);
     }
 
     function _getTokenConfig(

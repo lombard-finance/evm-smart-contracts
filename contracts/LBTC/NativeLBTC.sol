@@ -36,7 +36,6 @@ contract NativeLBTC is
         // other slots by 32
         string name;
         string symbol;
-        uint256 dustFeeRate;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IAssetRouter assetRouter;
     }
@@ -78,10 +77,6 @@ contract NativeLBTC is
             consortium_,
             treasury
         );
-
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
-        emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
     /// ONLY OWNER FUNCTIONS ///
@@ -115,15 +110,6 @@ contract NativeLBTC is
 
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
-    }
-
-    /// @notice Change the dust fee rate used for dust limit calculations
-    /// @dev Only the contract owner can call this function. The new rate must be positive.
-    /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
-    function changeDustFeeRate(
-        uint256 newRate
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeDustFeeRate(newRate);
     }
 
     /**
@@ -217,7 +203,7 @@ contract NativeLBTC is
     function isRedeemsEnabled() public view override returns (bool) {
         (, bool isRedeemEnabled) = _getNativeLBTCStorage()
             .assetRouter
-            .getTokenConfig(address(this));
+            .tokenConfig(address(this));
         return isRedeemEnabled;
     }
 
@@ -232,7 +218,7 @@ contract NativeLBTC is
     /// @notice Get the current dust fee rate
     /// @return The current dust fee rate (in satoshis per 1000 bytes)
     function getDustFeeRate() public view returns (uint256) {
-        return _getNativeLBTCStorage().dustFeeRate;
+        return _getNativeLBTCStorage().assetRouter.dustFeeRate();
     }
 
     /**
@@ -550,14 +536,6 @@ contract NativeLBTC is
         if (address(bascule) != address(0)) {
             bascule.validateWithdrawal(depositID, amount);
         }
-    }
-
-    function _changeDustFeeRate(uint256 newRate) internal {
-        Assert.dustFeeRate(newRate);
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 oldRate = $.dustFeeRate;
-        $.dustFeeRate = newRate;
-        emit DustFeeRateChanged(oldRate, newRate);
     }
 
     /// @dev not zero
