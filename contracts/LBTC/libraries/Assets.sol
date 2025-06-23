@@ -138,7 +138,7 @@ library Assets {
 
     function decodeRelease(
         bytes memory rawPayload
-    ) internal view returns (Release memory, bytes32) {
+    ) internal pure returns (Release memory, bytes32) {
         if (rawPayload.length != ABI_SLOT_SIZE * 3 + 4) {
             revert Assets_InvalidPayloadSize(
                 ABI_SLOT_SIZE * 3 + 4,

@@ -95,7 +95,6 @@ contract StakedLBTC is
 
     function initialize(
         address consortium_,
-        uint64 burnCommission_,
         address treasury,
         address owner_
     ) external initializer {
@@ -112,8 +111,7 @@ contract StakedLBTC is
             "Lombard Staked Bitcoin", // TODO: set new name
             "stLBTC", // TODO: set new symbol
             consortium_,
-            treasury,
-            burnCommission_
+            treasury
         );
 
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
@@ -523,8 +521,7 @@ contract StakedLBTC is
         string memory name_,
         string memory symbol_,
         address consortium_,
-        address treasury,
-        uint64 burnCommission_
+        address treasury
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);

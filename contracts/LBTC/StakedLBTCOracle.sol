@@ -54,7 +54,7 @@ contract StakedLBTCOracle is
         bytes32 denomHash_,
         uint256 ratio_,
         uint256 switchTime_,
-        uint256 maxAheadInterval
+        uint256 maxAheadInterval_
     ) external initializer {
         __Ownable_init(owner_);
         __Ownable2Step_init();
@@ -64,7 +64,7 @@ contract StakedLBTCOracle is
             denomHash_,
             ratio_,
             switchTime_,
-            maxAheadInterval
+            maxAheadInterval_
         );
     }
 
@@ -74,11 +74,12 @@ contract StakedLBTCOracle is
         bytes32 denomHash_,
         uint256 ratio_,
         uint256 switchTime_,
-        uint256 maxAheadInterval
+        uint256 maxAheadInterval_
     ) internal onlyInitializing {
         _changeConsortium(consortium_);
         _setTokenDetails(token_, denomHash_);
         _setNewRatio(ratio_, switchTime_);
+        _changeMaxAheadInterval(maxAheadInterval_);
     }
 
     function changeConsortium(address newVal) external onlyOwner {
@@ -143,11 +144,12 @@ contract StakedLBTCOracle is
         _setNewRatio(action.ratio, action.switchTime);
     }
 
-    function _setNewRatio(uint256 ratio, uint256 switchTime) internal {
+    function _setNewRatio(uint256 ratio_, uint256 switchTime_) internal {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         $.prevRatio = $.currRatio;
-        $.currRatio = ratio;
-        $.switchTime = switchTime;
+        $.currRatio = ratio_;
+        $.switchTime = switchTime_;
+        emit Oracle_RatioChanged($.prevRatio, $.currRatio, $.switchTime);
     }
 
     function _ratio() internal view returns (uint256) {
@@ -167,11 +169,11 @@ contract StakedLBTCOracle is
     }
 
     /// @dev not zero
-    function _setTokenDetails(address token, bytes32 denomHash) internal {
-        Assert.zeroAddress(token);
+    function _setTokenDetails(address token_, bytes32 denomHash_) internal {
+        Assert.zeroAddress(token_);
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        emit Oracle_TokenDetailsSet(token, denomHash);
-        $.tokenDetails = TokenDetails({token: token, denomHash: denomHash});
+        emit Oracle_TokenDetailsSet(token_, denomHash_);
+        $.tokenDetails = TokenDetails({token: token_, denomHash: denomHash_});
     }
 
     function _changeMaxAheadInterval(uint256 newVal) internal {

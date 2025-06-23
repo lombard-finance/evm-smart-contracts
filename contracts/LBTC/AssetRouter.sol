@@ -747,9 +747,9 @@ contract AssetRouter is
         bytes32 depositID,
         uint256 amount
     ) internal {
-        IBascule bascule = $.bascule;
-        if (address(bascule) != address(0)) {
-            bascule.validateWithdrawal(depositID, amount);
+        IBascule bascule_ = $.bascule;
+        if (address(bascule_) != address(0)) {
+            bascule_.validateWithdrawal(depositID, amount);
         }
     }
 
