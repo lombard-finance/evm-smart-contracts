@@ -61,7 +61,8 @@ contract StakedLBTC is
         mapping(bytes32 => uint64) __removed__depositAbsoluteCommission;
         /// @custom:oz-renamed-from burnCommission
         uint64 __removed__burnCommission; // absolute commission to charge on burn (unstake)
-        uint256 dustFeeRate;
+        /// @custom:oz-renamed-from burnCommission
+        uint256 __removed__dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         IBascule bascule;
         address pauser;
@@ -111,10 +112,6 @@ contract StakedLBTC is
             consortium_,
             treasury
         );
-
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
-        emit DustFeeRateChanged(0, $.dustFeeRate);
     }
 
     function reinitialize() external reinitializer(2) {}
@@ -204,13 +201,6 @@ contract StakedLBTC is
         _changeRedeemFee(newVal);
     }
 
-    /// @notice Change the dust fee rate used for dust limit calculations
-    /// @dev Only the contract owner can call this function. The new rate must be positive.
-    /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
-    function changeDustFeeRate(uint256 newRate) external onlyOwner {
-        _changeDustFeeRate(newRate);
-    }
-
     /**
      * Change the address of the Bascule drawbridge contract.
      * Setting the address to 0 disables the Bascule check.
@@ -295,13 +285,13 @@ contract StakedLBTC is
     /// @notice Get the current dust fee rate
     /// @return The current dust fee rate (in satoshis per 1000 bytes)
     function getDustFeeRate() public view returns (uint256) {
-        return _getStakedLBTCStorage().dustFeeRate;
+        return _getStakedLBTCStorage().assetRouter.dustFeeRate();
     }
 
     function getRedeemFee() public view returns (uint256) {
         (uint256 redeemFee, ) = _getStakedLBTCStorage()
             .assetRouter
-            .getTokenConfig(address(this));
+            .tokenConfig(address(this));
         return redeemFee;
     }
 
@@ -335,7 +325,7 @@ contract StakedLBTC is
     function isRedeemsEnabled() public view override returns (bool) {
         (, bool isRedeemEnabled) = _getStakedLBTCStorage()
             .assetRouter
-            .getTokenConfig(address(this));
+            .tokenConfig(address(this));
         return isRedeemEnabled;
     }
 
@@ -577,15 +567,6 @@ contract StakedLBTC is
             feePayload,
             userSignature
         );
-    }
-
-    /// @dev zero rate not allowed
-    function _changeDustFeeRate(uint256 newRate) internal {
-        Assert.dustFeeRate(newRate);
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 oldRate = $.dustFeeRate;
-        $.dustFeeRate = newRate;
-        emit DustFeeRateChanged(oldRate, newRate);
     }
 
     /// @dev not zero
