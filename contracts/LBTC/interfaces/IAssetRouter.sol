@@ -6,6 +6,13 @@ import {IMailbox} from "../../gmp/IMailbox.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 
 interface IAssetRouter {
+    // Describes types of possible routes. UNKNOWN means no route or disabled route
+    enum RouteType {
+        UNKNOWN, // unknown must be '0'
+        DEPOSIT,
+        REDEEM
+    }
+
     error AssetRouter_ZeroMailbox();
     error AssetRouter_MailboxExpected();
     error AssetRouter_PayloadAlreadyUsed();
@@ -31,8 +38,8 @@ interface IAssetRouter {
         bytes32 indexed fromToken,
         bytes32 indexed fromChainId,
         bytes32 indexed toToken,
-        bool isToTokenNative,
-        bytes32 toChainId
+        bytes32 toChainId,
+        RouteType routeType
     );
 
     event AssetRouter_RouteRemoved(
@@ -75,12 +82,11 @@ interface IAssetRouter {
         uint256 indexed newRate
     );
 
-    function isAllowedRoute(
+    function getRouteType(
         bytes32 fromToken,
         bytes32 toChainId,
-        bytes32 toToken,
-        bool toNative
-    ) external view returns (bool);
+        bytes32 toToken
+    ) external view returns (RouteType);
 
     function maxMintCommission() external view returns (uint256);
     function ratio(address token) external view returns (uint256);

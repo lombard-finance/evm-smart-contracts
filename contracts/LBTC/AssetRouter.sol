@@ -51,12 +51,8 @@ contract AssetRouter is
         mapping(address => TokenConfig) tokenConfigs;
     }
 
-    struct Destination {
-        bool initialized;
-        bool native;
-    }
     struct Route {
-        mapping(bytes32 => Destination) toTokens;
+        mapping(bytes32 => RouteType) toTokens;
         bytes32 toChainId;
     }
 
@@ -120,16 +116,13 @@ contract AssetRouter is
         bytes32 fromToken,
         bytes32 fromChainId,
         bytes32 toToken,
-        bool toTokenIsNative,
-        bytes32 toChainId
+        bytes32 toChainId,
+        RouteType routeType
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route storage r = $.routes[key];
-        r.toTokens[toToken] = Destination({
-            initialized: true,
-            native: toTokenIsNative
-        });
+        r.toTokens[toToken] = routeType;
         r.toChainId = toChainId;
         if (fromChainId == LChainId.get()) {
             _checkAndSetNativeToken($, fromToken);
@@ -141,8 +134,8 @@ contract AssetRouter is
             fromToken,
             fromChainId,
             toToken,
-            toTokenIsNative,
-            toChainId
+            toChainId,
+            routeType
         );
     }
 
@@ -201,28 +194,26 @@ contract AssetRouter is
         }
     }
 
-    function isAllowedRoute(
+    function getRouteType(
         bytes32 fromToken,
         bytes32 toChainId,
-        bytes32 toToken,
-        bool toNative
-    ) external view override returns (bool) {
-        return _isAllowedRoute(fromToken, toChainId, toToken, toNative);
+        bytes32 toToken
+    ) external view override returns (RouteType) {
+        return _getRouteType(fromToken, toChainId, toToken);
     }
 
-    function _isAllowedRoute(
+    function _getRouteType(
         bytes32 fromToken,
         bytes32 toChainId,
-        bytes32 toToken,
-        bool toNative
-    ) internal view returns (bool) {
+        bytes32 toToken
+    ) internal view returns (RouteType) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         bytes32 key = keccak256(abi.encode(fromToken, toChainId));
         Route storage r = $.routes[key];
-        return
-            r.toTokens[toToken].initialized &&
-            r.toChainId == toChainId &&
-            (r.toTokens[toToken].native == toNative);
+        if (r.toChainId != toChainId) {
+            return RouteType.UNKNOWN;
+        }
+        return r.toTokens[toToken];
     }
 
     function _isAllowedCaller(address caller) internal view returns (bool) {
@@ -373,12 +364,11 @@ contract AssetRouter is
     ) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         if (
-            !_isAllowedRoute(
+            _getRouteType(
                 GMPUtils.addressToBytes32($.nativeToken),
                 tolChainId,
-                toToken,
-                false
-            )
+                toToken
+            ) != RouteType.DEPOSIT
         ) {
             revert IAssetOperation.AssetOperation_DepositNotAllowed();
         }
@@ -539,7 +529,10 @@ contract AssetRouter is
             revert IAssetOperation.NotStakingToken();
         }
         bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
-        if (!_isAllowedRoute(fromTokenBytes, tolChainId, toToken, true)) {
+        if (
+            _getRouteType(fromTokenBytes, tolChainId, toToken) !=
+            RouteType.REDEEM
+        ) {
             revert IAssetOperation.AssetOperation_RedeemNotAllowed();
         }
         IBaseLBTC tokenContract = IBaseLBTC(fromToken);
