@@ -255,7 +255,7 @@ contract BridgeV2 is
     }
 
     /**
-     * @notice Deposits and burns tokens from sender to be minted on `destinationChain`.
+     * @notice Deposits and burns tokens from sender provided by partner contract  to be minted on `destinationChain`.
      * Emits a `DepositToBridge` event.
      * @param token address of the token burned on the source chain
      * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
@@ -277,6 +277,34 @@ contract BridgeV2 is
                 destinationChain,
                 IERC20MintableBurnable(token),
                 sender,
+                recipient,
+                amount,
+                destinationCaller
+            );
+    }
+
+    /**
+     * @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
+     * Emits a `DepositToBridge` event.
+     * @param token address of the token burned on the source chain
+     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
+     * @param amount amount of tokens to burn (must be non-zero)
+     * @param destinationCaller caller on the `destinationChain`, as bytes32
+     * @return nonce The nonce of payload.
+     * @return payloadHash The hash of payload
+     */
+    function deposit(
+        bytes32 destinationChain,
+        address token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller
+    ) external payable override nonReentrant returns (uint256, bytes32) {
+        return
+            _deposit(
+                destinationChain,
+                IERC20MintableBurnable(token),
+                _msgSender(),
                 recipient,
                 amount,
                 destinationCaller
@@ -343,7 +371,7 @@ contract BridgeV2 is
             body
         );
 
-        emit DepositToBridge(_msgSender(), recipient, payloadHash);
+        emit DepositToBridge(sender, recipient, payloadHash);
         return (nonce, payloadHash);
     }
 
