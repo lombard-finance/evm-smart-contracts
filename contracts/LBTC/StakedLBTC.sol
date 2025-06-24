@@ -22,11 +22,7 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract StakedLBTC is
-    IStakedLBTC,
-    BaseLBTC,
-    Ownable2StepUpgradeable
-{
+contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     using SafeERC20 for IERC20;
 
     /// @dev the storage name differs, because contract was renamed from LBTC
@@ -289,9 +285,9 @@ contract StakedLBTC is
     }
 
     function getRedeemFee() public view returns (uint256) {
-        (uint256 redeemFee, ) = _getStakedLBTCStorage()
-            .assetRouter
-            .tokenConfig(address(this));
+        (uint256 redeemFee, ) = _getStakedLBTCStorage().assetRouter.tokenConfig(
+            address(this)
+        );
         return redeemFee;
     }
 

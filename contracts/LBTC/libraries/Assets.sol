@@ -31,14 +31,14 @@ library Assets {
         uint256 amount;
     }
 
-    // bytes4(keccak256("deposit(bytes32,bytes32,bytes32,uint256)"))
-    bytes4 internal constant DEPOSIT_REQUEST_SELECTOR = 0xa129d186;
+    // bytes4(keccak256("deposit(bytes32,bytes32,bytes32,bytes32,uint256)"))
+    bytes4 internal constant DEPOSIT_REQUEST_SELECTOR = 0xccb41215;
 
-    // bytes4(keccak256("redeem(bytes32,bytes32,bytes,uint256)"))
-    bytes4 internal constant REDEEM_REQUEST_SELECTOR = 0x3fbb67f6;
+    // bytes4(keccak256("redeem(bytes32,bytes32,bytes32,bytes,uint256)"))
+    bytes4 internal constant REDEEM_REQUEST_SELECTOR = 0xaa3db85f;
 
-    // bytes4(keccak256("redeemForBTC(bytes,uint64)"))
-    bytes4 internal constant REDEEM_FROM_NATIVE_TOKEN_SELECTOR = 0xf0e2a9da;
+    // bytes4(keccak256("redeemForBTC(bytes32,bytes,uint64)"))
+    bytes4 internal constant REDEEM_FROM_NATIVE_TOKEN_SELECTOR = 0x7a069d29;
 
     // bytes4(keccak256("mint(bytes32,bytes32,uint256)"))
     bytes4 internal constant MINT_SELECTOR = 0x155b6b13;
@@ -57,6 +57,7 @@ library Assets {
     function encodeDepositRequest(
         bytes32 toChain,
         bytes32 toToken,
+        bytes32 sender,
         bytes32 recipient,
         uint256 amount
     ) internal pure returns (bytes memory) {
@@ -71,6 +72,7 @@ library Assets {
                 DEPOSIT_REQUEST_SELECTOR,
                 toChain,
                 toToken,
+                sender,
                 recipient,
                 amount
             );
@@ -79,6 +81,7 @@ library Assets {
     function encodeRedeemRequest(
         bytes32 toChain,
         bytes32 fromToken,
+        bytes32 sender,
         bytes memory recipient,
         uint256 amount
     ) internal pure returns (bytes memory) {
@@ -103,12 +106,14 @@ library Assets {
                 REDEEM_REQUEST_SELECTOR,
                 toChain,
                 fromToken,
+                sender,
                 recipient,
                 amount
             );
     }
 
     function encodeRedeemNativeRequest(
+        bytes32 sender,
         bytes memory recipient,
         uint256 amount
     ) internal pure returns (bytes memory) {
@@ -131,6 +136,7 @@ library Assets {
         return
             abi.encodeWithSelector(
                 REDEEM_FROM_NATIVE_TOKEN_SELECTOR,
+                sender,
                 recipient,
                 amount
             );
