@@ -70,7 +70,10 @@ interface IAssetRouter {
         string reason,
         bytes customError
     );
-    event AssetRouter_DustFeeRateChanged(uint256 indexed oldRate, uint256 indexed newRate);
+    event AssetRouter_DustFeeRateChanged(
+        uint256 indexed oldRate,
+        uint256 indexed newRate
+    );
 
     function isAllowedRoute(
         bytes32 fromToken,

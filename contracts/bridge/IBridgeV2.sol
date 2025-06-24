@@ -73,6 +73,15 @@ interface IBridgeV2 {
     function deposit(
         bytes32 destinationChain,
         address token,
+        address sender,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller
+    ) external payable returns (uint256, bytes32);
+
+    function deposit(
+        bytes32 destinationChain,
+        address token,
         bytes32 recipient,
         uint256 amount,
         bytes32 destinationCaller

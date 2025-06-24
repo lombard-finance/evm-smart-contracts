@@ -386,6 +386,7 @@ contract AssetRouter is
         bytes memory rawPayload = Assets.encodeDepositRequest(
             tolChainId,
             toToken,
+            GMPUtils.addressToBytes32(fromAddress),
             recipient,
             amount
         );
@@ -531,8 +532,7 @@ contract AssetRouter is
         bytes32 gmpRecipient,
         bool isNative
     ) internal {
-        address sender = address(_msgSender());
-        if (sender != fromAddress && sender != fromToken) {
+        if (_msgSender() != fromAddress && _msgSender() != fromToken) {
             revert AssetRouter_Unauthorized();
         }
         if (!_isAllowedCaller(fromToken)) {
@@ -553,11 +553,16 @@ contract AssetRouter is
         }
         bytes memory rawPayload;
         if (isNative) {
-            rawPayload = Assets.encodeRedeemNativeRequest(recipient, amount);
+            rawPayload = Assets.encodeRedeemNativeRequest(
+                GMPUtils.addressToBytes32(fromAddress),
+                recipient,
+                amount
+            );
         } else {
             rawPayload = Assets.encodeRedeemRequest(
                 tolChainId,
                 fromTokenBytes,
+                GMPUtils.addressToBytes32(fromAddress),
                 recipient,
                 amount
             );

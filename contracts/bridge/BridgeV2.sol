@@ -245,12 +245,46 @@ contract BridgeV2 is
     }
 
     function getFee(address sender) external view returns (uint256) {
-        bytes memory body = _encodeMsg(bytes32(0), bytes32(0), uint256(0));
+        bytes memory body = _encodeMsg(
+            bytes32(0),
+            bytes32(0),
+            bytes32(0),
+            uint256(0)
+        );
         return _getFee(_getStorage(), sender, body);
     }
 
     /**
-     * @notice Deposits and burns tokens from sender to be minted on `destinationChain`.
+     * @notice Deposits and burns tokens from sender provided by partner contract  to be minted on `destinationChain`.
+     * Emits a `DepositToBridge` event.
+     * @param token address of the token burned on the source chain
+     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
+     * @param amount amount of tokens to burn (must be non-zero)
+     * @param destinationCaller caller on the `destinationChain`, as bytes32
+     * @return nonce The nonce of payload.
+     * @return payloadHash The hash of payload
+     */
+    function deposit(
+        bytes32 destinationChain,
+        address token,
+        address sender,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller
+    ) external payable override nonReentrant returns (uint256, bytes32) {
+        return
+            _deposit(
+                destinationChain,
+                IERC20MintableBurnable(token),
+                sender,
+                recipient,
+                amount,
+                destinationCaller
+            );
+    }
+
+    /**
+     * @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
      * Emits a `DepositToBridge` event.
      * @param token address of the token burned on the source chain
      * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
@@ -270,6 +304,7 @@ contract BridgeV2 is
             _deposit(
                 destinationChain,
                 IERC20MintableBurnable(token),
+                _msgSender(),
                 recipient,
                 amount,
                 destinationCaller
@@ -279,10 +314,11 @@ contract BridgeV2 is
     function _deposit(
         bytes32 destinationChain,
         IERC20MintableBurnable token,
+        address sender,
         bytes32 recipient,
         uint256 amount,
         bytes32 destinationCaller
-    ) internal returns (uint256, bytes32) {
+    ) internal returns (uint256 nonce, bytes32 payloadHash) {
         // amount must be nonzero
         if (amount == 0) {
             revert BridgeV2_ZeroAmount();
@@ -318,19 +354,24 @@ contract BridgeV2 is
 
         _burnToken(token, amount);
 
-        bytes memory body = _encodeMsg(destinationToken, recipient, amount);
+        bytes memory body = _encodeMsg(
+            destinationToken,
+            GMPUtils.addressToBytes32(sender),
+            recipient,
+            amount
+        );
 
         _assertFee($, body);
 
         // send message via mailbox
-        (uint256 nonce, bytes32 payloadHash) = $.mailbox.send{value: msg.value}(
+        (nonce, payloadHash) = $.mailbox.send{value: msg.value}(
             destinationChain,
             _destinationBridge,
             destinationCaller,
             body
         );
 
-        emit DepositToBridge(_msgSender(), recipient, payloadHash);
+        emit DepositToBridge(sender, recipient, payloadHash);
         return (nonce, payloadHash);
     }
 
@@ -512,11 +553,18 @@ contract BridgeV2 is
 
     function _encodeMsg(
         bytes32 destinationToken,
+        bytes32 sender,
         bytes32 recipient,
         uint256 amount
     ) internal pure returns (bytes memory) {
         return
-            abi.encodePacked(MSG_VERSION, destinationToken, recipient, amount);
+            abi.encodePacked(
+                MSG_VERSION,
+                destinationToken,
+                sender,
+                recipient,
+                amount
+            );
     }
 
     function _calcAllowedTokenId(
