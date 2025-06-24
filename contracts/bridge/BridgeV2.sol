@@ -245,7 +245,12 @@ contract BridgeV2 is
     }
 
     function getFee(address sender) external view returns (uint256) {
-        bytes memory body = _encodeMsg(bytes32(0), bytes32(0), uint256(0));
+        bytes memory body = _encodeMsg(
+            bytes32(0),
+            bytes32(0),
+            bytes32(0),
+            uint256(0)
+        );
         return _getFee(_getStorage(), sender, body);
     }
 
@@ -262,6 +267,7 @@ contract BridgeV2 is
     function deposit(
         bytes32 destinationChain,
         address token,
+        address sender,
         bytes32 recipient,
         uint256 amount,
         bytes32 destinationCaller
@@ -270,6 +276,7 @@ contract BridgeV2 is
             _deposit(
                 destinationChain,
                 IERC20MintableBurnable(token),
+                sender,
                 recipient,
                 amount,
                 destinationCaller
@@ -279,10 +286,11 @@ contract BridgeV2 is
     function _deposit(
         bytes32 destinationChain,
         IERC20MintableBurnable token,
+        address sender,
         bytes32 recipient,
         uint256 amount,
         bytes32 destinationCaller
-    ) internal returns (uint256, bytes32) {
+    ) internal returns (uint256 nonce, bytes32 payloadHash) {
         // amount must be nonzero
         if (amount == 0) {
             revert BridgeV2_ZeroAmount();
@@ -318,12 +326,17 @@ contract BridgeV2 is
 
         _burnToken(token, amount);
 
-        bytes memory body = _encodeMsg(destinationToken, recipient, amount);
+        bytes memory body = _encodeMsg(
+            destinationToken,
+            GMPUtils.addressToBytes32(sender),
+            recipient,
+            amount
+        );
 
         _assertFee($, body);
 
         // send message via mailbox
-        (uint256 nonce, bytes32 payloadHash) = $.mailbox.send{value: msg.value}(
+        (nonce, payloadHash) = $.mailbox.send{value: msg.value}(
             destinationChain,
             _destinationBridge,
             destinationCaller,
@@ -512,11 +525,18 @@ contract BridgeV2 is
 
     function _encodeMsg(
         bytes32 destinationToken,
+        bytes32 sender,
         bytes32 recipient,
         uint256 amount
     ) internal pure returns (bytes memory) {
         return
-            abi.encodePacked(MSG_VERSION, destinationToken, recipient, amount);
+            abi.encodePacked(
+                MSG_VERSION,
+                destinationToken,
+                sender,
+                recipient,
+                amount
+            );
     }
 
     function _calcAllowedTokenId(

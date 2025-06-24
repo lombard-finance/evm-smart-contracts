@@ -96,6 +96,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         (, bytes32 payloadHash) = bridge.deposit(
             path.lChainId,
             address(i_token),
+            lockOrBurnIn.originalSender,
             decodedReceiver,
             lockOrBurnIn.amount,
             path.allowedCaller
