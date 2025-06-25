@@ -38,6 +38,7 @@ LBTC is liquid Bitcoin; it's yield-bearing, cross-chain, and 1:1 backed by BTC. 
 | PMMs             | Swap pools to accept wrapped BTC ERC20 tokens (like `cbBTC` and `BTCb`).                                                               |
 | PoR              | Bitcoin addresses storage with the ownership proof system.                                                                             |
 | StakeAndBake     | Convenience contract for users who wish to stake their `BTC` and deposit `LBTC` in a vault in the same transaction.                    |
+| BARD             | ERC20 governance token.                                                                                                                |
 
 
 ### BTC deposit flow
