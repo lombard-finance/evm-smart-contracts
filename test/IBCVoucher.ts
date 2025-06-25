@@ -1,6 +1,6 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { deployContract, init, Signer } from './helpers';
+import { deployContract, initLBTC, Signer } from './helpers';
 import { IBCVoucher, LBTCMock } from '../typechain-types';
 import { time, SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 
@@ -26,7 +26,7 @@ describe('IBCVoucher', function () {
     [deployer, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
 
     const burnCommission = 1000;
-    const result = await init(burnCommission, treasury.address, admin.address);
+    const result = await initLBTC(burnCommission, treasury.address, admin.address);
     lbtc = result.lbtc;
 
     ibcVoucher = await deployContract<IBCVoucher>('IBCVoucher', [

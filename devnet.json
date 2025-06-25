@@ -8,8 +8,8 @@
     },
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
-      "LBTC": "0xED7bfd5C1790576105Af4649817f6d35A75CD818",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "LBTC": "0xED7bfd5C1790576105Af4649817f6d35A75CD818",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
     },
     "chainlink": {
@@ -18,6 +18,27 @@
       "RMN": "",
       "CLAdapter": "",
       "LombardTokenPool": ""
+    }
+  },
+  "sepolia": {
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
+      "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
+      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
+    },
+    "chainlink": {
+      "ChainSelector": "16015286601757825753",
+      "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+      "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
+      "CLAdapter": "0x3d90195D7c9BB0839652dc6B37bF93294d762cb9",
+      "LombardTokenPool": "0x220699d93e6628289cbeB93503d07426c133253B"
     }
   },
   "bscTestnet": {
@@ -119,6 +140,27 @@
       "RMN": "0x84017cfddD12D319E5bBf090e0de6d55B78160Cb",
       "CLAdapter": "0x736C9FA3f33856293b36d830f57EaD496871D781",
       "LombardTokenPool": "0x2B90E92A1ab688daac97b7FC3a71A1c22Fe1dc9c"
+    }
+  },
+  "katanaTatara": {
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
+      "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
+      "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
+      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
+    },
+    "chainlink": {
+      "ChainSelector": "9090863410735740267",
+      "Router": "0x1dF1fe714A376f248d51AAB826C3feeC379e80fC",
+      "RMN": "0xAD8BeA8bC5Fe468Dc1F7BbEce59A86584407255f",
+      "CLAdapter": "0x453Fd9F30d0AF5747BE343D92c65Cb8BD5fF2F2F",
+      "LombardTokenPool": "0x148a5A14dB9fC18885e62f9F9B9715CF569b5EDc"
     }
   }
 }

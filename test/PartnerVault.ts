@@ -10,7 +10,7 @@ import {
   encode,
   getPayloadForAction,
   Signer,
-  init
+  initLBTC
 } from './helpers';
 import { FBTCPartnerVault, LBTCMock, LockedFBTCMock, WBTCMock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -31,7 +31,7 @@ describe('FBTCPartnerVault', function () {
     [deployer, signer1, signer2, signer3, treasury] = await getSignersWithPrivateKeys();
 
     const burnCommission = 1000;
-    const result = await init(burnCommission, deployer.address, deployer.address);
+    const result = await initLBTC(burnCommission, deployer.address, deployer.address);
     lbtc = result.lbtc;
 
     fbtc = await deployContract<WBTCMock>('WBTCMock', []);

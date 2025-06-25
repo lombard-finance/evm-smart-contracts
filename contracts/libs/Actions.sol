@@ -2,12 +2,21 @@
 pragma solidity 0.8.24;
 
 library Actions {
-    struct DepositBtcAction {
+    struct DepositBtcActionV0 {
         uint256 toChain;
         address recipient;
         uint256 amount;
         bytes32 txid;
         uint32 vout;
+    }
+
+    struct DepositBtcActionV1 {
+        uint256 toChain;
+        address recipient;
+        uint256 amount;
+        bytes32 txid;
+        uint32 vout;
+        address tokenAddress;
     }
 
     struct DepositBridgeAction {
@@ -73,7 +82,7 @@ library Actions {
     error ZeroFee();
 
     /// @dev Error thrown when payload length is too big
-    error PayloadTooLarge();
+    error InvalidPayloadSize(uint256 expected, uint256 actual);
 
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
@@ -81,7 +90,9 @@ library Actions {
     bytes32 internal constant FEE_APPROVAL_EIP712_ACTION =
         0x40ac9f6aa27075e64c1ed1ea2e831b20b8c25efdeb6b79fd0cf683c9a9c50725;
     // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32)"))
-    bytes4 internal constant DEPOSIT_BTC_ACTION = 0xf2e73f7c;
+    bytes4 internal constant DEPOSIT_BTC_ACTION_V0 = 0xf2e73f7c;
+    // bytes4(keccak256("payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32)"))
+    bytes4 internal constant DEPOSIT_BTC_ACTION_V1 = 0xce25e7c2;
     // bytes4(keccak256("payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256)"))
     bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
@@ -112,14 +123,15 @@ library Actions {
     uint256 internal constant ABI_SLOT_SIZE = 32;
 
     /**
-     * @notice Returns decoded deposit btc msg
+     * @notice Returns decoded deposit btc msg v0
      * @dev Message should not contain the selector
      * @param payload Body of the mint payload
      */
-    function depositBtc(
+    function depositBtcV0(
         bytes memory payload
-    ) internal view returns (DepositBtcAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 5) revert PayloadTooLarge();
+    ) internal view returns (DepositBtcActionV0 memory) {
+        if (payload.length != ABI_SLOT_SIZE * 5)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 5, payload.length);
 
         (
             uint256 toChain,
@@ -139,7 +151,51 @@ library Actions {
             revert ZeroAmount();
         }
 
-        return DepositBtcAction(toChain, recipient, amount, txid, vout);
+        return DepositBtcActionV0(toChain, recipient, amount, txid, vout);
+    }
+
+    /**
+     * @notice Returns decoded deposit btc msg v1
+     * @dev Message should not contain the selector
+     * @param payload Body of the mint payload
+     */
+    function depositBtcV1(
+        bytes memory payload
+    ) internal view returns (DepositBtcActionV1 memory) {
+        if (payload.length != ABI_SLOT_SIZE * 6)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 6, payload.length);
+
+        (
+            uint256 toChain,
+            address recipient,
+            uint256 amount,
+            bytes32 txid,
+            uint32 vout,
+            address tokenAddress
+        ) = abi.decode(
+                payload,
+                (uint256, address, uint256, bytes32, uint32, address)
+            );
+
+        if (toChain != block.chainid) {
+            revert WrongChainId();
+        }
+        if (recipient == address(0)) {
+            revert Actions_ZeroAddress();
+        }
+        if (amount == 0) {
+            revert ZeroAmount();
+        }
+
+        return
+            DepositBtcActionV1(
+                toChain,
+                recipient,
+                amount,
+                txid,
+                vout,
+                tokenAddress
+            );
     }
 
     /**
@@ -150,7 +206,8 @@ library Actions {
     function depositBridge(
         bytes memory payload
     ) internal view returns (DepositBridgeAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 7) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 7)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 7, payload.length);
 
         (
             uint256 fromChain,
@@ -215,7 +272,8 @@ library Actions {
             weightThreshold,
             height
         );
-        if (reEncodedPayload.length != payload.length) revert PayloadTooLarge();
+        if (reEncodedPayload.length != payload.length)
+            revert InvalidPayloadSize(payload.length, reEncodedPayload.length);
 
         if (
             pubKeys.length < MIN_VALIDATOR_SET_SIZE ||
@@ -292,7 +350,8 @@ library Actions {
     function feeApproval(
         bytes memory payload
     ) internal view returns (FeeApprovalAction memory) {
-        if (payload.length != ABI_SLOT_SIZE * 2) revert PayloadTooLarge();
+        if (payload.length != ABI_SLOT_SIZE * 2)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 2, payload.length);
 
         (uint256 fee, uint256 expiry) = abi.decode(payload, (uint256, uint256));
 

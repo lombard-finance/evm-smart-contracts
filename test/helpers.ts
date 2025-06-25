@@ -1,7 +1,7 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, Signature } from 'ethers';
-import { Consortium, ERC20PermitUpgradeable, LBTCMock } from '../typechain-types';
+import { Consortium, ERC20PermitUpgradeable, LBTCMock, NativeLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 export type Signer = HardhatEthersSigner & {
@@ -16,6 +16,7 @@ export const CHAIN_ID: string = encode(['uint256'], [31337]);
 const ACTIONS_IFACE = ethers.Interface.from([
   'function feeApproval(uint256,uint256)',
   'function payload(bytes32,bytes32,uint64,bytes32,uint32) external',
+  'function payload(bytes32,bytes32,uint64,bytes32,uint32,bytes32) external',
   'function payload(bytes32,bytes32,bytes32,bytes32,bytes32,uint64,uint256) external',
   'function payload(uint256,bytes[],uint256[],uint256,uint256) external'
 ]);
@@ -33,7 +34,8 @@ export function rawSign(signer: Signer, message: string): string {
 
 export const DEFAULT_LBTC_DUST_FEE_RATE = 3000;
 
-export const DEPOSIT_BTC_ACTION = '0xf2e73f7c';
+export const DEPOSIT_BTC_ACTION_V0 = '0xf2e73f7c';
+export const DEPOSIT_BTC_ACTION_V1 = '0xce25e7c2';
 export const DEPOSIT_BRIDGE_ACTION = '0x5c70a505';
 export const NEW_VALSET = '0x4aab1d6f';
 
@@ -65,7 +67,7 @@ export async function signDepositBridgePayload(
   return signPayload(signers, signatures, msg);
 }
 
-export async function signDepositBtcPayload(
+export async function signDepositBtcV0Payload(
   signers: Signer[],
   signatures: boolean[],
   toChain: string | bigint | number | Uint8Array,
@@ -81,7 +83,36 @@ export async function signDepositBtcPayload(
 
   let msg = getPayloadForAction(
     [toChainBytes, encode(['address'], [recipient]), amount, txid, encode(['uint32'], [vout])],
-    DEPOSIT_BTC_ACTION
+    DEPOSIT_BTC_ACTION_V0
+  );
+  return signPayload(signers, signatures, msg);
+}
+
+export async function signDepositBtcV1Payload(
+  signers: Signer[],
+  signatures: boolean[],
+  toChain: string | bigint | number | Uint8Array,
+  recipient: string,
+  amount: BigInt | number,
+  txid: string | Uint8Array,
+  tokenAddress: string,
+  vout: BigInt = 0n
+) {
+  let toChainBytes = toChain;
+  if (typeof toChain === 'number' || typeof toChain === 'bigint') {
+    toChainBytes = encode(['uint256'], [toChain]);
+  }
+
+  let msg = getPayloadForAction(
+    [
+      toChainBytes,
+      encode(['address'], [recipient]),
+      amount,
+      txid,
+      encode(['uint32'], [vout]),
+      encode(['address'], [tokenAddress])
+    ],
+    DEPOSIT_BTC_ACTION_V1
   );
   return signPayload(signers, signatures, msg);
 }
@@ -157,7 +188,7 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function init(burnCommission: number, treasury: string, owner: string) {
+export async function initLBTC(burnCommission: number, treasury: string, owner: string) {
   const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
 
   const lbtc = await deployContract<LBTCMock>('LBTCMock', [
@@ -170,6 +201,20 @@ export async function init(burnCommission: number, treasury: string, owner: stri
   return { lbtc, consortium };
 }
 
+export async function initNativeLBTC(burnCommission: number, treasury: string, owner: string) {
+  const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
+
+  const lbtc = await deployContract<NativeLBTC>('NativeLBTCMock', [
+    await consortium.getAddress(),
+    burnCommission,
+    treasury,
+    owner,
+    0n
+  ]);
+
+  return { lbtc, consortium };
+}
+
 export async function generatePermitSignature(
   token: ERC20PermitUpgradeable,
   owner: Signer,
@@ -177,7 +222,8 @@ export async function generatePermitSignature(
   value: BigNumberish,
   deadline: BigNumberish,
   chainId: BigNumberish,
-  nonce: BigNumberish
+  nonce: BigNumberish,
+  name: string = 'Lombard Staked Bitcoin'
 ): Promise<{ v: number; r: string; s: string }> {
   const ownerAddress = await owner.getAddress();
 
@@ -201,7 +247,7 @@ export async function generatePermitSignature(
 
   const signature = await owner.signTypedData(
     {
-      name: 'Lombard Staked Bitcoin',
+      name: name,
       version: '1',
       chainId: chainId,
       verifyingContract: await token.getAddress()

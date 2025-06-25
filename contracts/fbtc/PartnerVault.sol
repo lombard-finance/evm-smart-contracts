@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ILBTC} from "../LBTC/ILBTC.sol";
+import {IBaseLBTC} from "../LBTC/IBaseLBTC.sol";
 import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -29,7 +29,7 @@ contract FBTCPartnerVault is
     AccessControlUpgradeable
 {
     using SafeERC20 for IERC20;
-    using SafeERC20 for ILBTC;
+    using SafeERC20 for IBaseLBTC;
 
     enum Operation {
         Nop, // starts from 1.
@@ -62,7 +62,7 @@ contract FBTCPartnerVault is
     /// @custom:storage-location erc7201:lombardfinance.storage.PartnerVault
     struct PartnerVaultStorage {
         IERC20 fbtc;
-        ILBTC lbtc;
+        IBaseLBTC lbtc;
         LockedFBTC lockedFbtc;
         uint256 stakeLimit;
         uint256 totalStake;
@@ -131,7 +131,7 @@ contract FBTCPartnerVault is
 
         PartnerVaultStorage storage $ = _getPartnerVaultStorage();
         $.fbtc = IERC20(fbtc_);
-        $.lbtc = ILBTC(lbtc_);
+        $.lbtc = IBaseLBTC(lbtc_);
         $.stakeLimit = stakeLimit_;
     }
 
