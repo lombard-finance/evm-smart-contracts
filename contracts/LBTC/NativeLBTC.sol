@@ -34,8 +34,10 @@ contract NativeLBTC is
         // slot: 20 | 20/32
         IBascule bascule;
         // other slots by 32
-        string name;
-        string symbol;
+        /// @custom:oz-renamed-from name
+        string __removed__name;
+        /// @custom:oz-renamed-from symbol
+        string __removed__symbol;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IAssetRouter assetRouter;
     }
@@ -179,21 +181,6 @@ contract NativeLBTC is
      */
     function decimals() public view virtual override returns (uint8) {
         return 8;
-    }
-
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() public view virtual override returns (string memory) {
-        return _getNativeLBTCStorage().name;
-    }
-
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        return _getNativeLBTCStorage().symbol;
     }
 
     function isNative() public pure returns (bool) {
@@ -409,16 +396,6 @@ contract NativeLBTC is
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
-    }
-
-    function _changeNameAndSymbol(
-        string memory name_,
-        string memory symbol_
-    ) internal {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        $.name = name_;
-        $.symbol = symbol_;
-        emit NameAndSymbolChanged(name_, symbol_);
     }
 
     function _mint(

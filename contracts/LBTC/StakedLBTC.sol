@@ -31,8 +31,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         /// @dev is keccak256(payload[4:]) used
         /// @custom:oz-renamed-from usedProofs
         mapping(bytes32 => bool) legacyUsedPayloads;
-        string name;
-        string symbol;
+        /// @custom:oz-renamed-from name
+        string __removed__name;
+        /// @custom:oz-renamed-from symbol
+        string __removed__symbol;
         /// @custom:oz-renamed-from isWithdrawalsEnabled
         bool __removed__isWithdrawalsEnabled;
         INotaryConsortium consortium;
@@ -253,21 +255,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
      */
     function decimals() public view virtual override returns (uint8) {
         return 8;
-    }
-
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() public view virtual override returns (string memory) {
-        return _getStakedLBTCStorage().name;
-    }
-
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        return _getStakedLBTCStorage().symbol;
     }
 
     function getTreasury() public view override returns (address) {
@@ -510,16 +497,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeTreasury(treasury);
-    }
-
-    function _changeNameAndSymbol(
-        string memory name_,
-        string memory symbol_
-    ) internal {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.name = name_;
-        $.symbol = symbol_;
-        emit NameAndSymbolChanged(name_, symbol_);
     }
 
     /**

@@ -23,6 +23,13 @@ abstract contract BaseLBTC is
     ERC20PermitUpgradeable,
     ReentrancyGuardUpgradeable
 {
+        // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC20StorageLocation =
+        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.EIP712")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant EIP712StorageLocation =
+        0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d100;
+
     function getFeeDigest(
         uint256 fee,
         uint256 expiry
@@ -66,6 +73,34 @@ abstract contract BaseLBTC is
     function _getMaxFee() internal view virtual returns (uint256);
 
     function _getTreasury() internal view virtual returns (address);
+
+    function _changeNameAndSymbol(
+        string memory name_,
+        string memory symbol_
+    ) internal {
+        ERC20Storage storage $ = _getERC20Storage_();
+        $._name = name_;
+        $._symbol = symbol_;
+        EIP712Storage storage $_ = _getEIP712Storage_();
+        $_._name = name_;
+        emit NameAndSymbolChanged(name_, symbol_);
+    }
+
+    function _getERC20Storage_() private pure returns (ERC20Storage storage $) {
+        assembly {
+            $.slot := ERC20StorageLocation
+        }
+    }
+
+    function _getEIP712Storage_()
+        private
+        pure
+        returns (EIP712Storage storage $)
+    {
+        assembly {
+            $.slot := EIP712StorageLocation
+        }
+    }
 
     /**
      * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
