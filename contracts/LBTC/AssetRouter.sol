@@ -62,6 +62,7 @@ contract AssetRouter is
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CALLER_ROLE = keccak256("CALLER_ROLE");
+    bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -607,7 +608,7 @@ contract AssetRouter is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external nonReentrant {
+    ) external nonReentrant onlyRole(CLAIMER_ROLE) {
         bool success = _mintWithFee(
             mintPayload,
             proof,
@@ -624,7 +625,7 @@ contract AssetRouter is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external nonReentrant {
+    ) external nonReentrant onlyRole(CLAIMER_ROLE) {
         Assert.equalLength(mintPayload.length, proof.length);
         Assert.equalLength(mintPayload.length, feePayload.length);
         Assert.equalLength(mintPayload.length, userSignature.length);
