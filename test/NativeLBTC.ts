@@ -192,6 +192,20 @@ describe('NativeLBTC', function () {
       // restore for next tests
       await nativeLbtc.changeDustFeeRate(defaultDustFeeRate);
     });
+
+    it('changeNameAndSymbol', async function () {
+      const name = await nativeLbtc.name();
+      const symbol = await nativeLbtc.symbol();
+      const newName = name + " V1";
+      const newSymbol = symbol + "v1";
+      await expect(nativeLbtc.changeNameAndSymbol(newName, newSymbol))
+        .to.emit(nativeLbtc, 'NameAndSymbolChanged')
+        .withArgs(newName, newSymbol);
+      expect(await nativeLbtc.name()).to.equal(newName);
+      expect(await nativeLbtc.symbol()).to.equal(newSymbol);
+      const domain = await nativeLbtc.eip712Domain()
+      expect(domain.name).to.equal(newName);
+    });
   });
 
   describe('Mint', function () {
