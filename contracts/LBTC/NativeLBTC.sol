@@ -63,26 +63,20 @@ contract NativeLBTC is
 
     function initialize(
         address consortium_,
-        uint64 burnCommission_,
         address treasury,
-        address initialOwner,
-        uint48 initialOwnerDelay
+        string calldata _name,
+        string calldata _symbol,
+        address initialOwner
     ) external initializer {
-        __AccessControlDefaultAdminRules_init(initialOwnerDelay, initialOwner);
+        __AccessControlDefaultAdminRules_init(0, initialOwner);
 
         __ERC20_init("", "");
         __ERC20Pausable_init();
 
         __ReentrancyGuard_init();
-        __ERC20Permit_init("Lombard Liquid Bitcoin"); // TODO: set final name
+        __ERC20Permit_init(_name);
 
-        __LBTC_init(
-            "Lombard Liquid Bitcoin", // TODO: set final name
-            "XLBTC", // TODO: set final symbol
-            consortium_,
-            treasury,
-            burnCommission_
-        );
+        __LBTC_init(_name, _symbol, consortium_, treasury);
 
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
@@ -459,13 +453,11 @@ contract NativeLBTC is
         string memory name_,
         string memory symbol_,
         address consortium_,
-        address treasury,
-        uint64 burnCommission_
+        address treasury
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
         _changeTreasuryAddress(treasury);
-        _changeBurnCommission(burnCommission_);
     }
 
     function _changeNameAndSymbol(
