@@ -532,7 +532,8 @@ const config: HardhatUserConfig = {
       sonic: vars.get('SONIC_API_KEY', ''),
       morph: 'no',
       etherlink: 'no',
-      ink: 'no'
+      ink: 'no',
+      katana: 'no'
     }
   },
   sourcify: {
