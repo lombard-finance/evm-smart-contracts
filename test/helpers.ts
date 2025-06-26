@@ -206,11 +206,13 @@ export async function initNativeLBTC(burnCommission: number, treasury: string, o
 
   const lbtc = await deployContract<NativeLBTC>('NativeLBTCMock', [
     await consortium.getAddress(),
-    burnCommission,
     treasury,
-    owner,
-    0n
+    'Native LBTC',
+    'nativeLBTC',
+    owner
   ]);
+
+  await lbtc.changeBurnCommission(burnCommission);
 
   return { lbtc, consortium };
 }
