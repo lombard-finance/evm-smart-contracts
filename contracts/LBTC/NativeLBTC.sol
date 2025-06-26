@@ -36,8 +36,10 @@ contract NativeLBTC is
         // slot: 20 | 20/32
         IBascule bascule;
         // other slots by 32
-        string name;
-        string symbol;
+        /// @custom:oz-renamed-from name
+        string __removed__name;
+        /// @custom:oz-renamed-from symbol
+        string __removed__symbol;
         uint256 dustFeeRate;
         uint256 maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
@@ -47,6 +49,12 @@ contract NativeLBTC is
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
         0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC20StorageLocation =
+        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.EIP712")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant EIP712StorageLocation =
+        0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d100;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
@@ -202,21 +210,6 @@ contract NativeLBTC is
      */
     function decimals() public view virtual override returns (uint8) {
         return 8;
-    }
-
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() public view virtual override returns (string memory) {
-        return _getNativeLBTCStorage().name;
-    }
-
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        return _getNativeLBTCStorage().symbol;
     }
 
     function getTreasury() public view override returns (address) {
@@ -464,9 +457,11 @@ contract NativeLBTC is
         string memory name_,
         string memory symbol_
     ) internal {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        $.name = name_;
-        $.symbol = symbol_;
+        ERC20Storage storage $ = _getERC20Storage_();
+        $._name = name_;
+        $._symbol = symbol_;
+        EIP712Storage storage $_ = _getEIP712Storage_();
+        $_._name = name_;
         emit NameAndSymbolChanged(name_, symbol_);
     }
 
@@ -666,6 +661,22 @@ contract NativeLBTC is
     {
         assembly {
             $.slot := NATIVE_LBTC_STORAGE_LOCATION
+        }
+    }
+
+    function _getERC20Storage_() private pure returns (ERC20Storage storage $) {
+        assembly {
+            $.slot := ERC20StorageLocation
+        }
+    }
+
+    function _getEIP712Storage_()
+        private
+        pure
+        returns (EIP712Storage storage $)
+    {
+        assembly {
+            $.slot := EIP712StorageLocation
         }
     }
 
