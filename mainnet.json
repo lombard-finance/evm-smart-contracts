@@ -217,5 +217,29 @@
     "cubist": {
       "BasculeV2": "0x862Cbca3a521858416EE08208455984EE6681420"
     }
+  },
+  "katana": {
+    "admin": {
+      "Owner": "0x6676c650053F3F60D38530E717A80ed48435d070",
+      "TimeLock": "0x",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
+    },
+    "chainlink": {
+      "ChainSelector": "2459028469735686113",
+      "Router": "0x7c19b79D2a054114Ab36ad758A36e92376e267DA",
+      "RMN": "0x32270E4FA459cA47ae0334488e27ffb9bC9aB4a1",
+      "CLAdapter": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037",
+      "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C"
+    },
+    "cubist": {
+      "BasculeV2": ""
+    }
   }
 }
