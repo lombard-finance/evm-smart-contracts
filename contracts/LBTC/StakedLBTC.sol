@@ -139,13 +139,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         _;
     }
 
-    modifier onlyOperator() {
-        if (_getStakedLBTCStorage().operator != _msgSender()) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-        _;
-    }
-
     /// ONLY OWNER FUNCTIONS ///
 
     function toggleRedeemsForBtc() external onlyOwner {
@@ -499,37 +492,12 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         _changeTreasury(treasury);
     }
 
-    /**
-     * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param $ LBTC storage.
-     * @param depositID The unique ID of the deposit.
-     * @param amount The withdrawal amount.
-     */
-    function _confirmDeposit(
-        StakedLBTCStorage storage $,
-        bytes32 depositID,
-        uint256 amount
-    ) internal {
-        IBascule bascule = $.bascule;
-        if (address(bascule) != address(0)) {
-            bascule.validateWithdrawal(depositID, amount);
-        }
-    }
-
-    function _mint(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) internal override {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        $.assetRouter.mint(rawPayload, proof);
-    }
-
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal override {
+    ) internal {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -618,22 +586,5 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         assembly {
             $.slot := STAKED_LBTC_STORAGE_LOCATION
         }
-    }
-
-    function _getMaxFee() internal view virtual override returns (uint256) {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        uint256 ratio = $.assetRouter.ratio(address(this));
-        uint256 maxFee = Math.mulDiv(
-            $.assetRouter.maxMintCommission(),
-            ratio,
-            1 ether,
-            Math.Rounding.Ceil
-        );
-        return maxFee;
-    }
-
-    function _getTreasury() internal view virtual override returns (address) {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        return $.treasury;
     }
 }

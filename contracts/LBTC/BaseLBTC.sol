@@ -23,7 +23,7 @@ abstract contract BaseLBTC is
     ERC20PermitUpgradeable,
     ReentrancyGuardUpgradeable
 {
-        // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant ERC20StorageLocation =
         0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.EIP712")) - 1)) & ~bytes32(uint256(0xff))
@@ -57,22 +57,6 @@ abstract contract BaseLBTC is
             _mint(to[i], amount[i]);
         }
     }
-
-    function _mint(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) internal virtual;
-
-    function _mintWithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) internal virtual;
-
-    function _getMaxFee() internal view virtual returns (uint256);
-
-    function _getTreasury() internal view virtual returns (address);
 
     function _changeNameAndSymbol(
         string memory name_,
