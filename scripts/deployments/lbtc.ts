@@ -30,7 +30,7 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
     }
 
     const data = await create3(
-      'LBTC',
+      'StakedLBTC',
       [consortium, treasury, admin],
       proxyFactoryAddr,
       ledgerNetwork,
@@ -39,6 +39,6 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
     );
 
     // reinitialize
-    const lbtc = await ethers.getContractAt('LBTC', data.proxy);
+    const lbtc = await ethers.getContractAt('StakedLBTC', data.proxy);
     await lbtc.reinitialize();
   });
