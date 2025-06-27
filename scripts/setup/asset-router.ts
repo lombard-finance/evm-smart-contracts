@@ -1,25 +1,15 @@
 import { task } from 'hardhat/config';
 
-task('setup-asset-router', 'Call `changeAssetRouter` on smart-contract')
+
+task('asset-router-grant-role', 'Call `grantRole` on AssetRouter smart-contract')
   .addParam('target', 'The address of smart-contract')
-  .addParam('tokenType', 'The type of the token')
-  .addParam('assetRouter', 'The address of teh AssetRouter')
+  .addParam('role', 'The type of the token')
+  .addParam('account', 'The address of account that should have this role granted')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
-    const { target, tokenType, assetRouter } = taskArgs;
-    let tokenClassName = '';
-    switch (tokenType.toLowerCase()) {
-      case 'stakedlbtc':
-        tokenClassName = 'StakedLBTC';
-        break;
-      case 'nativelbtc':
-        tokenClassName = 'NativeLBTC';
-        break;
-      default:
-      throw Error("Unexpected token type " + tokenType);
-    }
+    const { target, role, account } = taskArgs;
 
-    const nativeLbtc = await ethers.getContractAt(tokenClassName, target);
-    await nativeLbtc.changeAssetRouter(assetRouter);
+    const assetRouter = await ethers.getContractAt('AssetRouter', target);
+    await assetRouter.grantRole(ethers.keccak256(ethers.toUtf8Bytes(role)), account);
   });
