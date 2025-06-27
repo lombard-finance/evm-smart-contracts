@@ -254,7 +254,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         return _getStakedLBTCStorage().treasury;
     }
 
-    function getBurnCommission() public view returns (uint64) {
+    function toNativeCommission() public view returns (uint64) {
         return _getStakedLBTCStorage().assetRouter.toNativeCommission();
     }
 

@@ -154,7 +154,7 @@ contract StakedLBTCOracle is
 
     function _ratio() internal view returns (uint256) {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        if (block.timestamp <= $.switchTime) {
+        if (block.timestamp >= $.switchTime) {
             return $.currRatio;
         }
         return $.prevRatio;
