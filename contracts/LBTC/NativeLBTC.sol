@@ -398,10 +398,7 @@ contract NativeLBTC is
         _changeTreasury(treasury);
     }
 
-    function _mint(
-        bytes calldata rawPayload,
-        bytes calldata proof
-    ) internal override {
+    function _mint(bytes calldata rawPayload, bytes calldata proof) internal {
         _mintV1(rawPayload, proof);
     }
 
@@ -429,7 +426,7 @@ contract NativeLBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) internal override {
+    ) internal {
         (address recipient, uint256 amount) = _mintV1(mintPayload, proof);
 
         Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
@@ -556,16 +553,7 @@ contract NativeLBTC is
         }
     }
 
-    /**
-     * @dev Returns whether a minting payload has been used already
-     * @param payloadHash The minting payload hash
-     */
-    function _isPayloadUsed(bytes32 payloadHash) internal view returns (bool) {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        return $.usedPayloads[payloadHash];
-    }
-
-    function _getMaxFee() internal view virtual override returns (uint256) {
+    function _getMaxFee() internal view virtual returns (uint256) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -573,7 +561,7 @@ contract NativeLBTC is
         return $.assetRouter.maxMintCommission();
     }
 
-    function _getTreasury() internal view virtual override returns (address) {
+    function _getTreasury() internal view virtual returns (address) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         return $.treasury;
     }
