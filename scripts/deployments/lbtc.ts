@@ -14,7 +14,6 @@ import { create3 } from '../helpers/create3Deployment';
 task('deploy-lbtc', 'Deploys the LBTC contract')
   .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('consortium', 'The address of LombardConsortium')
-  .addParam('burnCommission', 'The burn commission')
   .addParam('treasury', 'The address of the treasury')
   .addParam('admin', 'The owner of the proxy', 'self')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
@@ -32,7 +31,7 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
 
     const data = await create3(
       'LBTC',
-      [consortium, burnCommission, treasury, admin],
+      [consortium, treasury, admin],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
