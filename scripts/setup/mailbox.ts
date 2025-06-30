@@ -13,23 +13,19 @@ task('mailbox-enable-path', 'Call `enableMessagePath` on mailbox smart-contract'
       : hre.ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [remoteChainId]);
 
     const toMailbox =
-      remoteMailbox.length != 42 ? remoteMailbox : hre.ethers.AbiCoder.defaultAbiCoder().encode(['address'], [remoteMailbox]);
+      remoteMailbox.length != 42
+        ? remoteMailbox
+        : hre.ethers.AbiCoder.defaultAbiCoder().encode(['address'], [remoteMailbox]);
 
     const mailbox = await hre.ethers.getContractAt('Mailbox', target);
 
     console.log(`Enabling path to ${toChainId}`);
 
     if (populate) {
-      const txData = await mailbox.enableMessagePath.populateTransaction(
-        toChainId,
-        toMailbox,
-      );
+      const txData = await mailbox.enableMessagePath.populateTransaction(toChainId, toMailbox);
       console.log(`enableMessagePath: ${JSON.stringify(txData, null, 2)}`);
     } else {
-      const tx = await mailbox.enableMessagePath(
-        toChainId,
-        toMailbox,
-      );
+      const tx = await mailbox.enableMessagePath(toChainId, toMailbox);
       await tx.wait(2);
     }
   });
@@ -45,21 +41,13 @@ task('mailbox-set-config', 'Call `setSenderConfig` on mailbox smart-contract')
 
     const mailbox = await hre.ethers.getContractAt('Mailbox', target);
 
-    console.log(`Enabling setting config for ${sender}`);
+    console.log(`Setting config for ${sender}`);
 
     if (populate) {
-      const txData = await mailbox.setSenderConfig.populateTransaction(
-        sender,
-        maxPayloadSize,
-        feeDisabled
-      );
-      console.log(`enableMessagePath: ${JSON.stringify(txData, null, 2)}`);
+      const txData = await mailbox.setSenderConfig.populateTransaction(sender, maxPayloadSize, feeDisabled);
+      console.log(`setSenderConfig: ${JSON.stringify(txData, null, 2)}`);
     } else {
-      const tx = await mailbox.setSenderConfig(
-        sender,
-        maxPayloadSize,
-        feeDisabled
-      );
+      const tx = await mailbox.setSenderConfig(sender, maxPayloadSize, feeDisabled);
       await tx.wait(2);
     }
   });

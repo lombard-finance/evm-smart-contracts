@@ -41,16 +41,7 @@ task('deploy-asset-router', 'Deploys the AssetRouter contract via create3')
 
     await create3(
       'AssetRouter',
-      [
-        owner,
-        adminChangeDelay,
-        ledgerChainId,
-        bitcoinChainId,
-        mailbox,
-        oracle,
-        bascule,
-        toNativeCommission
-      ],
+      [owner, adminChangeDelay, ledgerChainId, bitcoinChainId, mailbox, oracle, bascule, toNativeCommission],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
