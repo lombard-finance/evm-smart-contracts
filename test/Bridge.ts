@@ -57,7 +57,6 @@ describe('Bridge', function () {
     // chain 1
     stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [
       await consortium.getAddress(),
-      100,
       treasurySource.address,
       deployer.address
     ]);
@@ -75,7 +74,6 @@ describe('Bridge', function () {
     // chain 2
     stakedLbtcDestination = await deployContract<StakedLBTC>('StakedLBTC', [
       await consortium.getAddress(),
-      100,
       treasuryDestination.address,
       deployer.address
     ]);

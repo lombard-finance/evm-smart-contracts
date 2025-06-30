@@ -1,7 +1,7 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, Signature } from 'ethers';
-import { Consortium, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
+import { Consortium, ERC20, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 export type Signer = HardhatEthersSigner & {
@@ -15,6 +15,16 @@ export const CHAIN_ID: string = encode(['uint256'], [31337]);
 
 export const e18: bigint = 10n ** 18n;
 export const e8: bigint = 10n ** 8n;
+export const LEDGER_CHAIN_ID: string = encode(['uint256'], ['0x112233445566778899000000']);
+export const BITCOIN_CHAIN_ID: string = encode(
+  ['uint256'],
+  ['0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f']
+);
+export const BTC_STAKING_MODULE_ADDRESS: string = encode(['uint256'], ['0x0089e3e4e7a699d6f131d893aeef7ee143706ac23a']);
+export const ASSETS_MODULE_ADDRESS: string = encode(['uint256'], ['0x008bf729ffe074caee622c02928173467e658e19e2']);
+export const LEDGER_MAILBOX: string = encode(['uint256'], ['0x222233445566778899000000']);
+export const LEDGER_CALLER: string = encode(['uint256'], [0n]);
+export const BITCOIN_NATIVE_COIN: string = encode(['uint256'], ['0x00000000000000000000000000000000000001']);
 
 const ACTIONS_IFACE = ethers.Interface.from([
   'function feeApproval(uint256,uint256)',
@@ -26,15 +36,17 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function payload(uint256,uint256,bytes32,bytes32,bytes32,bytes32,bytes) external', // StakingOperationRequest
   'function payload(bytes32,bytes32,uint256,bytes32,bytes32,bytes32) external', // StakingOperationReceipt
   'function payload(uint256,uint256,bytes32,bytes) external', // RedeemRequest
-  'function release(bytes32,bytes32,uint256) external',
-  'function unstake(bytes32,bytes32,bytes,uint256) external'
+  'function mint(bytes32,bytes32,uint256) external', //MINT_SELECTOR
+  'function redeem(bytes32,bytes32,bytes32,bytes,uint256) external', //REDEEM_REQUEST_SELECTOR
+  'function redeemForBTC(bytes32,bytes,uint64) external', //REDEEM_FOR_BTC_REQUEST_SELECTOR
+  'function deposit(bytes32,bytes32,bytes32,bytes32,uint256) external' //DEPOSIT_REQUEST_SELECTOR
 ]);
 
 export function getGMPPayload(
   sourceContract: string,
   sourceLChainId: string,
   destinationLChainId: string,
-  nonce: number,
+  nonce: BigNumberish,
   sender: string,
   recipient: string,
   destinationCaller: string,
@@ -61,7 +73,7 @@ export function rawSign(signer: Signer, message: string): string {
   return signature.serialized;
 }
 
-export const DEFAULT_LBTC_DUST_FEE_RATE = 3000;
+export const DEFAULT_DUST_FEE_RATE = 3000;
 
 export const FEE_APPROVAL_ACTION = '0x8175ca94';
 export const DEPOSIT_BTC_ACTION_V0 = '0xf2e73f7c';
@@ -71,9 +83,10 @@ export const NEW_VALSET = '0x4aab1d6f';
 export const GMP_V1_SELECTOR = '0xe288fb4a';
 export const STAKING_REQUEST_SELECTOR = '0xedff11ea';
 export const STAKING_RECEIPT_SELECTOR = '0x965597b5';
-export const REDEEM_REQUEST_SELECTOR = '0xf86c9e7b';
-export const RELEASE_SELECTOR = '0x5217c530';
-export const UNSTAKE_REQUEST_SELECTOR = '0x4a227ef9';
+export const MINT_SELECTOR = '0x155b6b13';
+export const REDEEM_REQUEST_SELECTOR = '0xaa3db85f';
+export const REDEEM_FROM_NATIVE_TOKEN_SELECTOR = '0x7a069d29';
+export const DEPOSIT_REQUEST_SELECTOR = '0xccb41215';
 
 export async function signDepositBridgePayload(
   signers: Signer[],
@@ -264,35 +277,28 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function initStakedLBTC(burnCommission: number, treasury: string, owner: string) {
-  const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
-
-  const lbtc = await deployContract<StakedLBTC>('StakedLBTC', [
-    await consortium.getAddress(),
-    burnCommission,
-    treasury,
-    owner
-  ]);
-
-  return { lbtc, consortium };
+export async function initStakedLBTC(owner: string, treasury: string, consortium: string = ethers.ZeroAddress) {
+  if (consortium === ethers.ZeroAddress) {
+    const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
+    consortium = await c.getAddress();
+  }
+  const lbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [consortium, treasury, owner]);
+  lbtc.address = await lbtc.getAddress();
+  return lbtc;
 }
 
-export async function initNativeLBTC(burnCommission: number, treasury: string, owner: string) {
-  const consortium = await deployContract<Consortium>('ConsortiumMock', [owner]);
-
-  const lbtc = await deployContract<NativeLBTC>('NativeLBTC', [
-    await consortium.getAddress(),
-    burnCommission,
-    treasury,
-    owner,
-    0n
-  ]);
-
-  return { lbtc, consortium };
+export async function initNativeLBTC(owner: string, treasury: string, consortium: string = ethers.ZeroAddress) : Promise<NativeLBTC & Addressable> {
+  if (consortium === ethers.ZeroAddress) {
+    const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
+    consortium = await c.getAddress();
+  }
+  const lbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [consortium, treasury, owner, 0n]);
+  lbtc.address = await lbtc.getAddress();
+  return lbtc;
 }
 
 export async function generatePermitSignature(
-  token: ERC20PermitUpgradeable,
+  tokenAddress: string,
   owner: Signer,
   spender: string,
   value: BigNumberish,
@@ -326,7 +332,7 @@ export async function generatePermitSignature(
       name: name,
       version: '1',
       chainId: chainId,
-      verifyingContract: await token.getAddress()
+      verifyingContract: tokenAddress
     },
     types,
     permitMessage
@@ -339,18 +345,22 @@ export async function generatePermitSignature(
 
 export async function getFeeTypedMessage(
   signer: HardhatEthersSigner,
-  verifyingContract: string,
+  verifyingContract: StakedLBTC | NativeLBTC,
   fee: BigNumberish,
   expiry: BigNumberish,
-  domainName: string = 'Lombard Staked Bitcoin',
+  domainName: string = '',
   version: string = '1',
   chainId: BigNumberish = Number(CHAIN_ID)
 ) {
+  if (domainName === '') {
+    domainName = await verifyingContract.name();
+  }
+
   const domain = {
     name: domainName,
     version: version,
     chainId: chainId,
-    verifyingContract: verifyingContract
+    verifyingContract: await verifyingContract.getAddress()
   };
   const types = {
     feeApproval: [
@@ -505,4 +515,33 @@ export function calcFee(body: string, weiPerByte: bigint): { fee: bigint; payloa
     fee: weiPerByte * BigInt(payloadLength),
     payloadLength
   };
+}
+
+export class DefaultData {
+  payload: string;
+  payloadHash: string;
+  proof: string;
+  amount: bigint | undefined;
+  recipient: Signer | undefined;
+  feeApprovalPayload: string | undefined;
+  userSignature: string | undefined;
+
+  constructor(payload: string, payloadHash: string, proof: string) {
+    this.payload = payload;
+    this.payloadHash = payloadHash;
+    this.proof = proof;
+  }
+}
+
+export class Addressable {
+  get address(): string {
+    return this._address;
+  }
+
+  set address(value: string) {
+    this._address = value;
+  }
+
+  // @ts-ignore
+  private _address: string;
 }

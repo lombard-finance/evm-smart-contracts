@@ -51,7 +51,7 @@ contract BridgeV2 is
     uint32 internal constant FEE_DISCOUNT_BASE = 100_00;
 
     uint8 public constant MSG_VERSION = 1;
-    uint256 internal constant MSG_LENGTH = 97;
+    uint256 internal constant MSG_LENGTH = 129;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -452,7 +452,7 @@ contract BridgeV2 is
         bytes32 chainId,
         bytes memory msgBody
     ) internal {
-        (address token, address recipient, uint256 amount) = decodeMsgBody(
+        (address token, address sender, address recipient, uint256 amount) = decodeMsgBody(
             msgBody
         );
 
@@ -477,13 +477,14 @@ contract BridgeV2 is
 
     function decodeMsgBody(
         bytes memory msgBody
-    ) public pure returns (address, address, uint256) {
+    ) public pure returns (address, address, address, uint256) {
         if (msgBody.length != MSG_LENGTH) {
             revert BridgeV2_InvalidMsgBodyLength(MSG_LENGTH, msgBody.length);
         }
 
         uint8 version;
         bytes32 token;
+        bytes32 sender;
         bytes32 recipient;
         uint256 amount;
 
@@ -491,8 +492,9 @@ contract BridgeV2 is
             version := byte(0, mload(add(msgBody, 0x20))) // first byte
 
             token := mload(add(msgBody, 0x21)) // bytes 1..32
-            recipient := mload(add(msgBody, 0x41)) // bytes 33..64
-            amount := mload(add(msgBody, 0x61)) // bytes 65..96
+            sender := mload(add(msgBody, 0x41)) // bytes 33..64
+            recipient := mload(add(msgBody, 0x61)) // bytes 65..96
+            amount := mload(add(msgBody, 0x81)) // bytes 97..128
         }
 
         if (version != MSG_VERSION) {
@@ -501,6 +503,10 @@ contract BridgeV2 is
 
         if (amount == 0) {
             revert BridgeV2_ZeroAmount();
+        }
+
+        if (sender == bytes32(0)) {
+            revert BridgeV2_ZeroSender();
         }
 
         if (recipient == bytes32(0)) {
@@ -513,6 +519,7 @@ contract BridgeV2 is
 
         return (
             GMPUtils.bytes32ToAddress(token),
+            GMPUtils.bytes32ToAddress(sender),
             GMPUtils.bytes32ToAddress(recipient),
             amount
         );

@@ -1,86 +1,145 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { BytesLike } from 'ethers';
+import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
-  deployContract,
-  getSignersWithPrivateKeys,
+  Addressable,
+  BITCOIN_CHAIN_ID,
+  BTC_STAKING_MODULE_ADDRESS,
   CHAIN_ID,
-  generatePermitSignature,
+  DefaultData,
+  deployContract,
   encode,
+  generatePermitSignature,
+  getFeeTypedMessage,
+  getGMPPayload,
+  getPayloadForAction,
+  getSignersWithPrivateKeys,
+  initStakedLBTC,
+  LEDGER_CHAIN_ID,
+  LEDGER_MAILBOX,
+  MINT_SELECTOR,
+  NEW_VALSET,
+  randomBigInt,
   Signer,
-  signDepositBtcV0Payload,
-  initStakedLBTC
+  signPayload
 } from './helpers';
-import { StakeAndBake, ERC4626Depositor, ERC4626Mock, StakedLBTC } from '../typechain-types';
-import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
-import { BytesLike } from 'ethers/lib.commonjs/utils/data';
+import {
+  AssetRouter,
+  Consortium,
+  ERC4626Depositor,
+  ERC4626Mock,
+  Mailbox,
+  RatioFeedMock,
+  StakeAndBake,
+  StakedLBTC
+} from '../typechain-types';
+
+const DAY = 86400;
 
 describe('ERC4626Depositor', function () {
-  let deployer: Signer,
+  let _: Signer,
+    owner: Signer,
     signer1: Signer,
     signer2: Signer,
     signer3: Signer,
+    notary1: Signer,
     operator: Signer,
     pauser: Signer,
     treasury: Signer;
   let stakeAndBake: StakeAndBake;
   let erc4626Depositor: ERC4626Depositor;
   let vault: ERC4626Mock;
-  let lbtc: StakedLBTC;
+  let consortium: Consortium & Addressable;
+  let mailbox: Mailbox & Addressable;
+  let ratioFeed: RatioFeedMock & Addressable;
+  let assetRouter: AssetRouter & Addressable;
+  let assetRouterBytes: string;
+  let stakedLbtc: StakedLBTC & Addressable;
+  let stakedLbtcBytes: string;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
-  let data;
+  let data: DefaultData;
   let permitPayload: BytesLike;
   let depositPayload: BytesLike;
-  let data2;
+  let data2: DefaultData;
   let permitPayload2: BytesLike;
   let depositPayload2: BytesLike;
-  const value = 10001;
-  const fee = 1;
-  const depositValue = 10000;
+  const toNativeCommission = 1000n;
+  const value = 10001n;
+  const fee = 1n;
+  const depositValue = 10000n;
 
   before(async function () {
-    [deployer, signer1, signer2, signer3, operator, pauser, treasury] = await getSignersWithPrivateKeys();
+    [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
-    const burnCommission = 1000;
-    const result = await initStakedLBTC(burnCommission, treasury.address, deployer.address);
-    lbtc = result.lbtc;
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium.address = await consortium.getAddress();
+    await consortium
+      .connect(owner)
+      .setInitialValidatorSet(getPayloadForAction([1, [notary1.publicKey], [1], 1, 1], NEW_VALSET));
+
+    stakedLbtc = await initStakedLBTC(owner.address, treasury.address);
+    stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
+    await stakedLbtc.connect(owner).changeOperator(operator.address);
 
     stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
-      await lbtc.getAddress(),
-      deployer.address,
+      stakedLbtc.address,
+      owner.address,
       operator.address,
       1,
-      deployer.address,
+      owner.address,
       pauser.address,
       1_000_000
     ]);
 
-    vault = await deployContract<ERC4626Mock>('ERC4626Mock', [await lbtc.getAddress()], false);
+    // Mailbox
+    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox.address = await mailbox.getAddress();
+    await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
+    await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
+    await mailbox.connect(owner).enableMessagePath(LEDGER_CHAIN_ID, LEDGER_MAILBOX);
+
+    // Ratio feed
+    ratioFeed = (await ethers.deployContract('RatioFeedMock', [])) as RatioFeedMock & Addressable;
+    ratioFeed.address = await ratioFeed.getAddress();
+
+    // AssetRouter
+    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [
+      owner.address,
+      0n,
+      LEDGER_CHAIN_ID,
+      BITCOIN_CHAIN_ID,
+      mailbox.address,
+      ratioFeed.address,
+      ethers.ZeroAddress,
+      toNativeCommission
+    ]);
+    assetRouter.address = await assetRouter.getAddress();
+    assetRouterBytes = encode(['address'], [assetRouter.address]);
+    // Roles
+    await assetRouter.connect(owner).grantRole(await assetRouter.CALLER_ROLE(), owner);
+    await assetRouter.connect(owner).grantRole(await assetRouter.OPERATOR_ROLE(), operator);
+
+    await mailbox.connect(owner).setSenderConfig(assetRouter.address, 516, true);
+    await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
+    await stakedLbtc.connect(owner).addMinter(assetRouter.address);
+
+    vault = await deployContract<ERC4626Mock>('ERC4626Mock', [stakedLbtc.address], false);
 
     erc4626Depositor = await deployContract<ERC4626Depositor>(
       'ERC4626Depositor',
-      [await vault.getAddress(), await lbtc.getAddress(), await stakeAndBake.getAddress()],
+      [await vault.getAddress(), stakedLbtc.address, await stakeAndBake.getAddress()],
       false
     );
 
-    // set deployer as operator
-    await lbtc.changeOperator(deployer.address);
-
     // Initialize the permit module
-    await lbtc.reinitialize();
+    await stakedLbtc.reinitialize();
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 
-    data = await signDepositBtcV0Payload(
-      [signer1],
-      [true],
-      CHAIN_ID,
-      signer2.address,
-      value,
-      encode(['uint256'], [1]) // txid
-    );
+    data = await defaultData(signer2, value);
 
     // create permit payload
     const block = await ethers.provider.getBlock('latest');
@@ -89,7 +148,7 @@ describe('ERC4626Depositor', function () {
     const chainId = (await ethers.provider.getNetwork()).chainId;
     {
       const { v, r, s } = await generatePermitSignature(
-        lbtc,
+        stakedLbtc.address,
         signer2,
         await stakeAndBake.getAddress(),
         value,
@@ -106,19 +165,12 @@ describe('ERC4626Depositor', function () {
 
     // NB for some reason trying to do this in a loop and passing around arrays of parameters
     // makes the test fail, so i'm doing it the ugly way here
-    data2 = await signDepositBtcV0Payload(
-      [signer1],
-      [true],
-      CHAIN_ID,
-      signer3.address,
-      value,
-      encode(['uint256'], [1]) // txid
-    );
+    data2 = await defaultData(signer3, value);
 
     {
       // create permit payload
       const { v, r, s } = await generatePermitSignature(
-        lbtc,
+        stakedLbtc.address,
         signer3,
         await stakeAndBake.getAddress(),
         value,
@@ -134,25 +186,48 @@ describe('ERC4626Depositor', function () {
     depositPayload2 = encode(['uint256'], [depositValue]);
   });
 
+  async function defaultData(
+    recipient: Signer = signer1,
+    amount: bigint = randomBigInt(8),
+    feeApprove: bigint = 1n
+  ): Promise<DefaultData> {
+    const body = getPayloadForAction(
+      [stakedLbtcBytes, encode(['address'], [recipient.address]), amount],
+      MINT_SELECTOR
+    );
+    const payload = getGMPPayload(
+      LEDGER_MAILBOX,
+      LEDGER_CHAIN_ID,
+      CHAIN_ID,
+      Number(randomBigInt(8)),
+      BTC_STAKING_MODULE_ADDRESS,
+      assetRouterBytes,
+      assetRouterBytes,
+      body
+    );
+    const { payloadHash, proof } = await signPayload([notary1], [true], payload);
+    const feeApprovalPayload = getPayloadForAction([feeApprove, snapshotTimestamp + DAY], 'feeApproval');
+    const userSignature = await getFeeTypedMessage(recipient, stakedLbtc, feeApprove, snapshotTimestamp + DAY);
+    return {
+      payload,
+      payloadHash,
+      proof,
+      amount,
+      tokenRecipient: recipient,
+      feeApprovalPayload,
+      userSignature
+    } as unknown as DefaultData;
+  }
+
   afterEach(async function () {
     // clean the state after each test
     await snapshot.restore();
   });
 
   describe('Setters', function () {
-    it('should allow admin to set depositor', async function () {
-      await expect(stakeAndBake.setDepositor(await erc4626Depositor.getAddress()))
-        .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await erc4626Depositor.getAddress());
-    });
-
-    it('should not allow anyone else to set depositor', async function () {
-      await expect(stakeAndBake.connect(signer1).setDepositor(await erc4626Depositor.getAddress())).to.be.reverted;
-    });
-
     it('should not allow calling stakeAndBake without a set depositor', async function () {
       await expect(
-        stakeAndBake.stakeAndBake({
+        stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
@@ -160,12 +235,22 @@ describe('ERC4626Depositor', function () {
         })
       ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
     });
+
+    it('should allow admin to set depositor', async function () {
+      await expect(stakeAndBake.connect(owner).setDepositor(await erc4626Depositor.getAddress()))
+        .to.emit(stakeAndBake, 'DepositorSet')
+        .withArgs(await erc4626Depositor.getAddress());
+    });
+
+    it('should not allow anyone else to set depositor', async function () {
+      await expect(stakeAndBake.connect(signer1).setDepositor(await erc4626Depositor.getAddress())).to.be.reverted;
+    });
   });
 
   describe('Stake and Bake', function () {
     beforeEach(async function () {
       // set depositor to stake and bake
-      await expect(stakeAndBake.setDepositor(await erc4626Depositor.getAddress()))
+      await expect(stakeAndBake.connect(owner).setDepositor(await erc4626Depositor.getAddress()))
         .to.emit(stakeAndBake, 'DepositorSet')
         .withArgs(await erc4626Depositor.getAddress());
     });
@@ -218,7 +303,7 @@ describe('ERC4626Depositor', function () {
     });
 
     it('should allow admin to set a depositor', async function () {
-      await expect(stakeAndBake.setDepositor(signer1.address))
+      await expect(stakeAndBake.connect(owner).setDepositor(signer1.address))
         .to.emit(stakeAndBake, 'DepositorSet')
         .withArgs(signer1.address);
     });
@@ -229,55 +314,53 @@ describe('ERC4626Depositor', function () {
 
     it('should allow pauser to pause', async function () {
       await stakeAndBake.connect(pauser).pause();
+      expect(await stakeAndBake.paused()).to.be.true;
     });
 
     it('should allow admin to unpause', async function () {
       await stakeAndBake.connect(pauser).pause();
-      await stakeAndBake.unpause();
+      await stakeAndBake.connect(owner).unpause();
+      expect(await stakeAndBake.paused()).to.be.false;
     });
 
     it('should stake and bake properly with the correct setup', async function () {
       await expect(
-        stakeAndBake.stakeAndBake({
+        stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
           proof: data.proof
         })
       )
-        .to.emit(lbtc, 'MintProofConsumed')
-        .withArgs(signer2.address, data.payloadHash, data.payload)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(signer2.address, await stakeAndBake.getAddress(), value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
 
     it('should work with allowance', async function () {
-      await lbtc.connect(signer2).approve(await stakeAndBake.getAddress(), value);
+      await stakedLbtc.connect(signer2).approve(await stakeAndBake.getAddress(), value);
       await expect(
-        stakeAndBake.stakeAndBake({
+        stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
           proof: data.proof
         })
       )
-        .to.emit(lbtc, 'MintProofConsumed')
-        .withArgs(signer2.address, data.payloadHash, data.payload)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(signer2.address, await stakeAndBake.getAddress(), value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
@@ -285,7 +368,7 @@ describe('ERC4626Depositor', function () {
 
     it('should batch stake and bake properly with the correct setup', async function () {
       await expect(
-        stakeAndBake.batchStakeAndBake([
+        stakeAndBake.connect(owner).batchStakeAndBake([
           {
             permitPayload: permitPayload,
             depositPayload: depositPayload,
@@ -300,34 +383,30 @@ describe('ERC4626Depositor', function () {
           }
         ])
       )
-        .to.emit(lbtc, 'MintProofConsumed')
-        .withArgs(signer2.address, data.payloadHash, data.payload)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(signer2.address, await stakeAndBake.getAddress(), value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue)
-        .to.emit(lbtc, 'MintProofConsumed')
-        .withArgs(signer3.address, data2.payloadHash, data2.payload)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer3.address, value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(signer3.address, await stakeAndBake.getAddress(), value)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
-        .to.emit(lbtc, 'Transfer')
+        .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), await erc4626Depositor.getAddress(), depositValue)
         .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
     });
 
     it('should revert when a zero depositor address is set', async function () {
-      await expect(stakeAndBake.setDepositor(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+      await expect(stakeAndBake.connect(owner).setDepositor(ethers.ZeroAddress)).to.be.revertedWithCustomError(
         stakeAndBake,
         'ZeroAddress'
       );
@@ -336,7 +415,7 @@ describe('ERC4626Depositor', function () {
     it('should revert when remaining amount is zero', async function () {
       await stakeAndBake.connect(operator).setFee(10001);
       await expect(
-        stakeAndBake.stakeAndBake({
+        stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
@@ -348,7 +427,7 @@ describe('ERC4626Depositor', function () {
     it('should not allow stakeAndBake when paused', async function () {
       await stakeAndBake.connect(pauser).pause();
       await expect(
-        stakeAndBake.stakeAndBake({
+        stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
@@ -360,7 +439,7 @@ describe('ERC4626Depositor', function () {
     it('should not allow batchStakeAndBake when paused', async function () {
       await stakeAndBake.connect(pauser).pause();
       await expect(
-        stakeAndBake.batchStakeAndBake([
+        stakeAndBake.connect(owner).batchStakeAndBake([
           {
             permitPayload: permitPayload,
             depositPayload: depositPayload,

@@ -1,33 +1,24 @@
+import { ethers } from 'hardhat';
+import { expect } from 'chai';
 import { Consortium, GMPHandlerMock, Mailbox, MailboxTreasuryMock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
+  Addressable,
   calcFee,
   calculateStorageSlot,
-  deployContract, DEPOSIT_BTC_ACTION_V1,
+  deployContract,
+  DEPOSIT_BTC_ACTION_V1,
   encode,
   getGMPPayload,
   getPayloadForAction,
-  getSignersWithPrivateKeys, GMP_V1_SELECTOR,
+  getSignersWithPrivateKeys,
+  GMP_V1_SELECTOR,
+  initStakedLBTC,
   NEW_VALSET,
   randomBigInt,
   Signer,
   signPayload
 } from './helpers';
-import { ethers } from 'hardhat';
-import { expect } from 'chai';
-
-class Addressable {
-  get address(): string {
-    return this._address;
-  }
-
-  set address(value: string) {
-    this._address = value;
-  }
-
-  // @ts-ignore
-  private _address: string;
-}
 
 const GLOBAL_MAX_PAYLOAD_SIZE = 10000n;
 const DEFAULT_FEE_PER_BYTE = 100n;
@@ -530,13 +521,7 @@ describe('Mailbox', function () {
       globalNonce = 1;
 
       const rndAddr = ethers.Wallet.createRandom();
-      token = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        rndAddr.address,
-        0,
-        rndAddr.address,
-        owner.address
-      ]);
-      token.address = await token.getAddress();
+      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
       dummy = signer2;
       await token.connect(owner).addMinter(owner);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
@@ -1241,7 +1226,7 @@ describe('Mailbox', function () {
         });
       });
 
-      it('Invalid selector', async function() {
+      it('Invalid selector', async function () {
         let body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
 
         let payload = getGMPPayload(
@@ -1260,8 +1245,8 @@ describe('Mailbox', function () {
         const { proof } = await signPayload([notary], [true], payload);
         await expect(dmailbox.connect(signer1).deliverAndHandle(payload, proof))
           .to.be.revertedWithCustomError(dmailbox, 'GMP_InvalidAction')
-          .withArgs(GMP_V1_SELECTOR, DEPOSIT_BTC_ACTION_V1)
-      })
+          .withArgs(GMP_V1_SELECTOR, DEPOSIT_BTC_ACTION_V1);
+      });
     });
   });
 });

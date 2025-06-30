@@ -31,7 +31,6 @@ describe('ProxyFactory', () => {
     const salt = ethers.keccak256('0x1234');
     let data = lbtcImplementation.interface.encodeFunctionData('initialize', [
       deployer.address,
-      0,
       deployer.address,
       deployer.address
     ]);

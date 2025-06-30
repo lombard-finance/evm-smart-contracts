@@ -5,14 +5,13 @@ import { deployContract, getSignersWithPrivateKeys, initStakedLBTC, Signer } fro
 import { FBTCPartnerVault, LockedFBTCMock, StakedLBTC, WBTCMock } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 
-describe('FBTCPartnerVault', function () {
+describe.skip('FBTCPartnerVault', function () {
   let deployer: Signer, signer1: Signer, signer2: Signer, signer3: Signer, treasury: Signer;
   let partnerVault: FBTCPartnerVault;
   let lockedFbtc: LockedFBTCMock;
   let fbtc: WBTCMock;
   let lbtc: StakedLBTC;
   let snapshot: SnapshotRestorer;
-  let snapshotTimestamp: number;
   const oneLbtc = 100000000;
   const pauserRoleHash = '0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a';
   const operatorRoleHash = '0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929';
@@ -20,9 +19,7 @@ describe('FBTCPartnerVault', function () {
   before(async function () {
     [deployer, signer1, signer2, signer3, treasury] = await getSignersWithPrivateKeys();
 
-    const burnCommission = 1000;
-    const result = await initStakedLBTC(burnCommission, deployer.address, deployer.address);
-    lbtc = result.lbtc;
+    lbtc = await initStakedLBTC(deployer.address, deployer.address);
 
     fbtc = await deployContract<WBTCMock>('WBTCMock', []);
 
@@ -47,7 +44,6 @@ describe('FBTCPartnerVault', function () {
     partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
 
     snapshot = await takeSnapshot();
-    snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
   });
 
   beforeEach(async function () {

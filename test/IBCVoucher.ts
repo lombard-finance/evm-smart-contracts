@@ -1,13 +1,13 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { deployContract, initStakedLBTC, Signer } from './helpers';
-import { IBCVoucher, LBTCMock } from '../typechain-types';
-import { time, SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
+import { Addressable, deployContract, initStakedLBTC, Signer } from './helpers';
+import { IBCVoucher, StakedLBTC } from '../typechain-types';
+import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-network-helpers';
 
 describe('IBCVoucher', function () {
   this.timeout(15_000);
 
-  let deployer: Signer,
+  let _: Signer,
     signer1: Signer,
     signer2: Signer,
     admin: Signer,
@@ -16,18 +16,16 @@ describe('IBCVoucher', function () {
     pauser: Signer,
     treasury: Signer;
   let ibcVoucher: IBCVoucher;
-  let lbtc: LBTCMock;
+  let lbtc: StakedLBTC & Addressable;
   let snapshot: SnapshotRestorer;
   const fee = 10n;
   const amount = 100n;
   const oneHour = 60 * 60;
 
   before(async function () {
-    [deployer, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
+    [_, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
 
-    const burnCommission = 1000;
-    const result = await initStakedLBTC(burnCommission, treasury.address, admin.address);
-    lbtc = result.lbtc;
+    lbtc = await initStakedLBTC(admin.address, treasury.address);
 
     ibcVoucher = await deployContract<IBCVoucher>('IBCVoucher', [
       await lbtc.getAddress(),

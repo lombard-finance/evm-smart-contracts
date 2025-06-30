@@ -1,6 +1,7 @@
 import { BridgeV2, Consortium, Mailbox, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
+  Addressable,
   calcFee,
   calculateStorageSlot,
   deployContract,
@@ -9,6 +10,7 @@ import {
   getPayloadForAction,
   getSignersWithPrivateKeys,
   GMP_V1_SELECTOR,
+  initStakedLBTC,
   NEW_VALSET,
   randomBigInt,
   Signer,
@@ -21,20 +23,7 @@ import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 import PayloadStruct = GMPUtils.PayloadStruct;
 
-class Addressable {
-  get address(): string {
-    return this._address;
-  }
-
-  set address(value: string) {
-    this._address = value;
-  }
-
-  // @ts-ignore
-  private _address: string;
-}
-
-const BRIDGE_PAYLOAD_SIZE = 356;
+const BRIDGE_PAYLOAD_SIZE = 388;
 const MAX_FEE_DISCOUNT = 10000n;
 
 describe('BridgeV2', function () {
@@ -94,20 +83,10 @@ describe('BridgeV2', function () {
     dBridgeBytes = encode(['address'], [dbridge.address]);
 
     // Tokens
-    sLBTC = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-      consortium.address,
-      0,
-      owner.address,
-      owner.address
-    ]);
+    sLBTC = await initStakedLBTC(owner.address, owner.address, consortium.address);
     sLBTC.address = await sLBTC.getAddress();
     await sLBTC.connect(owner).addMinter(minter.address);
-    dLBTC = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-      consortium.address,
-      0,
-      owner.address,
-      owner.address
-    ]);
+    dLBTC = await initStakedLBTC(owner.address, owner.address, consortium.address);
     dLBTC.address = await dLBTC.getAddress();
     await dLBTC.connect(owner).addMinter(minter.address);
     await dLBTC.connect(owner).addMinter(dbridge.address);
@@ -345,12 +324,7 @@ describe('BridgeV2', function () {
       globalNonce = 1;
 
       const rndAddr = ethers.Wallet.createRandom();
-      token = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        rndAddr.address,
-        0,
-        rndAddr.address,
-        owner.address
-      ]);
+      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
       token.address = await token.getAddress();
       dummy = signer2;
       await token.connect(owner).addMinter(owner);
@@ -359,7 +333,7 @@ describe('BridgeV2', function () {
 
     it('Owner can transfer ERC20 from mailbox', async () => {
       const amount = randomBigInt(8);
-      let tx = await token.connect(dummy).transfer(sbridge, amount);
+      let tx = await token.connect(dummy)['transfer(address,uint256)'](sbridge, amount);
       await expect(tx).changeTokenBalance(token, sbridge, amount);
 
       tx = await sbridge.connect(owner).rescueERC20(token, dummy, amount);
@@ -369,7 +343,7 @@ describe('BridgeV2', function () {
 
     it('Reverts when called by not an owner', async () => {
       const amount = randomBigInt(8);
-      const tx = await token.connect(dummy).transfer(sbridge, amount);
+      const tx = await token.connect(dummy)['transfer(address,uint256)'](sbridge, amount);
       await expect(tx).changeTokenBalance(token, sbridge, amount);
 
       await expect(sbridge.connect(dummy).rescueERC20(token.address, dummy.address, amount))
@@ -392,15 +366,16 @@ describe('BridgeV2', function () {
     });
 
     it('successful', async () => {
+      const sender = encode(['address'], [signer1.address]);
       const recipient = encode(['address'], [signer1.address]);
       const dCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, AMOUNT]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, AMOUNT]
       );
 
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -413,13 +388,21 @@ describe('BridgeV2', function () {
 
       const fee = await sbridge.getFee(signer1);
       await expect(
-        sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, AMOUNT, dCaller, { value: fee })
+        sbridge
+          .connect(signer1)
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, recipient, AMOUNT, dCaller, { value: fee })
       )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload);
 
       const tx = await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
+      const receipt = await tx.wait();
+      receipt?.logs.forEach(l => console.log(l));
+
       await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
+
       await expect(tx)
         .to.emit(dbridge, 'WithdrawFromBridge')
         .withArgs(signer1.address, lChainId, dLBTC.address, AMOUNT);
@@ -429,12 +412,14 @@ describe('BridgeV2', function () {
   describe('Deposit', function () {
     const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
     const dCaller = encode(['address'], [ethers.Wallet.createRandom().address]);
+    let sender: string;
 
     before(async () => {
       await snapshot.restore();
       globalNonce = 1;
 
       await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
+      sender = encode(['address'], [signer1.address]);
     });
 
     it('New message', async () => {
@@ -442,11 +427,11 @@ describe('BridgeV2', function () {
 
       const amount = randomBigInt(10);
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, amount]
       );
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -459,7 +444,9 @@ describe('BridgeV2', function () {
       const fee = await sbridge.getFee(signer1);
       const tx = await sbridge
         .connect(signer1)
-        .deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       await expect(tx)
         .to.emit(sbridge, 'DepositToBridge')
         .withArgs(signer1, recipient, ethers.sha256(payload))
@@ -482,7 +469,9 @@ describe('BridgeV2', function () {
       const fee = await sbridge.getFee(signer1);
       const tx = await sbridge
         .connect(signer1)
-        .deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       let receipt = (await tx.wait()) as ContractTransactionReceipt;
       globalNonce++;
       const logsData = await payloadFromReceipt(receipt);
@@ -492,19 +481,20 @@ describe('BridgeV2', function () {
 
       const res = await dbridge.decodeMsgBody(payload.msgBody);
       expect(res[0]).to.be.eq(dLBTC.address);
-      expect(encode(['address'], [res[1]])).to.be.eq(recipient);
-      expect(res[2]).to.be.eq(amount);
+      expect(encode(['address'], [res[1]])).to.be.eq(sender);
+      expect(encode(['address'], [res[2]])).to.be.eq(recipient);
+      expect(res[3]).to.be.eq(amount);
     });
 
     it('Another message to the same chain', async () => {
       const amount = randomBigInt(10);
 
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, amount]
       );
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -515,7 +505,11 @@ describe('BridgeV2', function () {
       );
 
       const fee = await sbridge.getFee(signer1);
-      const tx = sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+      const tx = sbridge
+        .connect(signer1)
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       await expect(tx)
         .to.emit(sbridge, 'DepositToBridge')
         .withArgs(signer1, recipient, ethers.sha256(payload))
@@ -524,12 +518,7 @@ describe('BridgeV2', function () {
     });
 
     it('Other token pair to the same chain', async () => {
-      const sLBTC = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        consortium.address,
-        0,
-        owner.address,
-        owner.address
-      ]);
+      const sLBTC = await initStakedLBTC(owner.address, owner.address, consortium.address);
       sLBTC.address = await sLBTC.getAddress();
       await sLBTC.connect(owner).addMinter(minter.address);
       await sLBTC.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
@@ -543,7 +532,11 @@ describe('BridgeV2', function () {
       const amount = randomBigInt(6);
       const fee = await sbridge.getFee(signer1);
       await expect(
-        sbridge.connect(signer1).deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee })
+        sbridge
+          .connect(signer1)
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee })
       )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, newDstBridge, anyValue);
@@ -562,12 +555,12 @@ describe('BridgeV2', function () {
 
       const amount = randomBigInt(10);
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [newDstToken]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [newDstToken]), sender, recipient, amount]
       );
 
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         newDstChain,
         globalNonce++,
@@ -579,7 +572,11 @@ describe('BridgeV2', function () {
 
       const fee = await sbridge.getFee(signer1);
       await expect(
-        sbridge.connect(signer1).deposit(newDstChain, sLBTC.address, recipient, amount, dCaller, { value: fee })
+        sbridge
+          .connect(signer1)
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](newDstChain, sLBTC.address, recipient, amount, dCaller, { value: fee })
       )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(newDstChain, sbridge.address, newDstBridge, payload);
@@ -669,7 +666,9 @@ describe('BridgeV2', function () {
         await expect(
           sbridge
             .connect(sender)
-            .deposit(arg.destinationChain(), arg.token(), arg.recipient(), arg.amount(), arg.dCaller(), { value: fee })
+            [
+              'deposit(bytes32,address,bytes32,uint256,bytes32)'
+            ](arg.destinationChain(), arg.token(), arg.recipient(), arg.amount(), arg.dCaller(), { value: fee })
         )
           // @ts-ignore
           .to.be.revertedWithCustomError(...arg.customError());
@@ -732,13 +731,16 @@ describe('BridgeV2', function () {
 
     describe('Fees', () => {
       let sender: Signer;
+      let senderBytes: string;
       const dCaller = encode(['address'], [ethers.ZeroAddress]);
       const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
+
       beforeEach(async () => {
         await snapshot.restore();
         globalNonce = 1;
 
         sender = signer1;
+        senderBytes = encode(['address'], [sender.address]);
       });
 
       const args = [
@@ -771,8 +773,8 @@ describe('BridgeV2', function () {
 
           const amount = randomBigInt(10);
           const body = ethers.solidityPacked(
-            ['uint8', 'bytes32', 'bytes32', 'uint256'],
-            [await sbridge.MSG_VERSION(), dBridgeBytes, recipient, amount]
+            ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+            [await sbridge.MSG_VERSION(), dBridgeBytes, senderBytes, recipient, amount]
           );
 
           const { fee } = calcFee(body, weiPerByte);
@@ -783,7 +785,9 @@ describe('BridgeV2', function () {
           const extra = arg.extra;
           const tx = await sbridge
             .connect(sender)
-            .deposit(lChainId, sLBTC.address, recipient, amount, dCaller, { value: actualFee + extra });
+            [
+              'deposit(bytes32,address,bytes32,uint256,bytes32)'
+            ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: actualFee + extra });
           await expect(tx).to.emit(smailbox, 'MessageSent');
           await expect(tx).to.changeEtherBalance(sender, -(actualFee + extra), { includeFee: false });
           await expect(tx).to.changeEtherBalance(smailbox, actualFee + extra, { includeFee: false });
@@ -794,6 +798,7 @@ describe('BridgeV2', function () {
 
   describe('Deliver and handle', function () {
     describe('Destination caller is specified', function () {
+      let sender: Signer;
       let recipient: Signer;
       let dCaller: Signer;
       let amount: bigint;
@@ -813,19 +818,15 @@ describe('BridgeV2', function () {
         await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
 
         amount = randomBigInt(8);
-        dCaller = signer3;
+        sender = signer1;
         recipient = signer2;
+        dCaller = signer3;
         const fee = await sbridge.getFee(signer1);
         const tx = await sbridge
           .connect(signer1)
-          .deposit(
-            lChainId,
-            sLBTC.address,
-            encode(['address'], [recipient.address]),
-            amount,
-            encode(['address'], [dCaller.address]),
-            { value: fee }
-          );
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
         payload = (await payloadFromReceipt(receipt))?.payload;
@@ -888,14 +889,9 @@ describe('BridgeV2', function () {
         const fee = await sbridge.getFee(signer1);
         let tx = await sbridge
           .connect(signer1)
-          .deposit(
-            lChainId,
-            sLBTC.address,
-            encode(['address'], [recipient.address]),
-            amount,
-            encode(['address'], [dCaller.address]),
-            { value: fee }
-          );
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
         globalNonce++;
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
@@ -921,29 +917,25 @@ describe('BridgeV2', function () {
 
       it('deliver other token on the chain', async () => {
         const sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-        const dLBTC2 = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-          consortium.address,
-          0,
-          owner.address,
-          owner.address
-        ]);
+        const dLBTC2 = await initStakedLBTC(owner.address, owner.address, consortium.address);
         dLBTC2.address = await dLBTC2.getAddress();
         await dLBTC2.connect(owner).addMinter(dbridge.address);
         await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
 
         const amount = randomBigInt(8);
         const body = ethers.solidityPacked(
-          ['uint8', 'bytes32', 'bytes32', 'uint256'],
+          ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
           [
             await sbridge.MSG_VERSION(),
             encode(['address'], [dLBTC2.address]),
+            encode(['address'], [sender.address]),
             encode(['address'], [recipient.address]),
             amount
           ]
         );
 
         const payload = getGMPPayload(
-          smailbox.address,
+          encode(['address'], [smailbox.address]),
           lChainId,
           lChainId,
           1,
@@ -1000,17 +992,18 @@ describe('BridgeV2', function () {
         });
 
         const body = ethers.solidityPacked(
-          ['uint8', 'bytes32', 'bytes32', 'uint256'],
+          ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
           [
             await sbridge.MSG_VERSION(),
             encode(['address'], [dLBTC.address]),
+            encode(['address'], [sender.address]),
             encode(['address'], [recipient.address]),
             amount
           ]
         );
 
         const payload = getGMPPayload(
-          newSrcMailbox,
+          encode(['address'], [newSrcMailbox]),
           newSrcChain,
           lChainId,
           globalNonce++,
@@ -1058,14 +1051,9 @@ describe('BridgeV2', function () {
         const fee = await sbridge.getFee(signer1);
         const tx = await sbridge
           .connect(signer1)
-          .deposit(
-            lChainId,
-            sLBTC.address,
-            encode(['address'], [recipient.address]),
-            amount,
-            encode(['address'], [ethers.ZeroAddress]),
-            { value: fee }
-          );
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [ethers.ZeroAddress]), { value: fee });
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
         payload = (await payloadFromReceipt(receipt))?.payload;
@@ -1138,12 +1126,7 @@ describe('BridgeV2', function () {
           encode(['address', 'bytes32', 'bytes32'], [newSrcMailbox, newSrcChain, lChainId])
         );
 
-        unknownToken = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-          consortium.address,
-          0,
-          owner.address,
-          owner.address
-        ]);
+        unknownToken = await initStakedLBTC(owner.address, owner.address, consortium.address);
         unknownToken.address = await unknownToken.getAddress();
         await unknownToken.connect(owner).addMinter(dbridge.address);
       });
@@ -1203,7 +1186,7 @@ describe('BridgeV2', function () {
           messagePath: () => messagePath,
           sBridgeBytes: () => sBridgeBytes,
           bodyModifier: (body: string): string => body + 'aa',
-          customError: (arg: any) => dbridge.interface.encodeErrorResult('BridgeV2_InvalidMsgBodyLength', [97, 98])
+          customError: (arg: any) => dbridge.interface.encodeErrorResult('BridgeV2_InvalidMsgBodyLength', [129, 130])
         }
         // {
         //   name: 'Correct',
@@ -1222,10 +1205,11 @@ describe('BridgeV2', function () {
         it(`Reverts when ${arg.name}`, async () => {
           let dCaller = signer1;
           let body = ethers.solidityPacked(
-            ['uint8', 'bytes32', 'bytes32', 'uint256'],
+            ['uint8', 'bytes32', 'bytes32','bytes32', 'uint256'],
             [
               arg.msgVersion(),
               encode(['address'], [arg.dstToken()]),
+              encode(['address'], [signer1.address]),
               encode(['address'], [arg.tokenRecipient()]),
               arg.amount()
             ]
@@ -1268,6 +1252,7 @@ describe('BridgeV2', function () {
     const newSrcBridgeBytes = encode(['address'], [newSrcBridge]);
     const rateLimits = new Map();
     let sender: Signer;
+    let senderBytes: string;
     let recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
     let dCaller = encode(['address'], [ethers.ZeroAddress]);
 
@@ -1276,12 +1261,7 @@ describe('BridgeV2', function () {
       globalNonce = 1;
       // Map another pair
       sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-      dLBTC2 = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        consortium.address,
-        0,
-        owner.address,
-        owner.address
-      ]);
+      dLBTC2 = await initStakedLBTC(owner.address, owner.address, consortium.address);
       dLBTC2.address = await dLBTC2.getAddress();
       await dLBTC2.connect(owner).addMinter(dbridge.address);
       await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
@@ -1293,6 +1273,7 @@ describe('BridgeV2', function () {
       await dbridge.connect(owner).addDestinationToken(newSrcChain, dLBTC, sLBTC3);
 
       sender = signer1;
+      senderBytes = encode(['address'], [signer1.address]);
       await sbridge.connect(owner).setSenderConfig(sender, 0n, true);
     });
 
@@ -1361,11 +1342,11 @@ describe('BridgeV2', function () {
       const rateLimit = rateLimits.get(dLBTC.address + lChainId)?.limit;
       let amount = rateLimit / 4n;
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), senderBytes, recipient, amount]
       );
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -1389,11 +1370,11 @@ describe('BridgeV2', function () {
       const limitStatusBefore = await dbridge.getTokenRateLimit(dLBTC, lChainId);
       const amount = limitStatusBefore[1];
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), senderBytes, recipient, amount]
       );
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -1421,12 +1402,12 @@ describe('BridgeV2', function () {
       console.log(limitStatusBefore);
       const amount = limitStatusBefore[1] + delta * 1000n;
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), senderBytes, recipient, amount]
       );
       const nonce = Number(randomBigInt(2));
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         nonce,
@@ -1455,11 +1436,11 @@ describe('BridgeV2', function () {
       const delta = BigInt(limitConfig.limit / limitConfig.window);
       const amount = limitConfig.limit;
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), senderBytes, recipient, amount]
       );
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,
@@ -1482,11 +1463,11 @@ describe('BridgeV2', function () {
       const delta = BigInt(limitConfig.limit / limitConfig.window);
       const amount = limitConfig.limit;
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), senderBytes, recipient, amount]
       );
       const payload = getGMPPayload(
-        newSrcMailbox,
+        encode(['address'], [newSrcMailbox]),
         newSrcChain,
         lChainId,
         globalNonce++,
@@ -1509,11 +1490,11 @@ describe('BridgeV2', function () {
       const delta = BigInt(limitConfig.limit / limitConfig.window);
       const amount = limitConfig.limit;
       const body = ethers.solidityPacked(
-        ['uint8', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC2.address]), recipient, amount]
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC2.address]), senderBytes, recipient, amount]
       );
       const payload = getGMPPayload(
-        smailbox.address,
+        encode(['address'], [smailbox.address]),
         lChainId,
         lChainId,
         globalNonce++,

@@ -1,6 +1,6 @@
 import { EndpointV2Mock, LBTCOFTAdapter, LBTCBurnMintOFTAdapter, StakedLBTC } from '../typechain-types';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import { getSignersWithPrivateKeys, deployContract, encode, Signer } from './helpers';
+import { getSignersWithPrivateKeys, deployContract, encode, Signer, initStakedLBTC } from './helpers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { Options } from '@layerzerolabs/lz-v2-utilities';
@@ -25,12 +25,7 @@ describe('OFTAdapter', function () {
   before(async function () {
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
-    lbtc = await deployContract<StakedLBTC>('StakedLBTC', [
-      deployer.address, // consortium - not relevant for this test, but can not be zero
-      100,
-      deployer.address, // treasury - not relevant for this test, but can not be zero
-      deployer.address
-    ]);
+    lbtc = await initStakedLBTC(deployer.address, deployer.address);
 
     // deploy LayerZero endpoint
     aLZEndpoint = await deployContract<EndpointV2Mock>('EndpointV2Mock', [aEid], false);
