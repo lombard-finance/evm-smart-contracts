@@ -3,12 +3,12 @@ import { verify, getProxyFactoryAt, getProxySalt } from './index';
 
 export async function create3(
   contract: string,
-  contractName: string = contract,
   args: any[],
   factoryAddr: string,
   ledgerNetwork: string,
   admin: string,
-  hre: HardhatRuntimeEnvironment
+  hre: HardhatRuntimeEnvironment,
+  contractName: string = contract,
 ): Promise<{ proxy: any; proxyAdmin: any }> {
   const { ethers, run, upgrades } = hre;
 

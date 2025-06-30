@@ -31,12 +31,12 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
 
     const data = await create3(
       'StakedLBTC',
-      'LBTC',
       [consortium, treasury, admin],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
-      hre
+      hre,
+      'LBTC'
     );
 
     // reinitialize
