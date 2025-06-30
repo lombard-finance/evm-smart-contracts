@@ -3,6 +3,7 @@ import { verify, getProxyFactoryAt, getProxySalt } from './index';
 
 export async function create3(
   contract: string,
+  contractName: string = contract,
   args: any[],
   factoryAddr: string,
   ledgerNetwork: string,
@@ -12,7 +13,7 @@ export async function create3(
   const { ethers, run, upgrades } = hre;
 
   const factory = await getProxyFactoryAt(ethers, factoryAddr);
-  const saltHash = getProxySalt(ethers, ledgerNetwork, contract);
+  const saltHash = getProxySalt(ethers, ledgerNetwork, contractName);
 
   const impl = await ethers.deployContract(contract);
   await impl.waitForDeployment();
