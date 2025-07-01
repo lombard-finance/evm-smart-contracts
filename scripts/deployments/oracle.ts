@@ -14,11 +14,16 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
   .addParam('token', 'The address of StakedLBTC token')
   .addParam('denom', 'The hash pf token denominator')
   .addParam('ratio', 'The initial ratio for the token', (10n ** 18n).toString())
-  .addParam('switchTime', 'The time when ratio becomes applicable', (0n).toString())
-  .addParam('maxinteval', 'The maximum interval between now and switch time when publishing new ratio', (3600n).toString()) // Default - 1 hour
+  .addParam('switchTime', 'The time when ratio becomes applicable', 0n.toString())
+  .addParam(
+    'maxinteval',
+    'The maximum interval between now and switch time when publishing new ratio',
+    3600n.toString()
+  ) // Default - 1 hour
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
   .setAction(async (taskArgs, hre) => {
-    const { ledgerNetwork, admin, proxyFactoryAddr, consortium, token, denom, ratio, switchTime, maxinteval} = taskArgs;
+    const { ledgerNetwork, admin, proxyFactoryAddr, consortium, token, denom, ratio, switchTime, maxinteval } =
+      taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     let owner = await signer.getAddress();
@@ -27,5 +32,12 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
       owner = admin;
     }
 
-    await create3('StakedLBTCOracle', [owner, consortium, token, denom, ratio, switchTime, maxinteval], proxyFactoryAddr, ledgerNetwork, owner, hre);
+    await create3(
+      'StakedLBTCOracle',
+      [owner, consortium, token, denom, ratio, switchTime, maxinteval],
+      proxyFactoryAddr,
+      ledgerNetwork,
+      owner,
+      hre
+    );
   });
