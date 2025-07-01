@@ -157,8 +157,7 @@ describe('BTCBPMM', function () {
 
     it('should fail to swap if amount is to low and will result in 0 StakedLBTC', async function () {
       await btcb.connect(signer1).approve(await pmm.getAddress(), 1);
-      await expect(pmm.connect(signer1).swapBTCBToLBTC(1))
-        .to.be.revertedWithCustomError(pmm, 'ZeroAmount');
+      await expect(pmm.connect(signer1).swapBTCBToLBTC(1)).to.be.revertedWithCustomError(pmm, 'ZeroAmount');
     });
 
     describe('With whitelisted minter', function () {

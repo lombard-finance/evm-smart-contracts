@@ -411,8 +411,7 @@ contract AssetRouter is
             scriptPubkey,
             $.dustFeeRate,
             amount - redeemFee,
-            $.toNativeCommission,
-            $.oracle.ratio()
+            $.toNativeCommission
         );
         return (amountAfterFee, isAboveDust);
     }
@@ -449,8 +448,7 @@ contract AssetRouter is
                 recipient,
                 $.dustFeeRate,
                 amount - redeemFee,
-                fee,
-                $.oracle.ratio()
+                fee
             );
             gmpRecipient = Assets.BTC_STAKING_MODULE_ADDRESS;
         }
@@ -477,6 +475,9 @@ contract AssetRouter is
         uint256 amount
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (tolChainId == $.bitcoinChainId) {
+            revert AssertRouter_WrongRedeemDestinationChain();
+        }
         _redeem(
             $,
             fromAddress,
@@ -569,13 +570,9 @@ contract AssetRouter is
             rawPayload
         );
         if (fee > 0) {
-            tokenContract.transfer(
-                fromAddress,
-                tokenContract.getTreasury(),
-                fee
-            );
+            tokenContract.mint(tokenContract.getTreasury(), fee);
         }
-        tokenContract.burn(fromAddress, amount);
+        tokenContract.burn(fromAddress, amount + fee);
     }
 
     function mint(
@@ -700,7 +697,8 @@ contract AssetRouter is
             revert AssetRouter_FeeGreaterThanAmount();
         }
         if (fee > 0) {
-            tokenContract.transfer(recipient, treasury, fee);
+            tokenContract.burn(recipient, fee);
+            tokenContract.mint(treasury, fee);
         }
 
         emit AssetRouter_FeeCharged(fee, userSignature);

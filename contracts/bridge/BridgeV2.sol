@@ -452,7 +452,7 @@ contract BridgeV2 is
         bytes32 chainId,
         bytes memory msgBody
     ) internal {
-        (address token, address sender, address recipient, uint256 amount) = decodeMsgBody(
+        (address token, , address recipient, uint256 amount) = decodeMsgBody(
             msgBody
         );
 

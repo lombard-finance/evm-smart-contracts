@@ -287,7 +287,11 @@ export async function initStakedLBTC(owner: string, treasury: string, consortium
   return lbtc;
 }
 
-export async function initNativeLBTC(owner: string, treasury: string, consortium: string = ethers.ZeroAddress) : Promise<NativeLBTC & Addressable> {
+export async function initNativeLBTC(
+  owner: string,
+  treasury: string,
+  consortium: string = ethers.ZeroAddress
+): Promise<NativeLBTC & Addressable> {
   if (consortium === ethers.ZeroAddress) {
     const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
     consortium = await c.getAddress();

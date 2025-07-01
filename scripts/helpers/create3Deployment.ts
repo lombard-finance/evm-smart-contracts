@@ -8,7 +8,7 @@ export async function create3(
   ledgerNetwork: string,
   admin: string,
   hre: HardhatRuntimeEnvironment,
-  contractName: string = contract,
+  contractName: string = contract
 ): Promise<{ proxy: any; proxyAdmin: any }> {
   const { ethers, run, upgrades } = hre;
 

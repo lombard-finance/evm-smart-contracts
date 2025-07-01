@@ -372,19 +372,6 @@ contract NativeLBTC is
         _burn(from, amount);
     }
 
-    /**
-     * @dev Allows minters to transfer NativeLBTC
-     *
-     * @param amount Amount of NativeLBTC to transfer
-     */
-    function transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
-        _transfer(from, to, amount);
-    }
-
     /// PRIVATE FUNCTIONS ///
 
     function __NativeLBTC_init(

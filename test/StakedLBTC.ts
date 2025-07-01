@@ -514,7 +514,7 @@ describe('StakedLBTC', function () {
       });
 
       it('toNativeCommission() returns fee for redeem to NativeLBTC', async function () {
-        expect(await stakedLbtc.getBurnCommission()).to.be.eq(toNativeCommission);
+        expect(await stakedLbtc.toNativeCommission()).to.be.eq(toNativeCommission);
       });
       it('getDustFeeRate()', async function () {
         expect(await stakedLbtc.getDustFeeRate()).to.be.eq(DEFAULT_DUST_FEE_RATE);
@@ -940,7 +940,10 @@ describe('StakedLBTC', function () {
             if (appliedFee > 0n) {
               await expect(tx)
                 .to.emit(stakedLbtc, 'Transfer')
-                .withArgs(recipient.address, treasury.address, appliedFee);
+                .withArgs(recipient.address, ethers.ZeroAddress, appliedFee);
+              await expect(tx)
+                .to.emit(stakedLbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, treasury.address, appliedFee);
             }
             await expect(tx).to.changeTokenBalance(stakedLbtc, recipient, amount - appliedFee);
             await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, appliedFee);
@@ -1478,7 +1481,8 @@ describe('StakedLBTC', function () {
           await assetRouter.connect(owner).changeToNativeCommission(arg.toNativeFee);
           await ratioFeed.setRatio(arg.ratio);
 
-          redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
+          // redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
+          redeemAmount = arg.expectedAmount + arg.redeemFee + arg.toNativeFee;
           [requestAmount, isAboveDust] = await assetRouter.calcUnstakeRequestAmount(
             stakedLbtc.address,
             arg.scriptPubKey,
@@ -1878,7 +1882,7 @@ describe('StakedLBTC', function () {
       const amount = balance + 1n;
       await expect(stakedLbtc.connect(sender).redeem(amount))
         .to.be.revertedWithCustomError(stakedLbtc, 'ERC20InsufficientBalance')
-        .withArgs(sender.address, balance - redeemFee, amount - redeemFee);
+        .withArgs(sender.address, balance, amount);
     });
 
     it('redeem() reverts when assetRouter is not set', async function () {
@@ -2064,37 +2068,6 @@ describe('StakedLBTC', function () {
       await expect(stakedLbtc.connect(signer2)['burn(address,uint256)'](recipient.address, amount))
         .to.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
         .withArgs(signer2);
-    });
-
-    it('transfer() minter can transfer from account without approval', async function () {
-      const balance = randomBigInt(8);
-      const donor = signer1;
-      const recipient = signer2;
-      await stakedLbtc.connect(minter)['mint(address,uint256)'](donor.address, balance);
-      expect(await stakedLbtc.balanceOf(donor)).to.be.eq(balance);
-
-      const amount = balance / 3n;
-      const totalSupplyBefore = await stakedLbtc.totalSupply();
-      const tx = await stakedLbtc
-        .connect(minter)
-        ['transfer(address,address,uint256)'](donor.address, recipient.address, amount);
-      await expect(tx).changeTokenBalance(stakedLbtc, donor, -amount);
-      await expect(tx).changeTokenBalance(stakedLbtc, recipient, amount);
-      const totalSupplyAfter = await stakedLbtc.totalSupply();
-      expect(totalSupplyAfter).to.be.eq(totalSupplyBefore);
-    });
-
-    it('transfer() reverts when called by not a minter', async function () {
-      const balance = randomBigInt(8);
-      const donor = signer1;
-      const recipient = signer2;
-      await stakedLbtc.connect(minter)['mint(address,uint256)'](donor.address, balance);
-      expect(await stakedLbtc.balanceOf(donor)).to.be.eq(balance);
-
-      const amount = balance / 3n;
-      await expect(stakedLbtc.connect(recipient)['transfer(address,address,uint256)'](donor.address, recipient.address, amount))
-        .to.revertedWithCustomError(stakedLbtc, 'UnauthorizedAccount')
-        .withArgs(recipient);
     });
   });
 });

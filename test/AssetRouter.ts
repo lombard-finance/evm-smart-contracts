@@ -858,7 +858,10 @@ describe('AssetRouter', function () {
             if (appliedFee > 0n) {
               await expect(tx)
                 .to.emit(stakedLbtc, 'Transfer')
-                .withArgs(recipient.address, treasury.address, appliedFee);
+                .withArgs(recipient.address, ethers.ZeroAddress, appliedFee);
+              await expect(tx)
+                .to.emit(stakedLbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, treasury.address, appliedFee);
             }
             await expect(tx).to.changeTokenBalance(stakedLbtc, recipient, amount - appliedFee);
             await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, appliedFee);
@@ -1348,7 +1351,8 @@ describe('AssetRouter', function () {
           await assetRouter.connect(owner).changeToNativeCommission(arg.toNativeFee);
           await ratioFeed.setRatio(arg.ratio);
 
-          const redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
+          // const redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
+          const redeemAmount = arg.expectedAmount + arg.redeemFee + arg.toNativeFee;
           const { amountAfterFee } = await assetRouter.calcUnstakeRequestAmount(
             stakedLbtc.address,
             arg.scriptPubKey,
@@ -1933,7 +1937,7 @@ describe('AssetRouter', function () {
             err: 'AssetOperation_RedeemNotAllowed'
           },
           {
-            name: 'reverts when toChain is unsupported',
+            name: 'reverts when toToken is unsupported',
             msgSender: () => signer1,
             fromAddress: () => signer1.address,
             toChainId: CHAIN_ID,
@@ -1943,6 +1947,18 @@ describe('AssetRouter', function () {
             amount: async () => randomBigInt(6),
             errContract: () => assetRouter,
             err: 'AssetOperation_RedeemNotAllowed'
+          },
+          {
+            name: 'reverts when toChain is Bitcoin chain',
+            msgSender: () => signer1,
+            fromAddress: () => signer1.address,
+            toChainId: BITCOIN_CHAIN_ID,
+            fromToken: () => stakedLbtc.address,
+            toToken: () => randomAddressBytes,
+            recipient: () => signer1.address,
+            amount: async () => randomBigInt(6),
+            errContract: () => assetRouter,
+            err: 'AssertRouter_WrongRedeemDestinationChain'
           }
         ];
 
