@@ -32,29 +32,6 @@ library Validation {
         return amountAfterFee;
     }
 
-    function redeemFee(
-        bytes calldata scriptPubkey,
-        uint256 dustFeeRate,
-        uint256 amount,
-        uint64 fee,
-        uint256 ratio
-    ) internal pure returns (uint256) {
-        (
-            uint256 amountAfterFee,
-            bool isAboveFee,
-            uint256 dustLimit,
-            bool isAboveDust
-        ) = calcFeeAndDustLimit(scriptPubkey, dustFeeRate, amount, fee, ratio);
-        if (!isAboveFee) {
-            revert AmountLessThanCommission(fee);
-        }
-        if (!isAboveDust) {
-            revert AmountBelowDustLimit(dustLimit);
-        }
-
-        return amountAfterFee;
-    }
-
     function calcFeeAndDustLimit(
         bytes calldata scriptPubkey,
         uint256 dustFeeRate,
@@ -81,48 +58,5 @@ library Validation {
 
         bool isAboveDust = amountAfterFee > dustLimit;
         return (amountAfterFee, true, dustLimit, isAboveDust);
-    }
-
-    function calcFeeAndDustLimit(
-        bytes calldata scriptPubkey,
-        uint256 dustFeeRate,
-        uint256 amount,
-        uint64 fee,
-        uint256 ratio
-    ) internal pure returns (uint256, bool, uint256, bool) {
-        BitcoinUtils.OutputType outType = BitcoinUtils.getOutputType(
-            scriptPubkey
-        );
-        if (outType == BitcoinUtils.OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-        uint256 nativeAmount = Math.mulDiv(
-            amount,
-            1 ether,
-            ratio,
-            Math.Rounding.Ceil
-        );
-
-        if (nativeAmount <= fee) {
-            return (0, false, 0, false);
-        }
-
-        uint256 amountAfterFee = Math.mulDiv(
-            nativeAmount - fee,
-            ratio,
-            1 ether,
-            Math.Rounding.Ceil
-        );
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
-            scriptPubkey,
-            dustFeeRate
-        );
-        return (
-            amountAfterFee,
-            true,
-            dustLimit,
-            nativeAmount - fee > dustLimit
-        );
     }
 }
