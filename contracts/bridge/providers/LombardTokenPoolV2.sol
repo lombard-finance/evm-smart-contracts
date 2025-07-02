@@ -102,7 +102,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             path.allowedCaller
         );
 
-        emit Burned(msg.sender, lockOrBurnIn.amount);
+        emit Burned(lockOrBurnIn.originalSender, lockOrBurnIn.amount);
 
         return
             Pool.LockOrBurnOutV1({
