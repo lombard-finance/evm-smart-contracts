@@ -91,14 +91,14 @@ library Assets {
         if (recipient.length == 0) {
             revert Assets_ZeroRecipient();
         }
-        bool recepientValid = false;
+        bool recipientValid = false;
         for (uint256 i = 0; i < recipient.length; ++i) {
             if (recipient[i] != 0x0) {
-                recepientValid = true;
+                recipientValid = true;
                 break;
             }
         }
-        if (!recepientValid) {
+        if (!recipientValid) {
             revert Assets_ZeroRecipient();
         }
         return
@@ -123,14 +123,14 @@ library Assets {
         if (recipient.length == 0) {
             revert Assets_ZeroRecipient();
         }
-        bool recepientValid = false;
+        bool recipientValid = false;
         for (uint256 i = 0; i < recipient.length; ++i) {
             if (recipient[i] != 0x0) {
-                recepientValid = true;
+                recipientValid = true;
                 break;
             }
         }
-        if (!recepientValid) {
+        if (!recipientValid) {
             revert Assets_ZeroRecipient();
         }
         return
