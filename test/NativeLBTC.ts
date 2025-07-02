@@ -6,7 +6,8 @@ import {
   ASSETS_MODULE_ADDRESS,
   BITCOIN_CHAIN_ID,
   BITCOIN_NATIVE_COIN,
-  CHAIN_ID, DEFAULT_DUST_FEE_RATE,
+  CHAIN_ID,
+  DEFAULT_DUST_FEE_RATE,
   DefaultData,
   deployContract,
   DEPOSIT_BTC_ACTION_V0,
@@ -232,6 +233,7 @@ describe('NativeLBTC', function () {
       before(async function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
+        await nativeLbtc.connect(owner).toggleRedeemsForBtc();
       });
 
       it('toggleRedeemsForBtc() owner can enable', async function () {
@@ -426,12 +428,20 @@ describe('NativeLBTC', function () {
         expect(await nativeLbtc.symbol()).to.equal(newSymbol);
         const domain = await nativeLbtc.eip712Domain();
         expect(domain.name).to.equal(newName);
-        const typeHash = ethers.keccak256(ethers.toUtf8Bytes("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"));
+        const typeHash = ethers.keccak256(
+          ethers.toUtf8Bytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+        );
         const chainId = (await ethers.provider.getNetwork()).chainId;
         const expectedDomainSeparator = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
-            ["bytes32", "bytes32", "bytes32", "uint256", "address"],
-            [typeHash, ethers.keccak256(ethers.toUtf8Bytes(newName)), ethers.keccak256(ethers.toUtf8Bytes("1")), chainId, await nativeLbtc.getAddress()],
+            ['bytes32', 'bytes32', 'bytes32', 'uint256', 'address'],
+            [
+              typeHash,
+              ethers.keccak256(ethers.toUtf8Bytes(newName)),
+              ethers.keccak256(ethers.toUtf8Bytes('1')),
+              chainId,
+              await nativeLbtc.getAddress()
+            ]
           )
         );
         expect(await nativeLbtc.DOMAIN_SEPARATOR()).to.equal(expectedDomainSeparator);
@@ -446,25 +456,25 @@ describe('NativeLBTC', function () {
       });
     });
 
-    describe('Fees', function() {
+    describe('Fees', function () {
       before(async function () {
         await snapshot.restore();
       });
 
-      it('getMintFee() returns mint fee on the contract side', async function() {
+      it('getMintFee() returns mint fee on the contract side', async function () {
         const maxFee = randomBigInt(4);
         await assetRouter.connect(operator).setMaxMintCommission(maxFee);
         expect(await nativeLbtc.getMintFee()).to.be.eq(maxFee);
       });
 
-      it('getRedeemFee() is always 0', async function() {
+      it('getRedeemFee() is always 0', async function () {
         expect(await nativeLbtc.getRedeemFee()).to.be.eq(0n);
       });
 
       it('getDustFeeRate()', async function () {
         expect(await nativeLbtc.getDustFeeRate()).to.be.eq(DEFAULT_DUST_FEE_RATE);
       });
-    })
+    });
   });
 
   describe('Minting', function () {
@@ -1147,7 +1157,6 @@ describe('NativeLBTC', function () {
       before(async function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
-        await nativeLbtc.connect(owner).toggleRedeemsForBtc();
       });
 
       const args = [
@@ -1304,7 +1313,6 @@ describe('NativeLBTC', function () {
       beforeEach(async function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
-        await nativeLbtc.connect(owner).toggleRedeemsForBtc();
       });
 
       it('redeemForBtc() reverts when it is off', async function () {
@@ -1315,7 +1323,7 @@ describe('NativeLBTC', function () {
         await nativeLbtc.connect(minter).mint(signer1.address, amount);
         await expect(
           nativeLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
-        ).to.revertedWithCustomError(assetRouter, 'AssetRouter_RedeemsForBtcDisabled');
+        ).to.revertedWithCustomError(assetRouter, 'AssetOperation_RedeemNotAllowed');
       });
 
       it('redeemForBtc() reverts when amount < toNativeCommission', async function () {
@@ -1592,37 +1600,6 @@ describe('NativeLBTC', function () {
       await expect(nativeLbtc.connect(signer2)['burn(address,uint256)'](recipient.address, amount))
         .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
         .withArgs(signer2.address, await nativeLbtc.MINTER_ROLE());
-    });
-
-    it('transfer() minter can transfer from account without approval', async function () {
-      const balance = randomBigInt(8);
-      const donor = signer1;
-      const recipient = signer2;
-      await nativeLbtc.connect(minter).mint(donor.address, balance);
-      expect(await nativeLbtc.balanceOf(donor)).to.be.eq(balance);
-
-      const amount = balance / 3n;
-      const totalSupplyBefore = await nativeLbtc.totalSupply();
-      const tx = await nativeLbtc
-        .connect(minter)
-        ['transfer(address,address,uint256)'](donor.address, recipient.address, amount);
-      await expect(tx).changeTokenBalance(nativeLbtc, donor, -amount);
-      await expect(tx).changeTokenBalance(nativeLbtc, recipient, amount);
-      const totalSupplyAfter = await nativeLbtc.totalSupply();
-      expect(totalSupplyAfter).to.be.eq(totalSupplyBefore);
-    });
-
-    it('transfer() reverts when called by not a minter', async function () {
-      const balance = randomBigInt(8);
-      const donor = signer1;
-      const recipient = signer2;
-      await nativeLbtc.connect(minter).mint(donor.address, balance);
-      expect(await nativeLbtc.balanceOf(donor)).to.be.eq(balance);
-
-      const amount = balance / 3n;
-      await expect(nativeLbtc.connect(recipient)['transfer(address,address,uint256)'](donor.address, recipient.address, amount))
-        .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
-        .withArgs(recipient.address, await nativeLbtc.MINTER_ROLE());
     });
   });
 });

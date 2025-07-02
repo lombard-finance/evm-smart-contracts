@@ -858,7 +858,10 @@ describe('AssetRouter', function () {
             if (appliedFee > 0n) {
               await expect(tx)
                 .to.emit(stakedLbtc, 'Transfer')
-                .withArgs(recipient.address, treasury.address, appliedFee);
+                .withArgs(recipient.address, ethers.ZeroAddress, appliedFee);
+              await expect(tx)
+                .to.emit(stakedLbtc, 'Transfer')
+                .withArgs(ethers.ZeroAddress, treasury.address, appliedFee);
             }
             await expect(tx).to.changeTokenBalance(stakedLbtc, recipient, amount - appliedFee);
             await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, appliedFee);
@@ -1243,8 +1246,6 @@ describe('AssetRouter', function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
         await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
-        await stakedLbtc.connect(owner).toggleRedeemsForBtc();
-        await nativeLbtc.connect(owner).toggleRedeemsForBtc();
       });
 
       const args = [
@@ -1348,7 +1349,8 @@ describe('AssetRouter', function () {
           await assetRouter.connect(owner).changeToNativeCommission(arg.toNativeFee);
           await ratioFeed.setRatio(arg.ratio);
 
-          const redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
+          // const redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
+          const redeemAmount = arg.expectedAmount + arg.redeemFee + arg.toNativeFee;
           const { amountAfterFee } = await assetRouter.calcUnstakeRequestAmount(
             stakedLbtc.address,
             arg.scriptPubKey,
@@ -1449,7 +1451,6 @@ describe('AssetRouter', function () {
       beforeEach(async function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
-        await stakedLbtc.connect(owner).toggleRedeemsForBtc();
       });
       it('redeemForBtc() reverts when it is off', async function () {
         await expect(stakedLbtc.connect(owner).toggleRedeemsForBtc())
@@ -1461,7 +1462,7 @@ describe('AssetRouter', function () {
           assetRouter
             .connect(signer1)
             .redeemForBtc(signer1.address, stakedLbtc.address, '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
-        ).to.revertedWithCustomError(assetRouter, 'AssetRouter_RedeemsForBtcDisabled');
+        ).to.revertedWithCustomError(assetRouter, 'AssetOperation_RedeemNotAllowed');
       });
 
       it('redeemForBtc() reverts when amount < toNativeCommission', async function () {
@@ -1933,7 +1934,7 @@ describe('AssetRouter', function () {
             err: 'AssetOperation_RedeemNotAllowed'
           },
           {
-            name: 'reverts when toChain is unsupported',
+            name: 'reverts when toToken is unsupported',
             msgSender: () => signer1,
             fromAddress: () => signer1.address,
             toChainId: CHAIN_ID,
@@ -1943,6 +1944,18 @@ describe('AssetRouter', function () {
             amount: async () => randomBigInt(6),
             errContract: () => assetRouter,
             err: 'AssetOperation_RedeemNotAllowed'
+          },
+          {
+            name: 'reverts when toChain is Bitcoin chain',
+            msgSender: () => signer1,
+            fromAddress: () => signer1.address,
+            toChainId: BITCOIN_CHAIN_ID,
+            fromToken: () => stakedLbtc.address,
+            toToken: () => randomAddressBytes,
+            recipient: () => signer1.address,
+            amount: async () => randomBigInt(6),
+            errContract: () => assetRouter,
+            err: 'AssertRouter_WrongRedeemDestinationChain'
           }
         ];
 

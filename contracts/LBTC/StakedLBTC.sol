@@ -450,19 +450,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         _burn(from, amount);
     }
 
-    /**
-     * @dev Allows minters to transfer LBTC
-     *
-     * @param amount Amount of LBTC to transfer
-     */
-    function transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) external override onlyMinter {
-        _transfer(from, to, amount);
-    }
-
     function redeem(uint256 amount) external nonReentrant {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {

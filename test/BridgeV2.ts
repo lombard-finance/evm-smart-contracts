@@ -1205,7 +1205,7 @@ describe('BridgeV2', function () {
         it(`Reverts when ${arg.name}`, async () => {
           let dCaller = signer1;
           let body = ethers.solidityPacked(
-            ['uint8', 'bytes32', 'bytes32','bytes32', 'uint256'],
+            ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
             [
               arg.msgVersion(),
               encode(['address'], [arg.dstToken()]),

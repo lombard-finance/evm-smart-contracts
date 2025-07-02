@@ -146,7 +146,9 @@ contract StakedLBTCOracle is
 
     function _setNewRatio(uint256 ratio_, uint256 switchTime_) internal {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        $.prevRatio = $.currRatio;
+        if (block.timestamp >= $.switchTime) {
+            $.prevRatio = $.currRatio;
+        }
         $.currRatio = ratio_;
         $.switchTime = switchTime_;
         emit Oracle_RatioChanged($.prevRatio, $.currRatio, $.switchTime);
