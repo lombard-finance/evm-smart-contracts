@@ -4,7 +4,7 @@ import { stakeFBTC, startRedeemFBTC } from './partner-vault';
 export const fbtcScope = scope('fbtc');
 
 fbtcScope
-  .task('stake-fbtc', "Calls FBTCPartnerVault's mint")
+  .task('stake', "Calls FBTCPartnerVault's mint")
   .addPositionalParam('target', 'FBTCPartnerVault contract address')
   .addParam('amount', 'Amount of FBTC to stake')
   .addFlag('populate', 'Populate raw transaction to broadcast it from another account')
