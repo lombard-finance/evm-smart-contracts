@@ -1246,8 +1246,6 @@ describe('AssetRouter', function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
         await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
-        await stakedLbtc.connect(owner).toggleRedeemsForBtc();
-        await nativeLbtc.connect(owner).toggleRedeemsForBtc();
       });
 
       const args = [
@@ -1453,7 +1451,6 @@ describe('AssetRouter', function () {
       beforeEach(async function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
-        await stakedLbtc.connect(owner).toggleRedeemsForBtc();
       });
       it('redeemForBtc() reverts when it is off', async function () {
         await expect(stakedLbtc.connect(owner).toggleRedeemsForBtc())
@@ -1465,7 +1462,7 @@ describe('AssetRouter', function () {
           assetRouter
             .connect(signer1)
             .redeemForBtc(signer1.address, stakedLbtc.address, '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
-        ).to.revertedWithCustomError(assetRouter, 'AssetRouter_RedeemsForBtcDisabled');
+        ).to.revertedWithCustomError(assetRouter, 'AssetOperation_RedeemNotAllowed');
       });
 
       it('redeemForBtc() reverts when amount < toNativeCommission', async function () {

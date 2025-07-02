@@ -32,7 +32,6 @@ contract AssetRouter is
 {
     struct TokenConfig {
         uint256 redeemFee;
-        bool isRedeemEnabled;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.AssetRouter
@@ -424,9 +423,6 @@ contract AssetRouter is
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint64 fee = $.toNativeCommission;
-        if (!$.tokenConfigs[fromToken].isRedeemEnabled) {
-            revert AssetRouter_RedeemsForBtcDisabled();
-        }
         uint256 amountAfterFee = 0;
         uint256 redeemFee = $.tokenConfigs[fromToken].redeemFee;
         if (amount <= redeemFee) {
@@ -805,16 +801,34 @@ contract AssetRouter is
 
     function _toggleRedeemForToken(address token) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        TokenConfig storage tc = $.tokenConfigs[token];
-        tc.isRedeemEnabled = !tc.isRedeemEnabled;
-        emit AssetRouter_RedeemEnabled(token, tc.isRedeemEnabled);
+        bytes32 key = keccak256(abi.encode(token, $.bitcoinChainId));
+        Route storage btcRoute = $.routes[key];
+        bool redeemEnabled = false;
+        if (
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] == RouteType.UNKNOWN
+        ) {
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.REDEEM;
+            redeemEnabled = true;
+        } else if (
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] == RouteType.REDEEM
+        ) {
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.UNKNOWN;
+        } else {
+            revert AssertRouter_WrongRouteType();
+        }
+        emit AssetRouter_RedeemEnabled(token, redeemEnabled);
     }
 
     function _setRedeemForToken(address token, bool enabled) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        TokenConfig storage tc = $.tokenConfigs[token];
-        tc.isRedeemEnabled = enabled;
-        emit AssetRouter_RedeemEnabled(token, tc.isRedeemEnabled);
+        bytes32 key = keccak256(abi.encode(token, $.bitcoinChainId));
+        Route storage btcRoute = $.routes[key];
+        if (enabled) {
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.REDEEM;
+        } else {
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.UNKNOWN;
+        }
+        emit AssetRouter_RedeemEnabled(token, enabled);
     }
 
     function _changeDustFeeRate(uint256 newRate) internal {
@@ -830,7 +844,12 @@ contract AssetRouter is
     ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         TokenConfig storage tc = $.tokenConfigs[token];
-        return (tc.redeemFee, tc.isRedeemEnabled);
+        bytes32 key = keccak256(abi.encode(token, $.bitcoinChainId));
+        Route storage btcRoute = $.routes[key];
+        return (
+            tc.redeemFee,
+            btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] == RouteType.REDEEM
+        );
     }
 
     function toNativeCommission() external view override returns (uint64) {
