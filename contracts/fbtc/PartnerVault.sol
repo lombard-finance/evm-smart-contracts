@@ -276,12 +276,6 @@ contract FBTCPartnerVault is
         // be deducted from the user's balance and put in the vault to be burned manually later.
         if ($.allowMintLbtc) {
             $.lbtc.burn(recipient, amount);
-        } else {
-            IERC20(address($.lbtc)).safeTransferFrom(
-                recipient,
-                address(this),
-                amount
-            );
         }
 
         // Next, we finalize the redeeming flow.
