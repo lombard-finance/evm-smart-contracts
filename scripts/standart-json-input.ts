@@ -45,8 +45,8 @@ const writeJson = (filePath: string, data: any) => {
 
 async function main() {
   try {
-    const buildInfoPath =
-      '/Users/petr/ankr/lombard-smart-contracts/artifacts/build-info/7a27352bd908f8ab4ac18135a48cdd5a.json';
+    // replace json name
+    const buildInfoPath = '../artifacts/build-info/7a27352bd908f8ab4ac18135a48cdd5a.json';
     const outputPath = 'build-info-formatted.json';
 
     const buildInfo: any = await readJson(buildInfoPath);
