@@ -1,5 +1,5 @@
 import { scope, task } from 'hardhat/config';
-import { stakeFBTC, startRedeemFBTC } from './partner-vault';
+import { finalizeRedeemFBTC, stakeFBTC, startRedeemFBTC } from './partner-vault';
 
 export const fbtcScope = scope('fbtc');
 
@@ -28,4 +28,4 @@ fbtcScope
   .addParam('txid', 'BTC deposit tx Id')
   .addParam('index', "The transaction output index to user's deposit address")
   .addFlag('populate', 'Populate raw transaction to broadcast it from another account')
-  .setAction(startRedeemFBTC);
+  .setAction(finalizeRedeemFBTC);
