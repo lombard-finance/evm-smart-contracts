@@ -262,7 +262,7 @@ const config: HardhatUserConfig = {
     },
     sonic: {
       loggingEnabled: true,
-      url: vars.get('SONIC_RPC', 'https://rpc.ankr.com/sonic_mainnet'),
+      url: vars.get('SONIC_RPC', 'https://rpc.soniclabs.com'),
       chainId: 146,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,

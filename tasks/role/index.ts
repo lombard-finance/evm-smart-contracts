@@ -8,4 +8,5 @@ roleScope
   .addPositionalParam('target', 'The address of smart-contract')
   .addPositionalParam('role', 'The role name to grant')
   .addPositionalParam('account', 'The account to grant')
+  .addFlag('populate', 'Show transaction data and do not broadcast')
   .setAction(grantRole);

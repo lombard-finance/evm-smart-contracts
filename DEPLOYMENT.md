@@ -65,7 +65,9 @@ Write proxy address to json file.
 
 ### Configuration
 
-Use explorer to set initial validator set.
+```bash
+hardhat setup-initial-valset --target ${CONSORTIUM} --populate --network ${NETWORK} --valset ${VALSET}
+```
 
 ## LBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
@@ -109,9 +111,24 @@ Enable redeem using `toggleWithdrawals` if required.
 
 Deploy `NativeLBTC` contract
 ```bash
-yarn hardhat deploy-native-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --burn-commission ${BURN_COMMISSION} --network ${NETWORK} --treasury ${OWNER}
+yarn hardhat deploy-native-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --treasury ${OWNER} --name "Native LBTC" --symbol "nativeLBTC"
 ```
 Write proxy address to json file.
+
+### Configuration
+
+Set burn commission
+
+```bash
+yarn hardhat setup-burn-commission --target ${TOKEN} --value ${COMMISSION} --network ${NETWORK}
+```
+
+Enable withdrawals
+
+```bash
+yarn hardhat setup-toggle-withdrawals --target ${TOKEN} --network ${NETWORK}
+````
+
 
 ## Bridge (deterministic)
 > `LBTC` should be deployer before start
@@ -138,19 +155,19 @@ Write contracts address to json file.
 
 Setup Bridge destinations using adapters
 ```bash
-yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK}
+yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK} [--populate]
 ```
 Chain ids can be viewed [here](https://chainlist.org)
 
 Enable `TokenPool`
 ```bash
-yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} 
+yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${REMOTE_LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} [--populate]
 ```
 Remote selector can be viewed [here](https://docs.chain.link/ccip/directory/mainnet)
 
 Set `TokenPool` rate limits
 ```bash
-yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} 
+yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} [--populate]
 ```
 
 Setup `Bridge` rate limits, they should ~2x from `TokenPool` limits.
