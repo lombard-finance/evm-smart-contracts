@@ -151,6 +151,14 @@ yarn hardhat deploy-chainlink-adapter --admin ${OWNER} --router ${CCIP_ROUTER} -
 ```
 Write contracts address to json file.
 
+Claim admin rights over `LBTC token` in ccip and set the pool:
+
+Call `registerAdminViaOwner` in blockchain explorer on `RegistryModuleOwnerCustom` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
+
+Call `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
+
+Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address, `pool` address = `LombardTokenPool` address
+
 ### Bridge
 
 Setup Bridge destinations using adapters
@@ -182,4 +190,7 @@ yarn hardhat setup-minter --target ${LBTC} --minter ${SOURCE_BRIDGE} --network $
 
 ## Upgrades
 
-
+Use the script
+```bash
+yarn hardhat upgrade-proxy --proxy ${PROXY_ADDRESS} ${CONTRACT_NAME} --network ${NETWORK}
+```
