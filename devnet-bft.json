@@ -1,6 +1,6 @@
 {
   "sepolia": {
-    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000aa36a7",
     "admin": {
       "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "TimeLock": "",
@@ -8,9 +8,14 @@
     },
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
-      "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "StakedLBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "NativeLBTC": "0xea3F66E5f2928dB9673103BfA01a2153A57a8050",
       "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "AssetRouter": "0xb31A08170280387F5D6C626A123e359Fc2370291",
+      "Oracle": "0x66ebAe707572f145Aa0CE8F69344236c8f205b20",
+      "Mailbox": "0xf030Efc0826138847c44F468c3405C86bCD09267",
       "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc",
+      "BridgeV2": "0xFF9aef444d833Bf5ebBaa40a5dff55Dfa5739Cd7",
       "IBCVoucher": "0x8f2403f14d0ca553273b7d55013e499194f9ec78"
     },
     "chainlink": {
@@ -126,6 +131,42 @@
       "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
       "LBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
       "NativeLBTC": "0xA74D838817f3098166d74a141b7d241efB15F42c"
+    }
+  },
+  "bscTestnet": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000061",
+    "admin": {
+      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "TimeLock": "",
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "StakedLBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "NativeLBTC": "0xea3F66E5f2928dB9673103BfA01a2153A57a8050",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "AssetRouter": "0xb31A08170280387F5D6C626A123e359Fc2370291",
+      "Oracle": "0x66ebAe707572f145Aa0CE8F69344236c8f205b20",
+      "Mailbox": "0xf030Efc0826138847c44F468c3405C86bCD09267",
+      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc",
+      "BridgeV2": "0xFF9aef444d833Bf5ebBaa40a5dff55Dfa5739Cd7"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "CLAdapter": "",
+      "LombardTokenPool": ""
+    },
+    "stakeAndBake": {
+      "StakeAndBake": "",
+      "TellerWithMultiAssetSupportDepositor": ""
+    },
+    "layerZero": {
+      "LBTCOFTAdapter_beraBartio": "",
+      "LBTCOFTAdapter_beraCartio": "",
+      "LBTCOFTAdapter_solanaDevnetStaging": "",
+      "LBTCOFTAdapter_solanaDevnetGastald": ""
     }
   }
 }
