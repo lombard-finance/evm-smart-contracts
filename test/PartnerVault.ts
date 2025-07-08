@@ -106,6 +106,7 @@ describe('FBTCPartnerVault', function () {
     });
     it('should be able to retrieve the remaining stake', async function () {
       // We will mint some just to check that the computation is correct.
+      await snapshot.restore();
       await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
       const mintAmount = 10;
       await fbtc.mint(signer1.address, mintAmount);
@@ -124,6 +125,7 @@ describe('FBTCPartnerVault', function () {
   });
   describe('FBTC locking', function () {
     beforeEach(async function () {
+      await snapshot.restore();
       await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
       await partnerVault.setAllowMintLbtc(true);
     });
@@ -240,6 +242,7 @@ describe('FBTCPartnerVault', function () {
   describe('FBTC unlocking', function () {
     const mintAmount = 10;
     beforeEach(async function () {
+      await snapshot.restore();
       await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
       await partnerVault.setAllowMintLbtc(true);
       await partnerVault.grantRole(operatorRoleHash, deployer.address);
@@ -391,6 +394,7 @@ describe('FBTCPartnerVault', function () {
   describe('FBTC unlocking without prior mint', function () {
     const mintAmount = 10;
     beforeEach(async function () {
+      await snapshot.restore();
       await partnerVault.setLockedFbtc(await lockedFbtc.getAddress());
       await partnerVault.setAllowMintLbtc(true);
       await partnerVault.grantRole(operatorRoleHash, deployer.address);
