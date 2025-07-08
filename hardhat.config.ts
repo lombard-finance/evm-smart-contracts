@@ -316,7 +316,6 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     }
-
   },
   etherscan: {
     customChains: [
