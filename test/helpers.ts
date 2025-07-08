@@ -38,7 +38,7 @@ const ACTIONS_IFACE = ethers.Interface.from([
   'function payload(uint256,uint256,bytes32,bytes) external', // RedeemRequest
   'function mint(bytes32,bytes32,uint256) external', //MINT_SELECTOR
   'function redeem(bytes32,bytes32,bytes32,bytes,uint256) external', //REDEEM_REQUEST_SELECTOR
-  'function redeemForBTC(bytes32,bytes,uint64) external', //REDEEM_FOR_BTC_REQUEST_SELECTOR
+  'function redeemForBTC(bytes32,bytes,uint256) external', //REDEEM_FOR_BTC_REQUEST_SELECTOR
   'function deposit(bytes32,bytes32,bytes32,bytes32,uint256) external' //DEPOSIT_REQUEST_SELECTOR
 ]);
 
@@ -85,7 +85,7 @@ export const STAKING_REQUEST_SELECTOR = '0xedff11ea';
 export const STAKING_RECEIPT_SELECTOR = '0x965597b5';
 export const MINT_SELECTOR = '0x155b6b13';
 export const REDEEM_REQUEST_SELECTOR = '0xaa3db85f';
-export const REDEEM_FROM_NATIVE_TOKEN_SELECTOR = '0x7a069d29';
+export const REDEEM_FROM_NATIVE_TOKEN_SELECTOR = '0x4e3e5047';
 export const DEPOSIT_REQUEST_SELECTOR = '0xccb41215';
 
 export async function signDepositBridgePayload(

@@ -397,6 +397,9 @@ contract AssetRouter is
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint256 redeemFee = $.tokenConfigs[token].redeemFee;
+        if (amount <= redeemFee) {
+            revert AssetRouter_FeeGreaterThanAmount();
+        }
         if (IBaseLBTC(token).isNative()) {
             (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
                 scriptPubkey,
