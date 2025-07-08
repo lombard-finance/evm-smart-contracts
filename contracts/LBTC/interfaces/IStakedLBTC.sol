@@ -21,4 +21,6 @@ interface IStakedLBTC is IBaseLBTC {
         bytes calldata payload,
         bytes calldata proof
     ) external returns (address);
+    function ratio() external view returns (uint256);
+    function getRate() external view returns (uint256);
 }

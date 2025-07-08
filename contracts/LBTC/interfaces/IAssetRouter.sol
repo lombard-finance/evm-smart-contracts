@@ -26,6 +26,7 @@ interface IAssetRouter {
     error AssertRouter_UnauthorizedAccount();
     error AssertRouter_WrongRedeemDestinationChain();
     error AssertRouter_WrongRouteType();
+    error AssertRouter_WrongToken();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
     event AssetRouter_RedeemFeeChanged(
@@ -91,6 +92,7 @@ interface IAssetRouter {
 
     function maxMintCommission() external view returns (uint256);
     function ratio(address token) external view returns (uint256);
+    function getRate(address token) external view returns (uint256);
     function bitcoinChainId() external view returns (bytes32);
     function bascule() external view returns (IBascule);
     function oracle() external view returns (IOracle);
