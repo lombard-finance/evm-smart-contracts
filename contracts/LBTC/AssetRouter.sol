@@ -220,9 +220,20 @@ contract AssetRouter is
         return hasRole(CALLER_ROLE, caller);
     }
 
-    function ratio(address) external view override returns (uint256) {
+    function ratio(address token) external view override returns (uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (token != $.oracle.token()) {
+            revert AssertRouter_WrongToken();
+        }
         return $.oracle.ratio();
+    }
+
+    function getRate(address token) external view override returns (uint256) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (token != $.oracle.token()) {
+            revert AssertRouter_WrongToken();
+        }
+        return $.oracle.getRate();
     }
 
     function bitcoinChainId() external view override returns (bytes32) {

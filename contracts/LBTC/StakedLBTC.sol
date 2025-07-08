@@ -305,6 +305,14 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         return isRedeemEnabled;
     }
 
+    function ratio() external view override returns (uint256) {
+        return _getStakedLBTCStorage().assetRouter.ratio(address(this));
+    }
+
+    function getRate() external view override returns (uint256) {
+        return _getStakedLBTCStorage().assetRouter.getRate(address(this));
+    }
+
     /// USER ACTIONS ///
 
     /**
