@@ -226,7 +226,7 @@ Usually we use 2 DVNs: LayerZero Labs and Nethermind, but good to have more if a
 
 `REQUIRED_DVN_COUNT` usually equal to total count of used DVNs, no threshold.
 `ULN_LIB_ADDRESS` and `LZ_ENDPOINT` presented [here](https://docs.layerzero.network/v2/deployments/deployed-contracts)
-`ULN_CONFIRMATIONS` confirmations required on destination chain.
+`ULN_CONFIRMATIONS` confirmations required for bridge.
 It should match on both chains (e.g. 30 confirmation for receive lib on chain A and 30 confirmation to send on chain B)
 ```bash
 # use send lib, it means that you change send config
