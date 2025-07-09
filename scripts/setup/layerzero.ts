@@ -232,10 +232,12 @@ task('setup-oft-set-peer', 'Call `setPeer` on smart-contract')
     const { target, eid, peer, populate } = taskArgs;
 
     const adapter = await ethers.getContractAt('OFTAdapter', target);
-    if (populate){
-      const tx = await adapter.setPeer.populateTransaction(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
+    if (populate) {
+      const tx = await adapter.setPeer.populateTransaction(
+        eid,
+        ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer])
+      );
       console.log('Raw transaction:\n', JSON.stringify(tx, null, 2));
-
     } else {
       await adapter.setPeer(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
     }
