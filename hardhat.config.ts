@@ -185,6 +185,14 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    tacSpb: {
+      loggingEnabled: true,
+      url: vars.get('TAC_SPB_RPC', 'https://spb.rpc.tac.build'),
+      chainId: 2391,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x74877698113985f5e0c10cf6b9e0f51af79435e6430e99d98b13303e6b0a996a')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
@@ -299,6 +307,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    tac: {
+      loggingEnabled: true,
+      url: vars.get('TAC_RPC', 'https://rpc.ankr.com/tac'),
+      chainId: 239,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
     }
   },
   etherscan: {
@@ -408,6 +424,14 @@ const config: HardhatUserConfig = {
           browserURL: 'https://explorer-tatara-s4atxtv7sq.t.conduit.xyz:443'
         }
       },
+      {
+        network: 'tacSpb',
+        chainId: 2391,
+        urls: {
+          apiURL: 'https://spb.explorer.tac.build/api',
+          browserURL: 'https://spb.explorer.tac.build/'
+        }
+      },
       // mainnets
       {
         network: 'mantle',
@@ -496,6 +520,14 @@ const config: HardhatUserConfig = {
           apiURL: 'https://explorer.katanarpc.com/api',
           browserURL: 'https://explorer.katanarpc.com'
         }
+      },
+      {
+        network: 'tac',
+        chainId: 239,
+        urls: {
+          apiURL: 'https://explorer.tac.build/api',
+          browserURL: 'https://explorer.tac.build/'
+        }
       }
     ],
     apiKey: {
@@ -517,6 +549,7 @@ const config: HardhatUserConfig = {
       etherlinkTestnet: 'no',
       inkSepolia: 'no',
       katanaTatara: 'no',
+      tacSpb: 'no',
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -533,7 +566,8 @@ const config: HardhatUserConfig = {
       morph: 'no',
       etherlink: 'no',
       ink: 'no',
-      katana: 'no'
+      katana: 'no',
+      tac: 'no'
     }
   },
   sourcify: {
