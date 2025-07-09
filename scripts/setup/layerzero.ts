@@ -225,13 +225,20 @@ task('setup-oft-set-peer', 'Call `setPeer` on smart-contract')
   .addParam('target', 'The address of the smart-contract')
   .addParam('eid', 'The eid of the peer endpoint')
   .addParam('peer', 'The address of the peer')
+  .addFlag('populate', 'Populate raw transaction to broadcast it from another account')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
-    const { target, eid, peer } = taskArgs;
+    const { target, eid, peer, populate } = taskArgs;
 
     const adapter = await ethers.getContractAt('OFTAdapter', target);
-    await adapter.setPeer(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
+    if (populate){
+      const tx = await adapter.setPeer.populateTransaction(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
+      console.log('Raw transaction:\n', JSON.stringify(tx, null, 2));
+
+    } else {
+      await adapter.setPeer(eid, ethers.AbiCoder.defaultAbiCoder().encode(['address'], [peer]));
+    }
   });
 
 task('setup-oft-transfer-ownership', 'Call `transferOwnership` on smart-contract')
