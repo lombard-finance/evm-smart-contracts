@@ -205,9 +205,7 @@ describe('PoR', function () {
       });
 
       it('should allow update with non-empty message and empty signature', async function () {
-        await por
-          .connect(operator)
-          .updateMessageSignature(['0xAddress1'], ['UpdatedMessage1'], ['0x']);
+        await por.connect(operator).updateMessageSignature(['0xAddress1'], ['UpdatedMessage1'], ['0x']);
 
         const [rootPkId, messages, signatures] = await por.getPoRSignatureMessages(['0xAddress1']);
         expect(rootPkId).to.deep.equal([ethers.keccak256(pubkey1)]);
