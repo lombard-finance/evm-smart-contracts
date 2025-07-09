@@ -310,7 +310,7 @@ const config: HardhatUserConfig = {
     },
     tac: {
       loggingEnabled: true,
-      url: vars.get('KATANA_RPC', 'https://rpc.ankr.com/tac'),
+      url: vars.get('TAC_RPC', 'https://rpc.ankr.com/tac'),
       chainId: 239,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
