@@ -187,7 +187,7 @@ contract PoR is AccessControlUpgradeable, IPoR {
             if (index == 0) {
                 revert AddressDoesNotExist(_addresses[i]);
             }
-            if (bytes(_messages[i]).length == 0 || _signatures[i].length == 0) {
+            if (bytes(_messages[i]).length == 0 && _signatures[i].length == 0) {
                 revert InvalidMessageSignature(
                     _addresses[i],
                     _messages[i],

@@ -204,6 +204,17 @@ describe('PoR', function () {
         expect(signatures).to.deep.equal([ethers.keccak256('0x1234')]);
       });
 
+      it('should allow update with non-empty message and empty signature', async function () {
+        await por
+          .connect(operator)
+          .updateMessageSignature(['0xAddress1'], ['UpdatedMessage1'], ['0x']);
+
+        const [rootPkId, messages, signatures] = await por.getPoRSignatureMessages(['0xAddress1']);
+        expect(rootPkId).to.deep.equal([ethers.keccak256(pubkey1)]);
+        expect(messages).to.deep.equal(['UpdatedMessage1']);
+        expect(signatures).to.deep.equal(['0x']);
+      });
+
       it('should revert if not called by operator', async function () {
         await expect(
           por.connect(owner).updateMessageSignature(['0xAddress1'], ['UpdatedMessage1'], [ethers.keccak256('0x1234')])
@@ -218,6 +229,12 @@ describe('PoR', function () {
             .connect(operator)
             .updateMessageSignature(['0xNonExistingAddress'], ['UpdatedMessage1'], [ethers.keccak256('0x1234')])
         ).to.be.revertedWithCustomError(por, 'AddressDoesNotExist');
+      });
+
+      it('should revert when updating with both empty message and empty signature', async function () {
+        await expect(
+          por.connect(operator).updateMessageSignature(['0xAddress1'], [''], ['0x'])
+        ).to.be.revertedWithCustomError(por, 'InvalidMessageSignature');
       });
     });
 
