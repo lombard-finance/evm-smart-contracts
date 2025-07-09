@@ -10,3 +10,4 @@ export * from './burn-commssion';
 export * from './initial-valset';
 export * from './operator';
 export * from './toggle-withdrawals';
+export * from './por';
