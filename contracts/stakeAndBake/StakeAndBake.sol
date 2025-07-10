@@ -39,7 +39,7 @@ contract StakeAndBake is
     error CallerNotSelf(address caller);
 
     event DepositorSet(address indexed depositor);
-    event BatchStakeAndBakeReverted(uint256 indexed index, string message);
+    event BatchStakeAndBakeReverted(uint256 indexed index, string message, bytes customError);
     event FeeChanged(uint256 newFee);
     event GasLimitChanged(uint256 newGasLimit);
 
@@ -171,7 +171,9 @@ contract StakeAndBake is
             ) {
                 ret[i] = b;
             } catch Error(string memory message) {
-                emit BatchStakeAndBakeReverted(i, message);
+                emit BatchStakeAndBakeReverted(i, message, "");
+            } catch (bytes memory lowLevelData) {
+                emit BatchStakeAndBakeReverted(i, "", lowLevelData);
             }
 
             unchecked {
