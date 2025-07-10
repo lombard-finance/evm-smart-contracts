@@ -120,7 +120,7 @@ contract AssetRouter is
         RouteType routeType
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(fromToken, toChainId));
+        bytes32 key = keccak256(abi.encode(fromToken, fromChainId, toChainId));
         Route storage r = $.routes[key];
         r.toTokens[toToken] = routeType;
         r.toChainId = toChainId;
@@ -146,7 +146,7 @@ contract AssetRouter is
         bytes32 toChainId
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(fromToken, toChainId));
+        bytes32 key = keccak256(abi.encode(fromToken, fromChainId, toChainId));
         Route storage r = $.routes[key];
         delete r.toTokens[toToken];
         emit AssetRouter_RouteRemoved(
@@ -196,19 +196,21 @@ contract AssetRouter is
 
     function getRouteType(
         bytes32 fromToken,
+        bytes32 fromChainId,
         bytes32 toChainId,
         bytes32 toToken
     ) external view override returns (RouteType) {
-        return _getRouteType(fromToken, toChainId, toToken);
+        return _getRouteType(fromToken, fromChainId, toChainId, toToken);
     }
 
     function _getRouteType(
         bytes32 fromToken,
+        bytes32 fromChainId,
         bytes32 toChainId,
         bytes32 toToken
     ) internal view returns (RouteType) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(fromToken, toChainId));
+        bytes32 key = keccak256(abi.encode(fromToken, fromChainId, toChainId));
         Route storage r = $.routes[key];
         if (r.toChainId != toChainId) {
             return RouteType.UNKNOWN;
@@ -377,6 +379,7 @@ contract AssetRouter is
         if (
             _getRouteType(
                 GMPUtils.addressToBytes32($.nativeToken),
+                LChainId.get(),
                 tolChainId,
                 toToken
             ) != RouteType.DEPOSIT
@@ -542,8 +545,12 @@ contract AssetRouter is
         }
         bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
         if (
-            _getRouteType(fromTokenBytes, tolChainId, toToken) !=
-            RouteType.REDEEM
+            _getRouteType(
+                fromTokenBytes,
+                LChainId.get(),
+                tolChainId,
+                toToken
+            ) != RouteType.REDEEM
         ) {
             revert IAssetOperation.AssetOperation_RedeemNotAllowed();
         }
@@ -815,7 +822,9 @@ contract AssetRouter is
 
     function _toggleRedeemForToken(address token) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(token, $.bitcoinChainId));
+        bytes32 key = keccak256(
+            abi.encode(token, LChainId.get(), $.bitcoinChainId)
+        );
         Route storage btcRoute = $.routes[key];
         bool redeemEnabled = false;
         if (
@@ -835,7 +844,9 @@ contract AssetRouter is
 
     function _setRedeemForToken(address token, bool enabled) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(token, $.bitcoinChainId));
+        bytes32 key = keccak256(
+            abi.encode(token, LChainId.get(), $.bitcoinChainId)
+        );
         Route storage btcRoute = $.routes[key];
         if (enabled) {
             btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.REDEEM;
@@ -858,7 +869,9 @@ contract AssetRouter is
     ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         TokenConfig storage tc = $.tokenConfigs[token];
-        bytes32 key = keccak256(abi.encode(token, $.bitcoinChainId));
+        bytes32 key = keccak256(
+            abi.encode(token, LChainId.get(), $.bitcoinChainId)
+        );
         Route storage btcRoute = $.routes[key];
         return (
             tc.redeemFee,

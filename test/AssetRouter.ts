@@ -493,7 +493,7 @@ describe('AssetRouter', function () {
             .to.emit(assetRouter, 'AssetRouter_RouteSet')
             .withArgs(fromToken, arg.fromChainId, toToken, arg.toChainId, arg.type);
 
-          expect(await assetRouter.getRouteType(fromToken, arg.toChainId, toToken)).to.be.eq(arg.type);
+          expect(await assetRouter.getRouteType(fromToken, arg.fromChainId, arg.toChainId, toToken)).to.be.eq(arg.type);
         });
       });
 
@@ -507,7 +507,7 @@ describe('AssetRouter', function () {
           .to.emit(assetRouter, 'AssetRouter_RouteSet')
           .withArgs(fromToken, fromChainId, toToken, toChainId, type);
 
-        expect(await assetRouter.getRouteType(fromToken, toChainId, toToken)).to.be.eq(type);
+        expect(await assetRouter.getRouteType(fromToken, fromChainId, toChainId, toToken)).to.be.eq(type);
       });
 
       it('setRoute() reverts when type is invalid', async function () {
@@ -530,7 +530,7 @@ describe('AssetRouter', function () {
         await assetRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId, oldType);
         await assetRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId, newType);
 
-        expect(await assetRouter.getRouteType(fromToken, toChainId, toToken)).to.be.eq(newType);
+        expect(await assetRouter.getRouteType(fromToken, fromChainId, toChainId, toToken)).to.be.eq(newType);
       });
 
       it('setRoute() reverts when fromChain already has native token', async function () {
@@ -572,12 +572,12 @@ describe('AssetRouter', function () {
         const toChainId = randomChainId;
         const type = 1;
         await assetRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId, type);
-        expect(await assetRouter.getRouteType(fromToken, toChainId, toToken)).to.be.eq(type);
+        expect(await assetRouter.getRouteType(fromToken, fromChainId, toChainId, toToken)).to.be.eq(type);
 
         await expect(assetRouter.connect(owner).removeRoute(fromToken, fromChainId, toToken, toChainId))
           .to.emit(assetRouter, 'AssetRouter_RouteRemoved')
           .withArgs(fromToken, fromChainId, toToken, toChainId);
-        expect(await assetRouter.getRouteType(fromToken, toChainId, toToken)).to.be.eq(0n);
+        expect(await assetRouter.getRouteType(fromToken, fromChainId, toChainId, toToken)).to.be.eq(0n);
       });
 
       it('removeRoute() reverts when called by not an owner', async function () {
@@ -587,7 +587,7 @@ describe('AssetRouter', function () {
         const toChainId = randomChainId;
         const type = 1;
         await assetRouter.connect(owner).setRoute(fromToken, fromChainId, toToken, toChainId, type);
-        expect(await assetRouter.getRouteType(fromToken, toChainId, toToken)).to.be.eq(type);
+        expect(await assetRouter.getRouteType(fromToken, fromChainId, toChainId, toToken)).to.be.eq(type);
 
         await expect(assetRouter.connect(signer1).removeRoute(fromToken, fromChainId, toToken, toChainId))
           .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')

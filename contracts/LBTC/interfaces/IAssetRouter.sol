@@ -86,6 +86,7 @@ interface IAssetRouter {
 
     function getRouteType(
         bytes32 fromToken,
+        bytes32 fromChainId,
         bytes32 toChainId,
         bytes32 toToken
     ) external view returns (RouteType);
