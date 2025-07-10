@@ -39,7 +39,11 @@ contract StakeAndBake is
     error CallerNotSelf(address caller);
 
     event DepositorSet(address indexed depositor);
-    event BatchStakeAndBakeReverted(uint256 indexed index, string message, bytes customError);
+    event BatchStakeAndBakeReverted(
+        uint256 indexed index,
+        string message,
+        bytes customError
+    );
     event FeeChanged(uint256 newFee);
     event GasLimitChanged(uint256 newGasLimit);
 
@@ -127,7 +131,7 @@ contract StakeAndBake is
     }
 
     /**
-     * @notice Sets the maximum gas limit for a batch stake and bake call
+     * @notice Sets the maximum gas limit for each stake and bake call
      * @param gasLimit The gas limit to set
      */
     function setGasLimit(
@@ -207,7 +211,10 @@ contract StakeAndBake is
         whenNotPaused
         returns (bytes memory)
     {
-        return _stakeAndBake(data);
+        return
+            this.stakeAndBakeInternal{gas: _getStakeAndBakeStorage().gasLimit}(
+                data
+            );
     }
 
     function getStakeAndBakeFee() external view returns (uint256) {

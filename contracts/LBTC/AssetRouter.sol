@@ -545,8 +545,12 @@ contract AssetRouter is
         }
         bytes32 fromTokenBytes = GMPUtils.addressToBytes32(fromToken);
         if (
-            _getRouteType(fromTokenBytes, LChainId.get(), tolChainId, toToken) !=
-            RouteType.REDEEM
+            _getRouteType(
+                fromTokenBytes,
+                LChainId.get(),
+                tolChainId,
+                toToken
+            ) != RouteType.REDEEM
         ) {
             revert IAssetOperation.AssetOperation_RedeemNotAllowed();
         }
@@ -818,7 +822,9 @@ contract AssetRouter is
 
     function _toggleRedeemForToken(address token) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(token, LChainId.get(), $.bitcoinChainId));
+        bytes32 key = keccak256(
+            abi.encode(token, LChainId.get(), $.bitcoinChainId)
+        );
         Route storage btcRoute = $.routes[key];
         bool redeemEnabled = false;
         if (
@@ -838,7 +844,9 @@ contract AssetRouter is
 
     function _setRedeemForToken(address token, bool enabled) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(token, LChainId.get(), $.bitcoinChainId));
+        bytes32 key = keccak256(
+            abi.encode(token, LChainId.get(), $.bitcoinChainId)
+        );
         Route storage btcRoute = $.routes[key];
         if (enabled) {
             btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.REDEEM;
@@ -861,7 +869,9 @@ contract AssetRouter is
     ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         TokenConfig storage tc = $.tokenConfigs[token];
-        bytes32 key = keccak256(abi.encode(token, LChainId.get(), $.bitcoinChainId));
+        bytes32 key = keccak256(
+            abi.encode(token, LChainId.get(), $.bitcoinChainId)
+        );
         Route storage btcRoute = $.routes[key];
         return (
             tc.redeemFee,
