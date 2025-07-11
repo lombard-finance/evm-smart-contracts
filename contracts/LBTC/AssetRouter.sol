@@ -38,7 +38,7 @@ contract AssetRouter is
     struct AssetRouterStorage {
         bytes32 ledgerChainId;
         bytes32 bitcoinChainId;
-        mapping(bytes32 => Route) routes;
+        mapping(bytes32 => Routes) routes;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IMailbox mailbox;
         IBascule bascule;
@@ -48,6 +48,10 @@ contract AssetRouter is
         uint64 toNativeCommission;
         address nativeToken;
         mapping(address => TokenConfig) tokenConfigs;
+    }
+
+    struct Routes {
+        mapping(bytes32 => Route) direction;
     }
 
     struct Route {
@@ -120,8 +124,8 @@ contract AssetRouter is
         RouteType routeType
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(fromToken, fromChainId, toChainId));
-        Route storage r = $.routes[key];
+        bytes32 key = keccak256(abi.encode(fromToken, fromChainId));
+        Route storage r = $.routes[key].direction[toChainId];
         r.toTokens[toToken] = routeType;
         r.toChainId = toChainId;
         if (fromChainId == LChainId.get()) {
@@ -146,8 +150,8 @@ contract AssetRouter is
         bytes32 toChainId
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(fromToken, fromChainId, toChainId));
-        Route storage r = $.routes[key];
+        bytes32 key = keccak256(abi.encode(fromToken, fromChainId));
+        Route storage r = $.routes[key].direction[toChainId];
         delete r.toTokens[toToken];
         emit AssetRouter_RouteRemoved(
             fromToken,
@@ -210,11 +214,8 @@ contract AssetRouter is
         bytes32 toToken
     ) internal view returns (RouteType) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(abi.encode(fromToken, fromChainId, toChainId));
-        Route storage r = $.routes[key];
-        if (r.toChainId != toChainId) {
-            return RouteType.UNKNOWN;
-        }
+        bytes32 key = keccak256(abi.encode(fromToken, fromChainId));
+        Route storage r = $.routes[key].direction[toChainId];
         return r.toTokens[toToken];
     }
 
@@ -810,6 +811,8 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         address prevValue = $.nativeToken;
         $.nativeToken = newValue;
+        bytes32 key = keccak256(abi.encode(prevValue, LChainId.get()));
+        delete $.routes[key];
         emit AssetRouter_NativeTokenChanged(prevValue, newValue);
     }
 
@@ -822,10 +825,8 @@ contract AssetRouter is
 
     function _toggleRedeemForToken(address token) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(
-            abi.encode(token, LChainId.get(), $.bitcoinChainId)
-        );
-        Route storage btcRoute = $.routes[key];
+        bytes32 key = keccak256(abi.encode(token, LChainId.get()));
+        Route storage btcRoute = $.routes[key].direction[$.bitcoinChainId];
         bool redeemEnabled = false;
         if (
             btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] == RouteType.UNKNOWN
@@ -844,10 +845,8 @@ contract AssetRouter is
 
     function _setRedeemForToken(address token, bool enabled) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        bytes32 key = keccak256(
-            abi.encode(token, LChainId.get(), $.bitcoinChainId)
-        );
-        Route storage btcRoute = $.routes[key];
+        bytes32 key = keccak256(abi.encode(token, LChainId.get()));
+        Route storage btcRoute = $.routes[key].direction[$.bitcoinChainId];
         if (enabled) {
             btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] = RouteType.REDEEM;
         } else {
@@ -869,10 +868,8 @@ contract AssetRouter is
     ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         TokenConfig storage tc = $.tokenConfigs[token];
-        bytes32 key = keccak256(
-            abi.encode(token, LChainId.get(), $.bitcoinChainId)
-        );
-        Route storage btcRoute = $.routes[key];
+        bytes32 key = keccak256(abi.encode(token, LChainId.get()));
+        Route storage btcRoute = $.routes[key].direction[$.bitcoinChainId];
         return (
             tc.redeemFee,
             btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] == RouteType.REDEEM
