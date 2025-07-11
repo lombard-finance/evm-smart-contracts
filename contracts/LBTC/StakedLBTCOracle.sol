@@ -15,6 +15,7 @@ contract StakedLBTCOracle is
     ReentrancyGuardUpgradeable
 {
     error WrongRatioSwitchTime();
+    error RatioInitializedAlready();
 
     event Oracle_ConsortiumChanged(
         address indexed prevVal,
@@ -78,7 +79,7 @@ contract StakedLBTCOracle is
     ) internal onlyInitializing {
         _changeConsortium(consortium_);
         _setTokenDetails(token_, denomHash_);
-        _setNewRatio(ratio_, switchTime_);
+        _initRatio(ratio_, switchTime_);
         _changeMaxAheadInterval(maxAheadInterval_);
     }
 
@@ -142,6 +143,15 @@ contract StakedLBTCOracle is
         bytes32 payloadHash = sha256(rawPayload);
         $.consortium.checkProof(payloadHash, proof);
         _setNewRatio(action.ratio, action.switchTime);
+    }
+
+    function _initRatio(uint256 ratio_, uint256 switchTime_) internal {
+        StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
+        if ($.currRatio != 0 || $.prevRatio != 0 || $.switchTime != 0) {
+            revert RatioInitializedAlready();
+        }
+        $.currRatio = 1 ether;
+        _setNewRatio(ratio_, switchTime_);
     }
 
     function _setNewRatio(uint256 ratio_, uint256 switchTime_) internal {
