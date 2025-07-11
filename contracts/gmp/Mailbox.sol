@@ -419,14 +419,13 @@ contract Mailbox is
         GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
             rawPayload
         );
-        bytes32 payloadHash = payload.id;
         MailboxStorage storage $ = _getStorage();
 
-        _deliver($, payload, payloadHash, rawPayload, proof);
+        _deliver($, payload, payload.id, rawPayload, proof);
 
-        (bool success, bytes memory res) = _handle($, payload, payloadHash);
+        (bool success, bytes memory res) = _handle($, payload, payload.id);
 
-        return (payloadHash, success, res);
+        return (payload.id, success, res);
     }
 
     function _deliver(
