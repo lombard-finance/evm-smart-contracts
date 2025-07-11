@@ -103,9 +103,6 @@ contract AssetRouter is
         address bascule_,
         uint64 toNativeCommission_
     ) internal onlyInitializing {
-        if (address(mailbox_) == address(0)) {
-            revert AssetRouter_ZeroMailbox();
-        }
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         _changeMailbox(mailbox_);
         _changeOracle(oracle_);
