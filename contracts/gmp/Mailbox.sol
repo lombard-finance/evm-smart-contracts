@@ -419,7 +419,7 @@ contract Mailbox is
         GMPUtils.Payload memory payload = GMPUtils.decodeAndValidatePayload(
             rawPayload
         );
-        bytes32 payloadHash = GMPUtils.hash(rawPayload);
+        bytes32 payloadHash = payload.id;
         MailboxStorage storage $ = _getStorage();
 
         _deliver($, payload, payloadHash, rawPayload, proof);
