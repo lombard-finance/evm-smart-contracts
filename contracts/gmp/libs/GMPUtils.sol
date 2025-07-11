@@ -94,8 +94,7 @@ library GMPUtils {
 
     /**
      * @notice converts bytes32 to address (alignment preserving cast.)
-     * @dev Warning: it is possible to have different input values _buf map to the same address.
-     * For use cases where this is not acceptable, validate that the first 12 bytes of _buf are zero-padding.
+     * @dev This function explicitly checks if the first 12 bytes are zeros to ensure 1 to 1 mapping
      * @param _buf the bytes32 to convert to address
      */
     function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {

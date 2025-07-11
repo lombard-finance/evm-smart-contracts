@@ -44,7 +44,6 @@ library Actions {
         uint256 expiry;
     }
 
-    /// @dev toChain, recipient, amount, txid, token are validated
     struct RatioUpdate {
         bytes32 denom;
         uint256 ratio;
@@ -389,7 +388,7 @@ library Actions {
     /**
      * @notice Returns decoded ratio update message
      * @dev Message should not contain the selector
-     * @param payload Body of the ration update message
+     * @param payload Body of the ratio update message
      */
     function ratioUpdate(
         bytes memory payload
