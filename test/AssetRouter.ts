@@ -111,9 +111,6 @@ describe('AssetRouter', function () {
     await stakedLbtc.connect(owner).changePauser(pauser.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
 
-    // Initialize permit module
-    await stakedLbtc.connect(owner).reinitialize();
-
     bascule = await deployContract<Bascule>(
       'Bascule',
       [owner.address, pauser.address, reporter.address, stakedLbtc.address, 100],

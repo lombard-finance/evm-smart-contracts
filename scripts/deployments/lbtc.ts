@@ -39,7 +39,5 @@ task('deploy-lbtc', 'Deploys the LBTC contract')
       'LBTC'
     );
 
-    // reinitialize
     const lbtc = await ethers.getContractAt('StakedLBTC', data.proxy);
-    await lbtc.reinitialize();
   });

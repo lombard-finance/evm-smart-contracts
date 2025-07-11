@@ -139,9 +139,6 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       false
     );
 
-    // Initialize the permit module
-    await stakedLbtc.reinitialize();
-
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 
