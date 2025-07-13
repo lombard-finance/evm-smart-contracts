@@ -7,26 +7,25 @@ import {BitcoinUtils} from "../../libs/BitcoinUtils.sol";
 /// @dev collection of validations used in ERC20 contracts
 library Validation {
     error AmountLessThanCommission(uint256 fee);
-    error AmountBelowDustLimit(uint256 dustLimit);
+    error AmountBelowMinLimit(uint256 dustLimit);
     error ScriptPubkeyUnsupported();
 
     function redeemFee(
         bytes calldata scriptPubkey,
-        uint256 dustFeeRate,
         uint256 amount,
-        uint64 fee
+        uint64 fee,
+        uint256 minAmount
     ) internal pure returns (uint256) {
         (
             uint256 amountAfterFee,
             bool isAboveFee,
-            uint256 dustLimit,
-            bool isAboveDust
-        ) = calcFeeAndDustLimit(scriptPubkey, dustFeeRate, amount, fee);
+            bool isAboveMinLimit
+        ) = calcFeeAndDustLimit(scriptPubkey, amount, fee, minAmount);
         if (!isAboveFee) {
             revert AmountLessThanCommission(fee);
         }
-        if (!isAboveDust) {
-            revert AmountBelowDustLimit(dustLimit);
+        if (!isAboveMinLimit) {
+            revert AmountBelowMinLimit(minAmount);
         }
 
         return amountAfterFee;
@@ -34,10 +33,10 @@ library Validation {
 
     function calcFeeAndDustLimit(
         bytes calldata scriptPubkey,
-        uint256 dustFeeRate,
         uint256 amount,
-        uint64 fee
-    ) internal pure returns (uint256, bool, uint256, bool) {
+        uint64 fee,
+        uint256 minAmount
+    ) internal pure returns (uint256, bool, bool) {
         BitcoinUtils.OutputType outType = BitcoinUtils.getOutputType(
             scriptPubkey
         );
@@ -46,17 +45,12 @@ library Validation {
         }
 
         if (amount <= fee) {
-            return (0, false, 0, false);
+            return (0, false, false);
         }
 
         uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
-            scriptPubkey,
-            dustFeeRate
-        );
 
-        bool isAboveDust = amountAfterFee > dustLimit;
-        return (amountAfterFee, true, dustLimit, isAboveDust);
+        bool isAboveMinLimit = amountAfterFee >= minAmount;
+        return (amountAfterFee, true, isAboveMinLimit);
     }
 }

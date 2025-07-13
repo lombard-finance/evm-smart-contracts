@@ -35,6 +35,7 @@ import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, S
 import { applyProviderWrappers } from 'hardhat/internal/core/providers/construction';
 
 const DAY = 86400;
+const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
 
 describe('StakedLBTC', function () {
   let _: Signer,
@@ -145,6 +146,10 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).addMinter(assetRouter.address);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), assetRouter.address);
+
+    await assetRouter
+      .connect(owner)
+      ['changeRedeemForBtcMinAmount(address,uint256)'](stakedLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -517,8 +522,8 @@ describe('StakedLBTC', function () {
       it('toNativeCommission() returns fee for redeem to NativeLBTC', async function () {
         expect(await stakedLbtc.toNativeCommission()).to.be.eq(toNativeCommission);
       });
-      it('getDustFeeRate()', async function () {
-        expect(await stakedLbtc.getDustFeeRate()).to.be.eq(DEFAULT_DUST_FEE_RATE);
+      it('getRedeemForBtcMinAmount()', async function () {
+        expect(await stakedLbtc.getRedeemForBtcMinAmount()).to.be.eq(REDEEM_FOR_BTC_MIN_AMOUNT);
       });
     });
 
@@ -1418,17 +1423,17 @@ describe('StakedLBTC', function () {
           isAboveDust: true
         },
         {
-          name: 'fees = 0, ratio = 0.5 and expectedAmount > dustFee',
+          name: 'fees = 0, ratio = 0.5 and expectedAmount > minAmount',
           toNativeFee: 0n,
           redeemFee: 0n,
-          expectedAmount: 1000_000n,
+          expectedAmount: 1000_000n + REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18 / 2n,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 0.5 and expectedAmount > dustFee',
+          name: 'fees > 0, ratio = 0.5 and expectedAmount > minAmount',
           toNativeFee: 1000n,
           redeemFee: 1000n,
           expectedAmount: 1000_000n,
@@ -1438,32 +1443,30 @@ describe('StakedLBTC', function () {
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 0.(9) and expectedAmount > dustFee',
+          name: 'fees > 0, ratio = 0.(9) and expectedAmount > minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount: randomBigInt(8),
+          expectedAmount: randomBigInt(8) + REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18 - 1n,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 1 and expectedAmount = dustFee + 1',
+          name: 'fees > 0, ratio = 1 and expectedAmount = minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount:
-            (BigInt(Buffer.from('00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', 'hex').byteLength) + 76n) * 3n + 1n,
+          expectedAmount: REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio is random and expectedAmount = dustFee + 1',
+          name: 'fees > 0, ratio is random and expectedAmount = minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount:
-            (BigInt(Buffer.from('00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', 'hex').byteLength) + 76n) * 3n + 1n,
+          expectedAmount: REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: randomBigInt(18),
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
@@ -1597,8 +1600,8 @@ describe('StakedLBTC', function () {
         const amountJustBelowDustLimit = amount - 1n;
         await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amountJustBelowDustLimit);
         await expect(stakedLbtc.connect(signer1).redeemForBtc(p2wsh, amountJustBelowDustLimit))
-          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowDustLimit')
-          .withArgs(amountJustBelowDustLimit - toNativeCommission);
+          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowMinLimit')
+          .withArgs(amountJustBelowDustLimit - toNativeCommission + 1n);
       });
 
       it('redeemForBtc() reverts with P2SH', async () => {

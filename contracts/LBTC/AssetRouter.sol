@@ -32,6 +32,7 @@ contract AssetRouter is
 {
     struct TokenConfig {
         uint256 redeemFee;
+        uint256 redeemForBtcMinAmount;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.AssetRouter
@@ -43,7 +44,6 @@ contract AssetRouter is
         IMailbox mailbox;
         IBascule bascule;
         uint256 maximumMintCommission;
-        uint256 dustFeeRate;
         IOracle oracle;
         uint64 toNativeCommission;
         address nativeToken;
@@ -110,7 +110,6 @@ contract AssetRouter is
         $.ledgerChainId = ledgerChainId_;
         $.bitcoinChainId = bitcoinChainId_;
         $.toNativeCommission = toNativeCommission_;
-        $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
     }
 
     function setRoute(
@@ -162,6 +161,26 @@ contract AssetRouter is
         _setRedeemFeeForToken(_msgSender(), fee);
     }
 
+    function changeRedeemFee(
+        address token,
+        uint256 fee
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setRedeemFeeForToken(token, fee);
+    }
+
+    function changeRedeemForBtcMinAmount(
+        uint256 minAmount
+    ) external onlyRole(CALLER_ROLE) {
+        _setRedeemForBtcMinAmountForToken(_msgSender(), minAmount);
+    }
+
+    function changeRedeemForBtcMinAmount(
+        address token,
+        uint256 minAmount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setRedeemForBtcMinAmountForToken(token, minAmount);
+    }
+
     function toggleRedeem() external onlyRole(CALLER_ROLE) {
         _toggleRedeemForToken(_msgSender());
     }
@@ -169,16 +188,28 @@ contract AssetRouter is
     function changeTokenConfig(
         address token,
         uint256 redeemFee,
+        uint256 redeemForBtcMinAmount,
         bool redeemEnabled
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setRedeemFeeForToken(token, redeemFee);
+        _setRedeemForBtcMinAmountForToken(token, redeemForBtcMinAmount);
         _setRedeemForToken(token, redeemEnabled);
     }
 
     function tokenConfig(
         address token
-    ) external view returns (uint256 redeemFee, bool isRedeemEnabled) {
-        (redeemFee, isRedeemEnabled) = _getTokenConfig(token);
+    )
+        external
+        view
+        returns (
+            uint256 redeemFee,
+            uint256 redeemForBtcMinAmount,
+            bool isRedeemEnabled
+        )
+    {
+        (redeemFee, redeemForBtcMinAmount, isRedeemEnabled) = _getTokenConfig(
+            token
+        );
     }
 
     function _checkAndSetNativeToken(
@@ -314,16 +345,6 @@ contract AssetRouter is
         _changeNativeToken(newValue);
     }
 
-    function changeDustFeeRate(
-        uint256 newRate
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeDustFeeRate(newRate);
-    }
-
-    function dustFeeRate() public view returns (uint256) {
-        return _getAssetRouterStorage().dustFeeRate;
-    }
-
     /**
      * @notice Set the contract current fee for mint
      * @param fee New fee value
@@ -406,28 +427,29 @@ contract AssetRouter is
         address token,
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
+    ) external view returns (uint256 amountAfterFee, bool isAboveMinLimit) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint256 redeemFee = $.tokenConfigs[token].redeemFee;
-        if (amount <= redeemFee) {
+        TokenConfig storage tokenCfg = $.tokenConfigs[token];
+        if (amount <= tokenCfg.redeemFee) {
             revert AssetRouter_FeeGreaterThanAmount();
         }
         if (IBaseLBTC(token).isNative()) {
-            (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
-                scriptPubkey,
-                $.dustFeeRate,
-                amount - redeemFee,
-                $.toNativeCommission
-            );
-            return (amountAfterFee, isAboveDust);
+            (amountAfterFee, , isAboveMinLimit) = Validation
+                .calcFeeAndDustLimit(
+                    scriptPubkey,
+                    amount - tokenCfg.redeemFee,
+                    $.toNativeCommission,
+                    tokenCfg.redeemForBtcMinAmount
+                );
+            return (amountAfterFee, isAboveMinLimit);
         }
-        (amountAfterFee, , , isAboveDust) = Validation.calcFeeAndDustLimit(
+        (amountAfterFee, , isAboveMinLimit) = Validation.calcFeeAndDustLimit(
             scriptPubkey,
-            $.dustFeeRate,
-            amount - redeemFee,
-            $.toNativeCommission
+            amount - tokenCfg.redeemFee,
+            $.toNativeCommission,
+            tokenCfg.redeemForBtcMinAmount
         );
-        return (amountAfterFee, isAboveDust);
+        return (amountAfterFee, isAboveMinLimit);
     }
 
     function redeemForBtc(
@@ -439,8 +461,8 @@ contract AssetRouter is
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         uint64 fee = $.toNativeCommission;
         uint256 amountAfterFee = 0;
-        uint256 redeemFee = $.tokenConfigs[fromToken].redeemFee;
-        if (amount <= redeemFee) {
+        TokenConfig storage tokenCfg = $.tokenConfigs[fromToken];
+        if (amount <= tokenCfg.redeemFee) {
             revert AssetRouter_FeeGreaterThanAmount();
         }
         bytes32 gmpRecipient;
@@ -448,18 +470,18 @@ contract AssetRouter is
         if (IBaseLBTC(fromToken).isNative()) {
             amountAfterFee = Validation.redeemFee(
                 recipient,
-                $.dustFeeRate,
-                amount - redeemFee,
-                fee
+                amount - tokenCfg.redeemFee,
+                fee,
+                tokenCfg.redeemForBtcMinAmount
             );
             gmpRecipient = Assets.ASSETS_MODULE_ADDRESS;
             isNative = true;
         } else {
             amountAfterFee = Validation.redeemFee(
                 recipient,
-                $.dustFeeRate,
-                amount - redeemFee,
-                fee
+                amount - tokenCfg.redeemFee,
+                fee,
+                tokenCfg.redeemForBtcMinAmount
             );
             gmpRecipient = Assets.BTC_STAKING_MODULE_ADDRESS;
         }
@@ -820,6 +842,20 @@ contract AssetRouter is
         tc.redeemFee = fee;
     }
 
+    function _setRedeemForBtcMinAmountForToken(
+        address token,
+        uint256 minAmount
+    ) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        TokenConfig storage tc = $.tokenConfigs[token];
+        emit AssetRouter_RedeemForBtcMinAmountChanged(
+            token,
+            tc.redeemForBtcMinAmount,
+            minAmount
+        );
+        tc.redeemForBtcMinAmount = minAmount;
+    }
+
     function _toggleRedeemForToken(address token) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         bytes32 key = keccak256(abi.encode(token, LChainId.get()));
@@ -852,23 +888,24 @@ contract AssetRouter is
         emit AssetRouter_RedeemEnabled(token, enabled);
     }
 
-    function _changeDustFeeRate(uint256 newRate) internal {
-        Assert.dustFeeRate(newRate);
-        AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint256 oldRate = $.dustFeeRate;
-        $.dustFeeRate = newRate;
-        emit AssetRouter_DustFeeRateChanged(oldRate, newRate);
-    }
-
     function _getTokenConfig(
         address token
-    ) internal view returns (uint256 redeemFee, bool isRedeemEnabled) {
+    )
+        internal
+        view
+        returns (
+            uint256 redeemFee,
+            uint256 redeemForBtcMinAmount,
+            bool isRedeemEnabled
+        )
+    {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         TokenConfig storage tc = $.tokenConfigs[token];
         bytes32 key = keccak256(abi.encode(token, LChainId.get()));
         Route storage btcRoute = $.routes[key].direction[$.bitcoinChainId];
         return (
             tc.redeemFee,
+            tc.redeemForBtcMinAmount,
             btcRoute.toTokens[Assets.BITCOIN_NATIVE_COIN] == RouteType.REDEEM
         );
     }
