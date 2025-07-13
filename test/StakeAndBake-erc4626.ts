@@ -133,6 +133,9 @@ describe('ERC4626Depositor', function () {
       false
     );
 
+    // Initialize the permit module
+    await stakedLbtc.connect(owner).reinitialize();
+
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 

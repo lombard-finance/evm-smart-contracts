@@ -105,6 +105,8 @@ describe('StakedLBTC', function () {
     // Pauser
     await stakedLbtc.connect(owner).changePauser(pauser.address);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
+    // Initialize permit module
+    await stakedLbtc.connect(owner).reinitialize();
 
     bascule = await deployContract<Bascule>(
       'Bascule',

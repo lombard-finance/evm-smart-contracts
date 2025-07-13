@@ -39,6 +39,8 @@ describe('IBCVoucher', function () {
     // IBC Voucher needs to be minter
     await lbtc.connect(admin).addMinter(await ibcVoucher.getAddress());
 
+    // Initialize the permit module
+    await lbtc.connect(admin).reinitialize();
     await ibcVoucher.connect(admin).grantRole(await ibcVoucher.RELAYER_ROLE(), relayer.address);
     await ibcVoucher.connect(admin).grantRole(await ibcVoucher.OPERATOR_ROLE(), operator.address);
     await ibcVoucher.connect(admin).grantRole(await ibcVoucher.PAUSER_ROLE(), pauser.address);

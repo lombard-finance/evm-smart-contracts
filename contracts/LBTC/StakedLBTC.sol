@@ -112,6 +112,8 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         );
     }
 
+    function reinitialize() external reinitializer(2) onlyOwner {}
+
     /// MODIFIER ///
     /**
      * PAUSE
