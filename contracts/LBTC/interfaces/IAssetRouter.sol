@@ -34,6 +34,11 @@ interface IAssetRouter {
         uint256 oldFee,
         uint256 newFee
     );
+    event AssetRouter_RedeemForBtcMinAmountChanged(
+        address indexed token,
+        uint256 oldMinAmount,
+        uint256 newMinAmount
+    );
     event AssetRouter_RedeemEnabled(address indexed token, bool enabled);
 
     event AssetRouter_RouteSet(
@@ -100,10 +105,16 @@ interface IAssetRouter {
     function mailbox() external view returns (IMailbox);
     function toNativeCommission() external view returns (uint64);
     function nativeToken() external view returns (address);
-    function dustFeeRate() external view returns (uint256);
     function tokenConfig(
         address token
-    ) external view returns (uint256 redeemFee, bool isRedeemEnabled);
+    )
+        external
+        view
+        returns (
+            uint256 redeemFee,
+            uint256 redeemForBtcMinAmount,
+            bool isRedeemEnabled
+        );
 
     function deposit(
         bytes32 tolChainId,
@@ -171,6 +182,8 @@ interface IAssetRouter {
     ) external view returns (uint256 amountAfterFee, bool isAboveDust);
 
     function changeRedeemFee(uint256 fee) external;
+
+    function changeRedeemForBtcMinAmount(uint256 minAmount) external;
 
     function toggleRedeem() external;
 }

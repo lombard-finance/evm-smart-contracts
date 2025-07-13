@@ -133,6 +133,18 @@ contract NativeLBTC is
         _changeAssetRouter(newVal);
     }
 
+    function changeRedeemFee(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeRedeemFee(newVal);
+    }
+
+    function changeRedeemForBtcMinAmount(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeRedeemForBtcMinAmount(newVal);
+    }
+
     /// GETTERS ///
 
     /**
@@ -188,7 +200,7 @@ contract NativeLBTC is
     }
 
     function isRedeemsEnabled() public view override returns (bool) {
-        (, bool isRedeemEnabled) = _getNativeLBTCStorage()
+        (, , bool isRedeemEnabled) = _getNativeLBTCStorage()
             .assetRouter
             .tokenConfig(address(this));
         return isRedeemEnabled;
@@ -198,14 +210,18 @@ contract NativeLBTC is
         return _getNativeLBTCStorage().treasury;
     }
 
-    function getRedeemFee() public pure returns (uint256) {
-        return 0;
+    function getRedeemFee() public view returns (uint256) {
+        (uint256 redeemFee, , ) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemFee;
     }
 
-    /// @notice Get the current dust fee rate
-    /// @return The current dust fee rate (in satoshis per 1000 bytes)
-    function getDustFeeRate() public view returns (uint256) {
-        return _getNativeLBTCStorage().assetRouter.dustFeeRate();
+    function getRedeemForBtcMinAmount() public view returns (uint256) {
+        (, uint256 redeemForBtcMinAmount, ) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemForBtcMinAmount;
     }
 
     /**
@@ -528,6 +544,14 @@ contract NativeLBTC is
         address prevValue = address($.assetRouter);
         $.assetRouter = IAssetRouter(newVal);
         emit AssetRouterChanged(prevValue, newVal);
+    }
+
+    function _changeRedeemFee(uint256 newVal) internal {
+        _getNativeLBTCStorage().assetRouter.changeRedeemFee(newVal);
+    }
+
+    function _changeRedeemForBtcMinAmount(uint256 newVal) internal {
+        _getNativeLBTCStorage().assetRouter.changeRedeemForBtcMinAmount(newVal);
     }
 
     function _getNativeLBTCStorage()

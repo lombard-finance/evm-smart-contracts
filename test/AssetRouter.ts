@@ -40,6 +40,7 @@ import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { applyProviderWrappers } from 'hardhat/internal/core/providers/construction';
 
 const DAY = 86400;
+const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
 
 describe('AssetRouter', function () {
   let _: Signer,
@@ -154,6 +155,17 @@ describe('AssetRouter', function () {
     await nativeLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).addMinter(assetRouter.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), assetRouter.address);
+
+    await expect(
+      assetRouter
+        .connect(owner)
+        ['changeRedeemForBtcMinAmount(address,uint256)'](stakedLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT)
+    );
+    await expect(
+      assetRouter
+        .connect(owner)
+        ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT)
+    );
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -341,14 +353,6 @@ describe('AssetRouter', function () {
           event: 'AssetRouter_MintFeeChanged',
           account: 'operator',
           role: async () => await assetRouter.OPERATOR_ROLE()
-        },
-        {
-          name: 'DustFeeRate',
-          setter: 'changeDustFeeRate',
-          getter: 'dustFeeRate',
-          event: 'AssetRouter_DustFeeRateChanged',
-          account: 'owner',
-          role: async () => await assetRouter.DEFAULT_ADMIN_ROLE()
         }
       ];
 
@@ -382,52 +386,120 @@ describe('AssetRouter', function () {
       it('changeRedeemFee() authorized caller can', async function () {
         const newValue = randomBigInt(3);
         await assetRouter.connect(owner).grantRole(await assetRouter.CALLER_ROLE(), signer1);
-        await expect(assetRouter.connect(signer1).changeRedeemFee(newValue))
+        await expect(assetRouter.connect(signer1)['changeRedeemFee(uint256)'](newValue))
           .to.emit(assetRouter, 'AssetRouter_RedeemFeeChanged')
           .withArgs(signer1.address, 0n, newValue);
-        const [redeemFee, redeemEnabled] = await assetRouter.tokenConfig(signer1.address);
+        const [redeemFee, redeemForBtcMinAmount, redeemEnabled] = await assetRouter.tokenConfig(signer1.address);
         expect(redeemFee).to.be.eq(newValue);
+        expect(redeemForBtcMinAmount).to.be.eq(0);
         expect(redeemEnabled).to.be.false;
       });
 
       it('changeRedeemFee() reverts when called by not an authorized caller', async function () {
-        await expect(assetRouter.connect(signer2).changeRedeemFee(randomBigInt(3)))
+        await expect(assetRouter.connect(signer2)['changeRedeemFee(uint256)'](randomBigInt(3)))
           .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
           .withArgs(signer2.address, await assetRouter.CALLER_ROLE());
+      });
+
+      it('changeRedeemFee() owner can', async function () {
+        const [oldRedeemFee, oldRedeemForBtcMinAmount] = await assetRouter.tokenConfig(signer1.address);
+        const newValue = randomBigInt(3);
+        await expect(assetRouter.connect(owner)['changeRedeemFee(address,uint256)'](signer1, newValue))
+          .to.emit(assetRouter, 'AssetRouter_RedeemFeeChanged')
+          .withArgs(signer1.address, oldRedeemFee, newValue);
+        const [redeemFee, redeemForBtcMinAmount, redeemEnabled] = await assetRouter.tokenConfig(signer1.address);
+        expect(redeemFee).to.be.eq(newValue);
+        expect(redeemForBtcMinAmount).to.be.eq(oldRedeemForBtcMinAmount);
+        expect(redeemEnabled).to.be.false;
+      });
+
+      it('changeRedeemFee() reverts when called by not an owner', async function () {
+        await expect(assetRouter.connect(signer2)['changeRedeemFee(address,uint256)'](signer2, randomBigInt(3)))
+          .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
+          .withArgs(signer2.address, await assetRouter.DEFAULT_ADMIN_ROLE());
+      });
+
+      it('changeRedeemForBtcMinAmount() authorized caller can', async function () {
+        const [oldRdeemFee, ,] = await assetRouter.tokenConfig(signer1.address);
+        const newValue = randomBigInt(4);
+        await assetRouter.connect(owner).grantRole(await assetRouter.CALLER_ROLE(), signer1);
+        await expect(assetRouter.connect(signer1)['changeRedeemForBtcMinAmount(uint256)'](newValue))
+          .to.emit(assetRouter, 'AssetRouter_RedeemForBtcMinAmountChanged')
+          .withArgs(signer1.address, 0n, newValue);
+        const [redeemFee, redeemForBtcMinAmount, redeemEnabled] = await assetRouter.tokenConfig(signer1.address);
+        expect(redeemFee).to.be.eq(oldRdeemFee);
+        expect(redeemForBtcMinAmount).to.be.eq(newValue);
+        expect(redeemEnabled).to.be.false;
+      });
+
+      it('changeRedeemForBtcMinAmount() reverts when called by not an authorized caller', async function () {
+        await expect(assetRouter.connect(signer2)['changeRedeemForBtcMinAmount(uint256)'](randomBigInt(4)))
+          .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
+          .withArgs(signer2.address, await assetRouter.CALLER_ROLE());
+      });
+
+      it('changeRedeemForBtcMinAmount() owner can', async function () {
+        const [oldRdeemFee, oldRedeemForBtcMinAmount] = await assetRouter.tokenConfig(signer1.address);
+        const newValue = randomBigInt(4);
+        await expect(assetRouter.connect(owner)['changeRedeemForBtcMinAmount(address,uint256)'](signer1, newValue))
+          .to.emit(assetRouter, 'AssetRouter_RedeemForBtcMinAmountChanged')
+          .withArgs(signer1.address, oldRedeemForBtcMinAmount, newValue);
+        const [redeemFee, redeemForBtcMinAmount, redeemEnabled] = await assetRouter.tokenConfig(signer1.address);
+        expect(redeemFee).to.be.eq(oldRdeemFee);
+        expect(redeemForBtcMinAmount).to.be.eq(newValue);
+        expect(redeemEnabled).to.be.false;
+      });
+
+      it('changeRedeemForBtcMinAmount() reverts when called by not an owner', async function () {
+        await expect(
+          assetRouter.connect(signer2)['changeRedeemForBtcMinAmount(address,uint256)'](signer2, randomBigInt(4))
+        )
+          .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
+          .withArgs(signer2.address, await assetRouter.DEFAULT_ADMIN_ROLE());
       });
 
       it('changeTokenConfig() admin can change redeemFee for a token', async function () {
         const token = ethers.Wallet.createRandom().address;
         const redeemFee = randomBigInt(3);
-        await expect(assetRouter.connect(owner).changeTokenConfig(token, redeemFee, true))
+        const redeemForBtcMinAmount = randomBigInt(4);
+        await expect(assetRouter.connect(owner).changeTokenConfig(token, redeemFee, redeemForBtcMinAmount, true))
           .to.emit(assetRouter, 'AssetRouter_RedeemFeeChanged')
           .withArgs(token, 0n, redeemFee)
+          .and.to.emit(assetRouter, 'AssetRouter_RedeemForBtcMinAmountChanged')
+          .withArgs(token, 0n, redeemForBtcMinAmount)
           .and.to.emit(assetRouter, 'AssetRouter_RedeemEnabled')
           .withArgs(token, true);
 
-        const [actualRedeemFee, redeemEnabled] = await assetRouter.tokenConfig(token);
+        const [actualRedeemFee, actualRedeemForBtcMinAmount, redeemEnabled] = await assetRouter.tokenConfig(token);
         expect(actualRedeemFee).to.be.eq(redeemFee);
+        expect(actualRedeemForBtcMinAmount).to.be.eq(redeemForBtcMinAmount);
         expect(redeemEnabled).to.be.true;
       });
 
       it('changeTokenConfig() admin can disable redeem', async function () {
         const token = ethers.Wallet.createRandom().address;
         const redeemFee = randomBigInt(3);
-        await assetRouter.connect(owner).changeTokenConfig(token, redeemFee, true);
+        const redeemForBtcMinAmount = randomBigInt(4);
+        await assetRouter.connect(owner).changeTokenConfig(token, redeemFee, redeemForBtcMinAmount, true);
 
-        await expect(assetRouter.connect(owner).changeTokenConfig(token, redeemFee, false))
+        await expect(assetRouter.connect(owner).changeTokenConfig(token, redeemFee, redeemForBtcMinAmount, false))
           .to.emit(assetRouter, 'AssetRouter_RedeemFeeChanged')
           .withArgs(token, redeemFee, redeemFee)
+          .and.to.emit(assetRouter, 'AssetRouter_RedeemForBtcMinAmountChanged')
+          .withArgs(token, redeemForBtcMinAmount, redeemForBtcMinAmount)
           .and.to.emit(assetRouter, 'AssetRouter_RedeemEnabled')
           .withArgs(token, false);
 
-        const [actualRedeemFee, redeemEnabled] = await assetRouter.tokenConfig(token);
+        const [actualRedeemFee, actualRedeemForBtcMinAmount, redeemEnabled] = await assetRouter.tokenConfig(token);
         expect(actualRedeemFee).to.be.eq(redeemFee);
+        expect(actualRedeemForBtcMinAmount).to.be.eq(redeemForBtcMinAmount);
         expect(redeemEnabled).to.be.false;
       });
 
       it('changeTokenConfig() reverts when called by not admin', async function () {
-        await expect(assetRouter.connect(signer1).changeTokenConfig(signer1.address, randomBigInt(3), false))
+        await expect(
+          assetRouter.connect(signer1).changeTokenConfig(signer1.address, randomBigInt(3), randomBigInt(4), false)
+        )
           .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
           .withArgs(signer1.address, await assetRouter.DEFAULT_ADMIN_ROLE());
       });
@@ -1290,7 +1362,7 @@ describe('AssetRouter', function () {
           isAboveDust: true
         },
         {
-          name: 'fees = 0, ratio = 0.5 and expectedAmount > dustFee',
+          name: 'fees = 0, ratio = 0.5 and expectedAmount > minAmount',
           toNativeFee: 0n,
           redeemFee: 0n,
           expectedAmount: 1000_000n,
@@ -1300,7 +1372,7 @@ describe('AssetRouter', function () {
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 0.5 and expectedAmount > dustFee',
+          name: 'fees > 0, ratio = 0.5 and expectedAmount > minAmount',
           toNativeFee: 1000n,
           redeemFee: 1000n,
           expectedAmount: 1000_000n,
@@ -1310,7 +1382,7 @@ describe('AssetRouter', function () {
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 0.(9) and expectedAmount > dustFee',
+          name: 'fees > 0, ratio = 0.(9) and expectedAmount > minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
           expectedAmount: randomBigInt(8),
@@ -1320,22 +1392,20 @@ describe('AssetRouter', function () {
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 1 and expectedAmount = dustFee + 1',
+          name: 'fees > 0, ratio = 1 and expectedAmount = minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount:
-            (BigInt(Buffer.from('00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', 'hex').byteLength) + 76n) * 3n + 1n,
+          expectedAmount: REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio is random and expectedAmount = dustFee + 1',
+          name: 'fees > 0, ratio is random and expectedAmount = minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount:
-            (BigInt(Buffer.from('00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', 'hex').byteLength) + 76n) * 3n + 1n,
+          expectedAmount: REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: randomBigInt(18),
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
@@ -1521,8 +1591,8 @@ describe('AssetRouter', function () {
             .connect(signer1)
             .redeemForBtc(signer1.address, stakedLbtc.address, p2wsh, amountJustBelowDustLimit)
         )
-          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowDustLimit')
-          .withArgs(amountJustBelowDustLimit - toNativeCommission);
+          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowMinLimit')
+          .withArgs(amountJustBelowDustLimit - toNativeCommission + 1n);
       });
 
       it('redeemForBtc() reverts with P2SH', async () => {

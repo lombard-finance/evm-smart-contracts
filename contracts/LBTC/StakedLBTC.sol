@@ -192,6 +192,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         _changeRedeemFee(newVal);
     }
 
+    function changeRedeemForBtcMinAmount(uint256 newVal) external onlyOwner {
+        _changeRedeemForBtcMinAmount(newVal);
+    }
+
     /**
      * Change the address of the Bascule drawbridge contract.
      * Setting the address to 0 disables the Bascule check.
@@ -258,17 +262,18 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         return _getStakedLBTCStorage().assetRouter.toNativeCommission();
     }
 
-    /// @notice Get the current dust fee rate
-    /// @return The current dust fee rate (in satoshis per 1000 bytes)
-    function getDustFeeRate() public view returns (uint256) {
-        return _getStakedLBTCStorage().assetRouter.dustFeeRate();
+    function getRedeemFee() public view returns (uint256) {
+        (uint256 redeemFee, , ) = _getStakedLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemFee;
     }
 
-    function getRedeemFee() public view returns (uint256) {
-        (uint256 redeemFee, ) = _getStakedLBTCStorage().assetRouter.tokenConfig(
-            address(this)
-        );
-        return redeemFee;
+    function getRedeemForBtcMinAmount() public view returns (uint256) {
+        (, uint256 redeemForBtcMinAmount, ) = _getStakedLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemForBtcMinAmount;
     }
 
     /**
@@ -299,7 +304,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     }
 
     function isRedeemsEnabled() public view override returns (bool) {
-        (, bool isRedeemEnabled) = _getStakedLBTCStorage()
+        (, , bool isRedeemEnabled) = _getStakedLBTCStorage()
             .assetRouter
             .tokenConfig(address(this));
         return isRedeemEnabled;
@@ -571,6 +576,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
 
     function _changeRedeemFee(uint256 newVal) internal {
         _getStakedLBTCStorage().assetRouter.changeRedeemFee(newVal);
+    }
+
+    function _changeRedeemForBtcMinAmount(uint256 newVal) internal {
+        _getStakedLBTCStorage().assetRouter.changeRedeemForBtcMinAmount(newVal);
     }
 
     function _getStakedLBTCStorage()

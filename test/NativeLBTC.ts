@@ -33,6 +33,7 @@ import {
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock } from '../typechain-types';
 
 const DAY = 86400;
+const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
 
 describe('NativeLBTC', function () {
   let _: Signer,
@@ -120,6 +121,10 @@ describe('NativeLBTC', function () {
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 500, true);
     await nativeLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), assetRouter.address);
+
+    await assetRouter
+      .connect(owner)
+      ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -471,8 +476,8 @@ describe('NativeLBTC', function () {
         expect(await nativeLbtc.getRedeemFee()).to.be.eq(0n);
       });
 
-      it('getDustFeeRate()', async function () {
-        expect(await nativeLbtc.getDustFeeRate()).to.be.eq(DEFAULT_DUST_FEE_RATE);
+      it('getRedeemForBtcMinAmount()', async function () {
+        expect(await nativeLbtc.getRedeemForBtcMinAmount()).to.be.eq(REDEEM_FOR_BTC_MIN_AMOUNT);
       });
     });
   });
@@ -1201,52 +1206,50 @@ describe('NativeLBTC', function () {
           isAboveDust: true
         },
         {
-          name: 'fees = 0, ratio = 0.5 and expectedAmount > dustFee',
+          name: 'fees = 0, ratio = 0.5 and expectedAmount > minAmount',
           toNativeFee: 0n,
           redeemFee: 0n,
-          expectedAmount: 1000_000n,
+          expectedAmount: 1000_000n + REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18 / 2n,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 0.5 and expectedAmount > dustFee',
+          name: 'fees > 0, ratio = 0.5 and expectedAmount > mintAmunt',
           toNativeFee: 1000n,
           redeemFee: 1000n,
-          expectedAmount: 1000_000n,
+          expectedAmount: 1000_000n + REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18 / 2n,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 0.(9) and expectedAmount > dustFee',
+          name: 'fees > 0, ratio = 0.(9) and expectedAmount > minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount: randomBigInt(8),
+          expectedAmount: randomBigInt(8) + REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18 - 1n,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio = 1 and expectedAmount = dustFee + 1',
+          name: 'fees > 0, ratio = 1 and expectedAmount = minAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount:
-            (BigInt(Buffer.from('00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', 'hex').byteLength) + 76n) * 3n + 1n,
+          expectedAmount: REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: e18,
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
           isAboveDust: true
         },
         {
-          name: 'fees > 0, ratio is random and expectedAmount = dustFee + 1',
+          name: 'fees > 0, ratio is random and expectedAmount = mintAmount',
           toNativeFee: randomBigInt(4),
           redeemFee: randomBigInt(4),
-          expectedAmount:
-            (BigInt(Buffer.from('00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', 'hex').byteLength) + 76n) * 3n + 1n,
+          expectedAmount: REDEEM_FOR_BTC_MIN_AMOUNT,
           balance: (a: bigint) => a,
           ratio: randomBigInt(18),
           scriptPubKey: '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03',
@@ -1356,8 +1359,8 @@ describe('NativeLBTC', function () {
         const amountJustBelowDustLimit = amount - 1n;
         await nativeLbtc.connect(minter).mint(signer1.address, amountJustBelowDustLimit);
         await expect(nativeLbtc.connect(signer1).redeemForBtc(p2wsh, amountJustBelowDustLimit))
-          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowDustLimit')
-          .withArgs(amountJustBelowDustLimit - toNativeCommission);
+          .to.be.revertedWithCustomError(assetRouter, 'AmountBelowMinLimit')
+          .withArgs(amountJustBelowDustLimit - toNativeCommission + 1n);
       });
 
       it('redeemForBtc() reverts with P2SH', async () => {
