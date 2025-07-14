@@ -16,6 +16,7 @@ contract StakedLBTCOracle is
 {
     error WrongRatioSwitchTime();
     error RatioInitializedAlready();
+    error TooBigRatioChange();
 
     event Oracle_ConsortiumChanged(
         address indexed prevVal,
@@ -26,6 +27,14 @@ contract StakedLBTCOracle is
         uint256 indexed prevVal,
         uint256 indexed newVal
     );
+    event RatioThresholdUpdated(
+        uint256 indexed prevVal,
+        uint256 indexed newVal
+    );
+    
+    /// @dev max ratio threshold (100% with 6 significant digits)
+    uint32 private constant MAX_RATIO_THRESHOLD = uint32(100_000000);
+    uint32 private constant RATIO_DEFAULT_SWITCH_INTERVAL = uint32(86400); // 60*60*24 (1 day)
 
     struct TokenDetails {
         bytes32 denomHash;
@@ -39,6 +48,8 @@ contract StakedLBTCOracle is
         uint256 currRatio;
         uint256 switchTime;
         uint256 maxAheadInterval;
+        /// @dev diff between current and new ratio in percent, measured to 6 signs (0.000001% ... 100%)
+        uint32 ratioThreshold;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakedLBTCOracle")) - 1)) & ~bytes32(uint256(0xff))
@@ -107,11 +118,25 @@ contract StakedLBTCOracle is
         return _getStakedLBTCOracleStorage().tokenDetails.denomHash;
     }
 
+    function updateRatioThreshold(uint32 newThreshold) external onlyOwner {
+        require(
+            newThreshold < MAX_RATIO_THRESHOLD && newThreshold > 0,
+            "new ratio threshold out of range"
+        );
+        StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
+        emit RatioThresholdUpdated($.ratioThreshold, newThreshold);
+        $.ratioThreshold = newThreshold;
+    }
+
     function publishNewRatio(
         bytes calldata rawPayload,
         bytes calldata proof
     ) external {
         return _publishNewRatio(rawPayload, proof);
+    }
+
+    function ratioThreshold() external view returns (uint256) {
+        return _getStakedLBTCOracleStorage().ratioThreshold;
     }
 
     function ratio() external view override returns (uint256) {
@@ -134,12 +159,7 @@ contract StakedLBTCOracle is
         Assert.selector(rawPayload, Actions.RATIO_UPDATE);
         Actions.RatioUpdate memory action = Actions.ratioUpdate(rawPayload[4:]);
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        if (
-            $.switchTime > action.switchTime ||
-            (action.switchTime - block.timestamp) > $.maxAheadInterval
-        ) {
-            revert WrongRatioSwitchTime();
-        }
+        _validateRatio($, action.ratio, action.switchTime);
         bytes32 payloadHash = sha256(rawPayload);
         $.consortium.checkProof(payloadHash, proof);
         _setNewRatio(action.ratio, action.switchTime);
@@ -147,6 +167,7 @@ contract StakedLBTCOracle is
 
     function _initRatio(uint256 ratio_, uint256 switchTime_) internal {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
+        $.ratioThreshold = uint32(1_000000); // 1% by default
         if ($.currRatio != 0 || $.prevRatio != 0 || $.switchTime != 0) {
             revert RatioInitializedAlready();
         }
@@ -162,6 +183,20 @@ contract StakedLBTCOracle is
         $.currRatio = ratio_;
         $.switchTime = switchTime_;
         emit Oracle_RatioChanged($.prevRatio, $.currRatio, $.switchTime);
+    }
+
+    function _validateRatio(StakedLBTCOracleStorage storage $, uint256 ratio_, uint256 switchTime_) internal view {
+        if (
+            $.switchTime > switchTime_ ||
+            (switchTime_ - block.timestamp) > $.maxAheadInterval
+        ) {
+            revert WrongRatioSwitchTime();
+        }
+        uint256 interval = switchTime_ - $.switchTime;
+        uint256 threshold = Math.mulDiv($.currRatio, interval * $.ratioThreshold, RATIO_DEFAULT_SWITCH_INTERVAL * MAX_RATIO_THRESHOLD);
+        if ((($.currRatio > ratio_) && ($.currRatio - ratio_) > threshold) || (ratio_ > $.currRatio) && (ratio_ -$.currRatio) > threshold) {
+            revert TooBigRatioChange();
+        }
     }
 
     function _ratio() internal view returns (uint256) {
