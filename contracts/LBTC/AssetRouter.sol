@@ -56,7 +56,6 @@ contract AssetRouter is
 
     struct Route {
         mapping(bytes32 => RouteType) toTokens;
-        bytes32 toChainId;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.AssetRouter")) - 1)) & ~bytes32(uint256(0xff))
@@ -123,7 +122,6 @@ contract AssetRouter is
         bytes32 key = keccak256(abi.encode(fromToken, fromChainId));
         Route storage r = $.routes[key].direction[toChainId];
         r.toTokens[toToken] = routeType;
-        r.toChainId = toChainId;
         if (fromChainId == LChainId.get()) {
             _checkAndSetNativeToken($, fromToken);
         }

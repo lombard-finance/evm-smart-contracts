@@ -31,7 +31,7 @@ contract StakedLBTCOracle is
         uint256 indexed prevVal,
         uint256 indexed newVal
     );
-    
+
     /// @dev max ratio threshold (100% with 6 significant digits)
     uint32 private constant MAX_RATIO_THRESHOLD = uint32(100_000000);
     uint32 private constant RATIO_DEFAULT_SWITCH_INTERVAL = uint32(86400); // 60*60*24 (1 day)
@@ -185,7 +185,11 @@ contract StakedLBTCOracle is
         emit Oracle_RatioChanged($.prevRatio, $.currRatio, $.switchTime);
     }
 
-    function _validateRatio(StakedLBTCOracleStorage storage $, uint256 ratio_, uint256 switchTime_) internal view {
+    function _validateRatio(
+        StakedLBTCOracleStorage storage $,
+        uint256 ratio_,
+        uint256 switchTime_
+    ) internal view {
         if (
             $.switchTime > switchTime_ ||
             (switchTime_ - block.timestamp) > $.maxAheadInterval
@@ -193,8 +197,15 @@ contract StakedLBTCOracle is
             revert WrongRatioSwitchTime();
         }
         uint256 interval = switchTime_ - $.switchTime;
-        uint256 threshold = Math.mulDiv($.currRatio, interval * $.ratioThreshold, RATIO_DEFAULT_SWITCH_INTERVAL * MAX_RATIO_THRESHOLD);
-        if ((($.currRatio > ratio_) && ($.currRatio - ratio_) > threshold) || (ratio_ > $.currRatio) && (ratio_ -$.currRatio) > threshold) {
+        uint256 threshold = Math.mulDiv(
+            $.currRatio,
+            interval * $.ratioThreshold,
+            RATIO_DEFAULT_SWITCH_INTERVAL * MAX_RATIO_THRESHOLD
+        );
+        if (
+            (($.currRatio > ratio_) && ($.currRatio - ratio_) > threshold) ||
+            ((ratio_ > $.currRatio) && (ratio_ - $.currRatio) > threshold)
+        ) {
             revert TooBigRatioChange();
         }
     }
