@@ -218,6 +218,10 @@ contract NativeLBTC is
         return _getNativeLBTCStorage().treasury;
     }
 
+    function toNativeCommission() public view returns (uint64) {
+        return _getNativeLBTCStorage().assetRouter.toNativeCommission();
+    }
+
     function getRedeemFee() public view returns (uint256) {
         (uint256 redeemFee, , ) = _getNativeLBTCStorage()
             .assetRouter
