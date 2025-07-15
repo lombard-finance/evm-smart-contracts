@@ -163,7 +163,7 @@ contract NativeLBTC is
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
         }
-        return IAssetRouter($.assetRouter).maxMintCommission();
+        return IAssetRouter($.assetRouter).maxMintCommission(address(this));
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -219,7 +219,10 @@ contract NativeLBTC is
     }
 
     function toNativeCommission() public view returns (uint64) {
-        return _getNativeLBTCStorage().assetRouter.toNativeCommission();
+        return
+            _getNativeLBTCStorage().assetRouter.toNativeCommission(
+                address(this)
+            );
     }
 
     function getRedeemFee() public view returns (uint256) {
@@ -581,7 +584,7 @@ contract NativeLBTC is
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
         }
-        return $.assetRouter.maxMintCommission();
+        return $.assetRouter.maxMintCommission(address(this));
     }
 
     function _getTreasury() internal view virtual returns (address) {

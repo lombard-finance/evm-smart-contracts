@@ -13,10 +13,8 @@ task('deploy-asset-router', 'Deploys the AssetRouter contract via create3')
   .addParam('ledgerChainId', 'ID of the ledger chain')
   .addParam('bitcoinChainId', 'ID of the bitcoin chain')
   .addParam('mailbox', 'The mailbox address')
-  .addParam('oracle', 'The oracle address')
   .addParam('bascule', 'The bascule address', '0x0000000000000000000000000000000000000000')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
-  .addParam('toNativeCommission', 'The commission to receive BTC')
   .addOptionalParam('adminChangeDelay', 'The delay of admin role change', '0')
   .setAction(async (taskArgs, hre) => {
     const {
@@ -27,9 +25,7 @@ task('deploy-asset-router', 'Deploys the AssetRouter contract via create3')
       ledgerChainId,
       bitcoinChainId,
       mailbox,
-      oracle,
-      bascule,
-      toNativeCommission
+      bascule
     } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
@@ -41,7 +37,7 @@ task('deploy-asset-router', 'Deploys the AssetRouter contract via create3')
 
     await create3(
       'AssetRouter',
-      [owner, adminChangeDelay, ledgerChainId, bitcoinChainId, mailbox, oracle, bascule, toNativeCommission],
+      [owner, adminChangeDelay, ledgerChainId, bitcoinChainId, mailbox, bascule],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,

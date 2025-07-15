@@ -133,12 +133,14 @@ describe('StakedLBTC', function () {
       LEDGER_CHAIN_ID,
       BITCOIN_CHAIN_ID,
       mailbox.address,
-      ratioFeed.address,
-      ethers.ZeroAddress,
-      toNativeCommission
+      ethers.ZeroAddress
     ]);
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
+    await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);
+    await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeCommission);
+    await assetRouter.connect(owner).changeOracle(nativeLBTC.address, ratioFeed.address);
+    await assetRouter.connect(owner).changeToNativeCommission(nativeLBTC.address, toNativeCommission);
     await assetRouter.connect(owner).grantRole(await assetRouter.OPERATOR_ROLE(), operator);
     await assetRouter.connect(owner).grantRole(await assetRouter.CLAIMER_ROLE(), stakedLbtc.address);
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 548, true);
@@ -929,7 +931,7 @@ describe('StakedLBTC', function () {
             const { proof } = await signPayload([notary1, notary2], [true, true], payload);
 
             // Set fee and approve
-            await assetRouter.connect(operator).setMaxMintCommission(fee.max);
+            await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, fee.max);
             const appliedFee = fee.approved < fee.max ? fee.approved : fee.max;
             const feeApprovalPayload = getPayloadForAction([fee.approved, snapshotTimestamp + DAY], 'feeApproval');
             const userSignature = await getFeeTypedMessage(
@@ -965,7 +967,7 @@ describe('StakedLBTC', function () {
         const feeMax = randomBigInt(2);
         const userSignature = await getFeeTypedMessage(recipient, stakedLbtc, feeApproved, snapshotTimestamp + DAY);
         const feeApprovalPayload = getPayloadForAction([feeApproved, snapshotTimestamp + DAY], 'feeApproval');
-        await assetRouter.connect(operator).setMaxMintCommission(feeMax);
+        await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, feeMax);
         const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
         for (let i = 0; i < 10; i++) {
@@ -987,7 +989,7 @@ describe('StakedLBTC', function () {
         // new
         const feeApproved = randomBigInt(2);
         const feeMax = randomBigInt(2);
-        await assetRouter.connect(operator).setMaxMintCommission(feeMax);
+        await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, feeMax);
         const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
         const amount = randomBigInt(8);
@@ -1057,7 +1059,7 @@ describe('StakedLBTC', function () {
         const amount = randomBigInt(3);
         const fee = amount + 1n;
         const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount, fee);
-        await assetRouter.connect(operator).setMaxMintCommission(fee);
+        await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, fee);
         await expect(
           // @ts-ignore
           stakedLbtc.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
@@ -1216,7 +1218,7 @@ describe('StakedLBTC', function () {
         beforeEach(async function () {
           await snapshot.restore();
           maxFee = randomBigInt(2);
-          await assetRouter.connect(operator).setMaxMintCommission(maxFee);
+          await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, maxFee);
           data1 = await defaultData(signer1, amount1, maxFee + 1n);
           data2 = await defaultData(signer2, amount2, maxFee + 1n);
           data3 = await defaultData(signer3, amount3, maxFee + 1n);
@@ -1481,7 +1483,7 @@ describe('StakedLBTC', function () {
 
         it(`calcUnstakeRequestAmount ${arg.name}`, async function () {
           await stakedLbtc.connect(owner).changeRedeemFee(arg.redeemFee);
-          await assetRouter.connect(owner).changeToNativeCommission(arg.toNativeFee);
+          await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, arg.toNativeFee);
           await ratioFeed.setRatio(arg.ratio);
 
           // redeemAmount = arg.expectedAmount + arg.redeemFee + (arg.toNativeFee * arg.ratio) / e18;
@@ -1559,7 +1561,7 @@ describe('StakedLBTC', function () {
 
         const redeemFee = 100n;
         const toNativeCommission = 1000n;
-        await assetRouter.connect(owner).changeToNativeCommission(toNativeCommission);
+        await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeCommission);
         await stakedLbtc.connect(owner).changeRedeemFee(redeemFee);
         const amount = toNativeCommission - 1n;
 
@@ -1573,7 +1575,7 @@ describe('StakedLBTC', function () {
 
         const redeemFee = 1000n;
         const toNativeCommission = 100n;
-        await assetRouter.connect(owner).changeToNativeCommission(toNativeCommission);
+        await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeCommission);
         await stakedLbtc.connect(owner).changeRedeemFee(redeemFee);
         const amount = redeemFee - 1n;
 
@@ -1584,7 +1586,7 @@ describe('StakedLBTC', function () {
 
       it('redeemForBtc() reverts when amount is below dust limit', async () => {
         const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
-        const toNativeCommission = await assetRouter.toNativeCommission();
+        const toNativeCommission = await assetRouter.toNativeCommission(stakedLbtc.address);
 
         // Start with a very small amount
         let amount = toNativeCommission + 1n;

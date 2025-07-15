@@ -96,14 +96,14 @@ interface IAssetRouter {
         bytes32 toToken
     ) external view returns (RouteType);
 
-    function maxMintCommission() external view returns (uint256);
+    function maxMintCommission(address token) external view returns (uint256);
     function ratio(address token) external view returns (uint256);
     function getRate(address token) external view returns (uint256);
     function bitcoinChainId() external view returns (bytes32);
     function bascule() external view returns (IBascule);
-    function oracle() external view returns (IOracle);
+    function oracle(address token) external view returns (IOracle);
     function mailbox() external view returns (IMailbox);
-    function toNativeCommission() external view returns (uint64);
+    function toNativeCommission(address token) external view returns (uint64);
     function nativeToken() external view returns (address);
     function tokenConfig(
         address token
