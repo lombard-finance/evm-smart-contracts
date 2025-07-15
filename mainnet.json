@@ -14,7 +14,8 @@
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "LBTC": "0x8236a87084f8B84306f72007F36F2618A5634494",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "fbtc": {
       "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
@@ -103,7 +104,8 @@
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
       "DepositNotarizationBlacklist": "0xdf0D1818C5276aD63Ce73E20223657d4920E5e82",
-      "PoR": "0xe7Ebc588F4EC9297d9867aD75a9b5D86848c8018"
+      "PoR": "0xe7Ebc588F4EC9297d9867aD75a9b5D86848c8018",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "CBBTC": {
       "CBBTC": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
