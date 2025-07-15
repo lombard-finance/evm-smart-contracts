@@ -29,6 +29,10 @@ contract NativeLBTC is
     struct NativeLBTCStorage {
         // slot: 20 + 8 + 1 | 29/32
         address consortium;
+        /// @custom:oz-renamed-from burnCommission
+        uint64 __removed__burnCommission;
+        /// @custom:oz-renamed-from isWithdrawalsEnabled
+        bool __removed__isWithdrawalsEnabled;
         // slot: 20 | 20/32
         address treasury;
         // slot: 20 | 20/32
@@ -38,6 +42,10 @@ contract NativeLBTC is
         string __removed__name;
         /// @custom:oz-renamed-from symbol
         string __removed__symbol;
+        /// @custom:oz-renamed-from dustFeeRate
+        uint256 __removed__dustFeeRate;
+        /// @custom:oz-renamed-from maximumFee
+        uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IAssetRouter assetRouter;
     }

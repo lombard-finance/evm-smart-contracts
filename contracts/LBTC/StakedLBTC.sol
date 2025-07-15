@@ -73,8 +73,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         mapping(bytes32 => bool) __removed__usedPayloads; // sha256(rawPayload) => used
         address operator;
         IAssetRouter assetRouter;
-        /// @custom:oz-renamed-from redeemFee
-        uint256 __removed__redeemFee;
     }
 
     /// @dev the storage location differs, because contract was renamed from LBTC
