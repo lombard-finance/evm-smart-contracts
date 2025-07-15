@@ -111,10 +111,10 @@ describe('ERC4626Depositor', function () {
       LEDGER_CHAIN_ID,
       BITCOIN_CHAIN_ID,
       mailbox.address,
-      ratioFeed.address,
-      ethers.ZeroAddress,
-      toNativeCommission
+      ethers.ZeroAddress
     ]);
+    await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);
+    await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeCommission);
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
     // Roles

@@ -33,6 +33,9 @@ contract AssetRouter is
     struct TokenConfig {
         uint256 redeemFee;
         uint256 redeemForBtcMinAmount;
+        uint256 maximumMintCommission;
+        IOracle oracle;
+        uint64 toNativeCommission;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.AssetRouter
@@ -43,9 +46,6 @@ contract AssetRouter is
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IMailbox mailbox;
         IBascule bascule;
-        uint256 maximumMintCommission;
-        IOracle oracle;
-        uint64 toNativeCommission;
         address nativeToken;
         mapping(address => TokenConfig) tokenConfigs;
     }
@@ -78,37 +78,24 @@ contract AssetRouter is
         bytes32 ledgerChainId_,
         bytes32 bitcoinChainId_,
         address mailbox_,
-        address oracle_,
-        address bascule_,
-        uint64 toNativeCommission_
+        address bascule_
     ) external initializer {
         __AccessControlDefaultAdminRules_init(initialOwnerDelay_, owner_);
         __ReentrancyGuard_init();
-        __AssetRouter_init(
-            ledgerChainId_,
-            bitcoinChainId_,
-            mailbox_,
-            oracle_,
-            bascule_,
-            toNativeCommission_
-        );
+        __AssetRouter_init(ledgerChainId_, bitcoinChainId_, mailbox_, bascule_);
     }
 
     function __AssetRouter_init(
         bytes32 ledgerChainId_,
         bytes32 bitcoinChainId_,
         address mailbox_,
-        address oracle_,
-        address bascule_,
-        uint64 toNativeCommission_
+        address bascule_
     ) internal onlyInitializing {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         _changeMailbox(mailbox_);
-        _changeOracle(oracle_);
         _changeBascule(bascule_);
         $.ledgerChainId = ledgerChainId_;
         $.bitcoinChainId = bitcoinChainId_;
-        $.toNativeCommission = toNativeCommission_;
     }
 
     function setRoute(
@@ -194,6 +181,23 @@ contract AssetRouter is
         _setRedeemForToken(token, redeemEnabled);
     }
 
+    function changeTokenConfigExt(
+        address token,
+        uint256 redeemFee,
+        uint256 redeemForBtcMinAmount,
+        bool redeemEnabled,
+        address oracle_,
+        uint256 maximumMintCommission_,
+        uint64 toNativeCommission_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setRedeemFeeForToken(token, redeemFee);
+        _setRedeemForBtcMinAmountForToken(token, redeemForBtcMinAmount);
+        _setRedeemForToken(token, redeemEnabled);
+        _changeOracle(token, oracle_);
+        _changeToNativeCommission(token, toNativeCommission_);
+        _setMaxMintCommission(token, maximumMintCommission_);
+    }
+
     function tokenConfig(
         address token
     )
@@ -251,18 +255,12 @@ contract AssetRouter is
 
     function ratio(address token) external view override returns (uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        if (token != $.oracle.token()) {
-            revert AssertRouter_WrongToken();
-        }
-        return $.oracle.ratio();
+        return $.tokenConfigs[token].oracle.ratio();
     }
 
     function getRate(address token) external view override returns (uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        if (token != $.oracle.token()) {
-            revert AssertRouter_WrongToken();
-        }
-        return $.oracle.getRate();
+        return $.tokenConfigs[token].oracle.getRate();
     }
 
     function bitcoinChainId() external view override returns (bytes32) {
@@ -305,13 +303,14 @@ contract AssetRouter is
      * Emits a {OracleChanged} event.
      */
     function changeOracle(
+        address token,
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeOracle(newVal);
+        _changeOracle(token, newVal);
     }
 
-    function oracle() external view override returns (IOracle) {
-        return _getAssetRouterStorage().oracle;
+    function oracle(address token) external view override returns (IOracle) {
+        return _getAssetRouterStorage().tokenConfigs[token].oracle;
     }
 
     /**
@@ -332,9 +331,10 @@ contract AssetRouter is
     }
 
     function changeToNativeCommission(
+        address token,
         uint64 newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeToNativeCommission(newValue);
+        _changeToNativeCommission(token, newValue);
     }
 
     function changeNativeToken(
@@ -349,12 +349,10 @@ contract AssetRouter is
      * @dev zero allowed to disable fee
      */
     function setMaxMintCommission(
+        address token,
         uint256 fee
     ) external onlyRole(OPERATOR_ROLE) {
-        AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint256 oldFee = $.maximumMintCommission;
-        $.maximumMintCommission = fee;
-        emit AssetRouter_MintFeeChanged(oldFee, fee);
+        _setMaxMintCommission(token, fee);
     }
 
     function deposit(
@@ -436,7 +434,7 @@ contract AssetRouter is
                 .calcFeeAndDustLimit(
                     scriptPubkey,
                     amount - tokenCfg.redeemFee,
-                    $.toNativeCommission,
+                    tokenCfg.toNativeCommission,
                     tokenCfg.redeemForBtcMinAmount
                 );
             return (amountAfterFee, isAboveMinLimit);
@@ -444,7 +442,7 @@ contract AssetRouter is
         (amountAfterFee, , isAboveMinLimit) = Validation.calcFeeAndDustLimit(
             scriptPubkey,
             amount - tokenCfg.redeemFee,
-            $.toNativeCommission,
+            tokenCfg.toNativeCommission,
             tokenCfg.redeemForBtcMinAmount
         );
         return (amountAfterFee, isAboveMinLimit);
@@ -457,7 +455,6 @@ contract AssetRouter is
         uint256 amount
     ) external nonReentrant {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint64 fee = $.toNativeCommission;
         uint256 amountAfterFee = 0;
         TokenConfig storage tokenCfg = $.tokenConfigs[fromToken];
         if (amount <= tokenCfg.redeemFee) {
@@ -469,7 +466,7 @@ contract AssetRouter is
             amountAfterFee = Validation.redeemFee(
                 recipient,
                 amount - tokenCfg.redeemFee,
-                fee,
+                tokenCfg.toNativeCommission,
                 tokenCfg.redeemForBtcMinAmount
             );
             gmpRecipient = Assets.ASSETS_MODULE_ADDRESS;
@@ -478,7 +475,7 @@ contract AssetRouter is
             amountAfterFee = Validation.redeemFee(
                 recipient,
                 amount - tokenCfg.redeemFee,
-                fee,
+                tokenCfg.toNativeCommission,
                 tokenCfg.redeemForBtcMinAmount
             );
             gmpRecipient = Assets.BTC_STAKING_MODULE_ADDRESS;
@@ -719,7 +716,10 @@ contract AssetRouter is
 
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         address treasury = tokenContract.getTreasury();
-        uint256 fee = Math.min($.maximumMintCommission, feeAction.fee);
+        uint256 fee = Math.min(
+            $.tokenConfigs[token].maximumMintCommission,
+            feeAction.fee
+        );
 
         {
             bytes32 digest = tokenContract.getFeeDigest(
@@ -801,11 +801,14 @@ contract AssetRouter is
         $.bascule = IBascule(newVal);
     }
 
-    function _changeOracle(address newVal) internal {
+    function _changeOracle(address token, address newVal) internal {
         if (address(newVal) == address(0)) revert AssetRouter_ZeroAddress();
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        emit AssetRouter_OracleChanged(address($.oracle), newVal);
-        $.oracle = IOracle(newVal);
+        emit AssetRouter_OracleChanged(
+            address($.tokenConfigs[token].oracle),
+            newVal
+        );
+        $.tokenConfigs[token].oracle = IOracle(newVal);
     }
 
     function _changeMailbox(address newVal) internal {
@@ -816,10 +819,14 @@ contract AssetRouter is
     }
 
     /// @dev allow set to zero
-    function _changeToNativeCommission(uint64 newValue) internal {
+    function _changeToNativeCommission(
+        address token,
+        uint64 newValue
+    ) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        uint64 prevValue = $.toNativeCommission;
-        $.toNativeCommission = newValue;
+        TokenConfig storage tokenCfg = $.tokenConfigs[token];
+        uint64 prevValue = tokenCfg.toNativeCommission;
+        tokenCfg.toNativeCommission = newValue;
         emit AssetRouter_ToNativeCommissionChanged(prevValue, newValue);
     }
 
@@ -885,6 +892,12 @@ contract AssetRouter is
         }
         emit AssetRouter_RedeemEnabled(token, enabled);
     }
+    function _setMaxMintCommission(address token, uint256 fee) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        uint256 oldFee = $.tokenConfigs[token].maximumMintCommission;
+        $.tokenConfigs[token].maximumMintCommission = fee;
+        emit AssetRouter_MintFeeChanged(oldFee, fee);
+    }
 
     function _getTokenConfig(
         address token
@@ -908,15 +921,20 @@ contract AssetRouter is
         );
     }
 
-    function toNativeCommission() external view override returns (uint64) {
-        return _getAssetRouterStorage().toNativeCommission;
+    function toNativeCommission(
+        address token
+    ) external view override returns (uint64) {
+        return _getAssetRouterStorage().tokenConfigs[token].toNativeCommission;
     }
 
     function nativeToken() external view override returns (address) {
         return _getAssetRouterStorage().nativeToken;
     }
 
-    function maxMintCommission() external view override returns (uint256) {
-        return _getAssetRouterStorage().maximumMintCommission;
+    function maxMintCommission(
+        address token
+    ) external view override returns (uint256) {
+        return
+            _getAssetRouterStorage().tokenConfigs[token].maximumMintCommission;
     }
 }

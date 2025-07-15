@@ -113,12 +113,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       LEDGER_CHAIN_ID,
       BITCOIN_CHAIN_ID,
       mailbox.address,
-      ratioFeed.address,
-      ethers.ZeroAddress,
-      toNativeCommission
+      ethers.ZeroAddress
     ]);
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
+    await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);
+    await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeCommission);
     // Roles
     await assetRouter.connect(owner).grantRole(await assetRouter.CALLER_ROLE(), owner);
     await assetRouter.connect(owner).grantRole(await assetRouter.OPERATOR_ROLE(), operator);

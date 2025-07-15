@@ -111,10 +111,10 @@ describe('NativeLBTC', function () {
       LEDGER_CHAIN_ID,
       BITCOIN_CHAIN_ID,
       mailbox.address,
-      ratioFeed.address,
-      ethers.ZeroAddress,
-      toNativeCommission
+      ethers.ZeroAddress
     ]);
+    await assetRouter.connect(owner).changeOracle(nativeLbtc.address, ratioFeed.address);
+    await assetRouter.connect(owner).changeToNativeCommission(nativeLbtc.address, toNativeCommission);
     assetRouter.address = await assetRouter.getAddress();
     await assetRouter.connect(owner).grantRole(await assetRouter.OPERATOR_ROLE(), operator);
     await assetRouter.connect(owner).grantRole(await assetRouter.CLAIMER_ROLE(), nativeLbtc.address);
@@ -468,7 +468,7 @@ describe('NativeLBTC', function () {
 
       it('getMintFee() returns mint fee on the contract side', async function () {
         const maxFee = randomBigInt(4);
-        await assetRouter.connect(operator).setMaxMintCommission(maxFee);
+        await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, maxFee);
         expect(await nativeLbtc.getMintFee()).to.be.eq(maxFee);
       });
 
@@ -734,7 +734,7 @@ describe('NativeLBTC', function () {
             );
 
             // Set fee and approve
-            await assetRouter.connect(operator).setMaxMintCommission(fee.max);
+            await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, fee.max);
             const appliedFee = fee.approved < fee.max ? fee.approved : fee.max;
 
             const tx = await nativeLbtc
@@ -763,7 +763,7 @@ describe('NativeLBTC', function () {
         const feeMax = randomBigInt(2);
         const userSignature = await getFeeTypedMessage(recipient, nativeLbtc, feeApproved, snapshotTimestamp + DAY);
         const feeApprovalPayload = getPayloadForAction([feeApproved, snapshotTimestamp + DAY], 'feeApproval');
-        await assetRouter.connect(operator).setMaxMintCommission(feeMax);
+        await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, feeMax);
         const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
         for (let i = 0; i < 10; i++) {
@@ -785,7 +785,7 @@ describe('NativeLBTC', function () {
         // new
         const feeApproved = randomBigInt(2);
         const feeMax = randomBigInt(2);
-        await assetRouter.connect(operator).setMaxMintCommission(feeMax);
+        await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, feeMax);
         const appliedFee = feeApproved < feeMax ? feeApproved : feeMax;
 
         const amount = randomBigInt(8);
@@ -854,7 +854,7 @@ describe('NativeLBTC', function () {
         const amount = randomBigInt(3);
         const fee = amount + 1n;
         const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount, fee);
-        await assetRouter.connect(operator).setMaxMintCommission(fee);
+        await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, fee);
         await expect(
           // @ts-ignore
           nativeLbtc.connect(claimer).mintV1WithFee(payload, proof, feeApprovalPayload, userSignature)
@@ -1008,7 +1008,7 @@ describe('NativeLBTC', function () {
         beforeEach(async function () {
           await snapshot.restore();
           maxFee = randomBigInt(2);
-          await assetRouter.connect(operator).setMaxMintCommission(maxFee);
+          await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, maxFee);
           data1 = await defaultData(signer1, amount1, maxFee + 1n);
           data2 = await defaultData(signer2, amount2, maxFee + 1n);
           data3 = await defaultData(signer3, amount3, maxFee + 1n);
@@ -1263,7 +1263,7 @@ describe('NativeLBTC', function () {
         let isAboveDust: boolean;
 
         it(`calcUnstakeRequestAmount ${arg.name}`, async function () {
-          await assetRouter.connect(owner).changeToNativeCommission(arg.toNativeFee);
+          await assetRouter.connect(owner).changeToNativeCommission(nativeLbtc.address, arg.toNativeFee);
           await ratioFeed.setRatio(arg.ratio);
 
           redeemAmount = arg.expectedAmount + arg.toNativeFee;
@@ -1333,7 +1333,7 @@ describe('NativeLBTC', function () {
         await nativeLbtc.connect(minter).mint(signer1.address, randomBigInt(10));
 
         const toNativeCommission = 1000n;
-        await assetRouter.connect(owner).changeToNativeCommission(toNativeCommission);
+        await assetRouter.connect(owner).changeToNativeCommission(nativeLbtc.address, toNativeCommission);
         const amount = toNativeCommission - 1n;
 
         await expect(nativeLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount))
@@ -1343,7 +1343,7 @@ describe('NativeLBTC', function () {
 
       it('redeemForBtc() reverts when amount is below dust limit', async () => {
         const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
-        const toNativeCommission = await assetRouter.toNativeCommission();
+        const toNativeCommission = await assetRouter.toNativeCommission(nativeLbtc.address);
 
         // Start with a very small amount
         let amount = toNativeCommission + 1n;
