@@ -6,7 +6,7 @@ import {LChainId} from "../../libs/LChainId.sol";
 library GMPUtils {
     // bytes4(keccak256("MessageV1(bytes32,uint256,bytes32,bytes32,bytes32,bytes)"))
     bytes4 public constant GMP_V1_SELECTOR = 0xe288fb4a;
-    uint256 internal constant MIN_GMP_LENGTH = 32 * 6;
+    uint256 internal constant MIN_GMP_LENGTH = 32 * 6 + 4; // This length includes selector
 
     error GMP_ZeroChainId();
     error GMP_ZeroSender();
