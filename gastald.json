@@ -135,7 +135,7 @@
     }
   },
   "katanaTatara": {
-    "chainId": "",
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000001f977",
     "admin": {
       "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
       "TimeLock": "",
@@ -146,7 +146,10 @@
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
       "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "AssetRouter": "0xc60a46740Ee9e4d27914e369d2CE110a4a5e168c",
+      "Oracle": "0xA09a4aCb956aDe7e94831D06415196D0C013f86d",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "chainlink": {
       "ChainSelector": "9090863410735740267",
