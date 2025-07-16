@@ -185,14 +185,12 @@ contract AssetRouter is
         address token,
         uint256 redeemFee,
         uint256 redeemForBtcMinAmount,
-        bool redeemEnabled,
         address oracle_,
         uint256 maximumMintCommission_,
         uint64 toNativeCommission_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setRedeemFeeForToken(token, redeemFee);
         _setRedeemForBtcMinAmountForToken(token, redeemForBtcMinAmount);
-        _setRedeemForToken(token, redeemEnabled);
         _changeOracle(token, oracle_);
         _changeToNativeCommission(token, toNativeCommission_);
         _setMaxMintCommission(token, maximumMintCommission_);
@@ -802,7 +800,6 @@ contract AssetRouter is
     }
 
     function _changeOracle(address token, address newVal) internal {
-        if (address(newVal) == address(0)) revert AssetRouter_ZeroAddress();
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         emit AssetRouter_OracleChanged(
             address($.tokenConfigs[token].oracle),
