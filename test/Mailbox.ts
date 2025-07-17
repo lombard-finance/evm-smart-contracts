@@ -73,8 +73,8 @@ describe('Mailbox', function () {
     await dmailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), treasury);
     await dmailbox.connect(owner).setDefaultMaxPayloadSize(1000);
 
-    await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes);
-    await dmailbox.connect(owner).enableMessagePath(lChainId, sMailboxBytes);
+    await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes, 1);
+    await dmailbox.connect(owner).enableMessagePath(lChainId, sMailboxBytes, 2);
 
     handlerMock = await deployContract<GMPHandlerMock & Addressable>('GMPHandlerMock', [true], false);
     handlerMock.address = await handlerMock.getAddress();
@@ -103,7 +103,7 @@ describe('Mailbox', function () {
         globalNonce = 1;
       });
 
-      it('enableMessagePath default admin can', async () => {
+      it('enableMessagePath default admin can (both directions)', async () => {
         let chain = encode(['uint256'], [12345]);
         let mailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
         const messagePathOut = ethers.keccak256(
@@ -111,22 +111,74 @@ describe('Mailbox', function () {
         );
         const messagePathIn = ethers.keccak256(encode(['bytes32', 'bytes32', 'bytes32'], [mailbox, chain, lChainId]));
 
-        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox))
+        await smailbox.connect(owner).disableMessagePath(chain, mailbox, 3);
+
+        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox, 3))
           .to.emit(smailbox, 'MessagePathEnabled')
           .withArgs(chain, messagePathIn, messagePathOut, mailbox);
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(chain);
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(chain);
+      });
+
+      it('enableMessagePath default admin can (outbound only)', async () => {
+        let chain = encode(['uint256'], [12345]);
+        let mailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
+        const messagePathOut = ethers.keccak256(
+          encode(['address', 'bytes32', 'bytes32'], [smailbox.address, lChainId, chain])
+        );
+        const messagePathIn = ethers.keccak256(encode(['bytes32', 'bytes32', 'bytes32'], [mailbox, chain, lChainId]));
+
+        await smailbox.connect(owner).disableMessagePath(chain, mailbox, 3);
+
+        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox, 1))
+          .to.emit(smailbox, 'MessagePathEnabled')
+          .withArgs(
+            chain,
+            '0x0000000000000000000000000000000000000000000000000000000000000000',
+            messagePathOut,
+            mailbox
+          );
+        expect(await smailbox.getOutboundMessagePath(messagePathOut)).to.be.equal(chain);
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        );
+      });
+
+      it('enableMessagePath default admin can (inbound only)', async () => {
+        let chain = encode(['uint256'], [12345]);
+        let mailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
+        const messagePathOut = ethers.keccak256(
+          encode(['address', 'bytes32', 'bytes32'], [smailbox.address, lChainId, chain])
+        );
+        const messagePathIn = ethers.keccak256(encode(['bytes32', 'bytes32', 'bytes32'], [mailbox, chain, lChainId]));
+
+        await smailbox.connect(owner).disableMessagePath(chain, mailbox, 3);
+
+        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox, 2))
+          .to.emit(smailbox, 'MessagePathEnabled')
+          .withArgs(
+            chain,
+            messagePathIn,
+            '0x0000000000000000000000000000000000000000000000000000000000000000',
+            mailbox
+          );
+        expect(await smailbox.getOutboundMessagePath(messagePathOut)).to.be.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        );
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(chain);
       });
 
       it('enableMessagePath reverts when called by not an admin', async () => {
         let chain = encode(['uint256'], [12345]);
         let mailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(smailbox.connect(signer1).enableMessagePath(chain, mailbox))
+        await expect(smailbox.connect(signer1).enableMessagePath(chain, mailbox, 1))
           .to.revertedWithCustomError(smailbox, 'AccessControlUnauthorizedAccount')
           .withArgs(signer1.address, await smailbox.DEFAULT_ADMIN_ROLE());
       });
 
       it('enableMessagePath reverts when destination contract is set for the chain', async () => {
         let mailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(smailbox.connect(owner).enableMessagePath(lChainId, mailbox))
+        await expect(smailbox.connect(owner).enableMessagePath(lChainId, mailbox, 1))
           .to.revertedWithCustomError(smailbox, 'Mailbox_MessagePathEnabled')
           .withArgs(ethers.keccak256(encode(['bytes32', 'bytes32', 'bytes32'], [sMailboxBytes, lChainId, lChainId])));
       });
@@ -134,7 +186,7 @@ describe('Mailbox', function () {
       it('enableMessagePath reverts when chainId is 0', async () => {
         let chain = encode(['uint256'], [0]);
         let mailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
-        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox)).to.revertedWithCustomError(
+        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox, 1)).to.revertedWithCustomError(
           smailbox,
           'Mailbox_ZeroChainId'
         );
@@ -143,7 +195,7 @@ describe('Mailbox', function () {
       it('enableMessagePath mailbox cannot be be 0 address', async () => {
         let chain = encode(['uint256'], [12345]);
         let mailbox = encode(['address'], [ethers.ZeroAddress]);
-        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox)).to.revertedWithCustomError(
+        await expect(smailbox.connect(owner).enableMessagePath(chain, mailbox, 1)).to.revertedWithCustomError(
           smailbox,
           'Mailbox_ZeroMailbox'
         );
@@ -169,22 +221,61 @@ describe('Mailbox', function () {
           encode(['address', 'bytes32', 'bytes32'], [smailbox.address, lChainId, dChain])
         );
 
-        await smailbox.connect(owner).enableMessagePath(dChain, dMailboxBytes);
+        await smailbox.connect(owner).enableMessagePath(dChain, dMailboxBytes, 3);
       });
 
       it('disableMessagePath reverts when called by not an admin', async () => {
-        await expect(smailbox.connect(signer1).disableMessagePath(dChain, dMailboxBytes))
+        await expect(smailbox.connect(signer1).disableMessagePath(dChain, dMailboxBytes, 1))
           .to.revertedWithCustomError(smailbox, 'AccessControlUnauthorizedAccount')
           .withArgs(signer1.address, await smailbox.DEFAULT_ADMIN_ROLE());
       });
 
-      it('disableMessagePath default admin can', async () => {
-        await expect(smailbox.connect(owner).disableMessagePath(dChain, dMailboxBytes))
+      it('disableMessagePath default admin can (both directions)', async () => {
+        await expect(smailbox.connect(owner).disableMessagePath(dChain, dMailboxBytes, 3))
           .to.emit(smailbox, 'MessagePathDisabled')
           .withArgs(dChain, messagePathIn, messagePathOut, dMailboxBytes);
+        expect(await smailbox.getOutboundMessagePath(messagePathOut)).to.be.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        );
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        );
+      });
+
+      it('disableMessagePath default admin can (outbound)', async () => {
+        await smailbox.connect(owner).enableMessagePath(dChain, dMailboxBytes, 3);
+        await expect(smailbox.connect(owner).disableMessagePath(dChain, dMailboxBytes, 1))
+          .to.emit(smailbox, 'MessagePathDisabled')
+          .withArgs(
+            dChain,
+            '0x0000000000000000000000000000000000000000000000000000000000000000',
+            messagePathOut,
+            dMailboxBytes
+          );
+        expect(await smailbox.getOutboundMessagePath(messagePathOut)).to.be.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        );
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(dChain);
+      });
+
+      it('disableMessagePath default admin can (inbound)', async () => {
+        await smailbox.connect(owner).enableMessagePath(dChain, dMailboxBytes, 1);
+        await expect(smailbox.connect(owner).disableMessagePath(dChain, dMailboxBytes, 2))
+          .to.emit(smailbox, 'MessagePathDisabled')
+          .withArgs(
+            dChain,
+            messagePathIn,
+            '0x0000000000000000000000000000000000000000000000000000000000000000',
+            dMailboxBytes
+          );
+        expect(await smailbox.getOutboundMessagePath(messagePathOut)).to.be.equal(dChain);
+        expect(await smailbox.getInboundMessagePath(messagePathIn)).to.be.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        );
       });
 
       it('Can not send when the path is disabled', async () => {
+        await smailbox.connect(owner).disableMessagePath(dChain, dMailboxBytes, 1);
         const recipient = encode(['address'], [ethers.Wallet.createRandom().address]);
         const dCaller = encode(['address'], [ethers.ZeroAddress]);
         const body = ethers.hexlify(ethers.toUtf8Bytes('TEST'));
@@ -194,6 +285,7 @@ describe('Mailbox', function () {
       });
 
       it('Can not receive when the path is disabled', async () => {
+        await smailbox.connect(owner).disableMessagePath(dChain, dMailboxBytes, 2);
         const payload = getGMPPayload(
           encode(['address'], [dMailbox]),
           dChain,
@@ -222,20 +314,20 @@ describe('Mailbox', function () {
           encode(['address', 'bytes32', 'bytes32'], [newMailbox, dChain, lChainId])
         );
 
-        await expect(smailbox.connect(owner).enableMessagePath(dChain, mailbox32Bytes))
+        await expect(smailbox.connect(owner).enableMessagePath(dChain, mailbox32Bytes, 3))
           .to.emit(smailbox, 'MessagePathEnabled')
           .withArgs(dChain, messagePathIn, messagePathOut, mailbox32Bytes);
       });
 
       it('disableMessagePath reverts when mailbox is 0 address', async () => {
         await expect(
-          smailbox.connect(owner).disableMessagePath(dChain, encode(['address'], [ethers.ZeroAddress]))
+          smailbox.connect(owner).disableMessagePath(dChain, encode(['address'], [ethers.ZeroAddress]), 3)
         ).to.revertedWithCustomError(smailbox, 'Mailbox_ZeroMailbox');
       });
 
       it('disableMessagePath reverts when chain is 0', async () => {
         await expect(
-          smailbox.connect(owner).disableMessagePath(encode(['uint256'], [0]), dMailboxBytes)
+          smailbox.connect(owner).disableMessagePath(encode(['uint256'], [0]), dMailboxBytes, 3)
         ).to.revertedWithCustomError(smailbox, 'Mailbox_ZeroChainId');
       });
     });
@@ -248,7 +340,7 @@ describe('Mailbox', function () {
         globalNonce = 1;
         smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
         smailbox.address = await smailbox.getAddress();
-        await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes);
+        await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes, 1);
       });
 
       it('Initial default payload size is 0', async () => {
@@ -310,7 +402,7 @@ describe('Mailbox', function () {
         configSender = signer2;
         smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
         smailbox.address = await smailbox.getAddress();
-        await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes);
+        await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes, 1);
 
         const testPayload = getGMPPayload(
           encode(['address'], [smailbox.address]),
@@ -679,7 +771,7 @@ describe('Mailbox', function () {
 
       newDstChain = encode(['uint256'], [12345]);
       newDstMailbox = ethers.Wallet.createRandom();
-      await smailbox.connect(owner).enableMessagePath(newDstChain, encode(['address'], [newDstMailbox.address]));
+      await smailbox.connect(owner).enableMessagePath(newDstChain, encode(['address'], [newDstMailbox.address]), 1);
     });
 
     it('New message', async () => {
@@ -913,7 +1005,7 @@ describe('Mailbox', function () {
           0n
         ]);
         newDstMailbox.address = await newDstMailbox.getAddress();
-        await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
+        await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]), 2);
 
         const result = await newDstMailbox.connect(dCaller).deliverAndHandle(payload, proof);
         await expect(result).to.not.emit(newDstMailbox, 'MessageHandleError');
@@ -952,7 +1044,7 @@ describe('Mailbox', function () {
       it('deliver message from new dst', async () => {
         const newSrcChain = encode(['uint256'], [12345]);
         const newSrcMailbox = ethers.Wallet.createRandom();
-        await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox.address]));
+        await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox.address]), 2);
         let body = ethers.hexlify(ethers.toUtf8Bytes('TEST 3'));
 
         const payload = getGMPPayload(

@@ -86,6 +86,10 @@ interface IMailbox {
         bytes32 pathId
     ) external view returns (bytes32);
 
+    function getOutboundMessagePath(
+        bytes32 pathId
+    ) external view returns (bytes32);
+
     function send(
         bytes32 destinationChain,
         bytes32 recipient,

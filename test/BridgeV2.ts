@@ -71,8 +71,8 @@ describe('BridgeV2', function () {
 
     const { chainId } = await ethers.provider.getNetwork();
     lChainId = encode(['uint256'], [chainId]);
-    await smailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [dmailbox.address]));
-    await dmailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]));
+    await smailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [dmailbox.address]), 1);
+    await dmailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]), 2);
 
     // Bridges
     sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address]);
@@ -546,7 +546,7 @@ describe('BridgeV2', function () {
     it('To the new destination chain', async () => {
       let newDstChain = encode(['uint256'], [12345]);
       let newDstMailbox = encode(['address'], [ethers.Wallet.createRandom().address]);
-      await smailbox.connect(owner).enableMessagePath(newDstChain, newDstMailbox);
+      await smailbox.connect(owner).enableMessagePath(newDstChain, newDstMailbox, 1);
 
       let newDstToken = ethers.Wallet.createRandom().address;
       let newDstBridge = encode(['address'], [ethers.Wallet.createRandom().address]);
@@ -979,7 +979,7 @@ describe('BridgeV2', function () {
         const newSrcMailbox = ethers.Wallet.createRandom().address;
         const newSrcBridge = ethers.Wallet.createRandom().address;
         const newSrcBridgeBytes = encode(['address'], [newSrcBridge]);
-        await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]));
+        await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]), 2);
         await dbridge.connect(owner).setDestinationBridge(newSrcChain, newSrcBridgeBytes);
         await dbridge.connect(owner).addDestinationToken(newSrcChain, dLBTC, encode(['address'], [sLBTC.address]));
 
@@ -1117,7 +1117,7 @@ describe('BridgeV2', function () {
         newSrcMailbox = ethers.Wallet.createRandom().address;
         newSrcBridge = ethers.Wallet.createRandom().address;
         newSrcBridgeBytes = encode(['address'], [newSrcBridge]);
-        await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]));
+        await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]), 2);
 
         messagePath = ethers.keccak256(
           encode(['address', 'bytes32', 'bytes32'], [smailbox.address, lChainId, lChainId])
@@ -1268,7 +1268,7 @@ describe('BridgeV2', function () {
 
       //Link another chain
       sLBTC3 = encode(['address'], [ethers.Wallet.createRandom().address]);
-      await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]));
+      await dmailbox.connect(owner).enableMessagePath(newSrcChain, encode(['address'], [newSrcMailbox]), 2);
       await dbridge.connect(owner).setDestinationBridge(newSrcChain, newSrcBridgeBytes);
       await dbridge.connect(owner).addDestinationToken(newSrcChain, dLBTC, sLBTC3);
 
