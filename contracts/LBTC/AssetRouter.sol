@@ -253,11 +253,23 @@ contract AssetRouter is
 
     function ratio(address token) external view override returns (uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (
+            IBaseLBTC(token).isNative() &&
+            (address($.tokenConfigs[token].oracle) == address(0))
+        ) {
+            return 1 ether;
+        }
         return $.tokenConfigs[token].oracle.ratio();
     }
 
     function getRate(address token) external view override returns (uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (
+            IBaseLBTC(token).isNative() &&
+            (address($.tokenConfigs[token].oracle) == address(0))
+        ) {
+            return 1 ether;
+        }
         return $.tokenConfigs[token].oracle.getRate();
     }
 
