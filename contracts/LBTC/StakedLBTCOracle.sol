@@ -191,7 +191,7 @@ contract StakedLBTCOracle is
         uint256 switchTime_
     ) internal view {
         if (
-            $.switchTime > switchTime_ ||
+            $.switchTime >= switchTime_ ||
             (switchTime_ - block.timestamp) > $.maxAheadInterval
         ) {
             revert WrongRatioSwitchTime();
