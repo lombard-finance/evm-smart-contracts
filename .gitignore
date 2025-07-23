@@ -17,3 +17,6 @@ node_modules
 /coverage.json
 
 package-lock.json
+
+# Other
+build-info-formatted.json

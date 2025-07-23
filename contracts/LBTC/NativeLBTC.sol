@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {Validation} from "./libraries/Validation.sol";
-import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 
 /**
@@ -69,7 +65,9 @@ contract NativeLBTC is
 
     function initialize(
         address consortium_,
-        address treasury,
+        address treasury_,
+        string calldata name_,
+        string calldata symbol_,
         address initialOwner,
         uint48 initialOwnerDelay
     ) external initializer {
@@ -79,14 +77,9 @@ contract NativeLBTC is
         __ERC20Pausable_init();
 
         __ReentrancyGuard_init();
-        __ERC20Permit_init("Lombard Liquid Bitcoin"); // TODO: set final name
+        __ERC20Permit_init(name_);
 
-        __NativeLBTC_init(
-            "Lombard Liquid Bitcoin", // TODO: set final name
-            "XLBTC", // TODO: set final symbol
-            consortium_,
-            treasury
-        );
+        __NativeLBTC_init(name_, symbol_, consortium_, treasury_);
     }
 
     /// ONLY OWNER FUNCTIONS ///

@@ -296,7 +296,14 @@ export async function initNativeLBTC(
     const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
     consortium = await c.getAddress();
   }
-  const lbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [consortium, treasury, owner, 0n]);
+  const lbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
+    consortium,
+    treasury,
+    'Native LBTC',
+    'nativeLBTC',
+    owner,
+    0n
+  ]);
   lbtc.address = await lbtc.getAddress();
   return lbtc;
 }
