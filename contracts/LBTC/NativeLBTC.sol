@@ -487,7 +487,8 @@ contract NativeLBTC is
         if (amountToMint > depositAmount) revert InvalidMintAmount();
 
         /// make sure that hash of payload not used before
-        /// need to check sha256 hash from payload without selector
+        /// need to check new sha256 hash and legacy keccak256 from payload without selector
+        /// 2 checks made to prevent migration of contract state
         bytes32 payloadHash = sha256(payload);
         bytes32 legacyHash = keccak256(payload[4:]); // TODO: remove when bascule support sha256
         if ($.usedPayloads[payloadHash]) {
