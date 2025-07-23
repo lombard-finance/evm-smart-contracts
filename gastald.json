@@ -30,7 +30,16 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
-      "IBCVoucher": "0x8B9247bF7C5fB15c358831494fcD343660D98b34"
+      "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
+      "IBCVoucher": "0x8B9247bF7C5fB15c358831494fcD343660D98b34",
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+    },
+    "chainlink": {
+      "ChainSelector": "16015286601757825753",
+      "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+      "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
+      "CLAdapter": "0x4797b507c621226E5FaF0CFAADbDb4acf076c066",
+      "LombardTokenPool": "0xaFB9546D2001cB8850e476Ff8BF51104742bFD95"
     }
   },
   "btcTestnet": {
@@ -123,6 +132,31 @@
       "RMN": "0x84017cfddD12D319E5bBf090e0de6d55B78160Cb",
       "CLAdapter": "0xEEf94b7D7606ed1b0f0aF99503B61246A3F07F86",
       "LombardTokenPool": "0x64018e9F6bfE646efe78da806C077575d71daFEC"
+    }
+  },
+  "katanaTatara": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000001f977",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
+      "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "AssetRouter": "0xc60a46740Ee9e4d27914e369d2CE110a4a5e168c",
+      "Oracle": "0xA09a4aCb956aDe7e94831D06415196D0C013f86d",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
+    },
+    "chainlink": {
+      "ChainSelector": "9090863410735740267",
+      "Router": "0x1dF1fe714A376f248d51AAB826C3feeC379e80fC",
+      "RMN": "0xAD8BeA8bC5Fe468Dc1F7BbEce59A86584407255f",
+      "CLAdapter": "0x8b3ecc204Ee394c8d003337C3C87ae6eDaC76bF8",
+      "LombardTokenPool": "0xbd80acb96f69683Fb3155516a30f46ACC44a0cB8"
     }
   }
 }

@@ -88,6 +88,8 @@ describe('StakedLBTC', function () {
     nativeLBTC = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
       await consortium.getAddress(),
       treasury.address,
+      'Native LBTC name',
+      'nativeLbtcSymbol',
       owner.address,
       0n //owner delay
     ]);
