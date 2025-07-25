@@ -2,24 +2,19 @@
 pragma solidity 0.8.24;
 
 interface IBaseLBTC {
-    error ZeroAddress();
-    error WithdrawalsDisabled();
-    error ScriptPubkeyUnsupported();
-    error AmountLessThanCommission(uint256 fee);
-    error AmountBelowDustLimit(uint256 dustLimit);
-    error InvalidDustFeeRate();
-    error UnexpectedAction(bytes4 action);
-    error InvalidUserSignature();
+    error RedeemForBtcDisabled();
     error PayloadAlreadyUsed();
-    error InvalidInputLength();
     error InvalidMintAmount();
+    error AssetRouterNotSet();
 
-    event UnstakeRequest(
-        address indexed fromAddress,
-        bytes scriptPubKey,
-        uint256 amount
+    event RedeemRequest(
+        address indexed from,
+        uint256 indexed nonce,
+        uint256 amount,
+        uint256 fee,
+        bytes payload
     );
-    event WithdrawalsEnabled(bool);
+    event RedeemsForBtcEnabled(bool);
     event NameAndSymbolChanged(string name, string symbol);
     event ConsortiumChanged(address indexed prevVal, address indexed newVal);
     event TreasuryAddressChanged(
@@ -34,7 +29,7 @@ interface IBaseLBTC {
     event BasculeChanged(address indexed prevVal, address indexed newVal);
     event FeeCharged(uint256 indexed fee, bytes userSignature);
     event FeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
-    error FeeGreaterThanAmount();
+    event RedeemFeeChanged(uint256 indexed oldFee, uint256 indexed newFee);
 
     event MintProofConsumed(
         address indexed recipient,
@@ -43,9 +38,18 @@ interface IBaseLBTC {
     );
 
     event BatchMintSkipped(bytes32 indexed payloadHash, bytes payload);
+    event AssetRouterChanged(address indexed newVal, address indexed prevVal);
 
     function burn(uint256 amount) external;
     function burn(address from, uint256 amount) external;
     function mint(address to, uint256 amount) external;
-    function getTreasury() external returns (address);
+    function getTreasury() external view returns (address);
+    function getAssetRouter() external view returns (address);
+    function isNative() external view returns (bool);
+    function getRedeemFee() external view returns (uint256);
+    function getFeeDigest(
+        uint256 fee,
+        uint256 expiry
+    ) external view returns (bytes32);
+    function isRedeemsEnabled() external view returns (bool);
 }

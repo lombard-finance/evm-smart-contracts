@@ -189,7 +189,7 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('TAC_SPB_RPC', 'https://spb.rpc.tac.build'),
       chainId: 2391,
-      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x74877698113985f5e0c10cf6b9e0f51af79435e6430e99d98b13303e6b0a996a')],
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
     },

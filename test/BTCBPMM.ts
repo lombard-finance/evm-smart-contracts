@@ -1,19 +1,19 @@
 import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
-import { BTCBPMM, WBTCMock, LBTC } from '../typechain-types';
+import { BTCBPMM, WBTCMock, StakedLBTC } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
+import { initStakedLBTC } from './helpers';
 
 describe('BTCBPMM', function () {
   let pmm: BTCBPMM;
   let btcb: WBTCMock;
-  let lbtc: LBTC;
+  let lbtc: StakedLBTC;
 
   let deployer: HardhatEthersSigner;
   let withdrawalAddress: HardhatEthersSigner;
   let signer1: HardhatEthersSigner;
   let signer2: HardhatEthersSigner;
-  let timeLock: HardhatEthersSigner;
   let pauser: HardhatEthersSigner;
 
   let snapshot: SnapshotRestorer;
@@ -26,17 +26,12 @@ describe('BTCBPMM', function () {
   }
 
   before(async function () {
-    [deployer, withdrawalAddress, signer1, signer2, timeLock, pauser] = await ethers.getSigners();
+    [deployer, withdrawalAddress, signer1, signer2, pauser] = await ethers.getSigners();
 
     btcb = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
     // use btcb decimals of 8
     await btcb.setDecimals(18);
-    lbtc = await deploy<LBTC>('LBTC', 'LBTC', [
-      ethers.hexlify(ethers.randomBytes(20)), // not relevant for BTCB tests
-      1000, // not relevant for BTCB tests
-      deployer.address, // not relevant for BTCB tests, but can not be zero
-      deployer.address
-    ]);
+    lbtc = await initStakedLBTC(deployer.address, deployer.address);
     pmm = await deploy<BTCBPMM>('BTCBPMM', 'BTCBPMM', [
       await lbtc.getAddress(),
       await btcb.getAddress(),
@@ -160,9 +155,9 @@ describe('BTCBPMM', function () {
         .withArgs(await pmm.getAddress());
     });
 
-    it('should fail to swap if amount is to low and will result in 0 LBTC', async function () {
+    it('should fail to swap if amount is to low and will result in 0 StakedLBTC', async function () {
       await btcb.connect(signer1).approve(await pmm.getAddress(), 1);
-      await expect(pmm.connect(signer1).swapBTCBToLBTC(1)).to.be.revertedWithCustomError(lbtc, 'ZeroAmount');
+      await expect(pmm.connect(signer1).swapBTCBToLBTC(1)).to.be.revertedWithCustomError(pmm, 'ZeroAmount');
     });
 
     describe('With whitelisted minter', function () {

@@ -22,7 +22,7 @@
   },
   "sepolia": {
     "admin": {
-      "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "Owner": "0x26413D16E9E3D66CbdE15baC33b1a469FD58cBC8",
       "TimeLock": "",
       "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
     },

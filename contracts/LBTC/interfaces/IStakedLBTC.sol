@@ -17,5 +17,10 @@ interface IStakedLBTC is IBaseLBTC {
     );
     event MinterUpdated(address indexed minter, bool isMinter);
 
-    function mint(bytes calldata payload, bytes calldata proof) external;
+    function mint(
+        bytes calldata payload,
+        bytes calldata proof
+    ) external returns (address);
+    function ratio() external view returns (uint256);
+    function getRate() external view returns (uint256);
 }

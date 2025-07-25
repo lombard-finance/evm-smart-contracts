@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {BitcoinUtils, OutputType} from "../libs/BitcoinUtils.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
-import {INativeLBTC} from "./INativeLBTC.sol";
-import {Consortium} from "../consortium/Consortium.sol";
+import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
+import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
-import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
+import {Assert} from "./libraries/Assert.sol";
+import {BaseLBTC} from "./BaseLBTC.sol";
+
 /**
  * @title ERC20 representation of Liquid Bitcoin
  * @author Lombard.Finance
@@ -20,17 +18,17 @@ import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
  */
 contract NativeLBTC is
     INativeLBTC,
-    ERC20PausableUpgradeable,
-    ReentrancyGuardUpgradeable,
-    ERC20PermitUpgradeable,
+    BaseLBTC,
     AccessControlDefaultAdminRulesUpgradeable
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct NativeLBTCStorage {
         // slot: 20 + 8 + 1 | 29/32
         address consortium;
-        uint64 burnCommission; // absolute commission to charge on burn (unstake)
-        bool isWithdrawalsEnabled;
+        /// @custom:oz-renamed-from burnCommission
+        uint64 __removed__burnCommission;
+        /// @custom:oz-renamed-from isWithdrawalsEnabled
+        bool __removed__isWithdrawalsEnabled;
         // slot: 20 | 20/32
         address treasury;
         // slot: 20 | 20/32
@@ -40,21 +38,17 @@ contract NativeLBTC is
         string __removed__name;
         /// @custom:oz-renamed-from symbol
         string __removed__symbol;
-        uint256 dustFeeRate;
-        uint256 maximumFee;
+        /// @custom:oz-renamed-from dustFeeRate
+        uint256 __removed__dustFeeRate;
+        /// @custom:oz-renamed-from maximumFee
+        uint256 __removed__maximumFee;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
+        IAssetRouter assetRouter;
     }
 
-    // TODO: recalculate
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
         0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
-    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ERC20StorageLocation =
-        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
-    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.EIP712")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant EIP712StorageLocation =
-        0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d100;
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
@@ -71,32 +65,27 @@ contract NativeLBTC is
 
     function initialize(
         address consortium_,
-        address treasury,
-        string calldata _name,
-        string calldata _symbol,
-        address initialOwner
+        address treasury_,
+        string calldata name_,
+        string calldata symbol_,
+        address initialOwner,
+        uint48 initialOwnerDelay
     ) external initializer {
-        __AccessControlDefaultAdminRules_init(0, initialOwner);
+        __AccessControlDefaultAdminRules_init(initialOwnerDelay, initialOwner);
 
         __ERC20_init("", "");
         __ERC20Pausable_init();
 
         __ReentrancyGuard_init();
-        __ERC20Permit_init(_name);
+        __ERC20Permit_init(name_);
 
-        __LBTC_init(_name, _symbol, consortium_, treasury);
-
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        $.dustFeeRate = BitcoinUtils.DEFAULT_DUST_FEE_RATE;
-        emit DustFeeRateChanged(0, $.dustFeeRate);
+        __NativeLBTC_init(name_, symbol_, consortium_, treasury_);
     }
 
     /// ONLY OWNER FUNCTIONS ///
 
-    function toggleWithdrawals() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        $.isWithdrawalsEnabled = !$.isWithdrawalsEnabled;
-        emit WithdrawalsEnabled($.isWithdrawalsEnabled);
+    function toggleRedeemsForBtc() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getNativeLBTCStorage().assetRouter.toggleRedeem();
     }
 
     function changeNameAndSymbol(
@@ -112,28 +101,10 @@ contract NativeLBTC is
         _changeConsortium(newVal);
     }
 
-    /**
-     * @notice Set the contract current fee for mint
-     * @param fee New fee value
-     * @dev zero allowed to disable fee
-     */
-    function setMintFee(uint256 fee) external onlyRole(OPERATOR_ROLE) {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 oldFee = $.maximumFee;
-        $.maximumFee = fee;
-        emit FeeChanged(oldFee, fee);
-    }
-
     function changeTreasuryAddress(
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeTreasuryAddress(newValue);
-    }
-
-    function changeBurnCommission(
-        uint64 newValue
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeBurnCommission(newValue);
+        _changeTreasury(newValue);
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {
@@ -142,19 +113,6 @@ contract NativeLBTC is
 
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
-    }
-
-    /// @notice Change the dust fee rate used for dust limit calculations
-    /// @dev Only the contract owner can call this function. The new rate must be positive.
-    /// @param newRate The new dust fee rate (in satoshis per 1000 bytes)
-    function changeDustFeeRate(
-        uint256 newRate
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newRate == 0) revert InvalidDustFeeRate();
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 oldRate = $.dustFeeRate;
-        $.dustFeeRate = newRate;
-        emit DustFeeRateChanged(oldRate, newRate);
     }
 
     /**
@@ -170,13 +128,35 @@ contract NativeLBTC is
         _changeBascule(newVal);
     }
 
+    function changeAssetRouter(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeAssetRouter(newVal);
+    }
+
+    function changeRedeemFee(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeRedeemFee(newVal);
+    }
+
+    function changeRedeemForBtcMinAmount(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeRedeemForBtcMinAmount(newVal);
+    }
+
     /// GETTERS ///
 
     /**
      * @notice Returns the current maximum mint fee
      */
     function getMintFee() external view returns (uint256) {
-        return _getNativeLBTCStorage().maximumFee;
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
+        }
+        return IAssetRouter($.assetRouter).maxMintCommission(address(this));
     }
 
     /// @notice Calculate the amount that will be unstaked and check if it's above the dust limit
@@ -190,16 +170,20 @@ contract NativeLBTC is
         uint256 amount
     ) external view returns (uint256 amountAfterFee, bool isAboveDust) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        (amountAfterFee, , , isAboveDust) = _calcFeeAndDustLimit(
-            scriptPubkey,
-            amount,
-            $.burnCommission
-        );
-        return (amountAfterFee, isAboveDust);
+        return
+            $.assetRouter.calcUnstakeRequestAmount(
+                address(this),
+                scriptPubkey,
+                amount
+            );
     }
 
     function consortium() external view virtual returns (address) {
         return _getNativeLBTCStorage().consortium;
+    }
+
+    function getAssetRouter() external view override returns (address) {
+        return address(_getNativeLBTCStorage().assetRouter);
     }
 
     /**
@@ -212,18 +196,40 @@ contract NativeLBTC is
         return 8;
     }
 
+    function isNative() public pure returns (bool) {
+        return true;
+    }
+
+    function isRedeemsEnabled() public view override returns (bool) {
+        (, , bool isRedeemEnabled) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return isRedeemEnabled;
+    }
+
     function getTreasury() public view override returns (address) {
         return _getNativeLBTCStorage().treasury;
     }
 
-    function getBurnCommission() public view returns (uint64) {
-        return _getNativeLBTCStorage().burnCommission;
+    function toNativeCommission() public view returns (uint64) {
+        return
+            _getNativeLBTCStorage().assetRouter.toNativeCommission(
+                address(this)
+            );
     }
 
-    /// @notice Get the current dust fee rate
-    /// @return The current dust fee rate (in satoshis per 1000 bytes)
-    function getDustFeeRate() public view returns (uint256) {
-        return _getNativeLBTCStorage().dustFeeRate;
+    function getRedeemFee() public view returns (uint256) {
+        (uint256 redeemFee, , ) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemFee;
+    }
+
+    function getRedeemForBtcMinAmount() public view returns (uint256) {
+        (, uint256 redeemForBtcMinAmount, ) = _getNativeLBTCStorage()
+            .assetRouter
+            .tokenConfig(address(this));
+        return redeemForBtcMinAmount;
     }
 
     /**
@@ -258,40 +264,19 @@ contract NativeLBTC is
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyRole(MINTER_ROLE) {
-        if (to.length != amount.length) {
-            revert InvalidInputLength();
-        }
-
-        for (uint256 i; i < to.length; ++i) {
-            _mint(to[i], amount[i]);
-        }
+        _batchMint(to, amount);
     }
 
     /**
      * @notice Mint NativeLBTC by proving DepositV1 payload
-     * @param payload The message with the stake data
+     * @param rawPayload The message with the stake data
      * @param proof Signature of the consortium approving the mint
      */
     function mintV1(
-        bytes calldata payload,
+        bytes calldata rawPayload,
         bytes calldata proof
     ) public nonReentrant {
-        // payload validation
-        if (bytes4(payload) != Actions.DEPOSIT_BTC_ACTION_V1) {
-            revert UnexpectedAction(bytes4(payload));
-        }
-        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
-            payload[4:]
-        );
-        _assertToken(action.tokenAddress);
-
-        _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
-            payload,
-            proof
-        );
+        _mint(rawPayload, proof);
     }
 
     /**
@@ -303,14 +288,12 @@ contract NativeLBTC is
         bytes[] calldata payload,
         bytes[] calldata proof
     ) external {
-        if (payload.length != proof.length) {
-            revert InvalidInputLength();
-        }
+        Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(payload[i]);
-            if (isPayloadUsed(payloadHash)) {
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
                 emit BatchMintSkipped(payloadHash, payload[i]);
                 continue;
             }
@@ -333,7 +316,7 @@ contract NativeLBTC is
         bytes calldata feePayload,
         bytes calldata userSignature
     ) external onlyRole(CLAIMER_ROLE) {
-        _mintV1WithFee(mintPayload, proof, feePayload, userSignature);
+        _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
     /**
@@ -349,24 +332,19 @@ contract NativeLBTC is
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
     ) external onlyRole(CLAIMER_ROLE) {
-        uint256 length = mintPayload.length;
-        if (
-            length != proof.length ||
-            length != feePayload.length ||
-            length != userSignature.length
-        ) {
-            revert InvalidInputLength();
-        }
+        Assert.equalLength(mintPayload.length, proof.length);
+        Assert.equalLength(mintPayload.length, feePayload.length);
+        Assert.equalLength(mintPayload.length, userSignature.length);
 
         for (uint256 i; i < mintPayload.length; ++i) {
             // Pre-emptive check if payload was used. If so, we can skip the call.
             bytes32 payloadHash = sha256(mintPayload[i]);
-            if (isPayloadUsed(payloadHash)) {
+            if (_getNativeLBTCStorage().usedPayloads[payloadHash]) {
                 emit BatchMintSkipped(payloadHash, mintPayload[i]);
                 continue;
             }
 
-            _mintV1WithFee(
+            _mintWithFee(
                 mintPayload[i],
                 proof[i],
                 feePayload[i],
@@ -381,32 +359,20 @@ contract NativeLBTC is
      * @param scriptPubkey scriptPubkey for output
      * @param amount Amount of NativeLBTC to burn
      */
-    function redeem(bytes calldata scriptPubkey, uint256 amount) external {
+    function redeemForBtc(
+        bytes calldata scriptPubkey,
+        uint256 amount
+    ) external {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-
-        if (!$.isWithdrawalsEnabled) {
-            revert WithdrawalsDisabled();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
         }
-
-        uint64 fee = $.burnCommission;
-        (
-            uint256 amountAfterFee,
-            bool isAboveFee,
-            uint256 dustLimit,
-            bool isAboveDust
-        ) = _calcFeeAndDustLimit(scriptPubkey, amount, fee);
-        if (!isAboveFee) {
-            revert AmountLessThanCommission(fee);
-        }
-        if (!isAboveDust) {
-            revert AmountBelowDustLimit(dustLimit);
-        }
-
-        address fromAddress = address(_msgSender());
-        _transfer(fromAddress, getTreasury(), fee);
-        _burn(fromAddress, amountAfterFee);
-
-        emit UnstakeRequest(fromAddress, scriptPubkey, amountAfterFee);
+        $.assetRouter.redeemForBtc(
+            address(_msgSender()),
+            address(this),
+            scriptPubkey,
+            amount
+        );
     }
 
     /**
@@ -430,19 +396,9 @@ contract NativeLBTC is
         _burn(from, amount);
     }
 
-    /**
-     * @dev Returns whether a minting payload has been used already
-     *
-     * @param payloadHash The minting payload hash
-     */
-    function isPayloadUsed(bytes32 payloadHash) public view returns (bool) {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        return $.usedPayloads[payloadHash];
-    }
-
     /// PRIVATE FUNCTIONS ///
 
-    function __LBTC_init(
+    function __NativeLBTC_init(
         string memory name_,
         string memory symbol_,
         address consortium_,
@@ -450,34 +406,73 @@ contract NativeLBTC is
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
         _changeConsortium(consortium_);
-        _changeTreasuryAddress(treasury);
+        _changeTreasury(treasury);
     }
 
-    function _changeNameAndSymbol(
-        string memory name_,
-        string memory symbol_
+    function _mint(bytes calldata rawPayload, bytes calldata proof) internal {
+        _mintV1(rawPayload, proof);
+    }
+
+    function _mintV1(
+        bytes calldata rawPayload,
+        bytes calldata proof
+    ) internal returns (address, uint256) {
+        Assert.selector(rawPayload, Actions.DEPOSIT_BTC_ACTION_V1);
+        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
+            rawPayload[4:]
+        );
+
+        _validateAndMint(
+            action.recipient,
+            action.amount,
+            action.amount,
+            rawPayload,
+            proof
+        );
+        return (action.recipient, action.amount);
+    }
+
+    function _mintWithFee(
+        bytes calldata mintPayload,
+        bytes calldata proof,
+        bytes calldata feePayload,
+        bytes calldata userSignature
     ) internal {
-        ERC20Storage storage $ = _getERC20Storage_();
-        $._name = name_;
-        $._symbol = symbol_;
-        EIP712Storage storage $_ = _getEIP712Storage_();
-        $_._name = name_;
-        emit NameAndSymbolChanged(name_, symbol_);
-    }
+        (address recipient, uint256 amount) = _mintV1(mintPayload, proof);
 
-    function _changeConsortium(address newVal) internal {
-        if (newVal == address(0)) {
-            revert ZeroAddress();
-        }
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        emit ConsortiumChanged($.consortium, newVal);
-        $.consortium = newVal;
-    }
+        Assert.selector(feePayload, Actions.FEE_APPROVAL_ACTION);
+        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
+            feePayload[4:]
+        );
 
-    function _assertToken(address token) internal view {
-        if (token != address(this)) {
-            revert InvalidDestinationToken(address(this), token);
+        uint256 maxFee = _getMaxFee();
+        address treasury = _getTreasury();
+        uint256 fee = Math.min(maxFee, feeAction.fee);
+
+        if (fee >= amount) {
+            revert FeeGreaterThanAmount();
         }
+
+        {
+            bytes32 digest = _hashTypedDataV4(
+                keccak256(
+                    abi.encode(
+                        Actions.FEE_APPROVAL_EIP712_ACTION,
+                        block.chainid,
+                        feeAction.fee,
+                        feeAction.expiry
+                    )
+                )
+            );
+
+            Assert.feeApproval(digest, recipient, userSignature);
+        }
+
+        if (fee > 0) {
+            _transfer(recipient, treasury, fee);
+        }
+
+        emit FeeCharged(fee, userSignature);
     }
 
     function _validateAndMint(
@@ -498,7 +493,7 @@ contract NativeLBTC is
         if ($.usedPayloads[payloadHash]) {
             revert PayloadAlreadyUsed();
         }
-        Consortium($.consortium).checkProof(payloadHash, proof);
+        INotaryConsortium($.consortium).checkProof(payloadHash, proof);
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
@@ -508,13 +503,6 @@ contract NativeLBTC is
         _mint(recipient, amountToMint);
 
         emit MintProofConsumed(recipient, payloadHash, payload);
-    }
-
-    function _changeBurnCommission(uint64 newValue) internal {
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint64 prevValue = $.burnCommission;
-        $.burnCommission = newValue;
-        emit BurnCommissionChanged(prevValue, newValue);
     }
 
     /**
@@ -534,124 +522,43 @@ contract NativeLBTC is
         }
     }
 
-    /**
-     * Change the address of the Bascule drawbridge contract.
-     * @param newVal The new address.
-     *
-     * Emits a {BasculeChanged} event.
-     */
+    /// @dev not zero
+    function _changeConsortium(address newVal) internal {
+        Assert.zeroAddress(newVal);
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        emit ConsortiumChanged($.consortium, newVal);
+        $.consortium = newVal;
+    }
+
     function _changeBascule(address newVal) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         emit BasculeChanged(address($.bascule), newVal);
         $.bascule = IBascule(newVal);
     }
 
-    function _mintV1WithFee(
-        bytes calldata mintPayload,
-        bytes calldata proof,
-        bytes calldata feePayload,
-        bytes calldata userSignature
-    ) internal nonReentrant {
-        // mint payload validation
-        if (bytes4(mintPayload) != Actions.DEPOSIT_BTC_ACTION_V1) {
-            revert UnexpectedAction(bytes4(mintPayload));
-        }
-        Actions.DepositBtcActionV1 memory mintAction = Actions.depositBtcV1(
-            mintPayload[4:]
-        );
-        _assertToken(mintAction.tokenAddress);
-
-        // fee payload validation
-        if (bytes4(feePayload) != Actions.FEE_APPROVAL_ACTION) {
-            revert UnexpectedAction(bytes4(feePayload));
-        }
-        Actions.FeeApprovalAction memory feeAction = Actions.feeApproval(
-            feePayload[4:]
-        );
-
-        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 fee = $.maximumFee;
-        if (fee > feeAction.fee) {
-            fee = feeAction.fee;
-        }
-
-        if (fee >= mintAction.amount) {
-            revert FeeGreaterThanAmount();
-        }
-
-        {
-            // Fee validation
-            bytes32 digest = _hashTypedDataV4(
-                keccak256(
-                    abi.encode(
-                        Actions.FEE_APPROVAL_EIP712_ACTION,
-                        block.chainid,
-                        feeAction.fee,
-                        feeAction.expiry
-                    )
-                )
-            );
-
-            if (
-                !EIP1271SignatureUtils.checkSignature(
-                    mintAction.recipient,
-                    digest,
-                    userSignature
-                )
-            ) {
-                revert InvalidUserSignature();
-            }
-        }
-
-        // modified payload to be signed
-        _validateAndMint(
-            mintAction.recipient,
-            mintAction.amount - fee,
-            mintAction.amount,
-            mintPayload,
-            proof
-        );
-
-        // mint fee to treasury
-        _mint($.treasury, fee);
-
-        emit FeeCharged(fee, userSignature);
-    }
-
-    function _changeTreasuryAddress(address newValue) internal {
-        if (newValue == address(0)) {
-            revert ZeroAddress();
-        }
+    /// @dev `treasury` not zero
+    function _changeTreasury(address newValue) internal {
+        Assert.zeroAddress(newValue);
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         address prevValue = $.treasury;
         $.treasury = newValue;
         emit TreasuryAddressChanged(prevValue, newValue);
     }
 
-    function _calcFeeAndDustLimit(
-        bytes calldata scriptPubkey,
-        uint256 amount,
-        uint64 fee
-    ) internal view returns (uint256, bool, uint256, bool) {
-        OutputType outType = BitcoinUtils.getOutputType(scriptPubkey);
-        if (outType == OutputType.UNSUPPORTED) {
-            revert ScriptPubkeyUnsupported();
-        }
-
-        if (amount <= fee) {
-            return (0, false, 0, false);
-        }
-
+    /// @dev allow zero address to disable Stakings
+    function _changeAssetRouter(address newVal) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-        uint256 amountAfterFee = amount - fee;
-        uint256 dustLimit = BitcoinUtils.getDustLimitForOutput(
-            outType,
-            scriptPubkey,
-            $.dustFeeRate
-        );
+        address prevValue = address($.assetRouter);
+        $.assetRouter = IAssetRouter(newVal);
+        emit AssetRouterChanged(prevValue, newVal);
+    }
 
-        bool isAboveDust = amountAfterFee > dustLimit;
-        return (amountAfterFee, true, dustLimit, isAboveDust);
+    function _changeRedeemFee(uint256 newVal) internal {
+        _getNativeLBTCStorage().assetRouter.changeRedeemFee(newVal);
+    }
+
+    function _changeRedeemForBtcMinAmount(uint256 newVal) internal {
+        _getNativeLBTCStorage().assetRouter.changeRedeemForBtcMinAmount(newVal);
     }
 
     function _getNativeLBTCStorage()
@@ -664,30 +571,16 @@ contract NativeLBTC is
         }
     }
 
-    function _getERC20Storage_() private pure returns (ERC20Storage storage $) {
-        assembly {
-            $.slot := ERC20StorageLocation
+    function _getMaxFee() internal view virtual returns (uint256) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        if (address($.assetRouter) == address(0)) {
+            revert AssetRouterNotSet();
         }
+        return $.assetRouter.maxMintCommission(address(this));
     }
 
-    function _getEIP712Storage_()
-        private
-        pure
-        returns (EIP712Storage storage $)
-    {
-        assembly {
-            $.slot := EIP712StorageLocation
-        }
-    }
-
-    /**
-     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
-     */
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
-        super._update(from, to, value);
+    function _getTreasury() internal view virtual returns (address) {
+        NativeLBTCStorage storage $ = _getNativeLBTCStorage();
+        return $.treasury;
     }
 }

@@ -7,12 +7,13 @@ export async function create3(
   factoryAddr: string,
   ledgerNetwork: string,
   admin: string,
-  hre: HardhatRuntimeEnvironment
+  hre: HardhatRuntimeEnvironment,
+  contractName: string = contract
 ): Promise<{ proxy: any; proxyAdmin: any }> {
   const { ethers, run, upgrades } = hre;
 
   const factory = await getProxyFactoryAt(ethers, factoryAddr);
-  const saltHash = getProxySalt(ethers, ledgerNetwork, contract);
+  const saltHash = getProxySalt(ethers, ledgerNetwork, contractName);
 
   const impl = await ethers.deployContract(contract);
   await impl.waitForDeployment();

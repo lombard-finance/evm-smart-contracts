@@ -9,7 +9,7 @@
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918"
     },
     "community": {
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x7B3784AD646C10A8Ddf42b47a4f4bd9aFD351E54"
@@ -25,7 +25,7 @@
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918"
     },
     "community": {
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0xfc7B20D9B59A8A466f4fC3d34aA69a7D98e71d7A"

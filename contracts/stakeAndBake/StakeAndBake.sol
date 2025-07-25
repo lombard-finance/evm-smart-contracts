@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IStakedLBTC} from "../LBTC/IStakedLBTC.sol";
+import {IStakedLBTC} from "../LBTC/interfaces/IStakedLBTC.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -39,7 +39,11 @@ contract StakeAndBake is
     error CallerNotSelf(address caller);
 
     event DepositorSet(address indexed depositor);
-    event BatchStakeAndBakeReverted(uint256 indexed index, string message);
+    event BatchStakeAndBakeReverted(
+        uint256 indexed index,
+        string message,
+        bytes customError
+    );
     event FeeChanged(uint256 newFee);
     event GasLimitChanged(uint256 newGasLimit);
 
@@ -127,7 +131,7 @@ contract StakeAndBake is
     }
 
     /**
-     * @notice Sets the maximum gas limit for a batch stake and bake call
+     * @notice Sets the maximum gas limit for each stake and bake call
      * @param gasLimit The gas limit to set
      */
     function setGasLimit(
@@ -171,7 +175,9 @@ contract StakeAndBake is
             ) {
                 ret[i] = b;
             } catch Error(string memory message) {
-                emit BatchStakeAndBakeReverted(i, message);
+                emit BatchStakeAndBakeReverted(i, message, "");
+            } catch (bytes memory lowLevelData) {
+                emit BatchStakeAndBakeReverted(i, "", lowLevelData);
             }
 
             unchecked {
@@ -205,7 +211,10 @@ contract StakeAndBake is
         whenNotPaused
         returns (bytes memory)
     {
-        return _stakeAndBake(data);
+        return
+            this.stakeAndBakeInternal{gas: _getStakeAndBakeStorage().gasLimit}(
+                data
+            );
     }
 
     function getStakeAndBakeFee() external view returns (uint256) {
@@ -254,7 +263,7 @@ contract StakeAndBake is
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
 
         // First, mint the LBTC.
-        $.lbtc.mint(data.mintPayload, data.proof);
+        address owner = $.lbtc.mint(data.mintPayload, data.proof);
 
         (
             uint256 permitAmount,
@@ -266,12 +275,6 @@ contract StakeAndBake is
                 data.permitPayload,
                 (uint256, uint256, uint8, bytes32, bytes32)
             );
-
-        // Check the recipient.
-        Actions.DepositBtcActionV0 memory action = Actions.depositBtcV0(
-            data.mintPayload[4:]
-        );
-        address owner = action.recipient;
 
         // We check if we can simply use transferFrom.
         // Otherwise, we permit the depositor to transfer the minted value.

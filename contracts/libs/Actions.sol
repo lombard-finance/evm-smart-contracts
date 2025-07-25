@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 library Actions {
+    /// @dev toChain, recipient, amount, txid are validated
     struct DepositBtcActionV0 {
         uint256 toChain;
         address recipient;
@@ -10,13 +11,14 @@ library Actions {
         uint32 vout;
     }
 
+    /// @dev toChain, recipient, amount, txid, token are validated
     struct DepositBtcActionV1 {
         uint256 toChain;
         address recipient;
         uint256 amount;
         bytes32 txid;
         uint32 vout;
-        address tokenAddress;
+        address token;
     }
 
     struct DepositBridgeAction {
@@ -40,6 +42,12 @@ library Actions {
     struct FeeApprovalAction {
         uint256 fee;
         uint256 expiry;
+    }
+
+    struct RatioUpdate {
+        bytes32 denom;
+        uint256 ratio;
+        uint256 switchTime;
     }
 
     /// @dev Error thrown when invalid public key is provided
@@ -84,6 +92,14 @@ library Actions {
     /// @dev Error thrown when payload length is too big
     error InvalidPayloadSize(uint256 expected, uint256 actual);
 
+    error ZeroTxId();
+
+    error InvalidDestinationToken(address expected, address actual);
+
+    error Actions_ZeroDenom();
+
+    error Actions_ZeroRatio();
+
     // bytes4(keccak256("feeApproval(uint256,uint256)"))
     bytes4 internal constant FEE_APPROVAL_ACTION = 0x8175ca94;
     // keccak256("feeApproval(uint256 chainId,uint256 fee,uint256 expiry)")
@@ -97,6 +113,8 @@ library Actions {
     bytes4 internal constant DEPOSIT_BRIDGE_ACTION = 0x5c70a505;
     // bytes4(keccak256("payload(uint256,bytes[],uint256[],uint256,uint256)"))
     bytes4 internal constant NEW_VALSET = 0x4aab1d6f;
+    // bytes4(keccak256("payload(bytes32,uint256,uint256)"))
+    bytes4 internal constant RATIO_UPDATE = 0x6c722c2c;
 
     /// @dev Maximum number of validators allowed in the consortium.
     /// @notice This value is determined by the minimum of CometBFT consensus limitations and gas considerations:
@@ -150,6 +168,9 @@ library Actions {
         if (amount == 0) {
             revert ZeroAmount();
         }
+        if (txid == bytes32(0)) {
+            revert ZeroTxId();
+        }
 
         return DepositBtcActionV0(toChain, recipient, amount, txid, vout);
     }
@@ -171,7 +192,7 @@ library Actions {
             uint256 amount,
             bytes32 txid,
             uint32 vout,
-            address tokenAddress
+            address token
         ) = abi.decode(
                 payload,
                 (uint256, address, uint256, bytes32, uint32, address)
@@ -186,16 +207,15 @@ library Actions {
         if (amount == 0) {
             revert ZeroAmount();
         }
+        if (txid == bytes32(0)) {
+            revert ZeroTxId();
+        }
+        if (token != address(this)) {
+            revert InvalidDestinationToken(address(this), token);
+        }
 
         return
-            DepositBtcActionV1(
-                toChain,
-                recipient,
-                amount,
-                txid,
-                vout,
-                tokenAddress
-            );
+            DepositBtcActionV1(toChain, recipient, amount, txid, vout, token);
     }
 
     /**
@@ -363,5 +383,31 @@ library Actions {
         }
 
         return FeeApprovalAction(fee, expiry);
+    }
+
+    /**
+     * @notice Returns decoded ratio update message
+     * @dev Message should not contain the selector
+     * @param payload Body of the ratio update message
+     */
+    function ratioUpdate(
+        bytes memory payload
+    ) internal pure returns (RatioUpdate memory) {
+        if (payload.length != ABI_SLOT_SIZE * 3)
+            revert InvalidPayloadSize(ABI_SLOT_SIZE * 3, payload.length);
+
+        (bytes32 denom, uint256 ratio, uint256 timestamp) = abi.decode(
+            payload,
+            (bytes32, uint256, uint256)
+        );
+
+        if (denom == bytes32(0)) {
+            revert Actions_ZeroDenom();
+        }
+        if (ratio == uint256(0)) {
+            revert Actions_ZeroRatio();
+        }
+
+        return RatioUpdate(denom, ratio, timestamp);
     }
 }
