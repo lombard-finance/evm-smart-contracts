@@ -231,7 +231,7 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
       "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
@@ -255,7 +255,7 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4"
     },
     "layerZero": {
