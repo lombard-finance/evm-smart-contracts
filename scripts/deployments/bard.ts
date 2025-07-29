@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config';
 import { deploy } from '../helpers/simpleDeployment';
+import { ethers } from 'ethers';
 
 /*
  * After deployment:
@@ -28,15 +29,16 @@ task('deploy-bard-distributor', 'Deploys the BARD token distributor contract (no
   .addParam('token', 'The address of the BARD token')
   .addParam('merkleRoot', 'The Merkle Root for the distribution')
   .addParam('claimEnd', 'The Claim end timestamp')
+  .addParam('vault', 'The address of the vault to stake claimed tokens', ethers.ZeroAddress)
   .setAction(async (taskArgs, hre) => {
-    let { ledgerNetwork, admin: adminArg, token, merkleRoot, claimEnd } = taskArgs;
+    let { ledgerNetwork, admin: adminArg, token, merkleRoot, claimEnd, vault } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     const admin = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
 
     await deploy(
       'TokenDistributor',
-      [merkleRoot, token, admin, claimEnd],
+      [merkleRoot, token, admin, claimEnd, vault],
       'contracts/BARD/TokenDistributor.sol:TokenDistributor',
       hre
     );
