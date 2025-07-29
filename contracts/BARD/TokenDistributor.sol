@@ -188,9 +188,13 @@ contract TokenDistributor is Ownable2Step {
 
         // Mark as claimed and send the tokens
         hasClaimed[_account] = true;
-        TOKEN.safeTransfer(_account, _amount - _stakeAmount);
-        TOKEN.safeIncreaseAllowance(address(VAULT), _stakeAmount);
-        VAULT.deposit(_stakeAmount, _account);
+        if (_amount > _stakeAmount) {
+            TOKEN.safeTransfer(_account, _amount - _stakeAmount);
+        }
+        if (_stakeAmount > 0) {
+            TOKEN.safeIncreaseAllowance(address(VAULT), _stakeAmount);
+            VAULT.deposit(_stakeAmount, _account);
+        }
 
         emit Claimed(_account, _amount);
     }
