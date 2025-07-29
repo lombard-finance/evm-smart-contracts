@@ -42,6 +42,7 @@ contract TokenDistributor is Ownable2Step {
     error ClaimFinished();
     error ClaimNotFinished();
     error StakingNotEnabled();
+    error WrongStakeAmount();
 
     /*//////////////////////////////////////////////////////////////
                            IMMUTABLE STORAGE
@@ -123,15 +124,16 @@ contract TokenDistributor is Ownable2Step {
         uint256 _amount,
         bytes32[] calldata _merkleProof
     ) external {
-        if (address(VAULT) == address(0)) revert StakingNotEnabled();
-        _validateClaim(_account, _amount, _merkleProof);
+        _claimAndStake(_account, _amount, _merkleProof, _amount);
+    }
 
-        // Mark as claimed and send the tokens
-        hasClaimed[_account] = true;
-        TOKEN.safeIncreaseAllowance(address(VAULT), _amount);
-        VAULT.deposit(_amount, _account);
-
-        emit Claimed(_account, _amount);
+    function claimAndStake(
+        address _account,
+        uint256 _amount,
+        bytes32[] calldata _merkleProof,
+        uint256 _stakeAmount
+    ) external {
+        _claimAndStake(_account, _amount, _merkleProof, _stakeAmount);
     }
 
     /// @notice Withdraw tokens from the contract.
@@ -172,5 +174,24 @@ contract TokenDistributor is Ownable2Step {
         // Verify the merkle proof
         if (!MerkleProof.verify(_merkleProof, MERKLE_ROOT, leaf))
             revert InvalidProof();
+    }
+
+    function _claimAndStake(
+        address _account,
+        uint256 _amount,
+        bytes32[] calldata _merkleProof,
+        uint256 _stakeAmount
+    ) internal {
+        if (address(VAULT) == address(0)) revert StakingNotEnabled();
+        if (_amount < _stakeAmount) revert WrongStakeAmount();
+        _validateClaim(_account, _amount, _merkleProof);
+
+        // Mark as claimed and send the tokens
+        hasClaimed[_account] = true;
+        TOKEN.safeTransfer(_account, _amount - _stakeAmount);
+        TOKEN.safeIncreaseAllowance(address(VAULT), _stakeAmount);
+        VAULT.deposit(_stakeAmount, _account);
+
+        emit Claimed(_account, _amount);
     }
 }
