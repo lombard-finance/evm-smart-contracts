@@ -236,7 +236,7 @@
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
       "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
       "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
-      "Oracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0"
     },
     "chainlink": {
