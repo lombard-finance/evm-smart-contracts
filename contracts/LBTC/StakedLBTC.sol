@@ -62,7 +62,8 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         /// @custom:oz-renamed-from burnCommission
         uint256 __removed__dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
-        IBascule bascule;
+        /// @custom:oz-renamed-from bascule
+        IBascule __removed__bascule;
         address pauser;
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
@@ -194,17 +195,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         _changeRedeemForBtcMinAmount(newVal);
     }
 
-    /**
-     * Change the address of the Bascule drawbridge contract.
-     * Setting the address to 0 disables the Bascule check.
-     * @param newVal The new address.
-     *
-     * Emits a {BasculeChanged} event.
-     */
-    function changeBascule(address newVal) external onlyOwner {
-        _changeBascule(newVal);
-    }
-
     function changePauser(address newPauser) external onlyOwner {
         _changePauser(newPauser);
     }
@@ -281,7 +271,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
      * Get Bascule contract.
      */
     function Bascule() external view returns (IBascule) {
-        return _getStakedLBTCStorage().bascule;
+        return _getStakedLBTCStorage().assetRouter.bascule();
     }
 
     function pauser() public view returns (address) {
@@ -517,13 +507,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         emit ConsortiumChanged(address($.consortium), newVal);
         $.consortium = INotaryConsortium(newVal);
-    }
-
-    /// @dev Zero Address allowed to disable bascule check
-    function _changeBascule(address newVal) internal {
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        emit BasculeChanged(address($.bascule), newVal);
-        $.bascule = IBascule(newVal);
     }
 
     /// @dev Not zero
