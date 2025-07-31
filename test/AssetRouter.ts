@@ -1008,14 +1008,14 @@ describe('AssetRouter', function () {
 
       it('mintWithFee() reverts when approve has expired', async function () {
         const { payload, proof } = await defaultData();
-        const feeApprovalPayload = getPayloadForAction([1, snapshotTimestamp], 'feeApproval');
-        const userSignature = await getFeeTypedMessage(signer1, stakedLbtc, 1, snapshotTimestamp);
+        const feeApprovalPayload = getPayloadForAction([1, snapshotTimestamp - 1], 'feeApproval');
+        const userSignature = await getFeeTypedMessage(signer1, stakedLbtc, 1, snapshotTimestamp - 1);
         await expect(
           // @ts-ignore
           assetRouter.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
         )
           .to.revertedWithCustomError(assetRouter, 'UserSignatureExpired')
-          .withArgs(snapshotTimestamp);
+          .withArgs(snapshotTimestamp - 1);
       });
 
       it('mintWithFee() reverts when mint payload type is invalid', async function () {
@@ -1531,6 +1531,7 @@ describe('AssetRouter', function () {
       beforeEach(async function () {
         await snapshot.restore();
         await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
+        await assetRouter.connect(owner).changeTokenConfig(stakedLbtc.address, 100n, 1000n, true);
       });
       it('redeemForBtc() reverts when it is off', async function () {
         await expect(stakedLbtc.connect(owner).toggleRedeemsForBtc())
@@ -1579,10 +1580,11 @@ describe('AssetRouter', function () {
         ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_FeeGreaterThanAmount');
       });
 
-      it('redeemForBtc() reverts when amount is below dust limit', async () => {
+      it('redeemForBtc() reverts when amount is below the min limit', async () => {
         const p2wsh = '0x002065f91a53cb7120057db3d378bd0f7d944167d43a7dcbff15d6afc4823f1d3ed3';
         const toNativeCommission = randomBigInt(3);
         await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeCommission);
+        const cfg = await assetRouter.tokenConfig(stakedLbtc.address);
 
         // Start with a very small amount
         let amount = toNativeCommission + 1n;
@@ -1603,7 +1605,7 @@ describe('AssetRouter', function () {
             .redeemForBtc(signer1.address, stakedLbtc.address, p2wsh, amountJustBelowDustLimit)
         )
           .to.be.revertedWithCustomError(assetRouter, 'AmountBelowMinLimit')
-          .withArgs(amountJustBelowDustLimit - toNativeCommission + 1n);
+          .withArgs(cfg.redeemForBtcMinAmount);
       });
 
       it('redeemForBtc() reverts with P2SH', async () => {
