@@ -32,7 +32,7 @@ const fee = await bridge.getAdapterFee(destChainId, destReceiver, amount);
 const absFee = await getDepositAbsoluteCommission(destChainId);
 const relFee = Math.ceil(amount * await getDepositRelativeCommission(destChainId) / 10000);
 
-// lbtcFee is fee to be chardged, bridged amount will be amount - lbtcFee
+// lbtcFee is fee to be charged, bridged amount will be amount - lbtcFee
 const lbtcFee = absFee + relFee;
 ```
 
