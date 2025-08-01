@@ -6,8 +6,9 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract TokenDistributor is Ownable2Step {
+contract TokenDistributor is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
@@ -43,6 +44,7 @@ contract TokenDistributor is Ownable2Step {
     error ClaimNotFinished();
     error StakingNotEnabled();
     error WrongStakeAmount();
+    error WrongClaimEnd();
 
     /*//////////////////////////////////////////////////////////////
                            IMMUTABLE STORAGE
@@ -56,6 +58,10 @@ contract TokenDistributor is Ownable2Step {
 
     /// @notice The timestamp when the claim period ends.
     uint256 public immutable CLAIM_END;
+
+    /*//////////////////////////////////////////////////////////////
+                            PUBLIC STORAGE
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice The vault to deposit token for staking.
     IERC4626 public VAULT;
@@ -86,6 +92,7 @@ contract TokenDistributor is Ownable2Step {
     ) Ownable(_owner) {
         if (_token == address(0)) revert InvalidToken();
         if (_merkleRoot == bytes32(0)) revert InvalidMerkleRoot();
+        if (_claimEnd <= block.timestamp) revert WrongClaimEnd();
 
         MERKLE_ROOT = _merkleRoot;
         TOKEN = IERC20(_token);
@@ -105,7 +112,7 @@ contract TokenDistributor is Ownable2Step {
         address _account,
         uint256 _amount,
         bytes32[] calldata _merkleProof
-    ) external {
+    ) external nonReentrant {
         _validateClaim(_account, _amount, _merkleProof);
 
         // Mark as claimed and send the tokens
@@ -123,7 +130,7 @@ contract TokenDistributor is Ownable2Step {
         address _account,
         uint256 _amount,
         bytes32[] calldata _merkleProof
-    ) external {
+    ) external nonReentrant {
         _claimAndStake(_account, _amount, _merkleProof, _amount);
     }
 
@@ -132,7 +139,7 @@ contract TokenDistributor is Ownable2Step {
         uint256 _amount,
         bytes32[] calldata _merkleProof,
         uint256 _stakeAmount
-    ) external {
+    ) external nonReentrant {
         _claimAndStake(_account, _amount, _merkleProof, _stakeAmount);
     }
 
