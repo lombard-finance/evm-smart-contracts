@@ -3,7 +3,7 @@ import { HardhatRuntimeEnvironment, TaskArguments } from 'hardhat/types';
 export async function grantRole(taskArgs: TaskArguments, hre: HardhatRuntimeEnvironment) {
   const { ethers } = hre;
 
-  const { account, target, role } = taskArgs;
+  const { account, target, role, populate } = taskArgs;
 
   if (!hre.ethers.isAddress(account)) {
     throw new Error(`account ${account} is not a valid address`);
@@ -17,7 +17,12 @@ export async function grantRole(taskArgs: TaskArguments, hre: HardhatRuntimeEnvi
   }
 
   console.log(`grant role ${roleHash} to ${account}`);
-  const tx = await contract.grantRole(roleHash, account);
-  await tx.wait(2);
-  console.log(`grant tx hash: ${tx.hash}`);
+  if (populate) {
+    const txData = await contract.grantRole.populateTransaction(roleHash, account);
+    console.log(`Tx: ${JSON.stringify(txData, null, 2)}`);
+  } else {
+    const tx = await contract.grantRole(roleHash, account);
+    await tx.wait(2);
+    console.log(`grant tx hash: ${tx.hash}`);
+  }
 }

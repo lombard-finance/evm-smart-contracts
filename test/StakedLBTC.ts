@@ -88,6 +88,8 @@ describe('StakedLBTC', function () {
     nativeLBTC = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
       await consortium.getAddress(),
       treasury.address,
+      'Native LBTC name',
+      'nativeLbtcSymbol',
       owner.address,
       0n //owner delay
     ]);
@@ -406,14 +408,6 @@ describe('StakedLBTC', function () {
           getter: 'consortium',
           event: 'ConsortiumChanged',
           defaultAccount: () => consortium.address
-        },
-        {
-          name: 'Bascule',
-          setter: 'changeBascule',
-          getter: 'Bascule',
-          event: 'BasculeChanged',
-          defaultAccount: () => ethers.ZeroAddress,
-          canBeZero: true
         },
         {
           name: 'AssetRouter',

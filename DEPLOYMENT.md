@@ -65,7 +65,9 @@ Write proxy address to json file.
 
 ### Configuration
 
-Use explorer to set initial validator set.
+```bash
+hardhat setup-initial-valset --target ${CONSORTIUM} --populate --network ${NETWORK} --valset ${VALSET}
+```
 
 ## LBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
@@ -109,16 +111,31 @@ Enable redeem using `toggleWithdrawals` if required.
 
 Deploy `NativeLBTC` contract
 ```bash
-yarn hardhat deploy-native-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --burn-commission ${BURN_COMMISSION} --network ${NETWORK} --treasury ${OWNER}
+yarn hardhat deploy-native-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --treasury ${OWNER} --name "Native LBTC" --symbol "nativeLBTC"
 ```
 Write proxy address to json file.
+
+### Configuration
+
+Set burn commission
+
+```bash
+yarn hardhat setup-burn-commission --target ${TOKEN} --value ${COMMISSION} --network ${NETWORK}
+```
+
+Enable withdrawals
+
+```bash
+yarn hardhat setup-toggle-withdrawals --target ${TOKEN} --network ${NETWORK}
+````
+
 
 ## Bridge (deterministic)
 > `LBTC` should be deployer before start
 
 Deploy `Bridge` contract
 ```bash
-yarn hardhat deploy-bridge --ledger-network gastald --admin ${OWNER} --lbtc ${LBTC} --treasury ${OWNER} --network ${NETWORK}
+yarn hardhat deploy-bridge --ledger-network ${ENV} --admin ${OWNER} --lbtc ${LBTC} --treasury ${OWNER} --network ${NETWORK}
 ```
 Write proxy address to json file.
 
@@ -134,23 +151,31 @@ yarn hardhat deploy-chainlink-adapter --admin ${OWNER} --router ${CCIP_ROUTER} -
 ```
 Write contracts address to json file.
 
+Claim admin rights over `LBTC token` in ccip and set the pool:
+
+Call `registerAdminViaOwner` in blockchain explorer on `RegistryModuleOwnerCustom` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
+
+Call `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
+
+Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address, `pool` address = `LombardTokenPool` address
+
 ### Bridge
 
 Setup Bridge destinations using adapters
 ```bash
-yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK}
+yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK} [--populate]
 ```
 Chain ids can be viewed [here](https://chainlist.org)
 
 Enable `TokenPool`
 ```bash
-yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} 
+yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${REMOTE_LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} [--populate]
 ```
 Remote selector can be viewed [here](https://docs.chain.link/ccip/directory/mainnet)
 
 Set `TokenPool` rate limits
 ```bash
-yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} 
+yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} [--populate]
 ```
 
 Setup `Bridge` rate limits, they should ~2x from `TokenPool` limits.
@@ -163,6 +188,72 @@ Grant minting ability to bridge
 yarn hardhat setup-minter --target ${LBTC} --minter ${SOURCE_BRIDGE} --network ${NETWORK}
 ```
 
+## LayerZero
+
+> **LBTC** should be deployed on both chains before start
+
+### Oft adapters
+
+Deploy oft-adapter to home chain (usually ethereum).
+```bash
+yarn hardhat deploy-oft-adapter --admin ${OWNER} --lz-endpoint ${LZ_ENDPOINT} --lbtc ${LBTC_ADDRESS} --network ${NETWORK}
+```
+Endpoint address [here](https://docs.layerzero.network/v2/deployments/deployed-contracts)
+Write address of adapter to json file as `layerZero.LBTCOFTAdapter_destination-chain`.
+
+Deploy oft-adapter to destination chain.
+```bash
+yarn hardhat deploy-oft-adapter --network ${NETWORK} --admin ${OWNER} --lz-endpoint ${LZ_ENDPOINT} --lbtc ${LBTC} --burn-mint
+```
+Endpoint address [here](https://docs.layerzero.network/v2/deployments/deployed-contracts)
+Write address of adapter to json file as `layerZero.LBTCBurnMintOFTAdapter`.
+
+
+Setup oft-adapters on both chains
+```bash
+yarn hardhat setup-oft-set-peer --network ${NETWORK} --target ${ADAPTER} --eid ${DESTINATION_EID} --peer ${DESTINATION_ADAPTER}
+```
+
+Setup oft rate limits on both chains
+```bash
+yarn hardhat setup-oft-rate-limits --network ${NETWORK} --eids ${DESTINATION_EID} --limit ${LIMIT} --window ${WINDOW_IN_SEC} --inbound --oapp-address ${ADAPTER}
+yarn hardhat setup-oft-rate-limits --network ${NETWORK} --eids ${DESTINATION_EID} --limit ${LIMIT} --window ${WINDOW_IN_SEC} --outbound --oapp-address ${ADAPTER}
+```
+
+Set [DVNs](https://docs.layerzero.network/v2/deployments/dvn-addresses) on both chains.
+Usually we use 2 DVNs: LayerZero Labs and Nethermind, but good to have more if available.
+> DVN address is different for each chain
+
+`REQUIRED_DVN_COUNT` usually equal to total count of used DVNs, no threshold.
+`ULN_LIB_ADDRESS` and `LZ_ENDPOINT` presented [here](https://docs.layerzero.network/v2/deployments/deployed-contracts)
+`ULN_CONFIRMATIONS` confirmations required for bridge.
+It should match on both chains (e.g. 30 confirmation for receive lib on chain A and 30 confirmation to send on chain B)
+```bash
+# use send lib, it means that you change send config
+yarn hardhat setup-endpoint-config --lz-endpoint ${LZ_ENDPOINT} --remote-eid ${DESTINATION_EID} --oapp-address ${ADAPTER} --uln-required-dvn-count ${REQUIRED_DVN_COUNT} --uln-required-dvns ${DVN1},${DVN2} --network ${NETWORK} --uln-lib-address ${ULN_LIB_ADDRESS} --uln-confirmations ${ULN_CONFIRMATIONS}
+
+# use receive lib here, it means that you change receive config
+yarn hardhat setup-endpoint-config --lz-endpoint ${LZ_ENDPOINT} --remote-eid ${DESTINATION_EID} --oapp-address ${ADAPTER} --uln-required-dvn-count ${REQUIRED_DVN_COUNT} --uln-required-dvns ${DVN1},${DVN2} --network ${NETWORK} --uln-lib-address ${ULN_LIB_ADDRESS} --uln-confirmations ${ULN_CONFIRMATIONS} --uln-receive
+```
+
+Grant mint ability to `LBTCBurnMintOFTAdapter` on chain where it's deployed.
+```bash
+yarn hardhat setup-minter --target ${LBTC} --minter ${ADAPTER} --network ${NETWORK}
+```
+
+Example of endpoint config setup
+```bash
+yarn hardhat setup-endpoint-config --lz-endpoint 0xAaB5A48CFC03Efa9cC34A2C1aAcCCB84b4b770e4 --remote-eid 30101 --oapp-address 0xC832183d4d5fc5831daaC892a93dBBfd798034E3 --uln-required-dvn-count 2 --uln-required-dvns 0x7a23612f07d81f16b26cf0b5a4c3eca0e8668df2,0xc097ab8cd7b053326dfe9fb3e3a31a0cce3b526f --network etherlink --uln-lib-address 0xc1B621b18187F74c8F6D52a6F709Dd2780C09821 --uln-confirmations 33
+yarn hardhat setup-endpoint-config --lz-endpoint 0xAaB5A48CFC03Efa9cC34A2C1aAcCCB84b4b770e4 --remote-eid 30101 --oapp-address 0xC832183d4d5fc5831daaC892a93dBBfd798034E3 --uln-required-dvn-count 2 --uln-required-dvns 0x7a23612f07d81f16b26cf0b5a4c3eca0e8668df2,0xc097ab8cd7b053326dfe9fb3e3a31a0cce3b526f --network etherlink --uln-lib-address 0x377530cdA84DFb2673bF4d145DCF0C4D7fdcB5b6 --uln-confirmations 33 --uln-receive
+
+yarn hardhat setup-endpoint-config --lz-endpoint 0x1a44076050125825900e736c501f859c50fE728c --remote-eid 30292 --oapp-address 0x3a7647c1323144a16e7D0D71A581E3FE5BD95299 --uln-required-dvn-count 2 --uln-required-dvns 0x589dedbd617e0cbcb916a9223f4d1300c294236b,0xa59ba433ac34d2927232918ef5b2eaafcf130ba5 --network mainnet --uln-lib-address 0xc02Ab410f0734EFa3F14628780e6e695156024C2 --uln-confirmations 33 --uln-receive
+yarn hardhat setup-endpoint-config --lz-endpoint 0x1a44076050125825900e736c501f859c50fE728c --remote-eid 30292 --oapp-address 0x3a7647c1323144a16e7D0D71A581E3FE5BD95299 --uln-required-dvn-count 2 --uln-required-dvns 0x589dedbd617e0cbcb916a9223f4d1300c294236b,0xa59ba433ac34d2927232918ef5b2eaafcf130ba5 --network mainnet --uln-lib-address 0xbB2Ea70C9E858123480642Cf96acbcCE1372dCe1 --uln-confirmations 33
+```
+
+
 ## Upgrades
 
-
+Use the script
+```bash
+yarn hardhat upgrade-proxy --proxy ${PROXY_ADDRESS} ${CONTRACT_NAME} --network ${NETWORK}
+```

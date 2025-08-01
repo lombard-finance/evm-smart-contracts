@@ -12,9 +12,10 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0x8236a87084f8B84306f72007F36F2618A5634494",
+      "StakedLBTC": "0x8236a87084f8B84306f72007F36F2618A5634494",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "fbtc": {
       "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
@@ -39,7 +40,8 @@
       "LBTCOFTAdapter_sonic": "0xcFEAc622BC6464acC759ACd9741a6D78F8b0d3Cd",
       "LBTCOFTAdapter_morph": "0x9f1831B79CAbaA0fb0091f607e4845f3D2eedA4E",
       "LBTCOFTAdapter_etherlink": "0x3a7647c1323144a16e7D0D71A581E3FE5BD95299",
-      "LBTCOFTAdapter_solana": "0xacB11Bc20B1945e59976e3307d2a805Faa126C31"
+      "LBTCOFTAdapter_solana": "0xacB11Bc20B1945e59976e3307d2a805Faa126C31",
+      "LBTCOFTAdapter_tac": "0xA7c4d94F98b6e94C139c4645e4E9a94CD7C0Abf7"
     },
     "IBC": {
       "IBCVoucher": "0xBf45A5029d081333407Cc52a84BE5ed40e181C46"
@@ -61,9 +63,10 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "BTCB": {
       "BTCB": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
@@ -98,11 +101,12 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
       "DepositNotarizationBlacklist": "0xdf0D1818C5276aD63Ce73E20223657d4920E5e82",
-      "PoR": "0xe7Ebc588F4EC9297d9867aD75a9b5D86848c8018"
+      "PoR": "0xe7Ebc588F4EC9297d9867aD75a9b5D86848c8018",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "CBBTC": {
       "CBBTC": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
@@ -132,8 +136,9 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
-      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
@@ -148,7 +153,7 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
     },
@@ -170,11 +175,12 @@
     "chainId": "0x0000000000000000000000000000000000000000000000000000000000000b02",
     "admin": {
       "Owner": "0x6b1030F18f819266f193e1b5cF025A7d89fEc2F4",
+      "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x2e1871Fc8ac793dCf2A74Ce004eE21D913763565"
@@ -184,11 +190,12 @@
     "chainId": "0x000000000000000000000000000000000000000000000000000000000000a729",
     "admin": {
       "Owner": "0x6b1030F18f819266f193e1b5cF025A7d89fEc2F4",
+      "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0xC832183d4d5fc5831daaC892a93dBBfd798034E3"
@@ -203,7 +210,7 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "LBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
     },
@@ -216,6 +223,49 @@
     },
     "cubist": {
       "BasculeV2": "0x862Cbca3a521858416EE08208455984EE6681420"
+    }
+  },
+  "katana": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000b67d2",
+    "admin": {
+      "Owner": "0x6676c650053F3F60D38530E717A80ed48435d070",
+      "TimeLock": "0x",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
+      "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0"
+    },
+    "chainlink": {
+      "ChainSelector": "2459028469735686113",
+      "Router": "0x7c19b79D2a054114Ab36ad758A36e92376e267DA",
+      "RMN": "0x32270E4FA459cA47ae0334488e27ffb9bC9aB4a1",
+      "CLAdapter": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037",
+      "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C"
+    },
+    "cubist": {
+      "BasculeV2": "0x723c1c3AE8e062e93d03989CFdaf9Cb1424D2d05"
+    }
+  },
+  "tac": {
+    "admin": {
+      "Owner": "0xA15b25610175b1e1b7EE2c780C08a629235ba54B",
+      "TimeLock": "0x",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x1298131cDa718bBcA7ACB1f2411e71c05E16f269"
     }
   }
 }
