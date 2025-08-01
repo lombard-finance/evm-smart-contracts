@@ -410,14 +410,6 @@ describe('StakedLBTC', function () {
           defaultAccount: () => consortium.address
         },
         {
-          name: 'Bascule',
-          setter: 'changeBascule',
-          getter: 'Bascule',
-          event: 'BasculeChanged',
-          defaultAccount: () => ethers.ZeroAddress,
-          canBeZero: true
-        },
-        {
           name: 'AssetRouter',
           setter: 'changeAssetRouter',
           getter: 'getAssetRouter',
