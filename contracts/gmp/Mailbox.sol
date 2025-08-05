@@ -29,6 +29,13 @@ contract Mailbox is
 {
     using MessagePath for MessagePath.Details;
 
+    enum PathDirectionType {
+        UNKNOWN, // unknown must be '0'
+        OUTBOUND,
+        INBOUND,
+        BOTH
+    }
+
     struct SenderConfig {
         uint32 maxPayloadSize;
         bool feeDisabled;
@@ -112,7 +119,8 @@ contract Mailbox is
 
     function enableMessagePath(
         bytes32 destinationChain,
-        bytes32 destinationMailbox
+        bytes32 destinationMailbox,
+        PathDirectionType direction
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (destinationChain == bytes32(0)) {
             revert Mailbox_ZeroChainId();
@@ -122,25 +130,37 @@ contract Mailbox is
             revert Mailbox_ZeroMailbox();
         }
 
-        bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
-        bytes32 inboundId = _calcInboundMessagePath(
-            destinationChain,
-            destinationMailbox
-        );
+        bytes32 outboundId;
+        bytes32 inboundId;
 
         MailboxStorage storage $ = _getStorage();
 
-        // set outbound message path if not exist
-        if ($.outboundMessagePath[outboundId] != bytes32(0)) {
-            revert Mailbox_MessagePathEnabled(outboundId);
+        if (
+            direction == PathDirectionType.OUTBOUND ||
+            direction == PathDirectionType.BOTH
+        ) {
+            outboundId = _calcOutboundMessagePath(destinationChain);
+            // set outbound message path if not exist
+            if ($.outboundMessagePath[outboundId] != bytes32(0)) {
+                revert Mailbox_MessagePathEnabled(outboundId);
+            }
+            $.outboundMessagePath[outboundId] = destinationChain;
         }
-        $.outboundMessagePath[outboundId] = destinationChain;
 
-        if ($.inboundMessagePath[inboundId] != bytes32(0)) {
-            revert Mailbox_MessagePathEnabled(inboundId);
+        if (
+            direction == PathDirectionType.INBOUND ||
+            direction == PathDirectionType.BOTH
+        ) {
+            inboundId = _calcInboundMessagePath(
+                destinationChain,
+                destinationMailbox
+            );
+            if ($.inboundMessagePath[inboundId] != bytes32(0)) {
+                revert Mailbox_MessagePathEnabled(inboundId);
+            }
+            // store chain id of remote chain for message path
+            $.inboundMessagePath[inboundId] = destinationChain;
         }
-        // store chain id of remote chain for message path
-        $.inboundMessagePath[inboundId] = destinationChain;
 
         emit MessagePathEnabled(
             destinationChain,
@@ -152,7 +172,8 @@ contract Mailbox is
 
     function disableMessagePath(
         bytes32 destinationChain,
-        bytes32 destinationMailbox
+        bytes32 destinationMailbox,
+        PathDirectionType direction
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (destinationChain == bytes32(0)) {
             revert Mailbox_ZeroChainId();
@@ -164,14 +185,27 @@ contract Mailbox is
 
         MailboxStorage storage $ = _getStorage();
 
-        bytes32 outboundId = _calcOutboundMessagePath(destinationChain);
-        bytes32 inboundId = _calcInboundMessagePath(
-            destinationChain,
-            destinationMailbox
-        );
+        bytes32 outboundId;
+        bytes32 inboundId;
 
-        delete $.outboundMessagePath[outboundId];
-        delete $.inboundMessagePath[inboundId];
+        if (
+            direction == PathDirectionType.OUTBOUND ||
+            direction == PathDirectionType.BOTH
+        ) {
+            outboundId = _calcOutboundMessagePath(destinationChain);
+            delete $.outboundMessagePath[outboundId];
+        }
+
+        if (
+            direction == PathDirectionType.INBOUND ||
+            direction == PathDirectionType.BOTH
+        ) {
+            inboundId = _calcInboundMessagePath(
+                destinationChain,
+                destinationMailbox
+            );
+            delete $.inboundMessagePath[inboundId];
+        }
 
         emit MessagePathDisabled(
             destinationChain,
@@ -564,6 +598,12 @@ contract Mailbox is
         bytes32 pathId
     ) external view override returns (bytes32) {
         return _getStorage().inboundMessagePath[pathId];
+    }
+
+    function getOutboundMessagePath(
+        bytes32 pathId
+    ) external view override returns (bytes32) {
+        return _getStorage().outboundMessagePath[pathId];
     }
 
     function _getStorage() private pure returns (MailboxStorage storage $) {
