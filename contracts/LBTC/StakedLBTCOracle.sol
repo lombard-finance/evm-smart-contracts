@@ -167,7 +167,7 @@ contract StakedLBTCOracle is
 
     function _initRatio(uint256 ratio_, uint256 switchTime_) internal {
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        $.ratioThreshold = uint32(1_000000); // 1% by default
+        $.ratioThreshold = uint32(100000); // 0.1% by default
         if ($.currRatio != 0 || $.prevRatio != 0 || $.switchTime != 0) {
             revert RatioInitializedAlready();
         }
