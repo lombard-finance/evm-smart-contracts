@@ -200,7 +200,8 @@ contract StakedLBTCOracle is
         uint256 threshold = Math.mulDiv(
             $.currRatio,
             interval * $.ratioThreshold,
-            RATIO_DEFAULT_SWITCH_INTERVAL * MAX_RATIO_THRESHOLD
+            uint256(RATIO_DEFAULT_SWITCH_INTERVAL) *
+                uint256(MAX_RATIO_THRESHOLD)
         );
         if (
             (($.currRatio > ratio_) && ($.currRatio - ratio_) > threshold) ||
