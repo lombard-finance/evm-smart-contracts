@@ -56,6 +56,8 @@ contract StakedLBTCOracle is
     bytes32 private constant STAKED_LBTC_ORACLE_STORAGE_LOCATION =
         0x773f82ddc38c293e7e76f6867b0d8bb7a6d27067018d4afff38772df98594200;
 
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
