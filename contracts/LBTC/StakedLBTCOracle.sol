@@ -17,6 +17,7 @@ contract StakedLBTCOracle is
     error WrongRatioSwitchTime();
     error RatioInitializedAlready();
     error TooBigRatioChange();
+    error WrongToken();
 
     event Oracle_ConsortiumChanged(
         address indexed prevVal,
@@ -56,6 +57,8 @@ contract StakedLBTCOracle is
     bytes32 private constant STAKED_LBTC_ORACLE_STORAGE_LOCATION =
         0x773f82ddc38c293e7e76f6867b0d8bb7a6d27067018d4afff38772df98594200;
 
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -159,7 +162,7 @@ contract StakedLBTCOracle is
         Assert.selector(rawPayload, Actions.RATIO_UPDATE);
         Actions.RatioUpdate memory action = Actions.ratioUpdate(rawPayload[4:]);
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        _validateRatio($, action.ratio, action.switchTime);
+        _validateRatio($, action.ratio, action.switchTime, action.denom);
         bytes32 payloadHash = sha256(rawPayload);
         $.consortium.checkProof(payloadHash, proof);
         _setNewRatio(action.ratio, action.switchTime);
@@ -188,8 +191,12 @@ contract StakedLBTCOracle is
     function _validateRatio(
         StakedLBTCOracleStorage storage $,
         uint256 ratio_,
-        uint256 switchTime_
+        uint256 switchTime_,
+        bytes32 denomHash_
     ) internal view {
+        if (denomHash_ != $.tokenDetails.denomHash) {
+            revert WrongToken();
+        }
         if (
             $.switchTime >= switchTime_ ||
             switchTime_ > (block.timestamp + $.maxAheadInterval)
