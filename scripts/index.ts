@@ -3,3 +3,4 @@ export * from './deployments';
 export * from './setup';
 export * from './oftsendout';
 export * from './oftreceive';
+export * from './update-ratio';
