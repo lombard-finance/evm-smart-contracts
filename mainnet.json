@@ -267,5 +267,18 @@
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x1298131cDa718bBcA7ACB1f2411e71c05E16f269"
     }
+  },
+  "scroll": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000082750",
+    "admin": {
+      "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
+      "TimeLock": "0x",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "Consortium": "",
+      "StakedLBTCOracle": ""
+    }
   }
 }

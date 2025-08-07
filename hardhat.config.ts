@@ -315,6 +315,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    scroll: {
+      loggingEnabled: true,
+      url: vars.get('SCROLL_RPC', 'https://rpc.ankr.com/scroll'),
+      chainId: 534352,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
     }
   },
   etherscan: {
