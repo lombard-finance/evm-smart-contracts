@@ -17,6 +17,7 @@ contract StakedLBTCOracle is
     error WrongRatioSwitchTime();
     error RatioInitializedAlready();
     error TooBigRatioChange();
+    error WrongToken();
 
     event Oracle_ConsortiumChanged(
         address indexed prevVal,
@@ -161,7 +162,7 @@ contract StakedLBTCOracle is
         Assert.selector(rawPayload, Actions.RATIO_UPDATE);
         Actions.RatioUpdate memory action = Actions.ratioUpdate(rawPayload[4:]);
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
-        _validateRatio($, action.ratio, action.switchTime);
+        _validateRatio($, action.ratio, action.switchTime, action.denom);
         bytes32 payloadHash = sha256(rawPayload);
         $.consortium.checkProof(payloadHash, proof);
         _setNewRatio(action.ratio, action.switchTime);
@@ -190,8 +191,12 @@ contract StakedLBTCOracle is
     function _validateRatio(
         StakedLBTCOracleStorage storage $,
         uint256 ratio_,
-        uint256 switchTime_
+        uint256 switchTime_,
+        bytes32 denomHash_
     ) internal view {
+        if (denomHash_ != $.tokenDetails.denomHash) {
+            revert WrongToken();
+        }
         if (
             $.switchTime >= switchTime_ ||
             switchTime_ > (block.timestamp + $.maxAheadInterval)
