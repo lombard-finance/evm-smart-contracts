@@ -25,12 +25,13 @@ import {
   LEDGER_MAILBOX,
   NEW_VALSET,
   randomBigInt,
+  rawSign,
   REDEEM_FROM_NATIVE_TOKEN_SELECTOR,
   signDepositBtcV0Payload,
   signDepositBtcV1Payload,
   Signer
 } from './helpers';
-import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock } from '../typechain-types';
+import { AssetRouter, Bascule, BasculeV3, Consortium, Mailbox, NativeLBTC, RatioFeedMock } from '../typechain-types';
 
 const DAY = 86400;
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
@@ -48,10 +49,11 @@ describe('NativeLBTC', function () {
     notary2: Signer,
     signer1: Signer,
     signer2: Signer,
-    signer3: Signer;
+    signer3: Signer,
+    trustedSigner: Signer;
   let nativeLbtc: NativeLBTC & Addressable;
   let nativeLbtcBytes: string;
-  let bascule: Bascule;
+  let bascule: BasculeV3;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
   let consortium: Consortium & Addressable;
@@ -61,7 +63,7 @@ describe('NativeLBTC', function () {
   let assetRouter: AssetRouter & Addressable;
 
   before(async function () {
-    [_, owner, treasury, minter, claimer, operator, pauser, reporter, notary1, notary2, signer1, signer2, signer3] =
+    [_, owner, treasury, minter, claimer, operator, pauser, reporter, notary1, notary2, signer1, signer2, signer3, trustedSigner] =
       await getSignersWithPrivateKeys();
 
     consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
@@ -89,9 +91,9 @@ describe('NativeLBTC', function () {
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.OPERATOR_ROLE(), operator);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
 
-    bascule = await deployContract<Bascule>(
-      'Bascule',
-      [owner.address, pauser.address, reporter.address, nativeLbtc.address, 100],
+    bascule = await deployContract<BasculeV3>(
+      'BasculeV3',
+      [owner.address, pauser.address, reporter.address, nativeLbtc.address, 100, trustedSigner.address],
       false
     );
 
@@ -135,7 +137,8 @@ describe('NativeLBTC', function () {
   async function defaultData(
     recipient: Signer = signer1,
     amount: bigint = randomBigInt(8),
-    feeApprove: bigint = 1n
+    feeApprove: bigint = 1n,
+    cutV: boolean = true
   ): Promise<DefaultData> {
     const { payload, payloadHash, proof } = await signDepositBtcV1Payload(
       [notary1, notary2],
@@ -148,6 +151,11 @@ describe('NativeLBTC', function () {
     );
     const feeApprovalPayload = getPayloadForAction([feeApprove, snapshotTimestamp + DAY], 'feeApproval');
     const userSignature = await getFeeTypedMessage(recipient, nativeLbtc, feeApprove, snapshotTimestamp + DAY);
+    const trustedHash = ethers.keccak256('0x' + payload.slice(10));
+    let trustedSignature = rawSign(trustedSigner, trustedHash);
+          if (cutV) {
+            trustedSignature = trustedSignature.slice(0, 130); // remove V from each sig to follow real consortium
+          }
     return {
       payload,
       payloadHash,
@@ -155,7 +163,9 @@ describe('NativeLBTC', function () {
       amount,
       tokenRecipient: recipient,
       feeApprovalPayload,
-      userSignature
+      userSignature,
+      trustedHash,
+      trustedSignature
     } as unknown as DefaultData;
   }
 
@@ -535,23 +545,23 @@ describe('NativeLBTC', function () {
 
       //TODO: fix
       it('mintV1() when bascule is enabled', async function () {
-        this.skip();
+        // this.skip();
         await nativeLbtc.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await nativeLbtc.totalSupply();
 
         const recipient = signer2;
         const amount = randomBigInt(8);
-        const { payload, proof } = await defaultData(recipient, amount);
+        const { payload, proof, trustedHash, trustedSignature } = await defaultData(recipient, amount);
 
         // report deposit
         // TODO which payload to report?
         const reportId = ethers.zeroPadValue('0x01', 32);
-        await expect(bascule.connect(reporter).reportDeposits(reportId, [ethers.keccak256('0x' + payload.slice(10))]))
+        await expect(bascule.connect(reporter).reportDeposits(reportId, [trustedHash], [trustedSignature]))
           .to.emit(bascule, 'DepositsReported')
           .withArgs(reportId, 1);
 
         // @ts-ignore
-        const tx = nativeLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof);
+        const tx = nativeLbtc.connect(signer1)['mintV1(bytes,bytes)'](payload, proof);
         await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
         await expect(tx).to.changeTokenBalance(nativeLbtc, recipient, amount);
         const totalSupplyAfter = await nativeLbtc.totalSupply();
@@ -657,6 +667,7 @@ describe('NativeLBTC', function () {
 
       it('mintV1() reverts when payload has been used', async function () {
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
+        await nativeLbtc.connect(owner).changeBascule(ethers.ZeroAddress);
         await nativeLbtc.connect(signer1).mintV1(payload, proof);
         // @ts-ignore
         await expect(
