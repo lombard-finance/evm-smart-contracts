@@ -34,7 +34,7 @@ jobs:
               run: yarn hardhat compile
 
             - name: Check
-              run: for net in mainnet base bsc berachain sonic ink; do yarn hardhat ratio check --network $net; done
+              run: for net in mainnet base bsc berachain sonic ink katana scroll bob; do yarn hardhat ratio check --network $net; done
 
             - name: Check community chains
               run: for net in swell cornMaizenet; do yarn hardhat ratio check mainnet-external.json --network $net; done
