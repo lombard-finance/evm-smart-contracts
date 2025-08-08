@@ -5,14 +5,12 @@ import { Contract } from 'ethers';
 import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
 import { AddressList, RuleFunc } from './types';
 
-const RULESET: Array<RuleFunc> = [getRatio,];
+const RULESET: Array<RuleFunc> = [getRatio];
 
 const IGNORE_SCOPE_LIST: string[] = [
   'admin' // ignored, because used as source of possible admins
 ];
-const TARGET_CONTRACT_LIST = [
-  'StakedLBTCOracle',
-];
+const TARGET_CONTRACT_LIST = ['StakedLBTCOracle'];
 
 export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSuper: RunSuperFunction<any>) {
   const p = path.join(taskArgs.filename);
