@@ -290,9 +290,9 @@
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
-      "ProxyFactory": "",
-      "Consortium": "",
-      "StakedLBTCOracle": ""
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     }
   }
 }
