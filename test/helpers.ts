@@ -543,8 +543,8 @@ export class DefaultData {
     this.payload = payload;
     this.payloadHash = payloadHash;
     this.proof = proof;
-    this.trustedHash = "";
-    this.trustedSignature = "";
+    this.trustedHash = '';
+    this.trustedSignature = '';
   }
 }
 
