@@ -323,6 +323,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    bob: {
+      loggingEnabled: true,
+      url: vars.get('BOB_RPC', 'https://rpc.gobob.xyz/'),
+      chainId: 60808,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
     }
   },
   etherscan: {
@@ -536,6 +544,14 @@ const config: HardhatUserConfig = {
           apiURL: 'https://explorer.tac.build/api',
           browserURL: 'https://explorer.tac.build/'
         }
+      },
+      {
+        network: 'bob',
+        chainId: 60808,
+        urls: {
+          apiURL: 'https://explorer.gobob.xyz/api',
+          browserURL: 'https://explorer.gobob.xyz/'
+        }
       }
     ],
     apiKey: {
@@ -575,7 +591,8 @@ const config: HardhatUserConfig = {
       etherlink: 'no',
       ink: 'no',
       katana: 'no',
-      tac: 'no'
+      tac: 'no',
+      bob: 'no'
     }
   },
   sourcify: {
