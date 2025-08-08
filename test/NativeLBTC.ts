@@ -63,8 +63,22 @@ describe('NativeLBTC', function () {
   let assetRouter: AssetRouter & Addressable;
 
   before(async function () {
-    [_, owner, treasury, minter, claimer, operator, pauser, reporter, notary1, notary2, signer1, signer2, signer3, trustedSigner] =
-      await getSignersWithPrivateKeys();
+    [
+      _,
+      owner,
+      treasury,
+      minter,
+      claimer,
+      operator,
+      pauser,
+      reporter,
+      notary1,
+      notary2,
+      signer1,
+      signer2,
+      signer3,
+      trustedSigner
+    ] = await getSignersWithPrivateKeys();
 
     consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
     consortium.address = await consortium.getAddress();
@@ -153,9 +167,9 @@ describe('NativeLBTC', function () {
     const userSignature = await getFeeTypedMessage(recipient, nativeLbtc, feeApprove, snapshotTimestamp + DAY);
     const trustedHash = ethers.keccak256('0x' + payload.slice(10));
     let trustedSignature = rawSign(trustedSigner, trustedHash);
-          if (cutV) {
-            trustedSignature = trustedSignature.slice(0, 130); // remove V from each sig to follow real consortium
-          }
+    if (cutV) {
+      trustedSignature = trustedSignature.slice(0, 130); // remove V from each sig to follow real consortium
+    }
     return {
       payload,
       payloadHash,
