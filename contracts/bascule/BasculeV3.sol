@@ -376,37 +376,17 @@ contract BasculeV3 is IBascule, Pausable, AccessControlDefaultAdminRules {
         if (_trustedSigner == address(0)) {
             return true;
         }
-        bytes32 r;
-        bytes32 s;
-
-        // load the first 32 bytes (r) and the second 32 bytes (s) from the sig
-        assembly {
-            r := mload(add(sig, 0x20)) // first 32 bytes (offset 0x20)
-            s := mload(add(sig, 0x40)) // next 32 bytes (offset 0x40)
-        }
-        // try recover with V = 27
         (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
             data,
-            27,
-            r,
-            s
+            sig
         );
-
         // ignore if bad signature
         if (err != ECDSA.RecoverError.NoError) {
             return false;
         }
-
         // if signer doesn't match try V = 28
         if (signer != _trustedSigner) {
-            (signer, err, ) = ECDSA.tryRecover(data, 28, r, s);
-            if (err != ECDSA.RecoverError.NoError) {
-                return false;
-            }
-
-            if (signer != _trustedSigner) {
-                return false;
-            }
+            return false;
         }
         return true;
     }

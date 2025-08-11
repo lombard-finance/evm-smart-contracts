@@ -565,7 +565,7 @@ describe('NativeLBTC', function () {
 
         const recipient = signer2;
         const amount = randomBigInt(8);
-        const { payload, proof, trustedHash, trustedSignature } = await defaultData(recipient, amount);
+        const { payload, proof, trustedHash, trustedSignature } = await defaultData(recipient, amount, 1n, false);
 
         // report deposit
         // TODO which payload to report?
@@ -667,16 +667,15 @@ describe('NativeLBTC', function () {
 
       //TODO: BASCULE DOES NOT CHECK DEPOSITS WHEN ENABLED
       it('mintV1() reverts when not reported to bascule', async function () {
-        this.skip();
+        // this.skip();
         await nativeLbtc.connect(owner).changeBascule(await bascule.getAddress());
 
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
-        await nativeLbtc.connect(signer1).mintV1(payload, proof);
         // @ts-ignore
-        // await expect(nativeLbtc.connect(signer1)['mint(bytes,bytes)'](payloadHash, proof)).to.be.revertedWithCustomError(
-        //   bascule,
-        //   'WithdrawalFailedValidation'
-        // );
+        await expect(nativeLbtc.connect(signer1)['mintV1(bytes,bytes)'](payload, proof)).to.be.revertedWithCustomError(
+          bascule,
+          'WithdrawalFailedValidation'
+        );
       });
 
       it('mintV1() reverts when payload has been used', async function () {
