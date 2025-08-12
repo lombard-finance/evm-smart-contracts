@@ -1,13 +1,12 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
   ASSETS_MODULE_ADDRESS,
   BITCOIN_CHAIN_ID,
   BITCOIN_NATIVE_COIN,
   CHAIN_ID,
-  DEFAULT_DUST_FEE_RATE,
   DefaultData,
   deployContract,
   DEPOSIT_BTC_ACTION_V0,
@@ -31,7 +30,7 @@ import {
   signDepositBtcV1Payload,
   Signer
 } from './helpers';
-import { AssetRouter, Bascule, BasculeV3, Consortium, Mailbox, NativeLBTC, RatioFeedMock } from '../typechain-types';
+import { AssetRouter, BasculeV3, Consortium, Mailbox, NativeLBTC, RatioFeedMock } from '../typechain-types';
 
 const DAY = 86400;
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
@@ -152,7 +151,7 @@ describe('NativeLBTC', function () {
     recipient: Signer = signer1,
     amount: bigint = randomBigInt(8),
     feeApprove: bigint = 1n,
-    cutV: boolean = true
+    cutV: boolean = false
   ): Promise<DefaultData> {
     const { payload, payloadHash, proof } = await signDepositBtcV1Payload(
       [notary1, notary2],
@@ -165,10 +164,10 @@ describe('NativeLBTC', function () {
     );
     const feeApprovalPayload = getPayloadForAction([feeApprove, snapshotTimestamp + DAY], 'feeApproval');
     const userSignature = await getFeeTypedMessage(recipient, nativeLbtc, feeApprove, snapshotTimestamp + DAY);
-    const trustedHash = ethers.keccak256('0x' + payload.slice(10));
-    let trustedSignature = rawSign(trustedSigner, trustedHash);
+    const depositId = ethers.keccak256('0x' + payload.slice(10));
+    let cubistProof = rawSign(trustedSigner, depositId);
     if (cutV) {
-      trustedSignature = trustedSignature.slice(0, 130); // remove V from each sig to follow real consortium
+      cubistProof = cubistProof.slice(0, 130); // remove V from each sig to follow real consortium
     }
     return {
       payload,
@@ -178,8 +177,8 @@ describe('NativeLBTC', function () {
       tokenRecipient: recipient,
       feeApprovalPayload,
       userSignature,
-      trustedHash,
-      trustedSignature
+      depositId,
+      cubistProof
     } as unknown as DefaultData;
   }
 
@@ -557,20 +556,17 @@ describe('NativeLBTC', function () {
         });
       });
 
-      //TODO: fix
       it('mintV1() when bascule is enabled', async function () {
-        // this.skip();
         await nativeLbtc.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await nativeLbtc.totalSupply();
 
         const recipient = signer2;
         const amount = randomBigInt(8);
-        const { payload, proof, trustedHash, trustedSignature } = await defaultData(recipient, amount, 1n, false);
+        const { payload, proof, depositId, cubistProof } = await defaultData(recipient, amount, 1n);
 
         // report deposit
-        // TODO which payload to report?
-        const reportId = ethers.zeroPadValue('0x01', 32);
-        await expect(bascule.connect(reporter).reportDeposits(reportId, [trustedHash], [trustedSignature]))
+        const reportId = ethers.randomBytes(32);
+        await expect(bascule.connect(reporter).reportDeposits(reportId, [depositId], [cubistProof]))
           .to.emit(bascule, 'DepositsReported')
           .withArgs(reportId, 1);
 
@@ -578,6 +574,7 @@ describe('NativeLBTC', function () {
         const tx = nativeLbtc.connect(signer1)['mintV1(bytes,bytes)'](payload, proof);
         await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient, amount);
         await expect(tx).to.changeTokenBalance(nativeLbtc, recipient, amount);
+        expect(await bascule.depositHistory(depositId)).to.be.eq(2); //WITHDRAWN
         const totalSupplyAfter = await nativeLbtc.totalSupply();
         expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(amount);
       });
@@ -665,9 +662,7 @@ describe('NativeLBTC', function () {
         });
       });
 
-      //TODO: BASCULE DOES NOT CHECK DEPOSITS WHEN ENABLED
       it('mintV1() reverts when not reported to bascule', async function () {
-        // this.skip();
         await nativeLbtc.connect(owner).changeBascule(await bascule.getAddress());
 
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
@@ -802,13 +797,10 @@ describe('NativeLBTC', function () {
         }
       });
 
-      //TODO: fix
       it('mintV1WithFee() when bascule enabled', async function () {
-        this.skip();
         await nativeLbtc.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await nativeLbtc.totalSupply();
 
-        // new
         const feeApproved = randomBigInt(2);
         const feeMax = randomBigInt(2);
         await assetRouter.connect(operator).setMaxMintCommission(nativeLbtc.address, feeMax);
@@ -816,21 +808,24 @@ describe('NativeLBTC', function () {
 
         const amount = randomBigInt(8);
         const recipient = signer1;
-        const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(recipient, amount, feeApproved);
+        const { payload, proof, payloadHash, feeApprovalPayload, userSignature, depositId, cubistProof } =
+          await defaultData(recipient, amount, feeApproved);
 
         // report deposit
-        const reportId = ethers.zeroPadValue('0x01', 32);
-        await expect(bascule.connect(reporter).reportDeposits(reportId, [ethers.keccak256('0x' + payload.slice(10))])) //From GMP
+        const reportId = ethers.randomBytes(32);
+        await expect(bascule.connect(reporter).reportDeposits(reportId, [depositId], [cubistProof]))
           .to.emit(bascule, 'DepositsReported')
           .withArgs(reportId, 1);
 
         // @ts-ignore
         const tx = await nativeLbtc.connect(claimer).mintV1WithFee(payload, proof, feeApprovalPayload, userSignature);
-        await expect(tx).to.emit(assetRouter, 'AssetRouter_FeeCharged').withArgs(appliedFee, userSignature);
-        await expect(tx)
-          .to.emit(nativeLbtc, 'Transfer')
-          .withArgs(ethers.ZeroAddress, recipient.address, amount - appliedFee);
-        await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(ethers.ZeroAddress, treasury.address, appliedFee);
+        await expect(tx).to.emit(nativeLbtc, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
+        await expect(tx).to.emit(nativeLbtc, 'FeeCharged').withArgs(appliedFee, userSignature);
+        await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(ethers.ZeroAddress, recipient.address, amount);
+        expect(await bascule.depositHistory(depositId)).to.be.eq(2); //WITHDRAWN
+        if (appliedFee > 0n) {
+          await expect(tx).to.emit(nativeLbtc, 'Transfer').withArgs(recipient.address, treasury.address, appliedFee);
+        }
         await expect(tx).to.changeTokenBalance(nativeLbtc, recipient, amount - appliedFee);
         await expect(tx).to.changeTokenBalance(nativeLbtc, treasury, appliedFee);
         const totalSupplyAfter = await nativeLbtc.totalSupply();
