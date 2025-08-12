@@ -84,7 +84,7 @@ contract BasculeV3 is IBascule, Pausable, AccessControlDefaultAdminRules {
      * Event emitted when the trusted signer is changed.
      * @param trustedSigner New trusted signer.
      */
-    event TustedSignerUpdated(address trustedSigner);
+    event TrustedSignerUpdated(address trustedSigner);
 
     /**
      * Event emitted when a batch of deposits is reported.
@@ -262,7 +262,7 @@ contract BasculeV3 is IBascule, Pausable, AccessControlDefaultAdminRules {
         address aTrustedSigner
     ) public whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
         _trustedSigner = aTrustedSigner;
-        emit TustedSignerUpdated(aTrustedSigner);
+        emit TrustedSignerUpdated(aTrustedSigner);
     }
 
     /**
