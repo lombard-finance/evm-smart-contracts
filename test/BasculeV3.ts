@@ -5,7 +5,9 @@ import {
   Addressable,
   CHAIN_ID,
   deployContract,
+  DEPOSIT_BTC_ACTION_V0,
   encode,
+  getPayloadForAction,
   getSignersWithPrivateKeys,
   randomBigInt,
   rawSign,
@@ -26,16 +28,25 @@ describe('BasculeV3', function () {
     validationGuardian: Signer,
     notary1: Signer,
     notary2: Signer,
-    signer1: Signer,
-    signer2: Signer;
+    signer1: Signer;
 
   let bascule: BasculeV3 & Addressable;
   const defaultMaxDeposits = 3n;
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [_, owner, pauser, depositReporter, withdrawalValidator, trustedSigner, validationGuardian, notary1, notary2, signer1, signer2] =
-      await getSignersWithPrivateKeys();
+    [
+      _,
+      owner,
+      pauser,
+      depositReporter,
+      withdrawalValidator,
+      trustedSigner,
+      validationGuardian,
+      notary1,
+      notary2,
+      signer1
+    ] = await getSignersWithPrivateKeys();
 
     bascule = await deployContract<BasculeV3 & Addressable>(
       'BasculeV3',
@@ -132,103 +143,109 @@ describe('BasculeV3', function () {
   });
 
   describe('Setters', function () {
-
-    describe('Max deposits', function() {
+    describe('Max deposits', function () {
       beforeEach(async function () {
         await snapshot.restore();
       });
 
-      it('setMaxDeposits: default admin can', async function() {
+      it('setMaxDeposits: default admin can', async function () {
         const newValue = randomBigInt(2);
         await expect(bascule.connect(owner).setMaxDeposits(newValue))
           .to.emit(bascule, 'MaxDepositsUpdated')
           .withArgs(newValue);
 
         expect(await bascule.maxDeposits()).to.be.eq(newValue);
-      })
+      });
 
-      it('setMaxDeposits: reverts when called by unauthorized account', async function() {
+      it('setMaxDeposits: reverts when called by unauthorized account', async function () {
         const newValue = randomBigInt(2);
-        await expect(bascule.connect(signer1).setMaxDeposits(newValue))
-          .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
-      })
-    })
+        await expect(bascule.connect(signer1).setMaxDeposits(newValue)).to.revertedWithCustomError(
+          bascule,
+          'AccessControlUnauthorizedAccount'
+        );
+      });
+    });
 
-    describe('Trusted signer', function() {
+    describe('Trusted signer', function () {
       beforeEach(async function () {
         await snapshot.restore();
       });
 
-      it('setTrustedSigner: default admin can', async function() {
+      it('setTrustedSigner: default admin can', async function () {
         const newValue = ethers.Wallet.createRandom().address;
         await expect(bascule.connect(owner).setTrustedSigner(newValue))
-          .to.emit(bascule, 'TustedSignerUpdated')
+          .to.emit(bascule, 'TrustedSignerUpdated')
           .withArgs(newValue);
 
         expect(await bascule.trustedSigner()).to.be.eq(newValue);
-      })
+      });
 
-      it('setTrustedSigner: reverts when called by unauthorized account', async function() {
+      it('setTrustedSigner: reverts when called by unauthorized account', async function () {
         const newValue = ethers.Wallet.createRandom().address;
-        await expect(bascule.connect(signer1).setTrustedSigner(newValue))
-          .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
-      })
-    })
+        await expect(bascule.connect(signer1).setTrustedSigner(newValue)).to.revertedWithCustomError(
+          bascule,
+          'AccessControlUnauthorizedAccount'
+        );
+      });
+    });
 
-    describe('Threshold', function() {
-      let threshold: bigint;
-
+    describe('Threshold', function () {
       before(async function () {
         await snapshot.restore();
       });
 
-      it('updateValidateThreshold: validation guardian can increase', async function() {
-        const thresholdBefore = await bascule.validateThreshold();
-        threshold = thresholdBefore + randomBigInt(8);
-        await expect(bascule.connect(validationGuardian).updateValidateThreshold(threshold))
+      // Guardian is only allowed to increase the threshold for once. Account looses guardian role after the call.
+      it('updateValidateThreshold: guardian can increase threshold only once', async function () {
+        const oldValue = await bascule.validateThreshold();
+        const newValue = oldValue + randomBigInt(8);
+        await expect(bascule.connect(validationGuardian).updateValidateThreshold(newValue))
           .to.emit(bascule, 'UpdateValidateThreshold')
-          .withArgs(thresholdBefore, threshold);
+          .withArgs(oldValue, newValue);
 
-        expect(await bascule.validateThreshold()).to.be.eq(threshold);
-      })
+        expect(await bascule.validateThreshold()).to.be.eq(newValue);
+      });
 
-      it('updateValidateThreshold: guardian lost their authority', async function() {
-        const thresholdBefore = await bascule.validateThreshold();
-        threshold = thresholdBefore + randomBigInt(8);
-        await expect(bascule.connect(validationGuardian).updateValidateThreshold(threshold))
-          .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
-      })
+      it('updateValidateThreshold: guardian lost their authority', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(
+          bascule.connect(validationGuardian).updateValidateThreshold(oldValue + 1n)
+        ).to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
+      });
 
-      it('updateValidateThreshold: default admin can decrease', async function() {
-        const thresholdBefore = await bascule.validateThreshold();
-        threshold = 0n;
-        await expect(bascule.connect(owner).updateValidateThreshold(threshold))
+      it('updateValidateThreshold: default admin can decrease', async function () {
+        const oldValue = await bascule.validateThreshold();
+        const newValue = oldValue - randomBigInt(5);
+        await expect(bascule.connect(owner).updateValidateThreshold(newValue))
           .to.emit(bascule, 'UpdateValidateThreshold')
-          .withArgs(thresholdBefore, threshold);
+          .withArgs(oldValue, newValue);
 
-        expect(await bascule.validateThreshold()).to.be.eq(threshold);
-      })
+        expect(await bascule.validateThreshold()).to.be.eq(newValue);
+      });
 
-      it('updateValidateThreshold: reverts when default admin increases', async function() {
-        const thresholdBefore = await bascule.validateThreshold();
-        threshold = thresholdBefore + randomBigInt(8);
-        await expect(bascule.connect(owner).updateValidateThreshold(threshold))
-          .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
-      })
+      it('updateValidateThreshold: reverts when default admin increases', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(bascule.connect(owner).updateValidateThreshold(oldValue + 1n)).to.revertedWithCustomError(
+          bascule,
+          'AccessControlUnauthorizedAccount'
+        );
+      });
 
-      it('updateValidateThreshold: reverts when called by unauthorized account', async function() {
-        const newValue = ethers.Wallet.createRandom().address;
-        await expect(bascule.connect(signer1).setTrustedSigner(newValue))
-          .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
-      })
+      it('updateValidateThreshold: reverts when called by unauthorized account', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(bascule.connect(signer1).updateValidateThreshold(oldValue - 1n)).to.revertedWithCustomError(
+          bascule,
+          'AccessControlUnauthorizedAccount'
+        );
+      });
 
-
-
-
-
-    })
-
-
+      it('updateValidateThreshold: reverts when threshold is the same', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(bascule.connect(signer1).updateValidateThreshold(oldValue)).to.revertedWithCustomError(
+          bascule,
+          'SameValidationThreshold'
+        );
+      });
+    });
   });
 
   describe('Pause', function () {
@@ -255,8 +272,10 @@ describe('BasculeV3', function () {
     });
 
     it('pause: reverts when called by not a pauser', async function () {
-      await expect(bascule.connect(signer1).pause())
-        .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
+      await expect(bascule.connect(signer1).pause()).to.revertedWithCustomError(
+        bascule,
+        'AccessControlUnauthorizedAccount'
+      );
     });
 
     it('pause: pauser can set on pause', async function () {
@@ -295,9 +314,10 @@ describe('BasculeV3', function () {
     });
 
     it('setMaxDeposits: reverts when paused', async function () {
-      await expect(
-        bascule.connect(owner).setMaxDeposits(randomBigInt(2))
-      ).to.be.revertedWithCustomError(bascule, 'EnforcedPause');
+      await expect(bascule.connect(owner).setMaxDeposits(randomBigInt(2))).to.be.revertedWithCustomError(
+        bascule,
+        'EnforcedPause'
+      );
     });
 
     it('setTrustedSigner: reverts when paused', async function () {
@@ -306,9 +326,18 @@ describe('BasculeV3', function () {
       ).to.be.revertedWithCustomError(bascule, 'EnforcedPause');
     });
 
+    it('updateValidateThreshold: reverts when paused', async function () {
+      const oldValue = await bascule.validateThreshold();
+      await expect(
+        bascule.connect(validationGuardian).updateValidateThreshold(oldValue + 1n)
+      ).to.be.revertedWithCustomError(bascule, 'EnforcedPause');
+    });
+
     it('unpause: reverts when called by not a pauser', async function () {
-      await expect(bascule.connect(signer1).unpause())
-        .to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
+      await expect(bascule.connect(signer1).unpause()).to.revertedWithCustomError(
+        bascule,
+        'AccessControlUnauthorizedAccount'
+      );
     });
 
     it('unpause: pauser can unpause', async function () {
@@ -316,8 +345,7 @@ describe('BasculeV3', function () {
     });
 
     it('unpause: reverts contract is not paused', async function () {
-      await expect(bascule.connect(pauser).unpause())
-        .to.revertedWithCustomError(bascule, 'ExpectedPause');
+      await expect(bascule.connect(pauser).unpause()).to.revertedWithCustomError(bascule, 'ExpectedPause');
     });
   });
 
@@ -345,16 +373,22 @@ describe('BasculeV3', function () {
       });
 
       it('Report deposit payload', async function () {
+        expect(await bascule.depositHistory(depositId)).to.be.eq(0);
+
         const reportId = randomBytes(32);
         await expect(bascule.connect(depositReporter).reportDeposits(reportId, [depositId], [proof]))
           .to.emit(bascule, 'DepositsReported')
           .withArgs(reportId, 1);
+
+        expect(await bascule.depositHistory(depositId)).to.be.eq(1);
       });
 
       it('Validate withdrawal', async function () {
         await expect(bascule.connect(withdrawalValidator).validateWithdrawal(depositId, amount))
           .to.emit(bascule, 'WithdrawalValidated')
           .withArgs(depositId, amount);
+
+        expect(await bascule.depositHistory(depositId)).to.be.eq(2);
       });
 
       it('Repeat reporting deposit payload', async function () {
@@ -365,18 +399,41 @@ describe('BasculeV3', function () {
           .withArgs(reportId, 1)
           .and.to.emit(bascule, 'DepositAlreadyReported')
           .withArgs(depositId);
+
+        expect(await bascule.depositHistory(depositId)).to.be.eq(2);
       });
 
       it('Repeat withdrawal validation', async function () {
         await expect(bascule.connect(withdrawalValidator).validateWithdrawal(depositId, amount))
           .to.be.revertedWithCustomError(bascule, 'AlreadyWithdrawn')
           .withArgs(depositId, amount);
+
+        expect(await bascule.depositHistory(depositId)).to.be.eq(2);
       });
     });
 
     describe('Report deposits', function () {
       beforeEach(async function () {
         await snapshot.restore();
+      });
+
+      it('Report payload signed by cubist', async function () {
+        await bascule.connect(owner).setTrustedSigner('0x4ef59bdec34968e9429ae662e458a595a0f937df');
+        const reportId = randomBytes(32);
+
+        await expect(
+          bascule
+            .connect(depositReporter)
+            .reportDeposits(
+              reportId,
+              [Buffer.from('dafc280d43b1e4d170ae84dd7a5b8499f879cf167acf038af0d399f6bda304db', 'hex')],
+              [
+                '0x212f28edebea4b87f484ecfcbf4fffced9a81f8a0b81d99e92befebaeba266cc7f9a439a6e5797276eb58b4406053107c04f354fa01dc8607ccf8d58f099b1701c'
+              ]
+            )
+        )
+          .to.emit(bascule, 'DepositsReported')
+          .withArgs(reportId, 1);
       });
 
       it('reportDeposits: max number of payloads', async function () {
@@ -407,7 +464,7 @@ describe('BasculeV3', function () {
           .withArgs(reportId, defaultMaxDeposits);
       });
 
-      it('reportDeposits: reverts when proof is invalid', async function () {
+      it('reportDeposits: reverts when deposit signed by not a trusted account', async function () {
         const reportId = randomBytes(32);
         const amount = randomBigInt(8);
         let res = await signDepositBtcV0Payload(
@@ -425,6 +482,47 @@ describe('BasculeV3', function () {
         await expect(bascule.connect(depositReporter).reportDeposits(reportId, [depositId], [proof]))
           .to.revertedWithCustomError(bascule, 'BadProof')
           .withArgs(0, depositId, proof);
+      });
+
+      it('reportDeposits: reverts when signature is invalid', async function () {
+        const reportId = randomBytes(32);
+        const amount = randomBigInt(8);
+        let res = await signDepositBtcV0Payload(
+          [notary1, notary2],
+          [true, true],
+          CHAIN_ID,
+          signer1.address,
+          amount,
+          ethers.randomBytes(32)
+        );
+        const payload = res.payload;
+        const depositId = ethers.keccak256('0x' + payload.slice(10));
+        const proof = '0x';
+
+        await expect(bascule.connect(depositReporter).reportDeposits(reportId, [depositId], [proof]))
+          .to.revertedWithCustomError(bascule, 'BadProof')
+          .withArgs(0, depositId, proof);
+      });
+
+      it('reportDeposits: skips signature check when trusted signer is 0 address', async function () {
+        const reportId = randomBytes(32);
+        const amount = randomBigInt(8);
+        let res = await signDepositBtcV0Payload(
+          [notary1, notary2],
+          [true, true],
+          CHAIN_ID,
+          signer1.address,
+          amount,
+          ethers.randomBytes(32)
+        );
+        const payload = res.payload;
+        const depositId = ethers.keccak256('0x' + payload.slice(10));
+        const proof = rawSign(signer1, depositId);
+        await bascule.connect(owner).setTrustedSigner(ethers.ZeroAddress);
+
+        await expect(bascule.connect(depositReporter).reportDeposits(reportId, [depositId], [proof]))
+          .to.emit(bascule, 'DepositsReported')
+          .withArgs(reportId, 1);
       });
 
       it('reportDeposits: reverts when max number of deposits is exceeded', async function () {
@@ -459,7 +557,7 @@ describe('BasculeV3', function () {
         const depositIds = [];
         const proofs = [];
 
-        for (let i = 0n; i < defaultMaxDeposits + 1n; i++) {
+        for (let i = 0n; i < defaultMaxDeposits; i++) {
           const amount = randomBigInt(8);
           let res = await signDepositBtcV0Payload(
             [notary1, notary2],
@@ -476,11 +574,12 @@ describe('BasculeV3', function () {
           depositIds.push(depositId);
           proofs.push(proof);
         }
+        proofs.pop();
         const reportId = randomBytes(32);
 
         await expect(
           bascule.connect(depositReporter).reportDeposits(reportId, depositIds, proofs)
-        ).to.revertedWithCustomError(bascule, 'BadDepositReport');
+        ).to.revertedWithCustomError(bascule, 'BadDepositProofsSize');
       });
 
       it('reportDeposits: reverts when called by unauthorized account', async function () {
