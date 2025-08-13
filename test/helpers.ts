@@ -538,11 +538,15 @@ export class DefaultData {
   recipient: Signer | undefined;
   feeApprovalPayload: string | undefined;
   userSignature: string | undefined;
+  depositId: string;
+  cubistProof: string;
 
   constructor(payload: string, payloadHash: string, proof: string) {
     this.payload = payload;
     this.payloadHash = payloadHash;
     this.proof = proof;
+    this.depositId = '';
+    this.cubistProof = '';
   }
 }
 
