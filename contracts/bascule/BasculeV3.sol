@@ -384,7 +384,7 @@ contract BasculeV3 is IBascule, Pausable, AccessControlDefaultAdminRules {
         if (err != ECDSA.RecoverError.NoError) {
             return false;
         }
-        // if signer doesn't match try V = 28
+        // if signer doesn't match consider data invalid
         if (signer != _trustedSigner) {
             return false;
         }
