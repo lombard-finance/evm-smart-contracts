@@ -1,4 +1,3 @@
-export * from './bard';
 export * from './blacklist';
 export * from './bridge';
 export * from './btcb-mock';
