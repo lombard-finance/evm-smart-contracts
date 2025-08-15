@@ -23,9 +23,11 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
     throw new Error(`no addresses found for ${hre.network.name}`);
   }
 
-  const response = await fetch('https://mainnet-rest.lombard-fi.com/lombard-finance/ledger/btcstaking/current_ratio/uclbtc');
-  const ratioData = await response.json() as LedgerRatioResponse;
-  console.log(`Expected raio: ${ratioData.ratio.value}, expected timestamp: ${ratioData.ratio.timestamp}`)
+  const response = await fetch(
+    'https://mainnet-rest.lombard-fi.com/lombard-finance/ledger/btcstaking/current_ratio/uclbtc'
+  );
+  const ratioData = (await response.json()) as LedgerRatioResponse;
+  console.log(`Expected raio: ${ratioData.ratio.value}, expected timestamp: ${ratioData.ratio.timestamp}`);
 
   for (const scope in addressList) {
     if (IGNORE_SCOPE_LIST.includes(scope)) continue;
@@ -72,16 +74,16 @@ async function getRatio({ ethers }: HardhatRuntimeEnvironment, contract: Contrac
   const expectedTs = ledgerRatio.timestamp;
   console.log(`ratio: ${ratio}, timestamp: ${ts}`);
   switch (true) {
-    case (ts == expectedTs && ratio == expectedRatio):
+    case ts == expectedTs && ratio == expectedRatio:
       console.log(`\t✅\tratio is correct and up-to-date`);
       break;
-    case (ts < expectedTs):
+    case ts < expectedTs:
       console.log(`\t⚠️\tratio is not updated`);
       break;
-    case (ts == expectedTs && ratio != expectedRatio):
+    case ts == expectedTs && ratio != expectedRatio:
       console.log(`\t📛\tratio is wrong!`);
       break;
-    case (ts > expectedTs):
+    case ts > expectedTs:
       console.log(`\t📛\tratio timestamp is wrong!`);
       break;
     default:

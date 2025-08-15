@@ -6,13 +6,17 @@ export interface AddressList {
   [key: string]: any;
 }
 
-export type RuleFunc = (hre: HardhatRuntimeEnvironment, contract: Contract, expectedRatio: LedgerRatio) => Promise<void>;
+export type RuleFunc = (
+  hre: HardhatRuntimeEnvironment,
+  contract: Contract,
+  expectedRatio: LedgerRatio
+) => Promise<void>;
 
 export type LedgerRatio = {
-  value: NumberLike
-  timestamp: NumberLike
-}
+  value: NumberLike;
+  timestamp: NumberLike;
+};
 
 export type LedgerRatioResponse = {
-  ratio: LedgerRatio
-}
+  ratio: LedgerRatio;
+};
