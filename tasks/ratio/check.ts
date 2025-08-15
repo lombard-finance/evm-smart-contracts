@@ -2,8 +2,7 @@ import * as fs from 'node:fs';
 import { HardhatRuntimeEnvironment, RunSuperFunction } from 'hardhat/types';
 import path from 'node:path';
 import { Contract } from 'ethers';
-import { HardhatEthersProvider } from '@nomicfoundation/hardhat-ethers/internal/hardhat-ethers-provider';
-import { AddressList, RuleFunc } from './types';
+import { AddressList, LedgerRatio, LedgerRatioResponse, RuleFunc } from './types';
 
 const RULESET: Array<RuleFunc> = [getRatio];
 
@@ -23,6 +22,12 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
   if (!addressList) {
     throw new Error(`no addresses found for ${hre.network.name}`);
   }
+
+  const response = await fetch(
+    'https://mainnet-rest.lombard-fi.com/lombard-finance/ledger/btcstaking/current_ratio/uclbtc'
+  );
+  const ratioData = (await response.json()) as LedgerRatioResponse;
+  console.log(`Expected raio: ${ratioData.ratio.value}, expected timestamp: ${ratioData.ratio.timestamp}`);
 
   for (const scope in addressList) {
     if (IGNORE_SCOPE_LIST.includes(scope)) continue;
@@ -53,16 +58,35 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
       console.log(`Checking ${contractName} at ${contractAddr}...`);
 
       for (const f of RULESET) {
-        await f(hre, contract);
+        await f(hre, contract, ratioData.ratio);
       }
     }
   }
 }
 
 // rules
-
-async function getRatio({ ethers }: HardhatRuntimeEnvironment, contract: Contract) {
-  if (!contract.interface.hasFunction('ratio')) return;
-  const ratio = await contract['ratio']();
-  console.log(`ratio: ${ratio}`);
+async function getRatio({ ethers }: HardhatRuntimeEnvironment, contract: Contract, ledgerRatio: LedgerRatio) {
+  if (!contract.interface.hasFunction('nextRatio')) return;
+  const res = await contract['nextRatio']();
+  const ts = res[1];
+  const ratio = res[0];
+  const expectedRatio = ledgerRatio.value;
+  const expectedTs = ledgerRatio.timestamp;
+  console.log(`ratio: ${ratio}, timestamp: ${ts}`);
+  switch (true) {
+    case ts == expectedTs && ratio == expectedRatio:
+      console.log(`\t✅\tratio is correct and up-to-date`);
+      break;
+    case ts < expectedTs:
+      console.log(`\t⚠️\tratio is not updated`);
+      break;
+    case ts == expectedTs && ratio != expectedRatio:
+      console.log(`\t📛\tratio is wrong!`);
+      break;
+    case ts > expectedTs:
+      console.log(`\t📛\tratio timestamp is wrong!`);
+      break;
+    default:
+      console.log(`\t📛\tunexpected outcome`);
+  }
 }
