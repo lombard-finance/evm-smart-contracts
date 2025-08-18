@@ -6,7 +6,8 @@
       "Deployer": ["0x9202b09CC197D09B3B022fD681D90C938246E235", "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
-      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918"
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
     },
     "community": {
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
@@ -23,6 +24,7 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "community": {

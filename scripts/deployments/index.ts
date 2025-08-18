@@ -1,4 +1,3 @@
-export * from './bard';
 export * from './blacklist';
 export * from './bridge';
 export * from './btcb-mock';
@@ -24,3 +23,4 @@ export * from './mocks';
 export * from './bridge-v2';
 export * from './oracle';
 export * from './asset-router';
+export * from './bascule-v3';
