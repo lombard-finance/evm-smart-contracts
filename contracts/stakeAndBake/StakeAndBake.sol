@@ -37,6 +37,8 @@ contract StakeAndBake is
     error ApprovalFailed();
     /// @dev error thrown when stakeAndBakeInternal is called by anyone other than self
     error CallerNotSelf(address caller);
+    /// @dev error thrown when amount to be staked is more than permit amount
+    error WrongAmount();
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(
@@ -56,6 +58,8 @@ contract StakeAndBake is
         bytes mintPayload;
         /// @notice Signature of the consortium approving the mint
         bytes proof;
+        /// @notice Amount to be staked, should be the same or less than amount minted
+        uint256 amount;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
@@ -280,23 +284,26 @@ contract StakeAndBake is
         // Otherwise, we permit the depositor to transfer the minted value.
         if (
             IERC20(address($.lbtc)).allowance(owner, address(this)) <
-            permitAmount
+            data.amount
         )
-            IERC20Permit(address($.lbtc)).permit(
-                owner,
-                address(this),
-                permitAmount,
-                deadline,
-                v,
-                r,
-                s
-            );
+            if (data.amount > permitAmount) {
+                revert WrongAmount();
+            }
+        IERC20Permit(address($.lbtc)).permit(
+            owner,
+            address(this),
+            permitAmount,
+            deadline,
+            v,
+            r,
+            s
+        );
 
         if (
             !IERC20(address($.lbtc)).transferFrom(
                 owner,
                 address(this),
-                permitAmount
+                data.amount
             )
         ) revert CollectingFundsFailed();
 
@@ -311,9 +318,8 @@ contract StakeAndBake is
             ) revert SendingFeeFailed();
         }
 
-        if (permitAmount > feeAmount) {
-            return
-                _deposit(permitAmount, feeAmount, owner, data.depositPayload);
+        if (data.amount > feeAmount) {
+            return _deposit(data.amount, feeAmount, owner, data.depositPayload);
         } else {
             revert ZeroDepositAmount();
         }
