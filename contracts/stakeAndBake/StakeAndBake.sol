@@ -6,9 +6,9 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
-import {Actions} from "../libs/Actions.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title Convenience contract for users who wish to
@@ -21,6 +21,8 @@ contract StakeAndBake is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
+    using SafeERC20 for IERC20;
+
     /// @dev error thrown when the remaining amount after taking a fee is zero
     error ZeroDepositAmount();
     /// @dev error thrown when operator is changed to zero address
@@ -240,25 +242,21 @@ contract StakeAndBake is
     }
 
     function _deposit(
-        uint256 permitAmount,
-        uint256 feeAmount,
+        uint256 stakeAmount,
         address owner,
         bytes calldata depositPayload
     ) internal returns (bytes memory) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
-        uint256 remainingAmount = permitAmount - feeAmount;
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        if (
-            !IERC20(address($.lbtc)).approve(
-                address($.depositor),
-                remainingAmount
-            )
-        ) revert ApprovalFailed();
+        IERC20(address($.lbtc)).safeIncreaseAllowance(
+            address($.depositor),
+            stakeAmount
+        );
 
         // Finally, deposit LBTC to the given vault.
-        return $.depositor.deposit(owner, remainingAmount, depositPayload);
+        return $.depositor.deposit(owner, stakeAmount, depositPayload);
     }
 
     function _stakeAndBake(
@@ -299,27 +297,24 @@ contract StakeAndBake is
             s
         );
 
-        if (
-            !IERC20(address($.lbtc)).transferFrom(
-                owner,
-                address(this),
-                data.amount
-            )
-        ) revert CollectingFundsFailed();
+        IERC20(address($.lbtc)).safeTransferFrom(
+            owner,
+            address(this),
+            data.amount
+        );
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
         if (feeAmount > 0) {
-            if (
-                !IERC20(address($.lbtc)).transfer(
-                    $.lbtc.getTreasury(),
-                    feeAmount
-                )
-            ) revert SendingFeeFailed();
+            IERC20(address($.lbtc)).safeTransfer(
+                $.lbtc.getTreasury(),
+                feeAmount
+            );
         }
 
         if (data.amount > feeAmount) {
-            return _deposit(data.amount, feeAmount, owner, data.depositPayload);
+            return
+                _deposit(data.amount - feeAmount, owner, data.depositPayload);
         } else {
             revert ZeroDepositAmount();
         }
