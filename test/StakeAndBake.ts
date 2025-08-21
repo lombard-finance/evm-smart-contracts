@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { BytesLike } from 'ethers';
-import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
   BITCOIN_CHAIN_ID,
@@ -47,7 +47,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     operator: Signer,
     pauser: Signer,
     treasury: Signer;
-  let stakeAndBake: StakeAndBake;
+  let stakeAndBake: StakeAndBake & Addressable;
   let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
   let teller: TellerWithMultiAssetSupportMock;
   let consortium: Consortium & Addressable;
@@ -67,10 +67,10 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   let depositPayload2: BytesLike;
 
   const toNativeCommission = 1000n;
-  const value = 10001n;
+  const depositAmount = 10001n;
   const fee = 1n;
   const premium = 100n;
-  const depositValue = 9900n;
+  const bakedAmount = 9900n;
 
   before(async function () {
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
@@ -85,7 +85,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
     await stakedLbtc.connect(owner).changeOperator(operator.address);
 
-    stakeAndBake = await deployContract<StakeAndBake>('StakeAndBake', [
+    stakeAndBake = await deployContract<StakeAndBake & Addressable>('StakeAndBake', [
       stakedLbtc.address,
       owner.address,
       operator.address,
@@ -145,7 +145,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 
-    data = await defaultData(signer2, value);
+    data = await defaultData(signer2, depositAmount);
 
     // create permit payload
     const block = await ethers.provider.getBlock('latest');
@@ -157,21 +157,21 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         stakedLbtc.address,
         signer2,
         await stakeAndBake.getAddress(),
-        value,
+        depositAmount,
         deadline,
         chainId,
         0
       );
 
-      permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [value, deadline, v, r, s]);
+      permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositAmount, deadline, v, r, s]);
     }
 
     // make a deposit payload for the boringvault
-    depositPayload = encode(['uint256'], [depositValue]);
+    depositPayload = encode(['uint256'], [bakedAmount]);
 
     // NB for some reason trying to do this in a loop and passing around arrays of parameters
     // makes the test fail, so i'm doing it the ugly way here
-    data2 = await defaultData(signer3, value);
+    data2 = await defaultData(signer3, depositAmount);
 
     {
       // create permit payload
@@ -179,17 +179,17 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         stakedLbtc.address,
         signer3,
         await stakeAndBake.getAddress(),
-        value,
+        depositAmount,
         deadline,
         chainId,
         0
       );
 
-      permitPayload2 = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [value, deadline, v, r, s]);
+      permitPayload2 = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositAmount, deadline, v, r, s]);
     }
 
     // make a deposit payload for the boringvault
-    depositPayload2 = encode(['uint256'], [depositValue]);
+    depositPayload2 = encode(['uint256'], [bakedAmount]);
   });
 
   async function defaultData(
@@ -225,12 +225,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     } as unknown as DefaultData;
   }
 
-  afterEach(async function () {
-    // clean the state after each test
-    await snapshot.restore();
-  });
-
   describe('Setters', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+    });
+
+    //TODO: fix and move
     it('should not allow calling stakeAndBake without a set depositor', async function () {
       await expect(
         stakeAndBake.connect(owner).stakeAndBake({
@@ -242,15 +242,57 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
     });
 
-    it('should allow admin to set depositor', async function () {
+    it('setDepositor: admin can set', async function () {
       await expect(stakeAndBake.connect(owner).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
         .to.emit(stakeAndBake, 'DepositorSet')
         .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
     });
 
-    it('should not allow anyone else to set depositor', async function () {
+    it('setDepositor: reverts when address is zero', async function () {
+      await expect(stakeAndBake.connect(owner).setDepositor(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+        stakeAndBake,
+        'ZeroAddress'
+      );
+    });
+
+    it('setDepositor: reverts when called by not an admin', async function () {
       await expect(stakeAndBake.connect(signer1).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
         .to.be.reverted;
+    });
+
+    it('should allow operator to change the fee', async function () {
+      await expect(stakeAndBake.connect(operator).setFee(2)).to.emit(stakeAndBake, 'FeeChanged').withArgs(2);
+    });
+
+    it('should not allow anyone else to change the fee', async function () {
+      await expect(stakeAndBake.connect(signer1).setFee(2)).to.be.reverted;
+    });
+  });
+
+  describe('Pause', function () {
+    before(async function () {
+      await snapshot.restore();
+      await stakeAndBake.connect(owner).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress());
+    });
+
+    it('pause: reverts when called by not a pauser', async function () {
+      await expect(stakeAndBake.connect(signer2).pause()).to.be.reverted;
+    });
+
+    it('pause: pauser can set on pause', async function () {
+      await stakeAndBake.connect(pauser).pause();
+      expect(await stakeAndBake.paused()).to.be.true;
+    });
+
+    // TODO: stake and bake when paused
+
+    it('unpause: reverts when called by not an owner', async function () {
+      await expect(stakeAndBake.connect(signer2).unpause()).to.be.reverted;
+    });
+
+    it('unpause: owner can turn off pause', async function () {
+      await stakeAndBake.connect(owner).unpause();
+      expect(await stakeAndBake.paused()).to.be.false;
     });
   });
 
@@ -262,101 +304,57 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
     });
 
-    it('should not allow non-claimer to call stakeAndBake', async function () {
-      await expect(
-        stakeAndBake.connect(signer2).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof
-        })
-      ).to.be.reverted;
-    });
-
-    it('should not allow non-claimer to call batchStakeAndBake', async function () {
-      await expect(
-        stakeAndBake.connect(signer2).batchStakeAndBake([
-          {
-            permitPayload: permitPayload,
-            depositPayload: depositPayload,
-            mintPayload: data.payload,
-            proof: data.proof
-          },
-          {
-            permitPayload: permitPayload2,
-            depositPayload: depositPayload2,
-            mintPayload: data2.payload,
-            proof: data2.proof
-          }
-        ])
-      ).to.be.reverted;
-    });
-
-    it('should not allow non-pauser to pause', async function () {
-      await expect(stakeAndBake.connect(signer2).pause()).to.be.reverted;
-    });
-
-    it('should not allow non-pauser to unpause', async function () {
-      await stakeAndBake.connect(pauser).pause();
-      await expect(stakeAndBake.connect(signer2).unpause()).to.be.reverted;
-    });
-
-    it('should allow operator to change the fee', async function () {
-      await expect(stakeAndBake.connect(operator).setFee(2)).to.emit(stakeAndBake, 'FeeChanged').withArgs(2);
-    });
-
-    it('should not allow anyone else to change the fee', async function () {
-      await expect(stakeAndBake.setFee(2)).to.be.reverted;
-    });
-
-    it('should allow admin to set a depositor', async function () {
-      await expect(stakeAndBake.connect(owner).setDepositor(signer1.address))
-        .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(signer1.address);
-    });
-
-    it('should not allow anyone else to set a depositor', async function () {
-      await expect(stakeAndBake.connect(signer1).setDepositor(signer1.address)).to.be.reverted;
-    });
-
-    it('should allow pauser to pause', async function () {
-      await stakeAndBake.connect(pauser).pause();
-      expect(await stakeAndBake.paused()).to.be.true;
-    });
-
-    it('should allow admin to unpause', async function () {
-      await stakeAndBake.connect(pauser).pause();
-      await stakeAndBake.connect(owner).unpause();
-      expect(await stakeAndBake.paused()).to.be.false;
-    });
-
     it('should stake and bake properly with the correct setup', async function () {
-      await expect(
-        stakeAndBake.connect(owner).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof
-        })
-      )
+      const payloadAmount = randomBigInt(8);
+      const stakeLbtcAmount = payloadAmount - 10n;
+      const minMintAmount = stakeLbtcAmount - fee - premium;
+      const data = await defaultData(signer2, payloadAmount);
+      const deadline = await time.latest() + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+      {
+        const { v, r, s } = await generatePermitSignature(
+          stakedLbtc.address,
+          signer2,
+          await stakeAndBake.getAddress(),
+          payloadAmount,
+          deadline,
+          chainId,
+          0
+        );
+
+        permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [payloadAmount, deadline, v, r, s]);
+      }
+      depositPayload = encode(['uint256'], [minMintAmount]);
+
+      const tx = await stakeAndBake.connect(owner).stakeAndBake({
+        permitPayload: permitPayload,
+        depositPayload: depositPayload,
+        mintPayload: data.payload,
+        proof: data.proof,
+        amount: stakeLbtcAmount
+      });
+      await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, signer2.address, payloadAmount);
+      await expect(tx)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, value)
+        .withArgs(signer2.address, await stakeAndBake.getAddress(), stakeLbtcAmount);
+      await expect(tx)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer2.address, await stakeAndBake.getAddress(), value)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
+        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee);
+      await expect(tx)
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(
           await stakeAndBake.getAddress(),
           await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
-        )
-        .to.emit(teller, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
+          stakeLbtcAmount - fee
+        );
+      await expect(tx).to.emit(teller, 'Transfer').withArgs(ethers.ZeroAddress, signer2.address, minMintAmount);
+      await expect(tx).to.changeTokenBalance(teller, signer2, minMintAmount);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, teller, bakedAmount + premium);
     });
 
     it('should work with allowance', async function () {
-      await stakedLbtc.connect(signer2).approve(await stakeAndBake.getAddress(), value);
+      await stakedLbtc.connect(signer2).approve(await stakeAndBake.getAddress(), depositAmount);
       await expect(
         stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
@@ -366,19 +364,19 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         })
       )
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, value)
+        .withArgs(ethers.ZeroAddress, signer2.address, depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer2.address, await stakeAndBake.getAddress(), value)
+        .withArgs(signer2.address, await stakeAndBake.getAddress(), depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(
           await stakeAndBake.getAddress(),
           await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
+          bakedAmount + premium
         )
         .to.emit(teller, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
+        .withArgs(ethers.ZeroAddress, signer2.address, bakedAmount);
     });
 
     it('should batch stake and bake properly with the correct setup', async function () {
@@ -399,40 +397,33 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         ])
       )
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, value)
+        .withArgs(ethers.ZeroAddress, signer2.address, depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer2.address, await stakeAndBake.getAddress(), value)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
-        )
-        .to.emit(teller, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, depositValue)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer3.address, value)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer3.address, await stakeAndBake.getAddress(), value)
+        .withArgs(signer2.address, await stakeAndBake.getAddress(), depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(
           await stakeAndBake.getAddress(),
           await tellerWithMultiAssetSupportDepositor.getAddress(),
-          depositValue + premium
+          bakedAmount + premium
         )
         .to.emit(teller, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, depositValue);
-    });
-
-    it('should revert when a zero depositor address is set', async function () {
-      await expect(stakeAndBake.connect(owner).setDepositor(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-        stakeAndBake,
-        'ZeroAddress'
-      );
+        .withArgs(ethers.ZeroAddress, signer2.address, bakedAmount)
+        .to.emit(stakedLbtc, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer3.address, depositAmount)
+        .to.emit(stakedLbtc, 'Transfer')
+        .withArgs(signer3.address, await stakeAndBake.getAddress(), depositAmount)
+        .to.emit(stakedLbtc, 'Transfer')
+        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
+        .to.emit(stakedLbtc, 'Transfer')
+        .withArgs(
+          await stakeAndBake.getAddress(),
+          await tellerWithMultiAssetSupportDepositor.getAddress(),
+          bakedAmount + premium
+        )
+        .to.emit(teller, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer2.address, bakedAmount);
     });
 
     it('should revert when remaining amount is zero', async function () {
@@ -463,6 +454,36 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       await stakeAndBake.connect(pauser).pause();
       await expect(
         stakeAndBake.connect(owner).batchStakeAndBake([
+          {
+            permitPayload: permitPayload,
+            depositPayload: depositPayload,
+            mintPayload: data.payload,
+            proof: data.proof
+          },
+          {
+            permitPayload: permitPayload2,
+            depositPayload: depositPayload2,
+            mintPayload: data2.payload,
+            proof: data2.proof
+          }
+        ])
+      ).to.be.reverted;
+    });
+
+    it('should not allow non-claimer to call stakeAndBake', async function () {
+      await expect(
+        stakeAndBake.connect(signer2).stakeAndBake({
+          permitPayload: permitPayload,
+          depositPayload: depositPayload,
+          mintPayload: data.payload,
+          proof: data.proof
+        })
+      ).to.be.reverted;
+    });
+
+    it('should not allow non-claimer to call batchStakeAndBake', async function () {
+      await expect(
+        stakeAndBake.connect(signer2).batchStakeAndBake([
           {
             permitPayload: permitPayload,
             depositPayload: depositPayload,
