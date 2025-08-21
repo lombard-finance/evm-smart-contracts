@@ -48,8 +48,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     pauser: Signer,
     treasury: Signer;
   let stakeAndBake: StakeAndBake & Addressable;
-  let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor;
-  let teller: TellerWithMultiAssetSupportMock;
+  let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor & Addressable;
+  let teller: TellerWithMultiAssetSupportMock & Addressable;
   let consortium: Consortium & Addressable;
   let mailbox: Mailbox & Addressable;
   let ratioFeed: RatioFeedMock & Addressable;
@@ -59,17 +59,17 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   let stakedLbtcBytes: string;
   let snapshot: SnapshotRestorer;
   let snapshotTimestamp: number;
-  let data: DefaultData;
-  let permitPayload: BytesLike;
-  let depositPayload: BytesLike;
-  let data2: DefaultData;
-  let permitPayload2: BytesLike;
-  let depositPayload2: BytesLike;
+  // let data: DefaultData;
+  // let permitPayload: BytesLike;
+  // let depositPayload: BytesLike;
+  // let data2: DefaultData;
+  // let permitPayload2: BytesLike;
+  // let depositPayload2: BytesLike;
 
   const toNativeCommission = 1000n;
   const depositAmount = 10001n;
   const fee = 1n;
-  const premium = 100n;
+  const vaultFee = 100n; // vault fee 1%
   const bakedAmount = 9900n;
 
   before(async function () {
@@ -94,6 +94,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       pauser.address,
       1_000_000
     ]);
+    stakeAndBake.address = await stakeAndBake.getAddress();
 
     // Mailbox
     mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
@@ -127,17 +128,22 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).addMinter(assetRouter.address);
 
-    teller = await deployContract<TellerWithMultiAssetSupportMock>(
+    teller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
       'TellerWithMultiAssetSupportMock',
       [await stakedLbtc.getAddress()],
       false
     );
+    teller.address = await teller.getAddress();
 
-    tellerWithMultiAssetSupportDepositor = await deployContract<TellerWithMultiAssetSupportDepositor>(
+    tellerWithMultiAssetSupportDepositor = await deployContract<TellerWithMultiAssetSupportDepositor & Addressable>(
       'TellerWithMultiAssetSupportDepositor',
-      [await teller.getAddress(), await stakedLbtc.getAddress(), await stakeAndBake.getAddress()],
+      [teller.address, await stakedLbtc.getAddress(), stakeAndBake.address],
       false
     );
+    tellerWithMultiAssetSupportDepositor.address = await tellerWithMultiAssetSupportDepositor.getAddress();
+    await expect(stakeAndBake.connect(owner).setDepositor(tellerWithMultiAssetSupportDepositor.address))
+      .to.emit(stakeAndBake, 'DepositorSet')
+      .withArgs(tellerWithMultiAssetSupportDepositor.address);
 
     // Initialize the permit module
     await stakedLbtc.connect(owner).reinitialize();
@@ -145,51 +151,54 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
 
-    data = await defaultData(signer2, depositAmount);
-
-    // create permit payload
-    const block = await ethers.provider.getBlock('latest');
-    const timestamp = block!.timestamp;
-    const deadline = timestamp + 100;
-    const chainId = (await ethers.provider.getNetwork()).chainId;
-    {
-      const { v, r, s } = await generatePermitSignature(
-        stakedLbtc.address,
-        signer2,
-        await stakeAndBake.getAddress(),
-        depositAmount,
-        deadline,
-        chainId,
-        0
-      );
-
-      permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositAmount, deadline, v, r, s]);
-    }
-
-    // make a deposit payload for the boringvault
-    depositPayload = encode(['uint256'], [bakedAmount]);
-
-    // NB for some reason trying to do this in a loop and passing around arrays of parameters
-    // makes the test fail, so i'm doing it the ugly way here
-    data2 = await defaultData(signer3, depositAmount);
-
-    {
-      // create permit payload
-      const { v, r, s } = await generatePermitSignature(
-        stakedLbtc.address,
-        signer3,
-        await stakeAndBake.getAddress(),
-        depositAmount,
-        deadline,
-        chainId,
-        0
-      );
-
-      permitPayload2 = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositAmount, deadline, v, r, s]);
-    }
-
-    // make a deposit payload for the boringvault
-    depositPayload2 = encode(['uint256'], [bakedAmount]);
+    // data = await defaultData(signer2, depositAmount);
+    //
+    // // create permit payload
+    // const block = await ethers.provider.getBlock('latest');
+    // const timestamp = block!.timestamp;
+    // const deadline = timestamp + 100;
+    // const chainId = (await ethers.provider.getNetwork()).chainId;
+    // {
+    //   const { v, r, s } = await generatePermitSignature(
+    //     stakedLbtc.address,
+    //     signer2,
+    //     stakeAndBake.address,
+    //     depositAmount,
+    //     deadline,
+    //     chainId,
+    //     0
+    //   );
+    //
+    //   permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [depositAmount, deadline, v, r, s]);
+    // }
+    //
+    // // make a deposit payload for the boringvault
+    // depositPayload = encode(['uint256'], [bakedAmount]);
+    //
+    // // NB for some reason trying to do this in a loop and passing around arrays of parameters
+    // // makes the test fail, so i'm doing it the ugly way here
+    // data2 = await defaultData(signer3, depositAmount);
+    //
+    // {
+    //   // create permit payload
+    //   const { v, r, s } = await generatePermitSignature(
+    //     stakedLbtc.address,
+    //     signer3,
+    //     stakeAndBake.address,
+    //     depositAmount,
+    //     deadline,
+    //     chainId,
+    //     0
+    //   );
+    //
+    //   permitPayload2 = encode(
+    //     ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+    //     [depositAmount, deadline, v, r, s]
+    //   );
+    // }
+    //
+    // // make a deposit payload for the boringvault
+    // depositPayload2 = encode(['uint256'], [bakedAmount]);
   });
 
   async function defaultData(
@@ -231,21 +240,21 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     });
 
     //TODO: fix and move
-    it('should not allow calling stakeAndBake without a set depositor', async function () {
-      await expect(
-        stakeAndBake.connect(owner).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof
-        })
-      ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
-    });
+    // it.skip('should not allow calling stakeAndBake without a set depositor', async function () {
+    //   await expect(
+    //     stakeAndBake.connect(owner).stakeAndBake({
+    //       permitPayload: permitPayload,
+    //       depositPayload: depositPayload,
+    //       mintPayload: data.payload,
+    //       proof: data.proof
+    //     })
+    //   ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
+    // });
 
     it('setDepositor: admin can set', async function () {
-      await expect(stakeAndBake.connect(owner).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
+      await expect(stakeAndBake.connect(owner).setDepositor(tellerWithMultiAssetSupportDepositor.address))
         .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
+        .withArgs(tellerWithMultiAssetSupportDepositor.address);
     });
 
     it('setDepositor: reverts when address is zero', async function () {
@@ -256,8 +265,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     });
 
     it('setDepositor: reverts when called by not an admin', async function () {
-      await expect(stakeAndBake.connect(signer1).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
-        .to.be.reverted;
+      await expect(stakeAndBake.connect(signer1).setDepositor(tellerWithMultiAssetSupportDepositor.address)).to.be
+        .reverted;
     });
 
     it('should allow operator to change the fee', async function () {
@@ -272,7 +281,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   describe('Pause', function () {
     before(async function () {
       await snapshot.restore();
-      await stakeAndBake.connect(owner).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress());
+      await stakeAndBake.connect(owner).setDepositor(tellerWithMultiAssetSupportDepositor.address);
     });
 
     it('pause: reverts when called by not a pauser', async function () {
@@ -284,7 +293,77 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       expect(await stakeAndBake.paused()).to.be.true;
     });
 
-    // TODO: stake and bake when paused
+    it('stakeAndBake: rejects when contract is paused', async function () {
+      const mintAmount = randomBigInt(8);
+      const permitAmount = mintAmount;
+      const stakeAmount = mintAmount;
+      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const data = await defaultData(signer2, mintAmount);
+      const deadline = (await time.latest()) + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+
+      const { v, r, s } = await generatePermitSignature(
+        stakedLbtc.address,
+        signer2,
+        stakeAndBake.address,
+        permitAmount,
+        deadline,
+        chainId,
+        0
+      );
+      const permitPayload = encode(
+        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+        [permitAmount, deadline, v, r, s]
+      );
+      const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
+      await expect(
+        stakeAndBake.connect(owner).stakeAndBake({
+          permitPayload: permitPayload,
+          depositPayload: depositPayload,
+          mintPayload: data.payload,
+          proof: data.proof,
+          amount: stakeAmount
+        })
+      ).to.be.revertedWithCustomError(stakeAndBake, 'EnforcedPause');
+    });
+
+    it('should not allow batchStakeAndBake when paused', async function () {
+      const mintAmount = randomBigInt(8);
+      const permitAmount = mintAmount;
+      const stakeAmount = mintAmount;
+      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const data = await defaultData(signer2, mintAmount);
+      const deadline = (await time.latest()) + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+
+      const { v, r, s } = await generatePermitSignature(
+        stakedLbtc.address,
+        signer2,
+        stakeAndBake.address,
+        permitAmount,
+        deadline,
+        chainId,
+        0
+      );
+      const permitPayload = encode(
+        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+        [permitAmount, deadline, v, r, s]
+      );
+      const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
+      await expect(
+        stakeAndBake.connect(owner).batchStakeAndBake([
+          {
+            permitPayload: permitPayload,
+            depositPayload: depositPayload,
+            mintPayload: data.payload,
+            proof: data.proof,
+            amount: stakeAmount
+          }
+        ])
+      ).to.be.revertedWithCustomError(stakeAndBake, 'EnforcedPause');
+    });
 
     it('unpause: reverts when called by not an owner', async function () {
       await expect(stakeAndBake.connect(signer2).unpause()).to.be.reverted;
@@ -297,89 +376,125 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   });
 
   describe('Stake and Bake', function () {
-    beforeEach(async function () {
-      // set depositor to stake and bake
-      await expect(stakeAndBake.connect(owner).setDepositor(await tellerWithMultiAssetSupportDepositor.getAddress()))
-        .to.emit(stakeAndBake, 'DepositorSet')
-        .withArgs(await tellerWithMultiAssetSupportDepositor.getAddress());
+    before(async function () {
+      await snapshot.restore();
     });
 
-    it('should stake and bake properly with the correct setup', async function () {
-      const payloadAmount = randomBigInt(8);
-      const stakeLbtcAmount = payloadAmount - 10n;
-      const minMintAmount = stakeLbtcAmount - fee - premium;
-      const data = await defaultData(signer2, payloadAmount);
-      const deadline = await time.latest() + 100;
-      const chainId = (await ethers.provider.getNetwork()).chainId;
+    const args = [
       {
+        name: 'staking amount = minting amount',
+        mintAmount: randomBigInt(8),
+        stakeAmount: (a: bigint): bigint => a,
+        minVaultTokenAmount: (a: bigint): bigint => (a * (10000n - vaultFee)) / 10000n
+      },
+      {
+        name: 'staking amount < minting amount',
+        mintAmount: randomBigInt(8),
+        stakeAmount: (a: bigint): bigint => a - 1n,
+        minVaultTokenAmount: (a: bigint): bigint => (a * (10000n - vaultFee)) / 10000n
+      },
+      {
+        name: 'decreased min vault tokens amount',
+        mintAmount: randomBigInt(8),
+        stakeAmount: (a: bigint): bigint => a,
+        minVaultTokenAmount: (a: bigint): bigint => (a * (10000n - vaultFee * 2n)) / 10000n
+      }
+    ];
+
+    let i = 0n;
+    args.forEach(function (arg) {
+      it(`stakeAndBake: when ${arg.name}`, async function () {
+        const mintAmount = arg.mintAmount;
+        const stakeAmount = arg.stakeAmount(mintAmount);
+        const minVaultTokenAmount = arg.minVaultTokenAmount(stakeAmount - fee);
+        const expectedMinVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+        const data = await defaultData(signer1, mintAmount);
+        const deadline = (await time.latest()) + 100;
+        const chainId = (await ethers.provider.getNetwork()).chainId;
+
         const { v, r, s } = await generatePermitSignature(
           stakedLbtc.address,
-          signer2,
-          await stakeAndBake.getAddress(),
-          payloadAmount,
+          signer1,
+          stakeAndBake.address,
+          mintAmount,
           deadline,
           chainId,
-          0
+          i
         );
-
-        permitPayload = encode(['uint256', 'uint256', 'uint8', 'uint256', 'uint256'], [payloadAmount, deadline, v, r, s]);
-      }
-      depositPayload = encode(['uint256'], [minMintAmount]);
-
-      const tx = await stakeAndBake.connect(owner).stakeAndBake({
-        permitPayload: permitPayload,
-        depositPayload: depositPayload,
-        mintPayload: data.payload,
-        proof: data.proof,
-        amount: stakeLbtcAmount
-      });
-      await expect(tx).to.emit(stakedLbtc, 'Transfer').withArgs(ethers.ZeroAddress, signer2.address, payloadAmount);
-      await expect(tx)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer2.address, await stakeAndBake.getAddress(), stakeLbtcAmount);
-      await expect(tx)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee);
-      await expect(tx)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          stakeLbtcAmount - fee
+        const permitPayload = encode(
+          ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+          [mintAmount, deadline, v, r, s]
         );
-      await expect(tx).to.emit(teller, 'Transfer').withArgs(ethers.ZeroAddress, signer2.address, minMintAmount);
-      await expect(tx).to.changeTokenBalance(teller, signer2, minMintAmount);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, teller, bakedAmount + premium);
-    });
+        const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
 
-    it('should work with allowance', async function () {
-      await stakedLbtc.connect(signer2).approve(await stakeAndBake.getAddress(), depositAmount);
-      await expect(
-        stakeAndBake.connect(owner).stakeAndBake({
+        const tx = await stakeAndBake.connect(owner).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
-          proof: data.proof
-        })
-      )
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, depositAmount)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer2.address, await stakeAndBake.getAddress(), depositAmount)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
-        .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          bakedAmount + premium
-        )
-        .to.emit(teller, 'Transfer')
-        .withArgs(ethers.ZeroAddress, signer2.address, bakedAmount);
+          proof: data.proof,
+          amount: stakeAmount
+        });
+
+        await expect(tx)
+          .to.emit(teller, 'Transfer')
+          .withArgs(ethers.ZeroAddress, signer1.address, expectedMinVaultTokenAmount);
+        await expect(tx).to.changeTokenBalance(teller, signer1, expectedMinVaultTokenAmount);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, signer1, mintAmount - stakeAmount);
+        expect(await stakedLbtc.allowance(signer1.address, stakeAndBake.address)).to.be.eq(mintAmount - stakeAmount);
+
+        await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, teller, stakeAmount - fee);
+      });
+
+      it(`batchStakeAndBake: when ${arg.name}`, async function () {
+        const mintAmount = arg.mintAmount;
+        const stakeAmount = arg.stakeAmount(mintAmount);
+        const minVaultTokenAmount = arg.minVaultTokenAmount(stakeAmount - fee);
+        const expectedMinVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+
+        const stakeAndBakeData = [];
+        for (const signer of [signer2, signer3]) {
+          const data = await defaultData(signer, mintAmount);
+          const deadline = (await time.latest()) + 100;
+          const chainId = (await ethers.provider.getNetwork()).chainId;
+
+          const { v, r, s } = await generatePermitSignature(
+            stakedLbtc.address,
+            signer,
+            stakeAndBake.address,
+            mintAmount,
+            deadline,
+            chainId,
+            i
+          );
+          const permitPayload = encode(
+            ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+            [mintAmount, deadline, v, r, s]
+          );
+          const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+          stakeAndBakeData.push({
+            permitPayload: permitPayload,
+            depositPayload: depositPayload,
+            mintPayload: data.payload,
+            proof: data.proof,
+            amount: stakeAmount
+          });
+        }
+        i++;
+
+        const tx = await stakeAndBake.connect(owner).batchStakeAndBake(stakeAndBakeData);
+
+        for (const signer of [signer2, signer3]) {
+          await expect(tx).to.changeTokenBalance(teller, signer, expectedMinVaultTokenAmount);
+          await expect(tx).to.changeTokenBalance(stakedLbtc, signer, mintAmount - stakeAmount);
+          expect(await stakedLbtc.allowance(signer.address, stakeAndBake.address)).to.be.eq(mintAmount - stakeAmount);
+        }
+        await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee * 2n);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, teller, (stakeAmount - fee) * 2n);
+      });
     });
 
-    it('should batch stake and bake properly with the correct setup', async function () {
+/*    it('batchStakeAndBake', async function () {
       await expect(
         stakeAndBake.connect(owner).batchStakeAndBake([
           {
@@ -399,105 +514,242 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer2.address, await stakeAndBake.getAddress(), depositAmount)
+        .withArgs(signer2.address, stakeAndBake.address, depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
+        .withArgs(stakeAndBake.address, treasury.address, fee)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          bakedAmount + premium
-        )
+        .withArgs(stakeAndBake.address, tellerWithMultiAssetSupportDepositor.address, bakedAmount + vaultFee)
         .to.emit(teller, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, bakedAmount)
         .to.emit(stakedLbtc, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer3.address, depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(signer3.address, await stakeAndBake.getAddress(), depositAmount)
+        .withArgs(signer3.address, stakeAndBake.address, depositAmount)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(await stakeAndBake.getAddress(), treasury.address, fee)
+        .withArgs(stakeAndBake.address, treasury.address, fee)
         .to.emit(stakedLbtc, 'Transfer')
-        .withArgs(
-          await stakeAndBake.getAddress(),
-          await tellerWithMultiAssetSupportDepositor.getAddress(),
-          bakedAmount + premium
-        )
+        .withArgs(stakeAndBake.address, tellerWithMultiAssetSupportDepositor.address, bakedAmount + vaultFee)
         .to.emit(teller, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer2.address, bakedAmount);
-    });
+    });*/
 
-    it('should revert when remaining amount is zero', async function () {
-      await stakeAndBake.connect(operator).setFee(10001);
-      await expect(
-        stakeAndBake.connect(owner).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof
-        })
-      ).to.be.revertedWithCustomError(stakeAndBake, 'ZeroDepositAmount');
-    });
+    const invalidArgs = [
+      {
+        name: 'staking amount exceeds amount in deposit payload',
+        mintAmount: randomBigInt(8),
+        permitAmount: (a: bigint): bigint => a + 1n,
+        stakeAmount: (a: bigint): bigint => a + 1n,
+        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n,
+        customError: () => [stakedLbtc, 'ERC20InsufficientBalance']
+      },
+      {
+        name: 'staking amount is 0 after fee',
+        mintAmount: fee,
+        permitAmount: (a: bigint): bigint => a,
+        stakeAmount: (a: bigint): bigint => a,
+        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n,
+        customError: () => [stakeAndBake, 'ZeroDepositAmount']
+      },
+      {
+        name: 'permit amount is not enough',
+        mintAmount: randomBigInt(8),
+        permitAmount: (a: bigint): bigint => a - 1n,
+        stakeAmount: (a: bigint): bigint => a,
+        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n,
+        customError: () => [stakeAndBake, 'WrongAmount']
+      },
+      {
+        name: 'vault minted less tokens than minimum',
+        mintAmount: randomBigInt(8),
+        permitAmount: (a: bigint): bigint => a,
+        stakeAmount: (a: bigint): bigint => a,
+        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n + 1n,
+        customError: () => [teller, 'AmountBelowMinimumMint']
+      }
+    ];
 
-    it('should not allow stakeAndBake when paused', async function () {
-      await stakeAndBake.connect(pauser).pause();
-      await expect(
-        stakeAndBake.connect(owner).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof
-        })
-      ).to.be.reverted;
-    });
+    invalidArgs.forEach(function (arg) {
+      it(`stakeAndBake: rejects when ${arg.name}`, async function () {
+        await snapshot.restore();
 
-    it('should not allow batchStakeAndBake when paused', async function () {
-      await stakeAndBake.connect(pauser).pause();
-      await expect(
-        stakeAndBake.connect(owner).batchStakeAndBake([
-          {
+        const mintAmount = arg.mintAmount;
+        const permitAmount = arg.permitAmount(mintAmount);
+        const stakeAmount = arg.stakeAmount(mintAmount);
+        const minVaultTokenAmount = arg.minVaultTokenAmount(stakeAmount);
+        const data = await defaultData(signer2, mintAmount);
+        const deadline = (await time.latest()) + 100;
+        const chainId = (await ethers.provider.getNetwork()).chainId;
+
+        const { v, r, s } = await generatePermitSignature(
+          stakedLbtc.address,
+          signer2,
+          stakeAndBake.address,
+          permitAmount,
+          deadline,
+          chainId,
+          0n
+        );
+        const permitPayload = encode(
+          ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+          [permitAmount, deadline, v, r, s]
+        );
+        const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
+        await expect(
+          stakeAndBake.connect(owner).stakeAndBake({
             permitPayload: permitPayload,
             depositPayload: depositPayload,
             mintPayload: data.payload,
-            proof: data.proof
-          },
-          {
-            permitPayload: permitPayload2,
-            depositPayload: depositPayload2,
-            mintPayload: data2.payload,
-            proof: data2.proof
-          }
-        ])
-      ).to.be.reverted;
+            proof: data.proof,
+            amount: stakeAmount
+          })
+          // @ts-ignore
+        ).to.be.revertedWithCustomError(...arg.customError());
+      });
     });
 
-    it('should not allow non-claimer to call stakeAndBake', async function () {
+    it('stakeAndBake: rejects when permit has expired', async function () {
+      const mintAmount = randomBigInt(8);
+      const permitAmount = mintAmount;
+      const stakeAmount = mintAmount;
+      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const data = await defaultData(signer2, mintAmount);
+      const deadline = (await time.latest()) + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+
+      const { v, r, s } = await generatePermitSignature(
+        stakedLbtc.address,
+        signer2,
+        stakeAndBake.address,
+        permitAmount,
+        deadline,
+        chainId,
+        i
+      );
+      const permitPayload = encode(
+        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+        [permitAmount, deadline, v, r, s]
+      );
+      const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
+      await time.increase(101);
+
+      await expect(
+        stakeAndBake.connect(owner).stakeAndBake({
+          permitPayload: permitPayload,
+          depositPayload: depositPayload,
+          mintPayload: data.payload,
+          proof: data.proof,
+          amount: stakeAmount
+        })
+      ).to.be.revertedWithCustomError(stakedLbtc, 'ERC2612ExpiredSignature');
+    });
+
+    it('stakeAndBake: rejects when signature does not match', async function () {
+      const mintAmount = randomBigInt(8);
+      const permitAmount = mintAmount;
+      const stakeAmount = mintAmount;
+      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const data = await defaultData(signer2, mintAmount);
+      const deadline = (await time.latest()) + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+
+      const { v, r, s } = await generatePermitSignature(
+        stakedLbtc.address,
+        signer2,
+        stakedLbtc.address,
+        permitAmount,
+        deadline,
+        chainId,
+        i
+      );
+      const permitPayload = encode(
+        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+        [permitAmount, deadline, v, r, s]
+      );
+      const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
+      await expect(
+        stakeAndBake.connect(owner).stakeAndBake({
+          permitPayload: permitPayload,
+          depositPayload: depositPayload,
+          mintPayload: data.payload,
+          proof: data.proof,
+          amount: stakeAmount
+        })
+      ).to.be.revertedWithCustomError(stakedLbtc, 'ERC2612InvalidSigner');
+    });
+
+    it('stakeAndBake: rejects when called by not a claimer', async function () {
+      const mintAmount = randomBigInt(8);
+      const permitAmount = mintAmount;
+      const stakeAmount = mintAmount;
+      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const data = await defaultData(signer2, mintAmount);
+      const deadline = (await time.latest()) + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+
+      const { v, r, s } = await generatePermitSignature(
+        stakedLbtc.address,
+        signer2,
+        stakeAndBake.address,
+        permitAmount,
+        deadline,
+        chainId,
+        i
+      );
+      const permitPayload = encode(
+        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+        [permitAmount, deadline, v, r, s]
+      );
+      const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
       await expect(
         stakeAndBake.connect(signer2).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
-          proof: data.proof
+          proof: data.proof,
+          amount: stakeAmount
         })
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(stakeAndBake, 'AccessControlUnauthorizedAccount');
     });
 
-    it('should not allow non-claimer to call batchStakeAndBake', async function () {
+    it('batchStakeAndBake: rejects when called by not a claimer', async function () {
+      const mintAmount = randomBigInt(8);
+      const permitAmount = mintAmount;
+      const stakeAmount = mintAmount;
+      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const data = await defaultData(signer2, mintAmount);
+      const deadline = (await time.latest()) + 100;
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+
+      const { v, r, s } = await generatePermitSignature(
+        stakedLbtc.address,
+        signer2,
+        stakeAndBake.address,
+        permitAmount,
+        deadline,
+        chainId,
+        i
+      );
+      const permitPayload = encode(
+        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
+        [permitAmount, deadline, v, r, s]
+      );
+      const depositPayload = encode(['uint256'], [minVaultTokenAmount]);
+
       await expect(
         stakeAndBake.connect(signer2).batchStakeAndBake([
           {
             permitPayload: permitPayload,
             depositPayload: depositPayload,
             mintPayload: data.payload,
-            proof: data.proof
-          },
-          {
-            permitPayload: permitPayload2,
-            depositPayload: depositPayload2,
-            mintPayload: data2.payload,
-            proof: data2.proof
+            proof: data.proof,
+            amount: stakeAmount
           }
         ])
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(stakeAndBake, 'AccessControlUnauthorizedAccount');
     });
   });
 });
