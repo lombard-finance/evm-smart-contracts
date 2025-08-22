@@ -138,7 +138,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     await stakedLbtc.connect(owner).reinitialize();
 
     snapshot = await takeSnapshot();
-    snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
+    snapshotTimestamp = await time.latest();
   });
 
   async function defaultData(
