@@ -6,9 +6,9 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {IDepositor} from "./depositor/IDepositor.sol";
-import {IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {Actions} from "../libs/Actions.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title Convenience contract for users who wish to
@@ -21,8 +21,6 @@ contract StakeAndBake is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
-    using SafeERC20 for IERC20;
-
     /// @dev error thrown when the remaining amount after taking a fee is zero
     error ZeroDepositAmount();
     /// @dev error thrown when operator is changed to zero address
@@ -31,10 +29,14 @@ contract StakeAndBake is
     error FeeGreaterThanMaximum(uint256 fee);
     /// @dev error thrown when no depositor is set
     error NoDepositorSet();
+    /// @dev error thrown when collecting funds from user fails
+    error CollectingFundsFailed();
+    /// @dev error thrown when sending the fee fails
+    error SendingFeeFailed();
+    /// @dev error thrown when approving to the depositor fails
+    error ApprovalFailed();
     /// @dev error thrown when stakeAndBakeInternal is called by anyone other than self
     error CallerNotSelf(address caller);
-    /// @dev error thrown when amount to be staked is more than permit amount
-    error WrongAmount();
 
     event DepositorSet(address indexed depositor);
     event BatchStakeAndBakeReverted(
@@ -54,8 +56,6 @@ contract StakeAndBake is
         bytes mintPayload;
         /// @notice Signature of the consortium approving the mint
         bytes proof;
-        /// @notice Amount to be staked, should be the same or less than amount minted
-        uint256 amount;
     }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
@@ -236,21 +236,25 @@ contract StakeAndBake is
     }
 
     function _deposit(
-        uint256 stakeAmount,
+        uint256 permitAmount,
+        uint256 feeAmount,
         address owner,
         bytes calldata depositPayload
     ) internal returns (bytes memory) {
         StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        uint256 remainingAmount = permitAmount - feeAmount;
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        IERC20(address($.lbtc)).safeIncreaseAllowance(
-            address($.depositor),
-            stakeAmount
-        );
+        if (
+            !IERC20(address($.lbtc)).approve(
+                address($.depositor),
+                remainingAmount
+            )
+        ) revert ApprovalFailed();
 
         // Finally, deposit LBTC to the given vault.
-        return $.depositor.deposit(owner, stakeAmount, depositPayload);
+        return $.depositor.deposit(owner, remainingAmount, depositPayload);
     }
 
     function _stakeAndBake(
@@ -276,11 +280,8 @@ contract StakeAndBake is
         // Otherwise, we permit the depositor to transfer the minted value.
         if (
             IERC20(address($.lbtc)).allowance(owner, address(this)) <
-            data.amount
-        ) {
-            if (data.amount > permitAmount) {
-                revert WrongAmount();
-            }
+            permitAmount
+        )
             IERC20Permit(address($.lbtc)).permit(
                 owner,
                 address(this),
@@ -290,26 +291,29 @@ contract StakeAndBake is
                 r,
                 s
             );
-        }
 
-        IERC20(address($.lbtc)).safeTransferFrom(
-            owner,
-            address(this),
-            data.amount
-        );
+        if (
+            !IERC20(address($.lbtc)).transferFrom(
+                owner,
+                address(this),
+                permitAmount
+            )
+        ) revert CollectingFundsFailed();
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
         if (feeAmount > 0) {
-            IERC20(address($.lbtc)).safeTransfer(
-                $.lbtc.getTreasury(),
-                feeAmount
-            );
+            if (
+                !IERC20(address($.lbtc)).transfer(
+                    $.lbtc.getTreasury(),
+                    feeAmount
+                )
+            ) revert SendingFeeFailed();
         }
 
-        if (data.amount > feeAmount) {
+        if (permitAmount > feeAmount) {
             return
-                _deposit(data.amount - feeAmount, owner, data.depositPayload);
+                _deposit(permitAmount, feeAmount, owner, data.depositPayload);
         } else {
             revert ZeroDepositAmount();
         }
