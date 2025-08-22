@@ -277,19 +277,20 @@ contract StakeAndBake is
         if (
             IERC20(address($.lbtc)).allowance(owner, address(this)) <
             data.amount
-        )
+        ) {
             if (data.amount > permitAmount) {
                 revert WrongAmount();
             }
-        IERC20Permit(address($.lbtc)).permit(
-            owner,
-            address(this),
-            permitAmount,
-            deadline,
-            v,
-            r,
-            s
-        );
+            IERC20Permit(address($.lbtc)).permit(
+                owner,
+                address(this),
+                permitAmount,
+                deadline,
+                v,
+                r,
+                s
+            );
+        }
 
         IERC20(address($.lbtc)).safeTransferFrom(
             owner,
