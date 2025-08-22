@@ -31,12 +31,6 @@ contract StakeAndBake is
     error FeeGreaterThanMaximum(uint256 fee);
     /// @dev error thrown when no depositor is set
     error NoDepositorSet();
-    /// @dev error thrown when collecting funds from user fails
-    error CollectingFundsFailed();
-    /// @dev error thrown when sending the fee fails
-    error SendingFeeFailed();
-    /// @dev error thrown when approving to the depositor fails
-    error ApprovalFailed();
     /// @dev error thrown when stakeAndBakeInternal is called by anyone other than self
     error CallerNotSelf(address caller);
     /// @dev error thrown when amount to be staked is more than permit amount
@@ -283,19 +277,20 @@ contract StakeAndBake is
         if (
             IERC20(address($.lbtc)).allowance(owner, address(this)) <
             data.amount
-        )
+        ) {
             if (data.amount > permitAmount) {
                 revert WrongAmount();
             }
-        IERC20Permit(address($.lbtc)).permit(
-            owner,
-            address(this),
-            permitAmount,
-            deadline,
-            v,
-            r,
-            s
-        );
+            IERC20Permit(address($.lbtc)).permit(
+                owner,
+                address(this),
+                permitAmount,
+                deadline,
+                v,
+                r,
+                s
+            );
+        }
 
         IERC20(address($.lbtc)).safeTransferFrom(
             owner,
