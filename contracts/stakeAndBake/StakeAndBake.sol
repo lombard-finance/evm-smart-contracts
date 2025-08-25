@@ -162,6 +162,7 @@ contract StakeAndBake is
         StakeAndBakeData[] calldata data
     )
         external
+        nonReentrant
         onlyRole(CLAIMER_ROLE)
         depositorSet
         whenNotPaused
@@ -300,19 +301,16 @@ contract StakeAndBake is
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
+        if (data.amount <= feeAmount) {
+            revert ZeroDepositAmount();
+        }
         if (feeAmount > 0) {
             IERC20(address($.lbtc)).safeTransfer(
                 $.lbtc.getTreasury(),
                 feeAmount
             );
         }
-
-        if (data.amount > feeAmount) {
-            return
-                _deposit(data.amount - feeAmount, owner, data.depositPayload);
-        } else {
-            revert ZeroDepositAmount();
-        }
+        return _deposit(data.amount - feeAmount, owner, data.depositPayload);
     }
 
     function _getStakeAndBakeStorage()
