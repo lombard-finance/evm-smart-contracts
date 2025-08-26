@@ -26,6 +26,8 @@ import {
 import {
   AssetRouter,
   Consortium,
+  ERC4626Depositor,
+  ERC4626Mock,
   Mailbox,
   RatioFeedMock,
   StakeAndBake,
@@ -48,8 +50,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     pauser: Signer,
     treasury: Signer;
   let stakeAndBake: StakeAndBake & Addressable;
-  let tellerWithMultiAssetSupportDepositor: TellerWithMultiAssetSupportDepositor & Addressable;
-  let teller: TellerWithMultiAssetSupportMock & Addressable;
+  let erc4626Depositor: ERC4626Depositor & Addressable;
+  let vault: ERC4626Mock & Addressable;
   let consortium: Consortium & Addressable;
   let mailbox: Mailbox & Addressable;
   let ratioFeed: RatioFeedMock & Addressable;
@@ -62,7 +64,6 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
   const toNativeCommission = 1000n;
   const fee = 1n;
-  const vaultFee = 100n; // vault fee 1%
 
   before(async function () {
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
@@ -120,22 +121,18 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).addMinter(assetRouter.address);
 
-    teller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
-      'TellerWithMultiAssetSupportMock',
-      [await stakedLbtc.getAddress()],
-      false
-    );
-    teller.address = await teller.getAddress();
+    vault = await deployContract<ERC4626Mock & Addressable>('ERC4626Mock', [stakedLbtc.address], false);
+    vault.address = await vault.getAddress();
 
-    tellerWithMultiAssetSupportDepositor = await deployContract<TellerWithMultiAssetSupportDepositor & Addressable>(
-      'TellerWithMultiAssetSupportDepositor',
-      [teller.address, await stakedLbtc.getAddress(), stakeAndBake.address],
+    erc4626Depositor = await deployContract<ERC4626Depositor & Addressable>(
+      'ERC4626Depositor',
+      [await vault.getAddress(), stakedLbtc.address, await stakeAndBake.getAddress()],
       false
     );
-    tellerWithMultiAssetSupportDepositor.address = await tellerWithMultiAssetSupportDepositor.getAddress();
-    await expect(stakeAndBake.connect(owner).setDepositor(tellerWithMultiAssetSupportDepositor.address))
+    erc4626Depositor.address = await erc4626Depositor.getAddress();
+    await expect(stakeAndBake.connect(owner).setDepositor(erc4626Depositor.address))
       .to.emit(stakeAndBake, 'DepositorSet')
-      .withArgs(tellerWithMultiAssetSupportDepositor.address);
+      .withArgs(erc4626Depositor.address);
 
     // Initialize the permit module
     await stakedLbtc.connect(owner).reinitialize();
@@ -198,9 +195,10 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     });
 
     it('setDepositor: reverts when called by not an admin', async function () {
-      await expect(
-        stakeAndBake.connect(signer1).setDepositor(tellerWithMultiAssetSupportDepositor.address)
-      ).to.be.revertedWithCustomError(stakeAndBake, 'AccessControlUnauthorizedAccount');
+      await expect(stakeAndBake.connect(signer1).setDepositor(erc4626Depositor.address)).to.be.revertedWithCustomError(
+        stakeAndBake,
+        'AccessControlUnauthorizedAccount'
+      );
     });
 
     it('setFee: operator can change fee', async function () {
@@ -244,7 +242,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   describe('Pause', function () {
     before(async function () {
       await snapshot.restore();
-      await stakeAndBake.connect(owner).setDepositor(tellerWithMultiAssetSupportDepositor.address);
+      await stakeAndBake.connect(owner).setDepositor(erc4626Depositor.address);
     });
 
     it('pause: reverts when called by not a pauser', async function () {
@@ -260,7 +258,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -295,7 +293,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -348,19 +346,19 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         name: 'staking amount = minting amount',
         mintAmount: randomBigInt(8),
         stakeAmount: (a: bigint): bigint => a,
-        minVaultTokenAmount: (a: bigint): bigint => (a * (10000n - vaultFee)) / 10000n
+        minVaultTokenAmount: (a: bigint): bigint => a
       },
       {
         name: 'staking amount < minting amount',
         mintAmount: randomBigInt(8),
         stakeAmount: (a: bigint): bigint => a - 1n,
-        minVaultTokenAmount: (a: bigint): bigint => (a * (10000n - vaultFee)) / 10000n
+        minVaultTokenAmount: (a: bigint): bigint => a
       },
       {
         name: 'decreased min vault tokens amount',
         mintAmount: randomBigInt(8),
         stakeAmount: (a: bigint): bigint => a,
-        minVaultTokenAmount: (a: bigint): bigint => (a * (10000n - vaultFee * 2n)) / 10000n
+        minVaultTokenAmount: (a: bigint): bigint => a - 1n
       }
     ];
 
@@ -369,7 +367,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         const mintAmount = arg.mintAmount;
         const stakeAmount = arg.stakeAmount(mintAmount);
         const minVaultTokenAmount = arg.minVaultTokenAmount(stakeAmount - fee);
-        const expectedMinVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+        const expectedMinVaultTokenAmount = stakeAmount - fee;
         const data = await defaultData(signer1, mintAmount);
         const deadline = (await time.latest()) + 100;
         const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -398,21 +396,21 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         });
 
         await expect(tx)
-          .to.emit(teller, 'Transfer')
+          .to.emit(vault, 'Transfer')
           .withArgs(ethers.ZeroAddress, signer1.address, expectedMinVaultTokenAmount);
-        await expect(tx).to.changeTokenBalance(teller, signer1, expectedMinVaultTokenAmount);
+        await expect(tx).to.changeTokenBalance(vault, signer1, expectedMinVaultTokenAmount);
         await expect(tx).to.changeTokenBalance(stakedLbtc, signer1, mintAmount - stakeAmount);
         expect(await stakedLbtc.allowance(signer1.address, stakeAndBake.address)).to.be.eq(mintAmount - stakeAmount);
 
         await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee);
-        await expect(tx).to.changeTokenBalance(stakedLbtc, teller, stakeAmount - fee);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, vault, stakeAmount - fee);
       });
 
       it(`batchStakeAndBake: when ${arg.name}`, async function () {
         const mintAmount = arg.mintAmount;
         const stakeAmount = arg.stakeAmount(mintAmount);
         const minVaultTokenAmount = arg.minVaultTokenAmount(stakeAmount - fee);
-        const expectedMinVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+        const expectedMinVaultTokenAmount = stakeAmount - fee;
 
         const stakeAndBakeData = [];
         for (const signer of [signer2, signer3]) {
@@ -446,12 +444,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         const tx = await stakeAndBake.connect(owner).batchStakeAndBake(stakeAndBakeData);
 
         for (const signer of [signer2, signer3]) {
-          await expect(tx).to.changeTokenBalance(teller, signer, expectedMinVaultTokenAmount);
+          await expect(tx).to.changeTokenBalance(vault, signer, expectedMinVaultTokenAmount);
           await expect(tx).to.changeTokenBalance(stakedLbtc, signer, mintAmount - stakeAmount);
           expect(await stakedLbtc.allowance(signer.address, stakeAndBake.address)).to.be.eq(mintAmount - stakeAmount);
         }
         await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee * 2n);
-        await expect(tx).to.changeTokenBalance(stakedLbtc, teller, (stakeAmount - fee) * 2n);
+        await expect(tx).to.changeTokenBalance(stakedLbtc, vault, (stakeAmount - fee) * 2n);
       });
     });
 
@@ -461,7 +459,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         mintAmount: randomBigInt(8),
         permitAmount: (a: bigint): bigint => a + 1n,
         stakeAmount: (a: bigint): bigint => a + 1n,
-        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n,
+        minVaultTokenAmount: (a: bigint): bigint => a - fee,
         customError: () => [stakedLbtc, 'ERC20InsufficientBalance']
       },
       {
@@ -469,7 +467,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         mintAmount: fee,
         permitAmount: (a: bigint): bigint => a,
         stakeAmount: (a: bigint): bigint => a,
-        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n,
+        minVaultTokenAmount: (a: bigint): bigint => a - fee,
         customError: () => [stakeAndBake, 'ZeroDepositAmount']
       },
       {
@@ -477,16 +475,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         mintAmount: randomBigInt(8),
         permitAmount: (a: bigint): bigint => a - 1n,
         stakeAmount: (a: bigint): bigint => a,
-        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n,
+        minVaultTokenAmount: (a: bigint): bigint => a - fee,
         customError: () => [stakeAndBake, 'WrongAmount']
-      },
-      {
-        name: 'vault minted less tokens than minimum',
-        mintAmount: randomBigInt(8),
-        permitAmount: (a: bigint): bigint => a,
-        stakeAmount: (a: bigint): bigint => a,
-        minVaultTokenAmount: (a: bigint): bigint => ((a - fee) * (10000n - vaultFee)) / 10000n + 1n,
-        customError: () => [teller, 'AmountBelowMinimumMint']
       }
     ];
 
@@ -538,8 +528,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount / 2n;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
-      const expectedMinVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
+      const expectedMinVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer1, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -568,15 +558,15 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       });
 
       await expect(tx)
-        .to.emit(teller, 'Transfer')
+        .to.emit(vault, 'Transfer')
         .withArgs(ethers.ZeroAddress, signer1.address, expectedMinVaultTokenAmount);
-      await expect(tx).to.changeTokenBalance(teller, signer1, expectedMinVaultTokenAmount);
+      await expect(tx).to.changeTokenBalance(vault, signer1, expectedMinVaultTokenAmount);
       await expect(tx).to.changeTokenBalance(stakedLbtc, signer1, mintAmount - stakeAmount);
       expect(await stakedLbtc.allowance(signer1.address, stakeAndBake.address)).to.be.eq(extraAllowance - stakeAmount);
       expect(await stakedLbtc.nonces(signer1)).to.be.eq(0n);
 
       await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, teller, stakeAmount - fee);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, vault, stakeAmount - fee);
     });
 
     it('stakeAndBake: rejects when permit has expired', async function () {
@@ -584,7 +574,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -622,8 +612,8 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
-      const expectedMinVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
+      const expectedMinVaultTokenAmount = stakeAmount - fee;
 
       const stakeAndBakeData = [];
       for (const signer of [signer2, signer3]) {
@@ -658,11 +648,11 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
       await expect(tx).to.emit(stakeAndBake, 'BatchStakeAndBakeReverted').withArgs(0, anyValue, anyValue);
 
-      await expect(tx).to.changeTokenBalance(teller, signer3, expectedMinVaultTokenAmount);
+      await expect(tx).to.changeTokenBalance(vault, signer3, expectedMinVaultTokenAmount);
       await expect(tx).to.changeTokenBalance(stakedLbtc, signer3, mintAmount - stakeAmount);
       expect(await stakedLbtc.allowance(signer3.address, stakeAndBake.address)).to.be.eq(mintAmount - stakeAmount);
       await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, fee);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, teller, stakeAmount - fee);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, vault, stakeAmount - fee);
     });
 
     it('stakeAndBake: rejects when signature does not match', async function () {
@@ -670,7 +660,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -706,7 +696,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -769,7 +759,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -817,7 +807,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;
@@ -855,7 +845,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
-      const minVaultTokenAmount = ((stakeAmount - fee) * (10000n - vaultFee)) / 10000n;
+      const minVaultTokenAmount = stakeAmount - fee;
       const data = await defaultData(signer2, mintAmount);
       const deadline = (await time.latest()) + 100;
       const chainId = (await ethers.provider.getNetwork()).chainId;

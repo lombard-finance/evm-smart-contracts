@@ -70,10 +70,6 @@ The function uses a struct to take the arguments in, to avoid `stack too deep` e
 
 ```solidity
 struct StakeAndBakeData {
-    /// @notice vault Address of the vault we will deposit the minted LBTC to
-    address vault;
-    /// @notice owner Address of the user staking and baking
-    address owner;
     /// @notice permitPayload Contents of permit approval signed by the user
     bytes permitPayload;
     /// @notice depositPayload Contains the parameters needed to complete a deposit
@@ -82,10 +78,12 @@ struct StakeAndBakeData {
     bytes mintPayload;
     /// @notice proof Signature of the consortium approving the mint
     bytes proof;
+    /// @notice Amount to be staked, should be the same or less than amount minted
+    uint256 amount;
 }
 ```
 
-The lower 2 fields are identical to the parameters for the `mint` functionality on `LBTC`. The first address should point at the vault the user wishes to deposit in, and the second address should be the user address.
+The 'mintPayload' and 'proof' fields are identical to the parameters for the `mint` functionality on `LBTC`. The first address should point at the vault the user wishes to deposit in, and the second address should be the user address. The 'amount' field tell how many LBTC should be staked with the vault after minting is done.
 
 The layout for `permitLayout` is as follows:
 
@@ -117,17 +115,13 @@ const depositPayload = encode(
 );
 const mintPayload = '0x...'
 const proof = '0x...'
-const feePayload = '0x...'
-const userSignature = '0x...'
+const amount = ...0n
 await stakeAndBake.stakeAndBake({
-    vault: await teller.getAddress(),
-    owner: owner.address,
     permitPayload: permitPayload,
     depositPayload: depositPayload,
     mintPayload: data.payload,
     proof: data.proof,
-    feePayload: approval,
-    userSignature: userSignature,
+    amount: someAmount,
 })
 ```
 
@@ -142,20 +136,18 @@ await stakeAndBake.stakeAndBake({
 ```javascript
 await stakeAndBake.batchStakeAndBake([
     {
-        vault: await teller.getAddress(),
-        owner: owner1.address,
         permitPayload: permitPayload1,
         depositPayload: depositPayload1,
         mintPayload: data.payload1,
         proof: data.proof1,
+        amount: amount1,
     },
     {
-        vault: await teller.getAddress(),
-        owner: owner2.address,
         permitPayload: permitPayload2,
         depositPayload: depositPayload2,
         mintPayload: data.payload2,
         proof: data.proof2,
+        amount: amount2,
     }
 ])
 ```
