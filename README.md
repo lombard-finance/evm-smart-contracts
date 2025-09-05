@@ -1,5 +1,7 @@
 <div>
-    <img alt="Lombard" src="https://img.shields.io/badge/v2-version?label=Lombard&labelColor=62C9B9&color=white"/>
+    <a href="https://www.lombard.finance/">
+  <img src="https://img.shields.io/badge/v2-version?label=Lombard&labelColor=62C9B9&color=white" alt="Lombard v2">
+</a>
     <img alt="Solidity" src="https://img.shields.io/badge/0.8.24-solidity-purple">
     <img alt="Node.js" src="https://img.shields.io/badge/>=18-node.js-green">
     <img alt="TypeScript" src="https://img.shields.io/badge/>=4.5.0-typescript-blue">
