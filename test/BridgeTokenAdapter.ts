@@ -168,7 +168,6 @@ describe('BridgeTokenAdapter', function () {
 
   it('Verify storage slot and consortium inside', async () => {
     const slot = calculateStorageSlot('lombardfinance.storage.BridgeTokenAdapter');
-    console.log('slot', slot.toString(16));
     const storage = await ethers.provider.getStorage(bridgeTokenAdapter, slot);
     expect(storage).to.be.eq(encode(['address'], [consortium.address]));
   });
@@ -865,8 +864,6 @@ describe('BridgeTokenAdapter', function () {
       it('burn on deposit', async () => {
         const amount = 1000;
         const recipient = encode(['address'], [signer1.address]);
-
-        console.log(await bridgeTokenAdapter.getAddress(), await bridge.getAddress());
 
         await bridgeToken.connect(signer1).approve(bridgeTokenAdapter, amount * 2);
 

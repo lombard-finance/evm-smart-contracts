@@ -398,8 +398,7 @@ describe('BridgeV2', function () {
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload);
 
       const tx = await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
-      const receipt = await tx.wait();
-      receipt?.logs.forEach(l => console.log(l));
+      // const receipt = await tx.wait();
 
       await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
 
@@ -892,6 +891,7 @@ describe('BridgeV2', function () {
           [
             'deposit(bytes32,address,bytes32,uint256,bytes32)'
           ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
+        globalNonce++;
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
         payload = (await payloadFromReceipt(receipt))?.payload;
@@ -1235,7 +1235,6 @@ describe('BridgeV2', function () {
           // @ts-ignore
           const errorEvent = receipt?.logs.find(l => l.eventName === 'MessageHandleError')?.args;
           expect(errorEvent.reason).to.be.eq('');
-          console.log(errorEvent.customError);
           expect(errorEvent.customError).to.be.eq(arg.customError(arg));
         });
       });
@@ -1398,7 +1397,6 @@ describe('BridgeV2', function () {
       const limitConfig = rateLimits.get(dLBTC.address + lChainId);
       const delta = BigInt(limitConfig.limit / limitConfig.window);
       const limitStatusBefore = await dbridge.getTokenRateLimit(dLBTC, lChainId);
-      console.log(limitStatusBefore);
       const amount = limitStatusBefore[1] + delta * 1000n;
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
