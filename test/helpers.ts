@@ -540,13 +540,15 @@ export class DefaultData {
   userSignature: string | undefined;
   depositId: string;
   cubistProof: string;
+  txid: string;
 
-  constructor(payload: string, payloadHash: string, proof: string) {
+  constructor(payload: string, payloadHash: string, proof: string, txid: string) {
     this.payload = payload;
     this.payloadHash = payloadHash;
     this.proof = proof;
     this.depositId = '';
     this.cubistProof = '';
+    this.txid = ethers.ZeroHash;
   }
 }
 

@@ -218,7 +218,7 @@ contract NativeLBTC is
             );
     }
 
-    function getRedeemFee() public view returns (uint256) {
+    function getRedeemFee() public view override returns (uint256) {
         (uint256 redeemFee, , ) = _getNativeLBTCStorage()
             .assetRouter
             .tokenConfig(address(this));
