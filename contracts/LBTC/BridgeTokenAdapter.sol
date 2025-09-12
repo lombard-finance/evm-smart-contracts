@@ -13,29 +13,23 @@ import {BaseLBTC} from "./BaseLBTC.sol";
 import {IBridgeToken} from "../interfaces/IBridgeToken.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/**
- * @title Adapter between BridgeToken (BTC.b) and AssetRouter
- * @author Lombard.Finance
- * @notice This contract is part of the Lombard.Finance protocol
- */
+/// @title BridgeToken adapter for AssetRouter
+/// @author Lombard.Finance
+/// @notice This contract is part of the Lombard.Finance protocol.
 contract BridgeTokenAdapter is
     INativeLBTC,
     AccessControlDefaultAdminRulesUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuardUpgradeable,
-    EIP712Upgradeable,
-    NoncesUpgradeable
+    ReentrancyGuardUpgradeable
 {
     event BridgeTokenChanged(
         address indexed prevValue,
         address indexed newValue
     );
 
-    /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
-    // TODO: calculate
+    /// @custom:storage-location erc7201:lombardfinance.storage.BridgeTokenAdapter
     struct BridgeTokenAdapterStorage {
         // slot: 20 + 8 + 1 | 29/32
         INotaryConsortium consortium;
@@ -49,12 +43,13 @@ contract BridgeTokenAdapter is
         IBridgeToken bridgeToken; // not upgradeable token whiling to adapt
     }
 
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.NativeLBTC")) - 1)) & ~bytes32(uint256(0xff))
-    // TODO: calc
+    /// @dev keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeTokenAdapter")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BRIDGE_TOKEN_ADAPTER_STORAGE_LOCATION =
-        0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
+        0x12da876cd9d34462e8cb4fac06f079885ba1e4376e1cdc9acc16182cfc348a00;
 
+    /// @notice The pauser role may pause the contract.
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    /// @notice The minter role is able to mint new tokens.
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -90,39 +85,50 @@ contract BridgeTokenAdapter is
 
     /// ONLY OWNER FUNCTIONS ///
 
+    /// @notice Change the trusted consortium
+    /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeConsortium(
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeConsortium(newVal);
     }
 
+    /// @notice Change the treasury address
+    /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeTreasuryAddress(
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasury(newValue);
     }
 
+    /// @notice Pause contract
+    /// @dev Each non owner method should be paused
+    /// @custom:access Caller must have PAUSER_ROLE
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
+    /// @notice Unpause contract
+    /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
-    /**
-     * Change the address of the Bascule drawbridge contract.
-     * Setting the address to 0 disables the Bascule check.
-     * @param newVal The new address.
-     *
-     * Emits a {BasculeChanged} event.
-     */
+    /// @notice Change the address of the Bascule drawbridge contract.
+    /// @dev Setting the address to 0 disables the Bascule check.
+    /// @param newVal The new address.
+    /// @custom:events Emits a [BasculeChanged] event.
+    /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeBascule(
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeBascule(newVal);
     }
 
+    /// @notice Change the address of [AssetRouter] contract.
+    /// @param newVal The new address.
+    /// @custom:events Emits a [AssetRouterChanged] event.
+    /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeAssetRouter(
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -168,25 +174,21 @@ contract BridgeTokenAdapter is
         return bytes32(0);
     }
 
-    /**
-     * Get Bascule contract.
-     */
+    /// @notice Get Bascule contract.
     function getBascule() external view returns (IBascule) {
         return _getBridgeTokenAdapterStorage().bascule;
     }
 
     /// USER ACTIONS ///
 
-    /**
-     * @notice Mint NativeLBTC to the specified address
-     * @param to The address to mint to
-     * @param amount The amount of NativeLBTC to mint
-     * @dev Only callable by whitelisted minters
-     */
+    /// @notice Mint NativeLBTC to the specified address
+    /// @param to The address to mint to
+    /// @param amount The amount of NativeLBTC to mint
+    /// @custom:access The caller must have MINTER_ROLE
     function mint(
         address to,
         uint256 amount
-    ) external override whenNotPaused onlyRole(MINTER_ROLE) {
+    ) external override whenNotPaused onlyRole(MINTER_ROLE) nonReentrant {
         // set vout as max(uint256) to make it impossible
         _getBridgeTokenAdapterStorage().bridgeToken.mint(
             to,
@@ -198,16 +200,14 @@ contract BridgeTokenAdapter is
         );
     }
 
-    /**
-     * @notice Mint NativeLBTC in batches
-     * @param to The addresses to mint to
-     * @param amount The amounts of NativeLBTC to mint
-     * @dev Only callable by whitelisted minters
-     */
+    /// @notice Mint NativeLBTC in batches
+    /// @param to The addresses to mint to
+    /// @param amount The amounts of NativeLBTC to mint
+    /// @custom:access The caller must have MINTER_ROLE
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external whenNotPaused onlyRole(MINTER_ROLE) {
+    ) external whenNotPaused onlyRole(MINTER_ROLE) nonReentrant {
         _batchMint(to, amount);
     }
 
@@ -231,23 +231,19 @@ contract BridgeTokenAdapter is
         }
     }
 
-    /**
-     * @notice Mint NativeLBTC by proving DepositV1 payload
-     * @param rawPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
-     */
+    /// @notice Mint NativeLBTC by proving DepositV1 payload
+    /// @param rawPayload The message with the stake data
+    /// @param proof Signature of the consortium approving the mint
     function mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
     ) public nonReentrant whenNotPaused {
-        _mint(rawPayload, proof);
+        _mintV1(rawPayload, proof);
     }
 
-    /**
-     * @notice Mint NativeLBTC in batches by DepositV1 payloads
-     * @param payload The messages with the stake data
-     * @param proof Signatures of the consortium approving the mints
-     */
+    /// @notice Mint NativeLBTC in batches by DepositV1 payloads
+    /// @param payload The messages with the stake data
+    /// @param proof Signatures of the consortium approving the mints
     function batchMintV1(
         bytes[] calldata payload,
         bytes[] calldata proof
@@ -266,7 +262,23 @@ contract BridgeTokenAdapter is
         }
     }
 
-    function burn(uint256 amount) external override whenNotPaused {
+    /// @dev Implements [transferFrom] to mimic ERC20 token behaviour. Expose to caller ability to spend [BridgeToken] allowed to the adapter.
+    /// @custom:access The caller mush have MINTER_ROLE.
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external whenNotPaused onlyRole(MINTER_ROLE) {
+        BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
+        SafeERC20.safeTransferFrom($.bridgeToken, from, address(this), amount);
+        SafeERC20.safeTransfer($.bridgeToken, to, amount);
+    }
+
+    /// @dev Implements [burn] to mimic IBaseLBTC token interface. Expose to caller ability to burn [BridgeToken] allowed to the adapter.
+    /// @custom:access The caller mush have MINTER_ROLE.
+    function burn(
+        uint256 amount
+    ) external override whenNotPaused onlyRole(MINTER_ROLE) {
         // address(this) should be approved to burn `from`
         _getBridgeTokenAdapterStorage().bridgeToken.burnFrom(
             _msgSender(),
@@ -274,11 +286,8 @@ contract BridgeTokenAdapter is
         );
     }
 
-    /**
-     * @dev Allows minters to burn NativeLBTC
-     *
-     * @param amount Amount of NativeLBTC to burn
-     */
+    /// @dev Implements [burn] to mimic IBaseLBTC token interface. Expose to caller ability to burn [BridgeToken] allowed to the adapter.
+    /// @custom:access The caller mush have MINTER_ROLE.
     function burn(
         address from,
         uint256 amount
@@ -289,10 +298,7 @@ contract BridgeTokenAdapter is
 
     /// PRIVATE FUNCTIONS ///
 
-    function _mint(bytes calldata rawPayload, bytes calldata proof) internal {
-        _mintV1(rawPayload, proof);
-    }
-
+    /// @notice Mint using payload
     function _mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
@@ -322,7 +328,7 @@ contract BridgeTokenAdapter is
             action.amount,
             address(0),
             0,
-            reverseTxid(action.txid),
+            _reverseTxid(action.txid),
             action.vout
         );
 
@@ -330,24 +336,23 @@ contract BridgeTokenAdapter is
         return (action.recipient, action.amount);
     }
 
-    function reverseTxid(bytes32 txid) internal pure returns (bytes32) {
-        bytes memory txidbytes = bytes.concat(txid);
+    /// @dev Initially payload has reversed to explorer txid. This method allows to reverse byte ordering for txid.
+    function _reverseTxid(bytes32 txid) internal pure returns (bytes32) {
+        bytes memory txidBytes = bytes.concat(txid);
         bytes memory reversed = new bytes(32);
         unchecked {
-            for (uint256 i; i < txidbytes.length; i++) {
-                reversed[i] = txidbytes[txidbytes.length - i - 1];
+            for (uint256 i; i < txidBytes.length; i++) {
+                reversed[i] = txidBytes[txidBytes.length - i - 1];
             }
         }
 
         return bytes32(reversed);
     }
 
-    /**
-     * @dev Checks that the deposit was validated by the Bascule drawbridge.
-     * @param $ NativeLBTC storage.
-     * @param depositID The unique ID of the deposit.
-     * @param amount The withdrawal amount.
-     */
+    /// @dev Checks that the deposit was validated by the Bascule drawbridge.
+    /// @param $ NativeLBTC storage.
+    /// @param depositID The unique ID of the deposit.
+    /// @param amount The withdrawal amount.
     function _confirmDeposit(
         BridgeTokenAdapterStorage storage $,
         bytes32 depositID,
@@ -359,7 +364,7 @@ contract BridgeTokenAdapter is
         }
     }
 
-    /// @dev not zero
+    /// @dev `consortium` not zero
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
@@ -407,10 +412,5 @@ contract BridgeTokenAdapter is
         assembly {
             $.slot := BRIDGE_TOKEN_ADAPTER_STORAGE_LOCATION
         }
-    }
-
-    function _getTreasury() internal view virtual returns (address) {
-        BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
-        return $.treasury;
     }
 }

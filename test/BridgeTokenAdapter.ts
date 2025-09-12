@@ -7,6 +7,7 @@ import {
   BITCOIN_CHAIN_ID,
   BITCOIN_NATIVE_COIN,
   BTC_STAKING_MODULE_ADDRESS,
+  calculateStorageSlot,
   CHAIN_ID,
   DefaultData,
   deployContract,
@@ -27,7 +28,8 @@ import {
   REDEEM_FROM_NATIVE_TOKEN_SELECTOR,
   signDepositBtcV0Payload,
   signDepositBtcV1Payload,
-  Signer
+  Signer,
+  signPayload
 } from './helpers';
 import {
   AssetRouter,
@@ -36,7 +38,8 @@ import {
   Mailbox,
   BridgeTokenAdapter,
   RatioFeedMock,
-  BridgeTokenMock
+  BridgeTokenMock,
+  BridgeV2
 } from '../typechain-types';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { BytesLike } from 'ethers';
@@ -161,6 +164,13 @@ describe('BridgeTokenAdapter', function () {
       ['changeRedeemForBtcMinAmount(address,uint256)'](bridgeTokenAdapter.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
+  });
+
+  it('Verify storage slot and consortium inside', async () => {
+    const slot = calculateStorageSlot('lombardfinance.storage.BridgeTokenAdapter');
+    console.log('slot', slot.toString(16));
+    const storage = await ethers.provider.getStorage(bridgeTokenAdapter, slot);
+    expect(storage).to.be.eq(encode(['address'], [consortium.address]));
   });
 
   describe('Setters and getters', function () {
@@ -788,6 +798,88 @@ describe('BridgeTokenAdapter', function () {
           .withArgs(signer2, amount, ethers.ZeroAddress, 0, ethers.ZeroHash, ethers.MaxUint256);
       });
     });
+
+    describe('BridgeV2 integration', function () {
+      let bridge: BridgeV2;
+      let bridgeAddressBytes: string;
+      // let mailboxMock: Signer;
+
+      before(async () => {
+        await snapshot.restore();
+
+        bridge = await deployContract<BridgeV2>('BridgeV2', [owner.address, mailbox.address]);
+        await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), bridge);
+        bridgeAddressBytes = encode(['address'], [await bridge.getAddress()]);
+
+        // allow some mocked paths
+        await bridge.connect(owner).setDestinationBridge(CHAIN_ID, bridgeAddressBytes);
+        await bridge
+          .connect(owner)
+          .addDestinationToken(CHAIN_ID, bridgeTokenAdapter, encode(['address'], [bridgeTokenAdapter.address]));
+        await mailbox.connect(owner).enableMessagePath(CHAIN_ID, encode(['address'], [mailbox.address]), 3);
+        await mailbox.connect(owner).setSenderConfig(bridge, 388, true);
+        // set rate limit to resolve error
+        await bridge.connect(owner).setTokenRateLimits(bridgeTokenAdapter, {
+          chainId: CHAIN_ID,
+          limit: 1_0000_0000,
+          window: 1000n
+        });
+        await bridge.connect(owner).setSenderConfig(signer1, 100_00n, true);
+        await bridge.connect(owner).setAllowance(bridgeToken, bridgeTokenAdapter, true);
+      });
+
+      it('mint on withdrawals', async () => {
+        const amount = 1000;
+
+        const sender = encode(['address'], [signer1.address]);
+        const recipient = encode(['address'], [signer1.address]);
+        const body = ethers.solidityPacked(
+          ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
+          [await bridge.MSG_VERSION(), encode(['address'], [bridgeTokenAdapter.address]), sender, recipient, amount]
+        );
+
+        const payload = getGMPPayload(
+          encode(['address'], [mailbox.address]),
+          CHAIN_ID,
+          CHAIN_ID,
+          randomBigInt(8),
+          bridgeAddressBytes,
+          bridgeAddressBytes,
+          ethers.ZeroHash,
+          body
+        );
+        const { proof } = await signPayload([notary1, notary2], [true, true], payload);
+
+        const tx = await mailbox.connect(signer1).deliverAndHandle(payload, proof);
+        await expect(tx).to.not.emit(mailbox, 'MessageHandleError');
+
+        await expect(tx)
+          .to.emit(bridge, 'WithdrawFromBridge')
+          .withArgs(signer1.address, CHAIN_ID, bridgeTokenAdapter, amount);
+        await expect(tx).to.changeTokenBalance(bridgeToken, signer1, amount);
+        await expect(tx)
+          .to.emit(bridgeToken, 'Mint')
+          .withArgs(signer1, amount, ethers.ZeroAddress, 0, ethers.ZeroHash, ethers.MaxUint256);
+      });
+
+      it('burn on deposit', async () => {
+        const amount = 1000;
+        const recipient = encode(['address'], [signer1.address]);
+
+        console.log(await bridgeTokenAdapter.getAddress(), await bridge.getAddress());
+
+        await bridgeToken.connect(signer1).approve(bridgeTokenAdapter, amount * 2);
+
+        const fee = await bridge.getFee(signer1);
+        const tx = await bridge
+          .connect(signer1)
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](CHAIN_ID, bridgeTokenAdapter, recipient, amount, ethers.ZeroHash, { value: fee });
+        await expect(tx).to.emit(mailbox, 'MessageSent');
+        await expect(tx).to.changeTokenBalance(bridgeToken, signer1, -amount);
+      });
+    });
   });
 
   describe('Redeem for BTC', function () {
@@ -876,7 +968,7 @@ describe('BridgeTokenAdapter', function () {
           //Burn previous balance
           const balance = await bridgeToken.balanceOf(signer1);
           await bridgeToken.connect(signer1).approve(bridgeTokenAdapter, balance);
-          await bridgeTokenAdapter.connect(signer1)['burn(uint256)'](balance);
+          await bridgeToken.connect(signer1).burn(balance);
           expect(await bridgeToken.balanceOf(signer1)).to.be.eq(0n);
 
           await bridgeTokenAdapter.connect(minter).mint(signer1.address, arg.balance(redeemAmount));
@@ -918,7 +1010,7 @@ describe('BridgeTokenAdapter', function () {
       await snapshot.restore();
     });
 
-    it('burn() minter can burn accounts tokens', async function () {
+    it('burn(address,uint256) minter can burn accounts tokens', async function () {
       const balance = randomBigInt(8);
       const recipient = signer1;
       await bridgeTokenAdapter.connect(minter).mint(recipient.address, balance);
@@ -933,7 +1025,7 @@ describe('BridgeTokenAdapter', function () {
       expect(totalSupplyBefore - totalSupplyAfter).to.be.eq(amount);
     });
 
-    it('burn() reverts when called by not a minter', async function () {
+    it('burn(address,uint256) reverts when called by not a minter', async function () {
       const balance = randomBigInt(8);
       const recipient = signer1;
       await bridgeTokenAdapter.connect(minter).mint(recipient.address, balance);
@@ -943,6 +1035,17 @@ describe('BridgeTokenAdapter', function () {
       await expect(bridgeTokenAdapter.connect(signer2)['burn(address,uint256)'](recipient.address, amount))
         .to.revertedWithCustomError(bridgeTokenAdapter, 'AccessControlUnauthorizedAccount')
         .withArgs(signer2.address, await bridgeTokenAdapter.MINTER_ROLE());
+    });
+
+    it('burn(uint256) reverts when called by not a minter', async () => {
+      const balance = randomBigInt(8);
+      await bridgeTokenAdapter.connect(minter).mint(signer1, balance);
+      expect(await bridgeToken.balanceOf(signer1)).to.be.eq(balance);
+
+      const amount = balance / 3n;
+      await expect(bridgeTokenAdapter.connect(signer1)['burn(uint256)'](amount))
+        .to.revertedWithCustomError(bridgeTokenAdapter, 'AccessControlUnauthorizedAccount')
+        .withArgs(signer1, await bridgeTokenAdapter.MINTER_ROLE());
     });
   });
 });

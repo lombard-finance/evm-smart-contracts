@@ -137,6 +137,20 @@ contract BridgeV2 is
         );
     }
 
+    /// @dev The method is made for [BridgeTokenAdapter] contract, because [burn] method not called directly on token.
+    /// @custom:access The caller must be the owner.
+    function setAllowance(
+        IERC20 token,
+        address tokenAdapter,
+        bool allow
+    ) external onlyOwner {
+        SafeERC20.forceApprove(
+            token,
+            tokenAdapter,
+            allow ? type(uint256).max : 0
+        );
+    }
+
     function getAllowedDestinationToken(
         bytes32 destinationChain,
         address sourceToken

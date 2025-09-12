@@ -892,7 +892,6 @@ describe('BridgeV2', function () {
           [
             'deposit(bytes32,address,bytes32,uint256,bytes32)'
           ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
-        globalNonce++;
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
         payload = (await payloadFromReceipt(receipt))?.payload;
