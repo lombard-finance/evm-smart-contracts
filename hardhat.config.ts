@@ -193,6 +193,14 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    avalancheFuji: {
+      loggingEnabled: true,
+      url: vars.get('AVALANCHE_FUJI_RPC', 'https://avalanche-fuji-c-chain-rpc.publicnode.com'),
+      chainId: 43113,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
@@ -328,6 +336,14 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('BOB_RPC', 'https://rpc.gobob.xyz/'),
       chainId: 60808,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    avalance: {
+      loggingEnabled: true,
+      url: vars.get('AVALANCHE_RPC', 'https://avalanche.public-rpc.com'),
+      chainId: 43114,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
@@ -574,6 +590,7 @@ const config: HardhatUserConfig = {
       inkSepolia: 'no',
       katanaTatara: 'no',
       tacSpb: 'no',
+      avalancheFujiTestnet: vars.get('ETHERSCAN_API_KEY', ''),
       // mainnets
       mainnet: vars.get('ETHERSCAN_API_KEY', ''),
       bsc: vars.get('BSCSCAN_API_KEY', ''),
@@ -592,7 +609,8 @@ const config: HardhatUserConfig = {
       ink: 'no',
       katana: 'no',
       tac: 'no',
-      bob: 'no'
+      bob: 'no',
+      avalanche: vars.get('ETHERSCAN_API_KEY', '')
     }
   },
   sourcify: {
