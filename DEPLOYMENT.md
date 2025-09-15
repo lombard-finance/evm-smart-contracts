@@ -74,7 +74,7 @@ hardhat setup-initial-valset --target ${CONSORTIUM} --populate --network ${NETWO
 
 Deploy `LBTC` contract
 ```bash
-yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --burn-commission ${BURN_COMMISSION} --network ${NETWORK} --treasury ${OWNER}
+yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --treasury ${OWNER}
 ```
 Write proxy address to json file.
 
@@ -106,6 +106,52 @@ yarn hardhat setup-mint-fee --target ${LBTC} --fee ${MINT_FEE} --network ${NETWO
 #### Redeem
 Enable redeem using `toggleWithdrawals` if required.
 
+## Oracle
+
+Deploy `StakedLBTCOracle` contract
+```bash
+yarn hardhat deploy-oracle [--ledger-network ${ENV}] [--admin ${OWNER}] --consortium ${CONSORTIUM} --network ${NETWORK} --token ${TOKEN} --denom ${DENOM_HASH} [--ratio ${INITIAL_RATIO}] [--switch-time ${SWITCH_TIME}] [--max-interval ${MAX_SWITCH_INTERVAL}] [--proxy-factory-addr ${PROXY_FACTORY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+## Mailbox (GMP)
+
+Deploy `Mailbox` contract
+```bash
+yarn hardhat deploy-gmp-mailbox --ledger-network ${ENV} --fee ${WEI_PER_BYTE} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --proxy-factory-addr ${PROXY_FACTORY}
+```
+Write proxy address to json file.
+
+### Configuration
+
+...
+
+## Bridge V2 (GMP)
+
+Deploy `BridgeV2` contract
+```bash
+yarn hardhat deploy-gmp-bridge [--ledger-network ${ENV}] [--admin ${OWNER}] --mailbox ${MAILBOX} --network ${NETWORK} [--proxy-factory-addr ${PROXY_FACTORY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+...
+
+## Asset Router
+
+Deploy `AssetRouter` contract
+```bash
+yarn hardhat deploy-asset-router --ledger-chain-id ${LEDGER_CHAIN_ID} --bitcoin-chain-id ${BITCOIN_CHAIN_ID} --mailbox ${MAILBOX} --network ${NETWORK} [--ledger-network ${ENV}] [--admin ${OWNER}] [--proxy-factory-addr ${PROXY_FACTORY}] [--bascule ${BASCULE}] [--admin-change-delay ${ADMIN_CHANGE_DELAY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+...
+
 ## NativeLBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
 
@@ -129,6 +175,18 @@ Enable withdrawals
 yarn hardhat setup-toggle-withdrawals --target ${TOKEN} --network ${NETWORK}
 ````
 
+## BridgeTokenAdapter
+Replaces `NativeLBTC` contract with custom integration.
+
+Deploy `AssetRouter` contract
+```bash
+yarn hardhat deploy-bridge-token-adapter --consortium ${CONSORTIUM} --network ${NETWORK} [--bridge-token ${BRIDGE_TOKEN}] [--admin ${OWNER}] [--treasury ${TREASURY}] [--admin-change-delay ${ADMIN_CHANGE_DELAY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+...
 
 ## Bridge (deterministic)
 > `LBTC` should be deployer before start

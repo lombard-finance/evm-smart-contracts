@@ -24,3 +24,4 @@ export * from './bridge-v2';
 export * from './oracle';
 export * from './asset-router';
 export * from './bascule-v3';
+export * from './bridge-token-adapter';
