@@ -168,5 +168,33 @@
       "LBTCOFTAdapter_solanaDevnetStaging": "",
       "LBTCOFTAdapter_solanaDevnetGastald": ""
     }
+  },
+  "avalancheFuji": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a869",
+    "admin": {
+      "Owner": "0x8150532B41bf7f992B58C531432399dD9640cb28",
+      "TimeLock": "",
+      "Deployer": ["0x8150532B41bf7f992B58C531432399dD9640cb28"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "StakedLBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Mailbox": "0x78C159615cE96c4cBf3f16F8cdfeCf7b76456d30",
+      "BridgeV2": "0xa2e96F8E7de37Be991Ee0Ac8e878ED5784350f4B",
+      "AssetRouter": "0x473BC7f657FDDfF55C7899455C1976849BCC2A13",
+      "BridgeTokenAdapter": "0x0A65C37d07c32E5eA8ea40495b7f249cdE26935e",
+      "StakedLBTCOracle": "0x6E9389dAAaf673880a23a76671B8103639317028"
+    },
+    "avalanche": {
+      "BridgeToken": "0x7FbdC44BfEBDe80C970ba622B678daB36cee31f6"
+    },
+    "chainlink": {
+      "ChainSelector": "14767482510784806043",
+      "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
+      "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
+      "CLAdapter": "",
+      "LombardTokenPool": ""
+    }
   }
 }
