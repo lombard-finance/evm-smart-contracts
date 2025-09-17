@@ -40,7 +40,7 @@ contract BridgeTokenAdapter is
         // other slots by 32
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IAssetRouter assetRouter;
-        IBridgeToken bridgeToken; // not upgradeable token whiling to adapt
+        IBridgeToken bridgeToken; // the token to adapt
     }
 
     /// @dev keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeTokenAdapter")) - 1)) & ~bytes32(uint256(0xff))
@@ -189,7 +189,9 @@ contract BridgeTokenAdapter is
         address to,
         uint256 amount
     ) external override whenNotPaused onlyRole(MINTER_ROLE) nonReentrant {
-        // set vout as max(uint256) to make it impossible
+        // the mint can be not backed by Bitcoin deposit
+        // set vout as dummy `type(uint256).max` to make it impossible on Bitcoin network
+        // could help to filter out such events
         _getBridgeTokenAdapterStorage().bridgeToken.mint(
             to,
             amount,
@@ -207,19 +209,21 @@ contract BridgeTokenAdapter is
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external whenNotPaused onlyRole(MINTER_ROLE) nonReentrant {
+    ) external onlyRole(MINTER_ROLE) nonReentrant {
         _batchMint(to, amount);
     }
 
     function _batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) internal {
+    ) internal whenNotPaused {
         Assert.equalLength(to.length, amount.length);
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
 
         for (uint256 i; i < to.length; ++i) {
-            // set vout as max(uint256) to make it impossible
+            // the mint can be not backed by Bitcoin deposit
+            // set vout as dummy `type(uint256).max` to make it impossible on Bitcoin network
+            // could help to filter out such events
             $.bridgeToken.mint(
                 to[i],
                 amount[i],
@@ -237,7 +241,7 @@ contract BridgeTokenAdapter is
     function mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) public nonReentrant whenNotPaused {
+    ) external nonReentrant {
         _mintV1(rawPayload, proof);
     }
 
@@ -247,7 +251,7 @@ contract BridgeTokenAdapter is
     function batchMintV1(
         bytes[] calldata payload,
         bytes[] calldata proof
-    ) external {
+    ) external nonReentrant {
         Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
@@ -258,7 +262,7 @@ contract BridgeTokenAdapter is
                 continue;
             }
 
-            mintV1(payload[i], proof[i]);
+            _mintV1(payload[i], proof[i]);
         }
     }
 
@@ -328,7 +332,8 @@ contract BridgeTokenAdapter is
             action.amount,
             address(0),
             0,
-            _reverseTxid(action.txid),
+            /// payload has not reversed txid (core representation), reverse to make it compatible with explorer
+            reverseBytes32(action.txid),
             action.vout
         );
 
@@ -336,17 +341,27 @@ contract BridgeTokenAdapter is
         return (action.recipient, action.amount);
     }
 
-    /// @dev Initially payload has reversed to explorer txid. This method allows to reverse byte ordering for txid.
-    function _reverseTxid(bytes32 txid) internal pure returns (bytes32) {
-        bytes memory txidBytes = bytes.concat(txid);
-        bytes memory reversed = new bytes(32);
-        unchecked {
-            for (uint256 i; i < txidBytes.length; i++) {
-                reversed[i] = txidBytes[txidBytes.length - i - 1];
-            }
-        }
+    /// @notice          Changes the endianness of a bytes32
+    /// @dev             https://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel
+    /// @param _b        The bytes32 to reverse
+    /// @return v        The reversed value
+    function reverseBytes32(bytes32 _b) internal pure returns (bytes32 v) {
+        v = _b;
 
-        return bytes32(reversed);
+        // swap bytes
+        v = ((v >> 8) & 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) |
+            ((v & 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) << 8);
+        // swap 2-byte long pairs
+        v = ((v >> 16) & 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) |
+            ((v & 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) << 16);
+        // swap 4-byte long pairs
+        v = ((v >> 32) & 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) |
+            ((v & 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) << 32);
+        // swap 8-byte long pairs
+        v = ((v >> 64) & 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) |
+            ((v & 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) << 64);
+        // swap 16-byte long pairs
+        v = (v >> 128) | (v << 128);
     }
 
     /// @dev Checks that the deposit was validated by the Bascule drawbridge.

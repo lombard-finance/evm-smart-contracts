@@ -445,7 +445,7 @@ describe('BridgeTokenAdapter', function () {
           const totalSupplyBefore = await bridgeToken.totalSupply();
           const recipient = arg.recipient().address;
           const amount = arg.amount;
-          const txid = encode(['uint256'], [randomBigInt(8)]);
+          const txid = encode(['uint256'], [randomBigInt(32)]);
           const { payload, payloadHash, proof } = await signDepositBtcV1Payload(
             [notary1, notary2],
             [true, true],
