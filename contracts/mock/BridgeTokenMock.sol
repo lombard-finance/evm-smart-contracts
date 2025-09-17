@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
@@ -154,7 +155,7 @@ contract BridgeTokenMock is ERC20Burnable, IBridgeToken {
         emit Unwrap(amount, chainId);
     }
 
-    function isContract(address _addr) private returns (bool isContract) {
+    function isContract(address _addr) private view returns (bool) {
         uint32 size;
         assembly {
             size := extcodesize(_addr)
