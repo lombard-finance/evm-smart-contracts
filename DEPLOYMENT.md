@@ -126,7 +126,18 @@ Write proxy address to json file.
 
 ### Configuration
 
-...
+Set pauser and treasury:
+```bash
+yarn hardhat role grant ${MAILBOX} PAUSER_ROLE ${PAUSER_ADDR} --network ${NETWORK}
+yarn hardhat role grant ${MAILBOX} TREASURER_ROLE ${TREASURY_ADDR} --network ${NETWORK}
+```
+
+Enable pathway:
+```bash
+yarn hardhat mailbox-enable-path --target ${MAILBOX} --remote-chain-id ${REMOTE_CHAIN} --remote-mailbox ${REMOTE_MAILBOX} --direction {inbound|outbound|both} [--populate] --network ${NETWORK}
+```
+
+Pathway to Ledger is required for GMP minting and redeeming.
 
 ## Bridge V2 (GMP)
 
@@ -138,7 +149,34 @@ Write proxy address to json file.
 
 ### Configuration
 
-...
+Add Bridge as Minter for token:
+```bash
+yarn hardhat role grant ${TOKEN} MINTER_ROLE ${BRIDGE} --network ${NETWORK} [--populate]
+```
+
+Allowlist Bridge in Mailbox:
+```bash
+yarn hardhat mailbox-set-config --target ${MAILBOX} --sender ${BRIDGE} --max-payload-size 388 --fee-disabled [--populate] --network ${NETWORK}
+```
+
+Set destination bridge address:
+```bash
+yarn hardhat setup-destination-bridge ${BRIDGE} --dest-chain-id ${DEST_CHAIN} --dest-bridge ${DEST_BRIDGE} [--populate] --network ${NETWORK}
+```
+
+Allowlist token:
+```bash
+yarn hardhat setup-destination-token ${BRIDGE} --dest-chain-id ${DEST_CHAIN} --destination-token ${DST_TOKEN} --source-token ${SRC_TOKEN} [--populate] --network ${NETWORK}
+```
+
+Set token rate limits:
+```bash
+yarn hardhat setup-token-rate-limits ${BRIDGE} ${TOKEN} --chain-id ${FROM_CHAIN} --window ${SEC} --limit ${LIMIT} [--populate] --network ${NETWORK}
+```
+
+Make allowance to token adapter if presented.
+
+Allowlist senders (such as CCIP Token Pool).
 
 ## Asset Router
 
@@ -150,7 +188,31 @@ Write proxy address to json file.
 
 ### Configuration
 
-...
+Set callers:
+```bash
+yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${STAKED_LBTC} --network ${NETWORK}
+yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${NATIVE_LBTC} --network ${NETWORK}
+```
+
+Set claimer:
+```bash
+yarn hardhat role grant ${ASSET_ROUTER} CLAIMER_ROLE ${CLAIMER_ADDR} --network ${NETWORK}
+```
+
+Set operator:
+```bash
+yarn hardhat role grant ${ASSET_ROUTER} OPERATOR_ROLE ${OPERATOR_ADDR} --network ${NETWORK}
+```
+
+Set redeem routes:
+```bash
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${FROM_TOKEN} --from-chain ${FROM_CHAIN} --to-token ${TO_TOKEN} --to-chain ${TO_CHAIN} --route-type ${ROUTE_TYPE} --network ${NETWORK} [--populate]
+```
+
+Whitelist asset router in mailbox:
+```bash
+yarn hardhat mailbox-set-config --target ${MAILBOX} --sender ${ASSET_ROUTER} --max-payload-size 600 --fee-disabled --network ${NETWORK} [--populate]
+```
 
 ## NativeLBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
@@ -175,8 +237,8 @@ Enable withdrawals
 yarn hardhat setup-toggle-withdrawals --target ${TOKEN} --network ${NETWORK}
 ````
 
-## BridgeTokenAdapter
-Replaces `NativeLBTC` contract with custom integration.
+## Bridge Token Adapter
+Replaces `NativeLBTC` contract with custom integration for BridgeToken (BTC.b).
 
 Deploy `AssetRouter` contract
 ```bash
@@ -186,7 +248,13 @@ Write proxy address to json file.
 
 ### Configuration
 
-...
+Set `AssetRouter` and `BridgeV2` as minters.
+```bash
+yarn hardhat role grant ${ADAPTER} MINTER_ROLE ${ROUTER} --network ${NETWORK}
+yarn hardhat role grant ${ADAPTER} MINTER_ROLE ${BRIDGE} --network ${NETWORK}
+```
+
+Set allowance for adapter to spend from bridge.
 
 ## Bridge (deterministic)
 > `LBTC` should be deployer before start
@@ -202,7 +270,9 @@ Write proxy address to json file.
 
 Use `ccip-token-pool-1.5.0` tag to deploy v1.5.0 token pool.
 
-### Adapter & TokenPool
+### Adapter & TokenPool (v1.5.0)
+> The version of TokenPool compatbile only with BridgeV1 through adapter.
+
 Deploy `Adapter` (`TokenPool` will be deployed by adapter) on each chain
 ```bash
 yarn hardhat deploy-chainlink-adapter --admin ${OWNER} --router ${CCIP_ROUTER} --bridge ${BRIDGE} --rmn ${CCIP_RMN} --network ${NETWORK}
@@ -216,6 +286,14 @@ Call `registerAdminViaOwner` in blockchain explorer on `RegistryModuleOwnerCusto
 Call `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
 
 Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address, `pool` address = `LombardTokenPool` address
+
+### Token Pool (v1.6.0)
+> The version of TokenPool compatible only with BridgeV2.
+
+Deploy `LombardTokenPoolV2` contract on each chain for each token.
+```bash
+yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}]
+```
 
 ### Bridge
 
