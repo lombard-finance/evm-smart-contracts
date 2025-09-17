@@ -55,6 +55,9 @@ contract BridgeTokenMock is ERC20Burnable, IBridgeToken {
 
     mapping(uint256 => bool) public chainIds;
 
+    /// @dev Custom variable to store deployer of contract
+    address private immutable _deployer;
+
     event Mint(
         address to,
         uint256 amount,
@@ -70,6 +73,7 @@ contract BridgeTokenMock is ERC20Burnable, IBridgeToken {
     constructor() ERC20(TOKEN_NAME, TOKEN_SYMBOL) {
         bridgeRoles.add(msg.sender);
         chainIds[0] = true;
+        _deployer = msg.sender;
     }
 
     function decimals()
@@ -191,5 +195,11 @@ contract BridgeTokenMock is ERC20Burnable, IBridgeToken {
         uint256 value
     ) public virtual override(ERC20Burnable, IBridgeToken) {
         super.burnFrom(account, value);
+    }
+
+    /// @dev The function used by CCIP RegistryModuleOwnerCustom to grant ownership of CCT. Made to bypass
+    /// ownership delegation from CCIP team side.
+    function getCCIPAdmin() external view returns (address) {
+        return _deployer;
     }
 }
