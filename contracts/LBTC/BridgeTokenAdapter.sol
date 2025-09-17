@@ -167,8 +167,8 @@ contract BridgeTokenAdapter is
     }
 
     function getFeeDigest(
-        uint256 fee,
-        uint256 expiry
+        uint256,
+        uint256
     ) external view override returns (bytes32) {
         require(false, "not implemented");
         return bytes32(0);
