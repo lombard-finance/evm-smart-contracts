@@ -42,7 +42,7 @@ import {
   BridgeV2
 } from '../typechain-types';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
-import { BytesLike } from 'ethers';
+import { Addressable as EthersAddressable, BytesLike } from 'ethers';
 
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
 
@@ -408,7 +408,7 @@ describe('BridgeTokenAdapter', function () {
     ];
 
     async function defaultData(
-      recipient: Signer = signer1,
+      recipient: EthersAddressable = signer1,
       amount: bigint = randomBigInt(8),
       cutV: boolean = false
     ): Promise<DefaultData> {
@@ -417,10 +417,10 @@ describe('BridgeTokenAdapter', function () {
         [notary1, notary2],
         [true, true],
         CHAIN_ID,
-        recipient.address,
+        await recipient.getAddress(),
         amount,
         txid,
-        bridgeTokenAdapter.address
+        await bridgeTokenAdapter.getAddress()
       );
       const depositId = ethers.keccak256('0x' + payload.slice(10));
       let cubistProof = rawSign(trustedSigner, depositId);
@@ -494,6 +494,21 @@ describe('BridgeTokenAdapter', function () {
         expect(await bascule.depositHistory(depositId)).to.be.eq(2); //WITHDRAWN
         const totalSupplyAfter = await bridgeToken.totalSupply();
         expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(amount);
+      });
+
+      it('spendDeposit() spend payload without mint', async function () {
+        const totalSupplyBefore = await bridgeToken.totalSupply();
+
+        const recipient = bridgeTokenAdapter;
+        const { payload, proof, payloadHash } = await defaultData(recipient, randomBigInt(8));
+
+        // @ts-ignore
+        const tx = bridgeTokenAdapter.connect(signer1).spendDeposit(payload, proof);
+        await expect(tx).to.not.emit(bridgeToken, 'Transfer');
+        await expect(tx).to.not.emit(bridgeToken, 'Mint');
+        await expect(tx).to.emit(bridgeTokenAdapter, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
+        const totalSupplyAfter = await bridgeToken.totalSupply();
+        expect(totalSupplyAfter).to.be.eq(totalSupplyBefore);
       });
 
       const invalidArgs = [
