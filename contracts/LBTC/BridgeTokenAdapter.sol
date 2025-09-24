@@ -136,6 +136,12 @@ contract BridgeTokenAdapter is
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeAssetRouter(newVal);
     }
+
+    /// @dev mainly used for migration testing, remove later
+    function changeBridgeToken(address newVal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeBridgeToken(newVal);
+    }
+
     /// GETTERS ///
 
     function getConsortium() external view virtual returns (INotaryConsortium) {
