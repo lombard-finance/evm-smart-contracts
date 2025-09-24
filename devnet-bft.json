@@ -24,7 +24,8 @@
       "ChainSelector": "16015286601757825753",
       "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
       "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
-      "LombardTokenPoolV2": "0x8741aDB716FFb722F1d904297a32434719240A73"
+      "LombardTokenPoolV2_stakedLBTC": "0x8E5996a57771dF023A0b32f7b0845Ea381C837f8",
+      "LombardTokenPoolV2_nativeLBTC": "0x1c48717D360D97f24076B0422E1b881F7D3B5839"
     },
     "stakeAndBake": {
       "StakeAndBake": "",
@@ -194,7 +195,8 @@
       "ChainSelector": "14767482510784806043",
       "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
       "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
-      "BridgeTokenPool": "0x820a0E0bB2eec313a153c98584573a07ceE7c7C3"
+      "BridgeTokenPool": "0x820a0E0bB2eec313a153c98584573a07ceE7c7C3",
+      "LombardTokenPoolV2": "0x119Aaa375454fE254811F0878A0D983Af11A7586"
     }
   }
 }

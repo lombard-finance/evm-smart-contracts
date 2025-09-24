@@ -294,6 +294,26 @@ Deploy `LombardTokenPoolV2` contract on each chain for each token.
 ```bash
 yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}]
 ```
+**Write contracts address to json file.**
+
+#### Configuration
+
+Claim admin rights over token in CCIP and set the pool:
+* Call from token owner `registerAdminViaOwner` (or `registerAdminViaGetCCIPAdmin` if presented) in blockchain explorer on `RegistryModuleOwnerCustom` contract (address presented in [ChainLink directory](https://docs.chain.link/ccip/directory)).
+* Call from token owner `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address presented in [ChainLink directory](https://docs.chain.link/ccip/directory)).
+* Call from token owner `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address presented in [ChainLink directory](https://docs.chain.link/ccip/directory)).
+
+Call `setSenderConfig` on `BridgeV2` contract for each Token Pool to set 100% (`100_00`) fee discount and allowlist it.
+
+Apply chain updates, set path and add remote token pool:
+```bash
+yarn hardhat setup-token-pool-v2 ${TOKEN_POOL} --remote-token ${REMOTE_TOKEN} --remote-selector ${REMOTE_SELECTOR} --remote-chain ${REMOTE_CHAIN_ID} --remote-pool ${REMOTE_POOL} --network ${NETWORK} [--populate]
+```
+
+Set `TokenPool` rate limits
+```bash
+yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} [--populate]
+```
 
 ### Bridge
 
