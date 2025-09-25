@@ -42,7 +42,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     }
 
     uint8 internal constant SUPPORTED_BRIDGE_MSG_VERSION = 1;
-    string public constant typeAndVersion = "LombardTokenPool 1.6.0";
+    string public constant typeAndVersion = "LombardTokenPoolV2 1.6.1";
 
     IBridgeV2 public immutable bridge;
     mapping(uint64 chainSelector => Path path) internal chainSelectorToPath;
