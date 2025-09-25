@@ -72,9 +72,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     /// @notice Burn the token in the pool
     /// @dev The _validateLockOrBurn check is an essential security check
     /// @notice Burn tokens from the pool to initiate cross-chain transfer.
-    /// @notice Outgoing messages (burn operations) are routed via `i_tokenMessenger.depositForBurnWithCaller`.
-    /// The allowedCaller is preconfigured per destination domain and token pool version refer Domain struct.
-    /// @dev Emits ITokenMessenger.DepositForBurn event.
+    /// @notice Outgoing GMP message are emitted by `BridgeV2` contract.
+    /// The allowedCaller is preconfigured per destination chain and should be set to token pool on destination chain.
+    /// @dev Emits MessageSent event.
     /// @dev Assumes caller has validated the destinationReceiver.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
