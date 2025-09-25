@@ -132,7 +132,10 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
     ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
-        _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount);
+        _validateReleaseOrMint(
+            releaseOrMintIn,
+            releaseOrMintIn.sourceDenominatedAmount
+        );
 
         (bytes memory rawPayload, bytes memory proof) = abi.decode(
             releaseOrMintIn.offchainTokenData,

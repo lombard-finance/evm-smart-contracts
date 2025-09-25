@@ -63,7 +63,10 @@ contract LombardTokenPool is TokenPool {
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
     ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
-        _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount);
+        _validateReleaseOrMint(
+            releaseOrMintIn,
+            releaseOrMintIn.sourceDenominatedAmount
+        );
 
         uint64 amount = adapter.initiateWithdrawal(
             releaseOrMintIn.remoteChainSelector,
