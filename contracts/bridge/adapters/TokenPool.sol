@@ -29,7 +29,7 @@ contract LombardTokenPool is TokenPool {
     /// @dev The _validateLockOrBurn check is an essential security check
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
-    ) external virtual override returns (Pool.LockOrBurnOutV1 memory) {
+    ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {
         _validateLockOrBurn(lockOrBurnIn);
 
         // send out to burn
@@ -40,7 +40,12 @@ contract LombardTokenPool is TokenPool {
             lockOrBurnIn.amount
         );
 
-        emit Burned(lockOrBurnIn.originalSender, burnedAmount);
+        emit LockedOrBurned({
+            remoteChainSelector: lockOrBurnIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            amount: burnedAmount
+        });
 
         bytes memory destPoolData = abi.encode(sha256(payload));
 
@@ -57,8 +62,8 @@ contract LombardTokenPool is TokenPool {
     /// @dev The _validateReleaseOrMint check is an essential security check
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
-    ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
-        _validateReleaseOrMint(releaseOrMintIn);
+    ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
+        _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount);
 
         uint64 amount = adapter.initiateWithdrawal(
             releaseOrMintIn.remoteChainSelector,
@@ -66,7 +71,13 @@ contract LombardTokenPool is TokenPool {
             releaseOrMintIn.offchainTokenData
         );
 
-        emit Minted(msg.sender, releaseOrMintIn.receiver, uint256(amount));
+        emit ReleasedOrMinted({
+            remoteChainSelector: releaseOrMintIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            recipient: releaseOrMintIn.receiver,
+            amount: uint256(amount)
+        });
 
         return Pool.ReleaseOrMintOutV1({destinationAmount: uint256(amount)});
     }

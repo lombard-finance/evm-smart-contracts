@@ -78,7 +78,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     /// @dev Assumes caller has validated the destinationReceiver.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
-    ) external virtual override returns (Pool.LockOrBurnOutV1 memory) {
+    ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {
         _validateLockOrBurn(lockOrBurnIn);
 
         Path memory path = chainSelectorToPath[
@@ -102,7 +102,12 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             path.allowedCaller
         );
 
-        emit Burned(lockOrBurnIn.originalSender, lockOrBurnIn.amount);
+        emit LockedOrBurned({
+            remoteChainSelector: lockOrBurnIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            amount: lockOrBurnIn.amount
+        });
 
         return
             Pool.LockOrBurnOutV1({
@@ -116,20 +121,18 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     /// @notice Mint tokens from the pool to the recipient
     /// @dev The _validateReleaseOrMint check is an essential security check
     /// @notice Mint tokens from the pool to the recipient
-    /// * sourceTokenData is part of the verified message and passed directly from
+    /// * sourcePoolData is part of the verified message and passed directly from
     /// the offRamp so it is guaranteed to be what the lockOrBurn pool released on the
-    /// source chain. It contains (nonce, sourceDomain) which is guaranteed by CCTP
-    /// to be unique.
+    /// source chain. It contains sha256(gmp payload) which is guaranteed to be unique.
     /// * offchainTokenData is untrusted (can be supplied by manual execution), but we assert
-    /// that (nonce, sourceDomain) is equal to the message's (nonce, sourceDomain) and
-    /// receiveMessage will assert that Attestation contains a valid attestation signature
-    /// for that message, including its (nonce, sourceDomain). This way, the only
-    /// non-reverting offchainTokenData that can be supplied is a valid attestation for the
+    /// that it hash is equal to the sourcePoolData and deliverAndHandle will assert that proof
+    /// contains a valid ValSet signatures for that GMP message. This way, the only
+    /// non-reverting offchainTokenData that can be supplied is a valid proof for the
     /// specific message that was sent on source.
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
-    ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
-        _validateReleaseOrMint(releaseOrMintIn);
+    ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
+        _validateReleaseOrMint(releaseOrMintIn, releaseOrMintIn.sourceDenominatedAmount);
 
         (bytes memory rawPayload, bytes memory proof) = abi.decode(
             releaseOrMintIn.offchainTokenData,
@@ -148,14 +151,17 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             revert HashMismatch();
         }
 
-        emit Minted(
-            msg.sender,
-            releaseOrMintIn.receiver,
-            releaseOrMintIn.amount
-        );
+        emit ReleasedOrMinted({
+            remoteChainSelector: releaseOrMintIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            recipient: releaseOrMintIn.receiver,
+            amount: releaseOrMintIn.sourceDenominatedAmount
+        });
+
         return
             Pool.ReleaseOrMintOutV1({
-                destinationAmount: releaseOrMintIn.amount
+                destinationAmount: releaseOrMintIn.sourceDenominatedAmount
             });
     }
 

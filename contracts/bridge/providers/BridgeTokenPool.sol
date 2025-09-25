@@ -37,7 +37,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
     /// @dev Assumes caller has validated the destinationReceiver.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
-    ) external virtual override returns (Pool.LockOrBurnOutV1 memory) {
+    ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {
         _validateLockOrBurn(lockOrBurnIn);
 
         Path memory path = chainSelectorToPath[
@@ -61,7 +61,12 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
             path.allowedCaller
         );
 
-        emit Burned(lockOrBurnIn.originalSender, lockOrBurnIn.amount);
+        emit LockedOrBurned({
+            remoteChainSelector: lockOrBurnIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            amount: lockOrBurnIn.amount
+        });
 
         return
             Pool.LockOrBurnOutV1({
