@@ -138,6 +138,7 @@ yarn hardhat mailbox-enable-path --target ${MAILBOX} --remote-chain-id ${REMOTE_
 ```
 
 Pathway to Ledger is required for GMP minting and redeeming.
+The gmp module address (Mailbox on Ledger): `0x000000000000000000000000cc0bbbee7c9dd4f3f30e01c7f1fcbeb839f30c47`
 
 ## Bridge V2 (GMP)
 
@@ -206,8 +207,9 @@ yarn hardhat role grant ${ASSET_ROUTER} OPERATOR_ROLE ${OPERATOR_ADDR} --network
 
 Set redeem routes:
 ```bash
-yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${FROM_TOKEN} --from-chain ${FROM_CHAIN} --to-token ${TO_TOKEN} --to-chain ${TO_CHAIN} --route-type ${ROUTE_TYPE} --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${FROM_TOKEN} --from-chain ${FROM_CHAIN} --to-token ${TO_TOKEN} --to-chain ${TO_CHAIN} --route-type 2 --network ${NETWORK} [--populate]
 ```
+Bitcoin token address: `0x0000000000000000000000000000000000000001`
 
 Whitelist asset router in mailbox:
 ```bash
