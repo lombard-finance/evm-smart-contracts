@@ -45,6 +45,7 @@ contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
      * @param owner The address of the user who will receive the shares
      * @param depositAmount The amount of tokens to deposit to the vault
      * @param depositPayload The ABI encoded parameters for the vault deposit function
+     * @return Number of shares minted for deposit
      * @dev depositPayload encodes the minimumMint for the teller
      */
     function deposit(

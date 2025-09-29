@@ -14,6 +14,7 @@ interface IDepositor {
      * @notice Deposit function interface.
      * @param owner The address of the user who will receive the shares
      * @param depositPayload Optional ABI encoded parameters needed for a vault deposit call
+     * @return Number of shares minted for deposit
      */
     function deposit(
         address owner,
