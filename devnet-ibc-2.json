@@ -60,7 +60,7 @@
       "BridgeTokenAdapter": "0x1391f9AC408cf13214DDB71d359002658eaF9ebb"
     },
     "avalanche": {
-      "BridgeToken": ""
+      "BridgeToken": "0x71ba2b8dc58e7ca1b6d81a60729e31aefa37ae02"
     }
   }
 }
