@@ -414,9 +414,8 @@ export function randomString(length: number): string {
   return result;
 }
 
-export function randomAddress(padded = false): BytesLike {
-  const rawAddr = ethers.hexlify(randomBytes(20));
-  return padded ? ethers.zeroPadValue(rawAddr, 32) : rawAddr;
+export function randomAddress(): AddressLike {
+  return ethers.hexlify(randomBytes(20));
 }
 
 /**

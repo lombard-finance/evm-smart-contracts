@@ -12,22 +12,17 @@ import {
   rawSign,
   Signer
 } from './helpers';
-import { GMPBasculeV1 } from '../typechain-types';
+import { GMPBasculeV1, IGMPBascule } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 import { randomBytes } from 'ethers';
 
-// w/ verification
-// |      reportMints       ·         38,802  ·      458,892  ·        190,174  ·            10  ·        0.82  │
-//
-//
+const TOKEN_ADDRESS = randomAddress();
 
-const TOKEN_ADDRESS = randomAddress(true);
-
-function calcMintID(mint: GMPBasculeV1.MessageStruct) {
+function calcMintID(mint: IGMPBascule.MessageStruct) {
   return ethers.sha256(
     encode(
-      ['uint256', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
-      [mint.nonce, mint.target_chain, mint.recipient, mint.to_token, mint.amount]
+      ['uint256', 'bytes32', 'address', 'address', 'uint256'],
+      [mint.nonce, CHAIN_ID, mint.recipient, mint.toToken, mint.amount]
     )
   );
 }
@@ -38,11 +33,10 @@ function generateReport(signer: Signer, count: bigint) {
   const proofs = [];
 
   for (let i = 0n; i < count; i++) {
-    const mint: GMPBasculeV1.MessageStruct = {
+    const mint: IGMPBascule.MessageStruct = {
       amount: randomBigInt(8),
       nonce: randomBigInt(10),
-      to_token: TOKEN_ADDRESS,
-      target_chain: CHAIN_ID,
+      toToken: TOKEN_ADDRESS,
       recipient: randomAddress(true)
     };
     const mintID = calcMintID(mint);
@@ -202,13 +196,12 @@ describe('GMPBasculeV1', function () {
     before(async function () {
       await snapshot.restore();
 
-      const mint = {
-        nonce,
-        target_chain: CHAIN_ID,
-        recipient: encode(['address'], [signer1.address]),
-        to_token: TOKEN_ADDRESS,
-        amount
-      };
+      // const mint = {
+      //   nonce,
+      //   recipient: encode(['address'], [signer1.address]),
+      //   toToken: TOKEN_ADDRESS,
+      //   amount
+      // };
 
       // await bascule.connect(mintReporter).reportMints(randomBytes(32), [mint], [randomBytes(64)]);
     });
@@ -230,11 +223,10 @@ describe('GMPBasculeV1', function () {
 
     it('reportMints: reverts when paused', async function () {
       const reportId = randomBytes(32);
-      const mint = {
+      const mint: IGMPBascule.MessageStruct = {
         nonce,
-        target_chain: CHAIN_ID,
-        recipient: encode(['address'], [signer1.address]),
-        to_token: TOKEN_ADDRESS,
+        recipient: randomAddress(),
+        toToken: TOKEN_ADDRESS,
         amount
       };
 
@@ -244,11 +236,10 @@ describe('GMPBasculeV1', function () {
     });
 
     it('validateMint: reverts when paused', async function () {
-      const mint = {
+      const mint: IGMPBascule.MessageStruct = {
         nonce,
-        target_chain: CHAIN_ID,
-        recipient: encode(['address'], [signer1.address]),
-        to_token: TOKEN_ADDRESS,
+        recipient: randomAddress(),
+        toToken: TOKEN_ADDRESS,
         amount
       };
 
@@ -277,7 +268,7 @@ describe('GMPBasculeV1', function () {
   describe('Report and validate mints', function () {
     describe('Main flow', function () {
       const amount = randomBigInt(8);
-      let mint: GMPBasculeV1.MessageStruct;
+      let mint: IGMPBascule.MessageStruct;
       let mintID: string;
       let proof: string;
 
@@ -286,9 +277,8 @@ describe('GMPBasculeV1', function () {
 
         mint = {
           nonce: randomBigInt(20),
-          target_chain: CHAIN_ID,
-          recipient: encode(['address'], [signer1.address]),
-          to_token: TOKEN_ADDRESS,
+          recipient: randomAddress(),
+          toToken: TOKEN_ADDRESS,
           amount
         };
         mintID = calcMintID(mint);
@@ -365,12 +355,11 @@ describe('GMPBasculeV1', function () {
         const proofs = [];
 
         for (let i = 0n; i < defaultMaxMints; i++) {
-          const mint: GMPBasculeV1.MessageStruct = {
+          const mint: IGMPBascule.MessageStruct = {
             nonce: randomBigInt(10),
-            to_token: TOKEN_ADDRESS,
-            target_chain: CHAIN_ID,
+            toToken: TOKEN_ADDRESS,
             amount: randomBigInt(8),
-            recipient: encode(['address'], [signer1.address])
+            recipient: randomAddress()
           };
           const mintID = calcMintID(mint);
           const proof = rawSign(trustedSigner, mintID);
@@ -389,12 +378,11 @@ describe('GMPBasculeV1', function () {
       it('reportMints: reverts when mint signed by not a trusted account', async function () {
         const reportId = randomBytes(32);
 
-        const mint: GMPBasculeV1.MessageStruct = {
+        const mint: IGMPBascule.MessageStruct = {
           amount: randomBigInt(8),
           nonce: randomBigInt(10),
-          to_token: TOKEN_ADDRESS,
-          target_chain: CHAIN_ID,
-          recipient: encode(['address'], [signer1.address])
+          toToken: TOKEN_ADDRESS,
+          recipient: randomAddress()
         };
         const mintID = calcMintID(mint);
         const proof = rawSign(signer1, mintID);
@@ -406,12 +394,11 @@ describe('GMPBasculeV1', function () {
 
       it('reportMints: reverts when signature is invalid', async function () {
         const reportId = randomBytes(32);
-        const mint: GMPBasculeV1.MessageStruct = {
+        const mint: IGMPBascule.MessageStruct = {
           amount: randomBigInt(8),
           nonce: randomBigInt(10),
-          to_token: TOKEN_ADDRESS,
-          target_chain: CHAIN_ID,
-          recipient: encode(['address'], [signer1.address])
+          toToken: TOKEN_ADDRESS,
+          recipient: randomAddress()
         };
         const mintID = calcMintID(mint);
         const proof = randomBytes(65);
@@ -423,12 +410,11 @@ describe('GMPBasculeV1', function () {
 
       it('reportMints: skips signature check when trusted signer is 0 address', async function () {
         const reportId = randomBytes(32);
-        const mint: GMPBasculeV1.MessageStruct = {
+        const mint: IGMPBascule.MessageStruct = {
           amount: randomBigInt(8),
           nonce: randomBigInt(10),
-          to_token: TOKEN_ADDRESS,
-          target_chain: CHAIN_ID,
-          recipient: encode(['address'], [signer1.address])
+          toToken: TOKEN_ADDRESS,
+          recipient: randomAddress()
         };
         const proof = randomBytes(65);
 
@@ -476,12 +462,11 @@ describe('GMPBasculeV1', function () {
     describe('Validate mints', function () {
       it('validateMint: when mint has not been reported', async function () {
         const amount = randomBigInt(8);
-        const mint: GMPBasculeV1.MessageStruct = {
+        const mint: IGMPBascule.MessageStruct = {
           amount,
           nonce: randomBigInt(10),
-          to_token: TOKEN_ADDRESS,
-          target_chain: CHAIN_ID,
-          recipient: randomAddress(true)
+          toToken: TOKEN_ADDRESS,
+          recipient: randomAddress()
         };
         const mintID = calcMintID(mint);
 
@@ -493,12 +478,11 @@ describe('GMPBasculeV1', function () {
       it('validateMint: reverts when called by unauthorized account', async function () {
         const reportId = randomBytes(32);
         const amount = randomBigInt(8);
-        const mint: GMPBasculeV1.MessageStruct = {
+        const mint: IGMPBascule.MessageStruct = {
           amount,
           nonce: randomBigInt(10),
-          to_token: TOKEN_ADDRESS,
-          target_chain: CHAIN_ID,
-          recipient: randomAddress(true)
+          toToken: TOKEN_ADDRESS,
+          recipient: randomAddress()
         };
         const mintID = calcMintID(mint);
         const proof = rawSign(trustedSigner, mintID);

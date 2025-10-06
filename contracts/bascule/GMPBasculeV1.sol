@@ -5,8 +5,8 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
-import "./interfaces/IBascule.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IGMPBascule} from "./interfaces/IGMPBascule.sol";
 
 /// Bascule contract for preventing bridge hacks from hitting the chain.
 /// This is the on-chain component of an off-chain/on-chain system.
@@ -18,23 +18,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 /// validateWithdrawal function.
 ///
 /// @custom:security-contact security@cubist.dev
-contract GMPBasculeV1 is Pausable, AccessControlDefaultAdminRules {
-
-    struct Message {
-        /// The nonce of GMP message.
-        /// It makes each message unique. Assumes the Ledger chain is only one sender,
-        /// otherwise need to include source chain.
-        uint256 nonce;
-        /// The target chain where token will be minted.
-        bytes32 target_chain;
-        /// The recipient address that will own the minted token.
-        bytes32 recipient;
-        /// The address of the token
-        bytes32 to_token;
-        /// The hex-encoded amount of token that will be minted.
-        uint256 amount;
-    }
-
+contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // Describes the state of a mint in the mintHistory.
     enum MintState {
         UNREPORTED, // unreported must be '0'
@@ -70,62 +54,6 @@ contract GMPBasculeV1 is Pausable, AccessControlDefaultAdminRules {
 
     // The address entitled to sign payload deposit reporter brings
     address public trustedSigner;
-
-    /**
-     * Event emitted when the maximum number of mints is changed.
-     * @param numMints New maximum number of mints.
-     */
-    event MaxMintsUpdated(uint256 numMints);
-
-    /**
-     * Event emitted when the trusted signer is changed.
-     * @param trustedSigner New trusted signer.
-     */
-    event TrustedSignerUpdated(address trustedSigner);
-
-    /**
-     * Event emitted when a batch of mints is reported.
-     * @param reportId The report identifier. This is a convenience to make off-chain state management easier.
-     * @param numMints The number of mints reported.
-     */
-    event MintsReported(bytes32 indexed reportId, uint256 numMints);
-
-    /**
-     * Warning event emitted when a mint was already reported.
-     * @param mintID The ID of the already-reported mint.
-     */
-    event MintAlreadyReported(bytes32 indexed mintID);
-
-    /**
-     * Event emitted when a withdrawal is validated.
-     * @param mintAmount Amount of the mint.
-     * @param mintID Unique identifier for a mint.
-     */
-    event MintValidated(bytes32 mintID, uint256 mintAmount);
-
-    /**
-     * Error on attempt to mint an already minted tokens.
-     * @param mintID Unique identifier for mint that failed validation.
-     * @param mintAmount Amount of the withdrawal.
-     */
-    error AlreadyMinted(bytes32 mintID, uint256 mintAmount);
-
-    error NotReported(bytes32 mintID);
-
-    /**
-     * Error when batch deposit arguments are non-conforming.
-     */
-    error BadMintReport();
-
-    /**
-     * Error when batch deposit size does not match the side of proofs.
-     */
-    error BadMintProofsSize();
-
-    /**
-     * Error when proof signer is not the trusted signer.
-     */
-    error BadProof(uint256 index, bytes32 mintID, bytes proof);
 
     /**
      * Create a new GMPBasculeV1.
@@ -252,7 +180,7 @@ contract GMPBasculeV1 is Pausable, AccessControlDefaultAdminRules {
      */
     function validateMint(
         Message calldata mintMsg
-    ) public whenNotPaused onlyRole(MINT_VALIDATOR_ROLE) {
+    ) external override whenNotPaused onlyRole(MINT_VALIDATOR_ROLE) {
         bytes32 mintID = _mintID(mintMsg);
         Mint memory mint = mintHistory[mintID];
         // Deposit found and not withdrawn
@@ -299,7 +227,16 @@ contract GMPBasculeV1 is Pausable, AccessControlDefaultAdminRules {
         return true;
     }
 
-    function _mintID(Message memory self) internal pure returns (bytes32) {
-        return sha256(abi.encode(self));
+    function _mintID(Message memory self) internal view returns (bytes32) {
+        return
+            sha256(
+                abi.encode(
+                    self.nonce,
+                    block.chainid,
+                    self.recipient,
+                    self.toToken,
+                    self.amount
+                )
+            );
     }
 }
