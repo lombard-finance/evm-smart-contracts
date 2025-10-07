@@ -11,7 +11,7 @@ import {SafeERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solid
 import {IBridgeV2} from "../IBridgeV2.sol";
 import {IMailbox} from "../../gmp/IMailbox.sol";
 
-/// TokenPool compatible with BridgeV2 and CCIP 1.6
+/// @notice CCIP TokenPool compatible with BridgeV2 and CCIP 1.6.1
 contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     using SafeERC20 for IERC20Metadata;
 
@@ -52,8 +52,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         IERC20Metadata token_,
         address[] memory allowlist,
         address rmnProxy,
-        address router
-    ) TokenPool(token_, token_.decimals(), allowlist, rmnProxy, router) {
+        address router,
+        uint8 fallbackDecimals
+    ) TokenPool(token_, _getTokenDecimals(token_, fallbackDecimals), allowlist, rmnProxy, router) {
         if (address(bridge_) == address(0)) {
             revert ZeroBridge();
         }
@@ -67,6 +68,14 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         bridge = bridge_;
         // set allowance to max, spend less gas in future
         token_.safeIncreaseAllowance(address(bridge_), type(uint256).max);
+    }
+
+    function _getTokenDecimals(IERC20Metadata token_, uint8 fallbackDecimals) internal view returns (uint8) {
+        try token_.decimals() returns (uint8 dec) {
+            return dec;
+        } catch {
+            return fallbackDecimals;
+        }
     }
 
     /// @notice Burn the token in the pool

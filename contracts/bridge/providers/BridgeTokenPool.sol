@@ -16,6 +16,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
 
     address public getTokenAdapter;
 
+    /// @dev default decimals is zero, since adapter used only for BTC.b
     constructor(
         IBridgeV2 bridge_,
         IERC20Metadata token_,
@@ -23,7 +24,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
         address[] memory allowlist,
         address rmnProxy,
         address router
-    ) LombardTokenPoolV2(bridge_, token_, allowlist, rmnProxy, router) {
+    ) LombardTokenPoolV2(bridge_, token_, allowlist, rmnProxy, router, 0) {
         getTokenAdapter = tokenAdapter;
         token_.safeIncreaseAllowance(tokenAdapter, type(uint256).max);
     }
