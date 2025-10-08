@@ -117,7 +117,8 @@ library GMPUtils {
     /// * EVM      | 00 | 20 bytes
     /// * SUI      | 01 | 32 bytes
     /// * SOLANA   | 02 | 32 bytes
-    /// * STARKNET | 03 | 32 bytes
+    /// * COSMOS   | 03 | 20 bytes (32 is CW contract which we don't want to support rn)
+    /// * STARKNET | 04 | 32 bytes
     /// @param lChainId Lombard Multi Chain Id
     /// @param addr The address to validate
     /// @return valid True if valid
@@ -128,6 +129,7 @@ library GMPUtils {
         uint8 ecosystem = uint8(uint256(lChainId) >> 248);
         return
             (ecosystem == 0 && uint256(addr) >> 160 == 0) ||
-            (ecosystem == 1 || ecosystem == 2 || ecosystem == 3);
+            (ecosystem == 3 && uint256(addr) >> 160 == 0)  ||
+            (ecosystem == 1 || ecosystem == 2 || ecosystem == 4);
     }
 }
