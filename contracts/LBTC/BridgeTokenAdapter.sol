@@ -24,7 +24,6 @@ contract BridgeTokenAdapter is
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
 {
-
     /// @param prevValue The previous address of BridgeToken contract
     /// @param newValue The new address of BridgeToken contract
     event BridgeTokenChanged(

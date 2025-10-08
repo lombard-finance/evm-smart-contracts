@@ -172,7 +172,6 @@ contract BridgeV2 is
         bytes32 destinationChain,
         address sourceToken
     ) external view override returns (bytes32) {
-
         // do not return allowed token if bridge on destination chain is not available
         if (destinationBridge(destinationChain) == bytes32(0)) {
             return bytes32(0);
@@ -393,6 +392,9 @@ contract BridgeV2 is
         // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert BridgeV2_ZeroRecipient();
+        }
+        if (!GMPUtils.validateAddressLength(destinationChain, recipient)) {
+            revert BridgeV2_InvalidRecipient();
         }
 
         BridgeV2Storage storage $ = _getStorage();
@@ -618,9 +620,7 @@ contract BridgeV2 is
     /// @notice Get the address of bridge contract on destination chain
     /// @param chainId The destination chain id
     /// @return bridge The address of the bridge contract
-    function destinationBridge(
-        bytes32 chainId
-    ) public view returns (bytes32) {
+    function destinationBridge(bytes32 chainId) public view returns (bytes32) {
         return _getStorage().bridgeContract[chainId];
     }
 

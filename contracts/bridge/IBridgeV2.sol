@@ -5,6 +5,7 @@ pragma solidity 0.8.24;
 interface IBridgeV2 {
     error BridgeV2_ZeroAmount();
     error BridgeV2_ZeroRecipient();
+    error BridgeV2_InvalidRecipient();
     error BridgeV2_ZeroPath();
     error BridgeV2_ZeroBridge();
     error BridgeV2_ZeroChainId();
