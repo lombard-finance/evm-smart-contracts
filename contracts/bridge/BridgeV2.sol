@@ -336,6 +336,9 @@ contract BridgeV2 is
         uint256 amount,
         bytes32 destinationCaller
     ) external payable override nonReentrant returns (uint256, bytes32) {
+        if (sender == address(0)) {
+            revert BridgeV2_ZeroSender();
+        }
         return
             _deposit(
                 destinationChain,
