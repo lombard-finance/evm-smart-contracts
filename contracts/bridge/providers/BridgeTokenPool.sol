@@ -15,6 +15,8 @@ import {LombardTokenPoolV2} from "./LombardTokenPoolV2.sol";
 contract BridgeTokenPool is LombardTokenPoolV2 {
     using SafeERC20 for IERC20Metadata;
 
+    error ZeroTokenAdapter();
+
     /// @notice Get token adapter of token
     address public getTokenAdapter;
 
@@ -27,6 +29,9 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
         address rmnProxy,
         address router
     ) LombardTokenPoolV2(bridge_, token_, allowlist, rmnProxy, router, 0) {
+        if (tokenAdapter == address(0)) {
+            revert ZeroTokenAdapter();
+        }
         getTokenAdapter = tokenAdapter;
         token_.safeIncreaseAllowance(tokenAdapter, type(uint256).max);
     }

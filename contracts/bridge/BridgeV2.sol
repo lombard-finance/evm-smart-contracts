@@ -602,6 +602,9 @@ contract BridgeV2 is
         address to,
         uint256 amount
     ) external onlyOwner {
+        if (to == address(0)) {
+            revert BridgeV2_ZeroRecipient();
+        }
         SafeERC20.safeTransfer(tokenContract, to, amount);
     }
 
