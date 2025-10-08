@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {RateLimits} from "../libs/RateLimits.sol";
-
 /// @custom:security-contact legal@lombard.finance
 interface IBridgeV2 {
     error BridgeV2_ZeroAmount();

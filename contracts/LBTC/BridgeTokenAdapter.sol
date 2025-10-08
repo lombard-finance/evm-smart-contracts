@@ -9,7 +9,6 @@ import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {BaseLBTC} from "./BaseLBTC.sol";
 import {IBridgeToken} from "../interfaces/IBridgeToken.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";

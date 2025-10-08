@@ -56,7 +56,15 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         address rmnProxy,
         address router,
         uint8 fallbackDecimals
-    ) TokenPool(token_, _getTokenDecimals(token_, fallbackDecimals), allowlist, rmnProxy, router) {
+    )
+        TokenPool(
+            token_,
+            _getTokenDecimals(token_, fallbackDecimals),
+            allowlist,
+            rmnProxy,
+            router
+        )
+    {
         if (address(bridge_) == address(0)) {
             revert ZeroBridge();
         }
@@ -72,7 +80,10 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         token_.safeIncreaseAllowance(address(bridge_), type(uint256).max);
     }
 
-    function _getTokenDecimals(IERC20Metadata token_, uint8 fallbackDecimals) internal view returns (uint8) {
+    function _getTokenDecimals(
+        IERC20Metadata token_,
+        uint8 fallbackDecimals
+    ) internal view returns (uint8) {
         try token_.decimals() returns (uint8 dec) {
             return dec;
         } catch {
