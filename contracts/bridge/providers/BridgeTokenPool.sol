@@ -37,6 +37,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
     /// The allowedCaller is preconfigured per destination domain and token pool version refer Domain struct.
     /// @dev Emits ITokenMessenger.DepositForBurn event.
     /// @dev Assumes caller has validated the destinationReceiver.
+    /// @param lockOrBurnIn The bridge arguments from CCIP router.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
     ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {

@@ -74,7 +74,10 @@ contract BridgeV2 is
         _getStorage().mailbox = mailbox_;
     }
 
-    /// to disable path set destination bridge as bytes32(0)
+    /// @notice Enable bridge to the `destinationBridge_` contract on `destinationChain`
+    /// @dev to disable path set destination bridge as bytes32(0)
+    /// @param destinationChain The chain where `destinationBridge_` presented
+    /// @param destinationBridge_ The bridge contract on `destinationChain`
     function setDestinationBridge(
         bytes32 destinationChain,
         bytes32 destinationBridge_
@@ -134,6 +137,9 @@ contract BridgeV2 is
     }
 
     /// @dev The method is made for [BridgeTokenAdapter] contract, because [burn] method not called directly on token.
+    /// @param token The spendable token
+    /// @param tokenAdapter The token adapter contract
+    /// @param allow The flag. If true, then allow uint256.max to spend by `tokenAdapter`
     /// @custom:access The caller must be the owner.
     function setAllowance(
         IERC20 token,
@@ -274,7 +280,7 @@ contract BridgeV2 is
     /**
      * @notice Deposits on behalf of the `sender` and burns tokens from `msg.sender` in order to mint on `destinationChain`.
      * Emits a `DepositToBridge` event.
-     * @param destinationChain The chain where send the token.
+     * @param destinationChain The chain where bridge the token.
      * @param token Address of the token burned on the source chain.
      * @param sender The initial address that bridge the token.
      * @param recipient Address of recipient on `destinationChain`, as bytes32 (must be non-zero)
@@ -302,16 +308,15 @@ contract BridgeV2 is
             );
     }
 
-    /**
-     * @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
-     * Emits a `DepositToBridge` event.
-     * @param token address of the token burned on the source chain
-     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
-     * @param amount amount of tokens to burn (must be non-zero)
-     * @param destinationCaller caller on the `destinationChain`, as bytes32
-     * @return nonce The nonce of payload.
-     * @return payloadHash The hash of payload
-     */
+    /// @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
+    /// Emits a `DepositToBridge` event.
+    /// @param destinationChain The chain where bridge the token.
+    /// @param token address of the token burned on the source chain
+    /// @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
+    /// @param amount amount of tokens to burn (must be non-zero)
+    /// @param destinationCaller caller on the `destinationChain`, as bytes32
+    /// @return nonce The nonce of payload.
+    /// @return payloadHash The hash of payload
     function deposit(
         bytes32 destinationChain,
         address token,

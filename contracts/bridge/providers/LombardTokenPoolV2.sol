@@ -98,6 +98,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     /// The allowedCaller is preconfigured per destination chain and should be set to token pool on destination chain.
     /// @dev Emits MessageSent event.
     /// @dev Assumes caller has validated the destinationReceiver.
+    /// @param lockOrBurnIn The bridge arguments from CCIP router.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
     ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {

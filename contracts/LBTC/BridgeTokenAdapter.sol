@@ -88,6 +88,7 @@ contract BridgeTokenAdapter is
     /// ONLY OWNER FUNCTIONS ///
 
     /// @notice Change the trusted consortium
+    /// @param newVal The address of the new consortium contract
     /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeConsortium(
         address newVal
@@ -96,11 +97,12 @@ contract BridgeTokenAdapter is
     }
 
     /// @notice Change the treasury address
+    /// @param newVal The address of the new treasury
     /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeTreasuryAddress(
-        address newValue
+        address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeTreasury(newValue);
+        _changeTreasury(newVal);
     }
 
     /// @notice Pause contract
@@ -137,7 +139,8 @@ contract BridgeTokenAdapter is
         _changeAssetRouter(newVal);
     }
 
-    /// @dev mainly used for migration testing, remove later
+    /// @dev mainly used for migration testing TODO: remove later
+    /// @param newVal The address of the new BridgeToken contact
     function changeBridgeToken(
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -185,6 +188,7 @@ contract BridgeTokenAdapter is
     }
 
     /// @notice Get Bascule contract.
+    /// @return The address of Bascule DrawBridge contract
     function getBascule() external view returns (IBascule) {
         return _getBridgeTokenAdapterStorage().bascule;
     }
@@ -279,6 +283,8 @@ contract BridgeTokenAdapter is
     /// TODO: remove after used
     /// @dev Allows to skip minting if recipient is address(this)
     /// @notice accept Btc deposited to adapter, but not mint
+    /// @param payload The deposit payload to spend without mint
+    /// @param proof The consortium signatures
     function spendDeposit(
         bytes calldata payload,
         bytes calldata proof
@@ -304,6 +310,9 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Implements [transferFrom] to mimic ERC20 token behaviour. Expose to caller ability to spend [BridgeToken] allowed to the adapter.
+    /// @param from The address to move `amount` from
+    /// @param to The address to move `amount` to
+    /// @param amount The amount to move
     /// @custom:access The caller mush have MINTER_ROLE.
     function transferFrom(
         address from,
@@ -316,6 +325,7 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Implements [burn] to mimic IBaseLBTC token interface. Expose to caller ability to burn [BridgeToken] allowed to the adapter.
+    /// @param amount The amount of tokens to burn
     /// @custom:access The caller mush have MINTER_ROLE.
     function burn(
         uint256 amount
@@ -328,6 +338,8 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Implements [burn] to mimic IBaseLBTC token interface. Expose to caller ability to burn [BridgeToken] allowed to the adapter.
+    /// @param from The address to burn `amount` from
+    /// @param amount The amount to burn
     /// @custom:access The caller mush have MINTER_ROLE.
     function burn(
         address from,
