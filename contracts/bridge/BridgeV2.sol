@@ -564,6 +564,7 @@ contract BridgeV2 is
         bytes4 interfaceId
     ) public view override(ERC165Upgradeable, IERC165) returns (bool) {
         return
+            type(IBridgeV2).interfaceId == interfaceId ||
             type(IHandler).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
