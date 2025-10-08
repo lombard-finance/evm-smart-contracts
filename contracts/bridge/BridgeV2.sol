@@ -609,7 +609,7 @@ contract BridgeV2 is
     }
 
     /// @notice Get the mailbox contract address
-    /// @param mailbox The mailbox address
+    /// @return mailbox The mailbox address
     function mailbox() external view returns (address) {
         return address(_getStorage().mailbox);
     }
