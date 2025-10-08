@@ -15,6 +15,7 @@ import {LombardTokenPoolV2} from "./LombardTokenPoolV2.sol";
 contract BridgeTokenPool is LombardTokenPoolV2 {
     using SafeERC20 for IERC20Metadata;
 
+    /// @notice Get token adapter of token
     address public getTokenAdapter;
 
     /// @dev default decimals is zero, since adapter used only for BTC.b

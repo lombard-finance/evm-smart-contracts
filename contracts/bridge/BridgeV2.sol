@@ -46,6 +46,7 @@ contract BridgeV2 is
 
     uint32 internal constant FEE_DISCOUNT_BASE = 100_00;
 
+    /// @dev The version of the bridge message. Should be less or equal on another chain to be compatible.
     uint8 public constant MSG_VERSION = 1;
     uint256 internal constant MSG_LENGTH = 129;
 
@@ -55,6 +56,9 @@ contract BridgeV2 is
         _disableInitializers();
     }
 
+    /// @dev Proxy initializer
+    /// @param owner_ The owner of the contract
+    /// @param mailbox_ The GMP Mailbox contract address
     function initialize(
         address owner_,
         IMailbox mailbox_
@@ -91,6 +95,10 @@ contract BridgeV2 is
         emit DestinationBridgeSet(destinationChain, destinationBridge_);
     }
 
+    /// @notice Add token pathway
+    /// @param destinationChain The destination chain
+    /// @param sourceToken The bridgeable token on this chain
+    /// @param destinationToken The token address on destination chain to be minted
     function addDestinationToken(
         bytes32 destinationChain,
         address sourceToken,
@@ -153,6 +161,9 @@ contract BridgeV2 is
         );
     }
 
+    /// @notice Get token on destination chain
+    /// @param destinationChain The destination chain where token presented
+    /// @param sourceToken The bridgeable token on this chain
     function getAllowedDestinationToken(
         bytes32 destinationChain,
         address sourceToken
@@ -216,6 +227,9 @@ contract BridgeV2 is
         );
     }
 
+    /// @notice Set withdrawal limits for token and destination chain
+    /// @param token The token on this chain
+    /// @param config Rate limit config
     function setTokenRateLimits(
         address token,
         RateLimits.Config memory config
@@ -227,6 +241,11 @@ contract BridgeV2 is
         emit RateLimitsSet(token, config.chainId, config.limit, config.window);
     }
 
+    /// @notice Get withdrawal rate limit
+    /// @param token The token address on this chain
+    /// @param sourceChainId The chain of where bridge deposited (source of the bridge)
+    /// @return currentAmountInFlight The amount in the current window.
+    /// @return amountCanBeSent The amount that can be sent.
     function getTokenRateLimit(
         address token,
         bytes32 sourceChainId
@@ -241,6 +260,10 @@ contract BridgeV2 is
             );
     }
 
+    /// @notice Set config of sender
+    /// @param sender The sender (e.g. CCIP TokenPool)
+    /// @param feeDiscount The fee discount in percents (100_00 = 100%)
+    /// @param whitelisted Is sender allowed to interact with the bridge.
     function setSenderConfig(
         address sender,
         uint32 feeDiscount,
@@ -261,12 +284,18 @@ contract BridgeV2 is
         emit SenderConfigChanged(sender, feeDiscount, whitelisted);
     }
 
+    /// @notice Get current sender config
+    /// @param sender The sender address
+    /// @return senderConfig The config of sender
     function getSenderConfig(
         address sender
     ) external view returns (SenderConfig memory) {
         return _getStorage().senderConfig[sender];
     }
 
+    /// @notice Get the fee for relaying bridge message through GMP protocol.
+    /// @param sender The caller of deposit method
+    /// @return fee The fee in native currency to be paid during deposit
     function getFee(address sender) external view returns (uint256) {
         bytes memory body = _encodeMsg(
             bytes32(0),
@@ -499,6 +528,12 @@ contract BridgeV2 is
         emit WithdrawFromBridge(recipient, chainId, token, amount);
     }
 
+    /// @notice Decode bridge message. The version of message should be less or equal to current.
+    /// @param msgBody Encoded body of bridge message.
+    /// @return token The address of token to be minted
+    /// @return sender The sender of tokens
+    /// @return recipient The recipient of tokens
+    /// @return amount The amount to be minted on destination chain
     function decodeMsgBody(
         bytes memory msgBody
     ) public pure returns (address, address, address, uint256) {
@@ -564,12 +599,17 @@ contract BridgeV2 is
         SafeERC20.safeTransfer(tokenContract, to, amount);
     }
 
+    /// @notice Get the address of bridge contract on destination chain
+    /// @param chainId The destination chain id
+    /// @return bridge The address of the bridge contract
     function destinationBridge(
         bytes32 chainId
     ) external view returns (bytes32) {
         return _getStorage().bridgeContract[chainId];
     }
 
+    /// @notice Get the mailbox contract address
+    /// @param mailbox The mailbox address
     function mailbox() external view returns (address) {
         return address(_getStorage().mailbox);
     }

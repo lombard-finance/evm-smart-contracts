@@ -27,11 +27,18 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     error ChainNotSupported();
     error RemoteTokenMismatch(bytes32 bridge, bytes32 pool);
 
+    /// @param remoteChainSelector CCIP selector of destination chain
+    /// @param lChainId The chain id of destination chain by Lombard Multi Chain Id convertion
+    /// @param allowedCaller The address of TokenPool on destination chain allowed to handle GMP message
     event PathSet(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
         bytes32 allowedCaller
     );
+
+    /// @param remoteChainSelector CCIP selector of destination chain
+    /// @param lChainId The chain id of destination chain by Lombard Multi Chain Id convertion
+    /// @param allowedCaller The address of TokenPool on destination chain allowed to handle GMP message
     event PathRemoved(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
@@ -44,8 +51,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     }
 
     uint8 internal constant SUPPORTED_BRIDGE_MSG_VERSION = 1;
+    /// @notice CCIP contract type and version
     string public constant typeAndVersion = "LombardTokenPoolV2 1.6.1";
-
+    /// @notice The address of bridge contract
     IBridgeV2 public immutable bridge;
     mapping(uint64 chainSelector => Path path) internal chainSelectorToPath;
 
@@ -226,6 +234,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         emit PathSet(remoteChainSelector, lChainId, decodedAllowedCaller);
     }
 
+    /// @notice remove path mapping
+    /// @param remoteChainSelector CCIP chain selector of destination chain
     function removePath(uint64 remoteChainSelector) external onlyOwner {
         Path memory path = chainSelectorToPath[remoteChainSelector];
 

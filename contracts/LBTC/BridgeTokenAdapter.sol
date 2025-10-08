@@ -24,6 +24,9 @@ contract BridgeTokenAdapter is
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
 {
+
+    /// @param prevValue The previous address of BridgeToken contract
+    /// @param newValue The new address of BridgeToken contract
     event BridgeTokenChanged(
         address indexed prevValue,
         address indexed newValue
@@ -62,6 +65,12 @@ contract BridgeTokenAdapter is
 
     /// INTIALIZERS ///
 
+    /// @dev Proxy initializer
+    /// @param consortium The consortium contract address
+    /// @param treasury The treasury address
+    /// @param initialOwner The initial owner of the contract
+    /// @param initialOwnerDelay The initial transfer ownership delay
+    /// @param bridgeToken The BridgeToken contract address
     function initialize(
         address consortium,
         address treasury,
@@ -149,18 +158,23 @@ contract BridgeTokenAdapter is
 
     /// GETTERS ///
 
+    /// @return consortium The consortium contract address
     function getConsortium() external view virtual returns (INotaryConsortium) {
         return _getBridgeTokenAdapterStorage().consortium;
     }
 
+    /// @return assetRouter The asset router contract address
     function getAssetRouter() external view override returns (address) {
         return address(_getBridgeTokenAdapterStorage().assetRouter);
     }
 
+    /// @return isNative If true, then token is native bitcoin on the chain
     function isNative() public pure returns (bool) {
         return true;
     }
 
+    /// @dev Proxy method from asset router
+    /// @return isRedeemEnabled If true, then redeem is enabled
     function isRedeemsEnabled() public view override returns (bool) {
         (, , bool isRedeemEnabled) = _getBridgeTokenAdapterStorage()
             .assetRouter
@@ -168,10 +182,12 @@ contract BridgeTokenAdapter is
         return isRedeemEnabled;
     }
 
+    /// @return treasury The treasury address
     function getTreasury() public view override returns (address) {
         return _getBridgeTokenAdapterStorage().treasury;
     }
 
+    /// @return redeemFee The fee for redeem
     function getRedeemFee() public view returns (uint256) {
         (uint256 redeemFee, , ) = _getBridgeTokenAdapterStorage()
             .assetRouter
