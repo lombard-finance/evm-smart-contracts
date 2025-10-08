@@ -11,6 +11,7 @@ import {LombardTokenPoolV2} from "./LombardTokenPoolV2.sol";
 
 /// @notice TokenPool compatible with BridgeV2, CCIP 1.6 and Bridge Token (Avalanche BTC.b).
 /// @dev Contract modified, because BridgeV2 accepts adapter contract as address of token.
+/// @custom:security-contact legal@lombard.finance
 contract BridgeTokenPool is LombardTokenPoolV2 {
     using SafeERC20 for IERC20Metadata;
 

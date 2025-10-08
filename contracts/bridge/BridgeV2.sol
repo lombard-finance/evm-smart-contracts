@@ -16,11 +16,10 @@ import {IMailbox} from "../gmp/IMailbox.sol";
 import {IERC20MintableBurnable} from "../interfaces/IERC20MintableBurnable.sol";
 import {RateLimits} from "../libs/RateLimits.sol";
 
-/**
- * @title ERC20 Token Bridge
- * @author Lombard.Finance
- * @notice The contract is a part of Lombard Finance protocol. The bridge utilize GMP for cross-chain communication.
- */
+/// @title ERC20 Token Bridge
+/// @author Lombard.Finance
+/// @notice The contract is a part of Lombard Finance protocol. The bridge utilize GMP for cross-chain communication.
+/// @custom:security-contact legal@lombard.finance
 contract BridgeV2 is
     IBridgeV2,
     IHandler,
@@ -154,7 +153,7 @@ contract BridgeV2 is
     function getAllowedDestinationToken(
         bytes32 destinationChain,
         address sourceToken
-    ) external view returns (bytes32) {
+    ) external view override returns (bytes32) {
         return
             _getStorage().allowedDestinationToken[
                 _calcAllowedTokenId(

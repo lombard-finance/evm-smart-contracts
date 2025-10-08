@@ -18,6 +18,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @title BridgeToken adapter for AssetRouter
 /// @author Lombard.Finance
 /// @notice This contract is part of the Lombard.Finance protocol.
+/// @custom:security-contact legal@lombard.finance
 contract BridgeTokenAdapter is
     INativeLBTC,
     AccessControlDefaultAdminRulesUpgradeable,

@@ -12,6 +12,7 @@ import {IBridgeV2} from "../IBridgeV2.sol";
 import {IMailbox} from "../../gmp/IMailbox.sol";
 
 /// @notice CCIP TokenPool compatible with BridgeV2 and CCIP 1.6.1
+/// @custom:security-contact legal@lombard.finance
 contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     using SafeERC20 for IERC20Metadata;
 
@@ -24,6 +25,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     error InvalidMessageVersion(uint8 expected, uint8 actual);
     error InvalidAllowedCaller(bytes);
     error ChainNotSupported();
+    error RemoteTokenMismatch(bytes32 bridge, bytes32 pool);
 
     event PathSet(
         uint64 indexed remoteChainSelector,
