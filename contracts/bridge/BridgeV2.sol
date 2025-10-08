@@ -168,6 +168,12 @@ contract BridgeV2 is
         bytes32 destinationChain,
         address sourceToken
     ) external view override returns (bytes32) {
+
+        // do not return allowed token if bridge on destination chain is not available
+        if (destinationBridge(destinationChain) == bytes32(0)) {
+            return bytes32(0);
+        }
+
         return
             _getStorage().allowedDestinationToken[
                 _calcAllowedTokenId(
@@ -604,7 +610,7 @@ contract BridgeV2 is
     /// @return bridge The address of the bridge contract
     function destinationBridge(
         bytes32 chainId
-    ) external view returns (bytes32) {
+    ) public view returns (bytes32) {
         return _getStorage().bridgeContract[chainId];
     }
 
