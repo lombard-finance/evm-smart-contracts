@@ -180,8 +180,7 @@ contract BridgeTokenAdapter is
         uint256,
         uint256
     ) external view override returns (bytes32) {
-        require(false, "not implemented");
-        return bytes32(0);
+        revert();
     }
 
     /// @notice Get Bascule contract.
