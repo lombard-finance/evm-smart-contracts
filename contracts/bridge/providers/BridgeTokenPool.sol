@@ -11,11 +11,16 @@ import {LombardTokenPoolV2} from "./LombardTokenPoolV2.sol";
 
 /// @notice TokenPool compatible with BridgeV2, CCIP 1.6 and Bridge Token (Avalanche BTC.b).
 /// @dev Contract modified, because BridgeV2 accepts adapter contract as address of token.
+/// @custom:security-contact legal@lombard.finance
 contract BridgeTokenPool is LombardTokenPoolV2 {
     using SafeERC20 for IERC20Metadata;
 
+    error ZeroTokenAdapter();
+
+    /// @notice Get token adapter of token
     address public getTokenAdapter;
 
+    /// @dev default decimals is zero, since adapter used only for BTC.b
     constructor(
         IBridgeV2 bridge_,
         IERC20Metadata token_,
@@ -23,7 +28,10 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
         address[] memory allowlist,
         address rmnProxy,
         address router
-    ) LombardTokenPoolV2(bridge_, token_, allowlist, rmnProxy, router) {
+    ) LombardTokenPoolV2(bridge_, token_, allowlist, rmnProxy, router, 0) {
+        if (tokenAdapter == address(0)) {
+            revert ZeroTokenAdapter();
+        }
         getTokenAdapter = tokenAdapter;
         token_.safeIncreaseAllowance(tokenAdapter, type(uint256).max);
     }
@@ -35,6 +43,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
     /// The allowedCaller is preconfigured per destination domain and token pool version refer Domain struct.
     /// @dev Emits ITokenMessenger.DepositForBurn event.
     /// @dev Assumes caller has validated the destinationReceiver.
+    /// @param lockOrBurnIn The bridge arguments from CCIP router.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
     ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {
@@ -54,7 +63,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
 
         (, bytes32 payloadHash) = bridge.deposit(
             path.lChainId,
-            address(getTokenAdapter), // MODIFIED: replace the token with token adapter address
+            getTokenAdapter, // MODIFIED: replace the token with token adapter address
             lockOrBurnIn.originalSender,
             decodedReceiver,
             lockOrBurnIn.amount,
@@ -75,5 +84,9 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
                 ),
                 destPoolData: abi.encode(payloadHash)
             });
+    }
+
+    function _requireAllowance() internal virtual override returns (bool) {
+        return false;
     }
 }

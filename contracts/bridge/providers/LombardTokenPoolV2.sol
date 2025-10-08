@@ -11,7 +11,8 @@ import {SafeERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solid
 import {IBridgeV2} from "../IBridgeV2.sol";
 import {IMailbox} from "../../gmp/IMailbox.sol";
 
-/// TokenPool compatible with BridgeV2 and CCIP 1.6
+/// @notice CCIP TokenPool compatible with BridgeV2 and CCIP 1.6.1
+/// @custom:security-contact legal@lombard.finance
 contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     using SafeERC20 for IERC20Metadata;
 
@@ -24,12 +25,20 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     error InvalidMessageVersion(uint8 expected, uint8 actual);
     error InvalidAllowedCaller(bytes);
     error ChainNotSupported();
+    error RemoteTokenMismatch(bytes32 bridge, bytes32 pool);
 
+    /// @param remoteChainSelector CCIP selector of destination chain
+    /// @param lChainId The chain id of destination chain by Lombard Multi Chain Id convertion
+    /// @param allowedCaller The address of TokenPool on destination chain allowed to handle GMP message
     event PathSet(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
         bytes32 allowedCaller
     );
+
+    /// @param remoteChainSelector CCIP selector of destination chain
+    /// @param lChainId The chain id of destination chain by Lombard Multi Chain Id convertion
+    /// @param allowedCaller The address of TokenPool on destination chain allowed to handle GMP message
     event PathRemoved(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
@@ -42,8 +51,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     }
 
     uint8 internal constant SUPPORTED_BRIDGE_MSG_VERSION = 1;
+    /// @notice CCIP contract type and version
     string public constant typeAndVersion = "LombardTokenPoolV2 1.6.1";
-
+    /// @notice The address of bridge contract
     IBridgeV2 public immutable bridge;
     mapping(uint64 chainSelector => Path path) internal chainSelectorToPath;
 
@@ -52,8 +62,17 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         IERC20Metadata token_,
         address[] memory allowlist,
         address rmnProxy,
-        address router
-    ) TokenPool(token_, token_.decimals(), allowlist, rmnProxy, router) {
+        address router,
+        uint8 fallbackDecimals
+    )
+        TokenPool(
+            token_,
+            _getTokenDecimals(token_, fallbackDecimals),
+            allowlist,
+            rmnProxy,
+            router
+        )
+    {
         if (address(bridge_) == address(0)) {
             revert ZeroBridge();
         }
@@ -65,8 +84,21 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             );
 
         bridge = bridge_;
-        // set allowance to max, spend less gas in future
-        token_.safeIncreaseAllowance(address(bridge_), type(uint256).max);
+        if (_requireAllowance()) {
+            // set allowance to max, spend less gas in future
+            token_.safeIncreaseAllowance(address(bridge_), type(uint256).max);
+        }
+    }
+
+    function _getTokenDecimals(
+        IERC20Metadata token_,
+        uint8 fallbackDecimals
+    ) internal view returns (uint8) {
+        try token_.decimals() returns (uint8 dec) {
+            return dec;
+        } catch {
+            return fallbackDecimals;
+        }
     }
 
     /// @notice Burn the token in the pool
@@ -76,6 +108,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     /// The allowedCaller is preconfigured per destination chain and should be set to token pool on destination chain.
     /// @dev Emits MessageSent event.
     /// @dev Assumes caller has validated the destinationReceiver.
+    /// @param lockOrBurnIn The bridge arguments from CCIP router.
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
     ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {
@@ -86,6 +119,19 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         ];
         if (path.allowedCaller == bytes32(0)) {
             revert PathNotExist(lockOrBurnIn.remoteChainSelector);
+        }
+
+        // verify bridge destination token equal to pool
+        bytes32 bridgeDestToken = bridge.getAllowedDestinationToken(
+            path.lChainId,
+            lockOrBurnIn.localToken
+        );
+        bytes32 poolDestToken = abi.decode(
+            getRemoteToken(lockOrBurnIn.remoteChainSelector),
+            (bytes32)
+        );
+        if (bridgeDestToken != poolDestToken) {
+            revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
         }
 
         if (lockOrBurnIn.receiver.length != 32) {
@@ -203,6 +249,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         emit PathSet(remoteChainSelector, lChainId, decodedAllowedCaller);
     }
 
+    /// @notice remove path mapping
+    /// @param remoteChainSelector CCIP chain selector of destination chain
     function removePath(uint64 remoteChainSelector) external onlyOwner {
         Path memory path = chainSelectorToPath[remoteChainSelector];
 
@@ -217,5 +265,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             path.lChainId,
             path.allowedCaller
         );
+    }
+
+    function _requireAllowance() internal virtual returns (bool) {
+        return true;
     }
 }

@@ -9,7 +9,6 @@ import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {BaseLBTC} from "./BaseLBTC.sol";
 import {IBridgeToken} from "../interfaces/IBridgeToken.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -18,12 +17,15 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @title BridgeToken adapter for AssetRouter
 /// @author Lombard.Finance
 /// @notice This contract is part of the Lombard.Finance protocol.
+/// @custom:security-contact legal@lombard.finance
 contract BridgeTokenAdapter is
     INativeLBTC,
     AccessControlDefaultAdminRulesUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    /// @param prevValue The previous address of BridgeToken contract
+    /// @param newValue The new address of BridgeToken contract
     event BridgeTokenChanged(
         address indexed prevValue,
         address indexed newValue
@@ -62,6 +64,12 @@ contract BridgeTokenAdapter is
 
     /// INTIALIZERS ///
 
+    /// @dev Proxy initializer
+    /// @param consortium The consortium contract address
+    /// @param treasury The treasury address
+    /// @param initialOwner The initial owner of the contract
+    /// @param initialOwnerDelay The initial transfer ownership delay
+    /// @param bridgeToken The BridgeToken contract address
     function initialize(
         address consortium,
         address treasury,
@@ -88,6 +96,7 @@ contract BridgeTokenAdapter is
     /// ONLY OWNER FUNCTIONS ///
 
     /// @notice Change the trusted consortium
+    /// @param newVal The address of the new consortium contract
     /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeConsortium(
         address newVal
@@ -96,11 +105,12 @@ contract BridgeTokenAdapter is
     }
 
     /// @notice Change the treasury address
+    /// @param newVal The address of the new treasury
     /// @custom:access Caller must have DEFAULT_ADMIN_ROLE
     function changeTreasuryAddress(
-        address newValue
+        address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeTreasury(newValue);
+        _changeTreasury(newVal);
     }
 
     /// @notice Pause contract
@@ -137,7 +147,8 @@ contract BridgeTokenAdapter is
         _changeAssetRouter(newVal);
     }
 
-    /// @dev mainly used for migration testing, remove later
+    /// @dev mainly used for migration testing TODO: remove later
+    /// @param newVal The address of the new BridgeToken contact
     function changeBridgeToken(
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -146,18 +157,23 @@ contract BridgeTokenAdapter is
 
     /// GETTERS ///
 
+    /// @return consortium The consortium contract address
     function getConsortium() external view virtual returns (INotaryConsortium) {
         return _getBridgeTokenAdapterStorage().consortium;
     }
 
+    /// @return assetRouter The asset router contract address
     function getAssetRouter() external view override returns (address) {
         return address(_getBridgeTokenAdapterStorage().assetRouter);
     }
 
+    /// @return isNative If true, then token is native bitcoin on the chain
     function isNative() public pure returns (bool) {
         return true;
     }
 
+    /// @dev Proxy method from asset router
+    /// @return isRedeemEnabled If true, then redeem is enabled
     function isRedeemsEnabled() public view override returns (bool) {
         (, , bool isRedeemEnabled) = _getBridgeTokenAdapterStorage()
             .assetRouter
@@ -165,10 +181,12 @@ contract BridgeTokenAdapter is
         return isRedeemEnabled;
     }
 
+    /// @return treasury The treasury address
     function getTreasury() public view override returns (address) {
         return _getBridgeTokenAdapterStorage().treasury;
     }
 
+    /// @return redeemFee The fee for redeem
     function getRedeemFee() public view returns (uint256) {
         (uint256 redeemFee, , ) = _getBridgeTokenAdapterStorage()
             .assetRouter
@@ -176,15 +194,16 @@ contract BridgeTokenAdapter is
         return redeemFee;
     }
 
+    /// @dev Not implemented
     function getFeeDigest(
         uint256,
         uint256
     ) external view override returns (bytes32) {
-        require(false, "not implemented");
-        return bytes32(0);
+        revert();
     }
 
     /// @notice Get Bascule contract.
+    /// @return The address of Bascule DrawBridge contract
     function getBascule() external view returns (IBascule) {
         return _getBridgeTokenAdapterStorage().bascule;
     }
@@ -279,6 +298,8 @@ contract BridgeTokenAdapter is
     /// TODO: remove after used
     /// @dev Allows to skip minting if recipient is address(this)
     /// @notice accept Btc deposited to adapter, but not mint
+    /// @param payload The deposit payload to spend without mint
+    /// @param proof The consortium signatures
     function spendDeposit(
         bytes calldata payload,
         bytes calldata proof
@@ -304,6 +325,9 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Implements [transferFrom] to mimic ERC20 token behaviour. Expose to caller ability to spend [BridgeToken] allowed to the adapter.
+    /// @param from The address to move `amount` from
+    /// @param to The address to move `amount` to
+    /// @param amount The amount to move
     /// @custom:access The caller mush have MINTER_ROLE.
     function transferFrom(
         address from,
@@ -316,6 +340,7 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Implements [burn] to mimic IBaseLBTC token interface. Expose to caller ability to burn [BridgeToken] allowed to the adapter.
+    /// @param amount The amount of tokens to burn
     /// @custom:access The caller mush have MINTER_ROLE.
     function burn(
         uint256 amount
@@ -328,6 +353,8 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Implements [burn] to mimic IBaseLBTC token interface. Expose to caller ability to burn [BridgeToken] allowed to the adapter.
+    /// @param from The address to burn `amount` from
+    /// @param amount The amount to burn
     /// @custom:access The caller mush have MINTER_ROLE.
     function burn(
         address from,

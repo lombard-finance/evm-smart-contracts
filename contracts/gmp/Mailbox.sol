@@ -11,7 +11,6 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {MessagePath} from "./libs/MessagePath.sol";
 import {IMailbox} from "./IMailbox.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
-import {RateLimits} from "../libs/RateLimits.sol";
 import {LChainId} from "../libs/LChainId.sol";
 import {IHandler} from "./IHandler.sol";
 import {GMPUtils} from "./libs/GMPUtils.sol";
