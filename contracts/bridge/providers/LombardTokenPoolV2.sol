@@ -122,8 +122,14 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         }
 
         // verify bridge destination token equal to pool
-        bytes32 bridgeDestToken = bridge.getAllowedDestinationToken(path.lChainId, lockOrBurnIn.localToken);
-        bytes32 poolDestToken = abi.decode(getRemoteToken(lockOrBurnIn.remoteChainSelector), (bytes32));
+        bytes32 bridgeDestToken = bridge.getAllowedDestinationToken(
+            path.lChainId,
+            lockOrBurnIn.localToken
+        );
+        bytes32 poolDestToken = abi.decode(
+            getRemoteToken(lockOrBurnIn.remoteChainSelector),
+            (bytes32)
+        );
         if (bridgeDestToken != poolDestToken) {
             revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
         }
