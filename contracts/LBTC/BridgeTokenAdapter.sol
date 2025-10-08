@@ -176,6 +176,7 @@ contract BridgeTokenAdapter is
         return redeemFee;
     }
 
+    /// @dev Not implemented
     function getFeeDigest(
         uint256,
         uint256

@@ -160,20 +160,19 @@ contract BridgeV2 is
             ];
     }
 
+    /// @notice Remove token pathway
+    /// @param destinationChain The chain where token can be bridged (non-zero)
+    /// @param sourceToken The token on this chain (non-zero)
+    /// @custom:access Only owner
     function removeDestinationToken(
         bytes32 destinationChain,
-        address sourceToken,
-        bytes32 destinationToken
+        address sourceToken
     ) external onlyOwner {
         if (destinationChain == bytes32(0)) {
             revert BridgeV2_ZeroPath();
         }
 
         if (sourceToken == address(0)) {
-            revert BridgeV2_ZeroToken();
-        }
-
-        if (destinationToken == bytes32(0)) {
             revert BridgeV2_ZeroToken();
         }
 
@@ -187,10 +186,19 @@ contract BridgeV2 is
             destinationChain,
             GMPUtils.addressToBytes32(sourceToken)
         );
+
+        bytes32 destinationToken = $.allowedDestinationToken[destTokenId];
+        if (destinationToken == bytes32(0)) {
+            revert BridgeV2_TokenNotAllowed();
+        }
+
         bytes32 srcTokenId = _calcAllowedTokenId(
             destinationChain,
             destinationToken
         );
+        if ($.allowedSourceToken[srcTokenId] != sourceToken) {
+            revert BridgeV2_TokenNotAllowed();
+        }
 
         delete $.allowedDestinationToken[destTokenId];
         delete $.allowedSourceToken[srcTokenId];
