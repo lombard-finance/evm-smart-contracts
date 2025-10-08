@@ -84,8 +84,10 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             );
 
         bridge = bridge_;
-        // set allowance to max, spend less gas in future
-        token_.safeIncreaseAllowance(address(bridge_), type(uint256).max);
+        if (_requireAllowance()) {
+            // set allowance to max, spend less gas in future
+            token_.safeIncreaseAllowance(address(bridge_), type(uint256).max);
+        }
     }
 
     function _getTokenDecimals(
@@ -250,5 +252,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             path.lChainId,
             path.allowedCaller
         );
+    }
+
+    function _requireAllowance() internal virtual returns (bool) {
+        return true;
     }
 }

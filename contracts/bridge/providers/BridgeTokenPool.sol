@@ -85,4 +85,8 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
                 destPoolData: abi.encode(payloadHash)
             });
     }
+
+    function _requireAllowance() internal virtual override returns (bool) {
+        return false;
+    }
 }
