@@ -56,7 +56,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
 
         (, bytes32 payloadHash) = bridge.deposit(
             path.lChainId,
-            address(getTokenAdapter), // MODIFIED: replace the token with token adapter address
+            getTokenAdapter, // MODIFIED: replace the token with token adapter address
             lockOrBurnIn.originalSender,
             decodedReceiver,
             lockOrBurnIn.amount,
