@@ -112,6 +112,10 @@ contract BridgeV2 is
             revert BridgeV2_ZeroToken();
         }
 
+        if (destinationToken == bytes32(0)) {
+            revert BridgeV2_ZeroToken();
+        }
+
         BridgeV2Storage storage $ = _getStorage();
 
         if ($.bridgeContract[destinationChain] == bytes32(0)) {
