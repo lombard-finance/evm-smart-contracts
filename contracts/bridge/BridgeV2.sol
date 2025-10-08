@@ -206,7 +206,6 @@ contract BridgeV2 is
         address token,
         RateLimits.Config memory config
     ) external onlyOwner {
-        // chain id from config is not used anywhere
         RateLimits.setRateLimit(
             _getStorage().rateLimit[_calcRateLimitId(config.chainId, token)],
             config
@@ -265,12 +264,14 @@ contract BridgeV2 is
     }
 
     /**
-     * @notice Deposits and burns tokens from sender provided by partner contract  to be minted on `destinationChain`.
+     * @notice Deposits on behalf of the `sender` and burns tokens from `msg.sender` in order to mint on `destinationChain`.
      * Emits a `DepositToBridge` event.
-     * @param token address of the token burned on the source chain
-     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
-     * @param amount amount of tokens to burn (must be non-zero)
-     * @param destinationCaller caller on the `destinationChain`, as bytes32
+     * @param destinationChain The chain where send the token.
+     * @param token Address of the token burned on the source chain.
+     * @param sender The initial address that bridge the token.
+     * @param recipient Address of recipient on `destinationChain`, as bytes32 (must be non-zero)
+     * @param amount Amount of tokens to burn (must be non-zero)
+     * @param destinationCaller Caller on the `destinationChain`, as bytes32
      * @return nonce The nonce of payload.
      * @return payloadHash The hash of payload
      */
