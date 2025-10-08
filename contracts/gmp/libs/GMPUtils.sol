@@ -129,7 +129,7 @@ library GMPUtils {
         uint8 ecosystem = uint8(uint256(lChainId) >> 248);
         return
             (ecosystem == 0 && uint256(addr) >> 160 == 0) ||
-            (ecosystem == 3 && uint256(addr) >> 160 == 0)  ||
+            (ecosystem == 3 && uint256(addr) >> 160 == 0) ||
             (ecosystem == 1 || ecosystem == 2 || ecosystem == 4);
     }
 }
