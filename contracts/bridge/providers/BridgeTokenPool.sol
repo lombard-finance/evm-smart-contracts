@@ -56,6 +56,19 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
             revert PathNotExist(lockOrBurnIn.remoteChainSelector);
         }
 
+        // verify bridge destination token equal to pool
+        bytes32 bridgeDestToken = bridge.getAllowedDestinationToken(
+            path.lChainId,
+            lockOrBurnIn.localToken
+        );
+        bytes32 poolDestToken = abi.decode(
+            getRemoteToken(lockOrBurnIn.remoteChainSelector),
+            (bytes32)
+        );
+        if (bridgeDestToken != poolDestToken) {
+            revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
+        }
+
         if (lockOrBurnIn.receiver.length != 32) {
             revert InvalidReceiver(lockOrBurnIn.receiver);
         }
