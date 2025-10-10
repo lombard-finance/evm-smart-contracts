@@ -21,6 +21,7 @@
     }
   },
   "sepolia": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000aa36a7",
     "admin": {
       "Owner": "0x26413D16E9E3D66CbdE15baC33b1a469FD58cBC8",
       "TimeLock": "",
@@ -31,7 +32,10 @@
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
       "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
-      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
+      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
+      "AssetRouter": "0x76329dd2d888424fD203C354498E6d3d4bdEac22",
+      "StakedLBTCOracle": "0x62F10cE5b727edf787ea45776bD050308A611508",
+      "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1"
     },
     "chainlink": {
       "ChainSelector": "16015286601757825753",
@@ -51,7 +55,10 @@
       "ProxyFactory": "",
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
-      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676"
+      "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
+      "AssetRouter": "",
+      "StakedLBTCOracle": "0x64E5f2bb0D13D20F12683AF7cA4E5D2bac5933C3",
+      "Mailbox": ""
     },
     "BTCB": {
       "BTCB": "0xdd48f288874c7226603cCC98cab0661b3bd5721A",
@@ -63,6 +70,10 @@
       "RMN": "0xa049a112b149ed69b74b83823cd7b97c3aa59afb",
       "CLAdapter": "0x2Cc0b3D2E8B412C9A4D52035E7c015E4718fF90E",
       "LombardTokenPool": "0x267d40f64ECc4d95F3e8b2237Df5f37b10812C25"
+    },
+    "stakeAndBake": {
+      "StakeAndBake": "0x72143309A662bDB4aad5cA65Ab59eD8977D047C5",
+      "TellerWithMultiAssetSupportDepositor": "0xc09EdE0045844E7a6208Ed964A5D8CF7Fe0E7b20"
     }
   },
   "baseSepolia": {
@@ -155,7 +166,7 @@
       "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
       "AssetRouter": "0x76329dd2d888424fD203C354498E6d3d4bdEac22",
-      "Oracle": "0x64E5f2bb0D13D20F12683AF7cA4E5D2bac5933C3",
+      "StakedLBTCOracle": "0x64E5f2bb0D13D20F12683AF7cA4E5D2bac5933C3",
       "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1"
     },
     "chainlink": {
