@@ -289,7 +289,7 @@ Call `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (
 
 Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address, `pool` address = `LombardTokenPool` address
 
-### Token Pool (v1.6.0)
+### Token Pool (v1.6.1)
 > The version of TokenPool compatible only with BridgeV2.
 
 Deploy `LombardTokenPoolV2` contract on each chain for each token.
@@ -313,9 +313,7 @@ yarn hardhat setup-token-pool-v2 ${TOKEN_POOL} --remote-token ${REMOTE_TOKEN} --
 ```
 
 Set `TokenPool` rate limits
-```bash
-yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} [--populate]
-```
+> TODO: rate limits script for new pool
 
 ### Bridge
 
