@@ -44,7 +44,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     uint256 public maxMints;
 
     // Mapping that tracks deposits on a different chain that can be used to
-    // withdraw the corresponding funds on this chain.
+    // mint the corresponding funds on this chain.
     //
     // NOTE: The deposit identifier should be a hash with enough information to
     // uniquely identify the deposit transaction on the source chain and the
