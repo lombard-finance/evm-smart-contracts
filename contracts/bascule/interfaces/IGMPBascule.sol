@@ -42,6 +42,8 @@ interface IGMPBascule {
      */
     error AlreadyMinted(bytes32 mintID, uint256 mintAmount);
 
+    /// @dev Error when mint not reported on validation
+    /// @param mintID Sha256 hash with GMP mint data
     error NotReported(bytes32 mintID);
 
     /**

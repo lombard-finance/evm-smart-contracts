@@ -10,12 +10,12 @@ import {IGMPBascule} from "./interfaces/IGMPBascule.sol";
 
 /// Bascule contract for preventing bridge hacks from hitting the chain.
 /// This is the on-chain component of an off-chain/on-chain system.
-/// The off-chain component watches all relevant chains and reports
-/// deposits to a deployment of this contract on *at most* one chain
-/// (to prevent replay attacks). Then, this contract records the relevant
-/// deposit transactions. Finally, when a bridge wants to withdraw funds,
-/// it can validate that a corresponding deposit took place using the
-/// validateWithdrawal function.
+/// The off-chain component watches all relevant chains and sign mints
+/// by key with wasm policy attached. Then report signed mints to this contract.
+/// The contract records the relevant GMP mint messages.
+/// Finally, when a AssetRouter wants to mint funds,
+/// it can validate that a corresponding mint took place using the
+/// validateMint function.
 ///
 /// @custom:security-contact security@cubist.dev
 contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
@@ -55,14 +55,14 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // The address entitled to sign payload deposit reporter brings
     address public trustedSigner;
 
-    /**
-     * Create a new GMPBasculeV1.
-     * @param aDefaultAdmin Address of the admin. This address should be controlled by a multisig.
-     * @param aPauser Address of the account that may pause.
-     * @param aMintReporter Address of the account that may report deposits on the source chain.
-     * @param aMintValidator Address of the account that may validate withdrawals.
-     * @param aMaxMints Maximum number of deposits that can be reported at once.
-     */
+
+    /// @dev Create a new GMPBasculeV1.
+    /// @param aDefaultAdmin Address of the admin. This address should be controlled by a multisig.
+    /// @param aPauser Address of the account that may pause.
+    /// @param aMintReporter Address of the account that may report deposits on the source chain.
+    /// @param aMintValidator Address of the account that may validate mints.
+    /// @param aMaxMints Maximum number of deposits that can be reported at once.
+    /// @param aTrustedSigner The key with GMP Bascule Wasm policy attached.
     constructor(
         address aDefaultAdmin,
         address aPauser,
@@ -81,14 +81,14 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     /// ACCESS CONTROL FUNCTIONS ///
 
     /**
-     * Pause deposit reporting and withdrawal validation.
+     * Pause deposit reporting and mint validation.
      */
     function pause() public onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
     /**
-     * Unpause deposit reporting and withdrawal validation.
+     * Unpause deposit reporting and mint validation.
      */
     function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
@@ -183,7 +183,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     ) external override whenNotPaused onlyRole(MINT_VALIDATOR_ROLE) {
         bytes32 mintID = _mintID(mintMsg);
         Mint memory mint = mintHistory[mintID];
-        // Deposit found and not withdrawn
+        // Mint found and not validated
         if (mint.status == MintState.REPORTED) {
             mintHistory[mintID].status = MintState.MINTED;
             emit MintValidated(mintID, mintMsg.amount);
