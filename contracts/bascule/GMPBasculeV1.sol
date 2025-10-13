@@ -203,7 +203,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
      * Checks the proof provided for deposit.
      * @param data signed data.
      * @param sig signatire.
-     * @return Boolean value with result of the chec: true - successful, false - failed
+     * @return Boolean value with result of the check: true - successful (the transaction should be allowed), false - failed (the transaction should be reverted)
      */
     function _checkProof(
         bytes32 data,
