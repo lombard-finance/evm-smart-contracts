@@ -116,6 +116,10 @@ contract BridgeV2 is
             revert BridgeV2_ZeroToken();
         }
 
+        if (!GMPUtils.validateAddressLength(destinationChain, destinationToken)) {
+            revert BridgeV2_InvalidToken();
+        }
+
         BridgeV2Storage storage $ = _getStorage();
 
         if ($.bridgeContract[destinationChain] == bytes32(0)) {

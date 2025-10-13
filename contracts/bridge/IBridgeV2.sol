@@ -11,6 +11,7 @@ interface IBridgeV2 {
     error BridgeV2_ZeroChainId();
     error BridgeV2_ZeroSender();
     error BridgeV2_ZeroToken();
+    error BridgeV2_InvalidToken();
     error BridgeV2_ZeroMailbox();
     error BridgeV2_AlreadyAllowed(bytes32 tokenId);
     error BridgeV2_TokenNotAllowed();
