@@ -189,7 +189,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
             emit MintValidated(mintID, mintMsg.amount);
             return;
         }
-        // Already withdrawn
+        // Already minted
         if (mint.status == MintState.MINTED) {
             revert AlreadyMinted(mintID, mintMsg.amount);
         }
