@@ -1,4 +1,5 @@
 import { task } from 'hardhat/config';
+import { TokenPool } from '../../typechain-types';
 
 task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
   .addParam('clAdapter', 'The address of chainlink adapter smart-contract')
@@ -22,11 +23,10 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
 
       const lbtcEncoded = lbtc.length != 42 ? lbtc : hre.ethers.AbiCoder.defaultAbiCoder().encode(['address'], [lbtc]);
 
-      const args = [
+      const args: TokenPool.ChainUpdateStruct[] = [
         {
           remoteChainSelector: remoteSelector,
-          allowed: true,
-          remotePoolAddress,
+          remotePoolAddresses: [remotePoolAddress],
           remoteTokenAddress: lbtcEncoded,
           inboundRateLimiterConfig: {
             isEnabled: false,
@@ -45,10 +45,10 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
         `tx=applyChainUpdates selector=${remoteSelector} remotePoolAddress=${remotePoolAddress} remoteTokenAddress=${lbtcEncoded}`
       );
       if (populate) {
-        const txData = await tokenPool.applyChainUpdates.populateTransaction(args);
+        const txData = await tokenPool.applyChainUpdates.populateTransaction([], args);
         console.log(`applyChainUpdates: ${JSON.stringify(txData, null, 2)}`);
       } else {
-        const tx = await tokenPool.applyChainUpdates(args);
+        const tx = await tokenPool.applyChainUpdates([], args);
         await tx.wait(2);
       }
     }
@@ -69,18 +69,70 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
       }
     }
 
-    if (remotePool && remoteSelector) {
-      const toPeer =
-        remotePool.length != 42 ? remotePool : hre.ethers.AbiCoder.defaultAbiCoder().encode(['address'], [remotePool]);
+    console.log('DONE');
+  });
 
-      console.log(`Remote peer ${toPeer} set for selector ${remoteSelector}`);
+task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
+  .addPositionalParam('tokenPool', 'The address of token pool smart-contract')
+  .addOptionalParam('remoteToken', 'The address of the token at remote chain')
+  .addOptionalParam('remoteSelector', 'Remote chain selector of destination chain')
+  .addOptionalParam('remoteChain', 'Chain id of remote selector')
+  .addOptionalParam('remotePool', 'The address of remote token pool')
+  .addFlag('populate', 'Show transaction data and do not broadcast')
+  .setAction(async (taskArgs, hre, network) => {
+    const { ethers } = hre;
+    const encoder = ethers.AbiCoder.defaultAbiCoder();
+
+    const { tokenPool: tokenPoolArg, remoteSelector, remoteChain, remotePool, remoteToken, populate } = taskArgs;
+
+    const tokenPool = await ethers.getContractAt('LombardTokenPoolV2', tokenPoolArg);
+
+    if (remoteSelector && remotePool && remoteToken) {
+      const remotePoolBytes = remotePool.length != 42 ? remotePool : encoder.encode(['address'], [remotePool]);
+
+      const remoteTokenBytes = remoteToken.length != 42 ? remoteToken : encoder.encode(['address'], [remoteToken]);
+
+      const args: TokenPool.ChainUpdateStruct[] = [
+        {
+          remoteChainSelector: remoteSelector,
+          remotePoolAddresses: [remotePoolBytes],
+          remoteTokenAddress: remoteTokenBytes,
+          inboundRateLimiterConfig: {
+            isEnabled: false,
+            rate: 0,
+            capacity: 0
+          },
+          outboundRateLimiterConfig: {
+            isEnabled: false,
+            rate: 0,
+            capacity: 0
+          }
+        }
+      ];
+
+      console.log(
+        `tx=applyChainUpdates selector=${remoteSelector} remotePoolAddress=${remotePoolBytes} remoteTokenAddress=${remoteTokenBytes}`
+      );
+      if (populate) {
+        const txData = await tokenPool.applyChainUpdates.populateTransaction([], args);
+        console.log(`applyChainUpdates: ${JSON.stringify(txData, null, 2)}`);
+      } else {
+        const tx = await tokenPool.applyChainUpdates([], args);
+        await tx.wait(2);
+      }
+    }
+
+    if (remoteChain && remoteSelector && remotePool) {
+      const remoteChainId = remoteChain.includes('0x') ? remoteChain : encoder.encode(['uint256'], [remoteChain]);
+      const remotePoolBytes = remotePool.length != 42 ? remotePool : encoder.encode(['address'], [remotePool]);
+
+      console.log(`Chain ${remoteChainId} set for chain selector ${remoteSelector}`);
 
       if (populate) {
-        const txData = await tokenPool.setRemotePool.populateTransaction(remoteSelector, toPeer);
-
-        console.log(`setRemotePool: ${JSON.stringify(txData, null, 2)}`);
+        const txData = await tokenPool.setPath.populateTransaction(remoteSelector, remoteChainId, remotePoolBytes);
+        console.log(`setPath: ${JSON.stringify(txData, null, 2)}`);
       } else {
-        const tx = await tokenPool.setRemotePool(remoteSelector, toPeer);
+        const tx = await tokenPool.setPath(remoteSelector, remoteChainId, remotePoolBytes);
         await tx.wait(2);
       }
     }

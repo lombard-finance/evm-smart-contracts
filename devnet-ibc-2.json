@@ -44,5 +44,23 @@
       "CLAdapter": "",
       "LombardTokenPool": ""
     }
+  },
+  "avalancheFuji": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a869",
+    "admin": {
+      "Owner": "0x8150532B41bf7f992B58C531432399dD9640cb28",
+      "TimeLock": "",
+      "Deployer": ["0x8150532B41bf7f992B58C531432399dD9640cb28"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x3867dA917f2C2f6b6C593D5e05ca8b2Db38BBe60",
+      "Mailbox": "0xC7a9Fc9A8DF4dD23649bEfcbaf21Fe9A33B24F16",
+      "AssetRouter": "0x242DBf84ba17Ba323F8393Cc9bF49B1B159a29d1",
+      "BridgeTokenAdapter": "0x1391f9AC408cf13214DDB71d359002658eaF9ebb"
+    },
+    "avalanche": {
+      "BridgeToken": "0x71ba2b8dc58e7ca1b6d81a60729e31aefa37ae02"
+    }
   }
 }

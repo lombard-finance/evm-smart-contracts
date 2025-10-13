@@ -14,3 +14,4 @@ export * from './por';
 export * from './asset-router';
 export * from './mailbox';
 export * from './token';
+export * from './bridge-v2';

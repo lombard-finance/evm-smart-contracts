@@ -7,20 +7,16 @@ import {ERC165Upgradeable, IERC165} from "@openzeppelin/contracts-upgradeable/ut
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {FeeUtils} from "../libs/FeeUtils.sol";
-import {IAdapter} from "./adapters/IAdapter.sol";
-import {IBaseLBTC, INotaryConsortium} from "./IBridge.sol";
 import {IBridgeV2} from "./IBridgeV2.sol";
 import {IHandler, GMPUtils} from "../gmp/IHandler.sol";
 import {IMailbox} from "../gmp/IMailbox.sol";
 import {IERC20MintableBurnable} from "../interfaces/IERC20MintableBurnable.sol";
 import {RateLimits} from "../libs/RateLimits.sol";
 
-/**
- * @title ERC20 Token Bridge
- * @author Lombard.Finance
- * @notice The contract is a part of Lombard Finance protocol. The bridge utilize GMP for cross-chain communication.
- */
+/// @title ERC20 Token Bridge
+/// @author Lombard.Finance
+/// @notice The contract is a part of Lombard Finance protocol. The bridge utilize GMP for cross-chain communication.
+/// @custom:security-contact legal@lombard.finance
 contract BridgeV2 is
     IBridgeV2,
     IHandler,
@@ -50,6 +46,7 @@ contract BridgeV2 is
 
     uint32 internal constant FEE_DISCOUNT_BASE = 100_00;
 
+    /// @dev The version of the bridge message. Should be less or equal on another chain to be compatible.
     uint8 public constant MSG_VERSION = 1;
     uint256 internal constant MSG_LENGTH = 129;
 
@@ -59,6 +56,9 @@ contract BridgeV2 is
         _disableInitializers();
     }
 
+    /// @dev Proxy initializer
+    /// @param owner_ The owner of the contract
+    /// @param mailbox_ The GMP Mailbox contract address
     function initialize(
         address owner_,
         IMailbox mailbox_
@@ -78,7 +78,10 @@ contract BridgeV2 is
         _getStorage().mailbox = mailbox_;
     }
 
-    /// to disable path set destination bridge as bytes32(0)
+    /// @notice Enable bridge to the `destinationBridge_` contract on `destinationChain`
+    /// @dev to disable path set destination bridge as bytes32(0)
+    /// @param destinationChain The chain where `destinationBridge_` presented
+    /// @param destinationBridge_ The bridge contract on `destinationChain`
     function setDestinationBridge(
         bytes32 destinationChain,
         bytes32 destinationBridge_
@@ -92,6 +95,10 @@ contract BridgeV2 is
         emit DestinationBridgeSet(destinationChain, destinationBridge_);
     }
 
+    /// @notice Add token pathway
+    /// @param destinationChain The destination chain
+    /// @param sourceToken The bridgeable token on this chain
+    /// @param destinationToken The token address on destination chain to be minted
     function addDestinationToken(
         bytes32 destinationChain,
         address sourceToken,
@@ -103,6 +110,16 @@ contract BridgeV2 is
 
         if (sourceToken == address(0)) {
             revert BridgeV2_ZeroToken();
+        }
+
+        if (destinationToken == bytes32(0)) {
+            revert BridgeV2_ZeroToken();
+        }
+
+        if (
+            !GMPUtils.validateAddressLength(destinationChain, destinationToken)
+        ) {
+            revert BridgeV2_InvalidToken();
         }
 
         BridgeV2Storage storage $ = _getStorage();
@@ -137,10 +154,35 @@ contract BridgeV2 is
         );
     }
 
+    /// @dev The method is made for [BridgeTokenAdapter] contract, because [burn] method not called directly on token.
+    /// @param token The spendable token
+    /// @param tokenAdapter The token adapter contract
+    /// @param allow The flag. If true, then allow uint256.max to spend by `tokenAdapter`
+    /// @custom:access The caller must be the owner.
+    function setAllowance(
+        IERC20 token,
+        address tokenAdapter,
+        bool allow
+    ) external onlyOwner {
+        SafeERC20.forceApprove(
+            token,
+            tokenAdapter,
+            allow ? type(uint256).max : 0
+        );
+    }
+
+    /// @notice Get token on destination chain
+    /// @param destinationChain The destination chain where token presented
+    /// @param sourceToken The bridgeable token on this chain
     function getAllowedDestinationToken(
         bytes32 destinationChain,
         address sourceToken
-    ) external view returns (bytes32) {
+    ) external view override returns (bytes32) {
+        // do not return allowed token if bridge on destination chain is not available
+        if (destinationBridge(destinationChain) == bytes32(0)) {
+            return bytes32(0);
+        }
+
         return
             _getStorage().allowedDestinationToken[
                 _calcAllowedTokenId(
@@ -150,20 +192,19 @@ contract BridgeV2 is
             ];
     }
 
+    /// @notice Remove token pathway
+    /// @param destinationChain The chain where token can be bridged (non-zero)
+    /// @param sourceToken The token on this chain (non-zero)
+    /// @custom:access Only owner
     function removeDestinationToken(
         bytes32 destinationChain,
-        address sourceToken,
-        bytes32 destinationToken
+        address sourceToken
     ) external onlyOwner {
         if (destinationChain == bytes32(0)) {
             revert BridgeV2_ZeroPath();
         }
 
         if (sourceToken == address(0)) {
-            revert BridgeV2_ZeroToken();
-        }
-
-        if (destinationToken == bytes32(0)) {
             revert BridgeV2_ZeroToken();
         }
 
@@ -177,10 +218,19 @@ contract BridgeV2 is
             destinationChain,
             GMPUtils.addressToBytes32(sourceToken)
         );
+
+        bytes32 destinationToken = $.allowedDestinationToken[destTokenId];
+        if (destinationToken == bytes32(0)) {
+            revert BridgeV2_TokenNotAllowed();
+        }
+
         bytes32 srcTokenId = _calcAllowedTokenId(
             destinationChain,
             destinationToken
         );
+        if ($.allowedSourceToken[srcTokenId] != sourceToken) {
+            revert BridgeV2_TokenNotAllowed();
+        }
 
         delete $.allowedDestinationToken[destTokenId];
         delete $.allowedSourceToken[srcTokenId];
@@ -192,11 +242,13 @@ contract BridgeV2 is
         );
     }
 
+    /// @notice Set withdrawal limits for token and destination chain
+    /// @param token The token on this chain
+    /// @param config Rate limit config
     function setTokenRateLimits(
         address token,
         RateLimits.Config memory config
     ) external onlyOwner {
-        // chain id from config is not used anywhere
         RateLimits.setRateLimit(
             _getStorage().rateLimit[_calcRateLimitId(config.chainId, token)],
             config
@@ -204,6 +256,11 @@ contract BridgeV2 is
         emit RateLimitsSet(token, config.chainId, config.limit, config.window);
     }
 
+    /// @notice Get withdrawal rate limit
+    /// @param token The token address on this chain
+    /// @param sourceChainId The chain of where bridge deposited (source of the bridge)
+    /// @return currentAmountInFlight The amount in the current window.
+    /// @return amountCanBeSent The amount that can be sent.
     function getTokenRateLimit(
         address token,
         bytes32 sourceChainId
@@ -218,6 +275,10 @@ contract BridgeV2 is
             );
     }
 
+    /// @notice Set config of sender
+    /// @param sender The sender (e.g. CCIP TokenPool)
+    /// @param feeDiscount The fee discount in percents (100_00 = 100%)
+    /// @param whitelisted Is sender allowed to interact with the bridge.
     function setSenderConfig(
         address sender,
         uint32 feeDiscount,
@@ -238,12 +299,18 @@ contract BridgeV2 is
         emit SenderConfigChanged(sender, feeDiscount, whitelisted);
     }
 
+    /// @notice Get current sender config
+    /// @param sender The sender address
+    /// @return senderConfig The config of sender
     function getSenderConfig(
         address sender
     ) external view returns (SenderConfig memory) {
         return _getStorage().senderConfig[sender];
     }
 
+    /// @notice Get the fee for relaying bridge message through GMP protocol.
+    /// @param sender The caller of deposit method
+    /// @return fee The fee in native currency to be paid during deposit
     function getFee(address sender) external view returns (uint256) {
         bytes memory body = _encodeMsg(
             bytes32(0),
@@ -255,12 +322,14 @@ contract BridgeV2 is
     }
 
     /**
-     * @notice Deposits and burns tokens from sender provided by partner contract  to be minted on `destinationChain`.
+     * @notice Deposits on behalf of the `sender` and burns tokens from `msg.sender` in order to mint on `destinationChain`.
      * Emits a `DepositToBridge` event.
-     * @param token address of the token burned on the source chain
-     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
-     * @param amount amount of tokens to burn (must be non-zero)
-     * @param destinationCaller caller on the `destinationChain`, as bytes32
+     * @param destinationChain The chain where bridge the token.
+     * @param token Address of the token burned on the source chain.
+     * @param sender The initial address that bridge the token.
+     * @param recipient Address of recipient on `destinationChain`, as bytes32 (must be non-zero)
+     * @param amount Amount of tokens to burn (must be non-zero)
+     * @param destinationCaller Caller on the `destinationChain`, as bytes32
      * @return nonce The nonce of payload.
      * @return payloadHash The hash of payload
      */
@@ -272,6 +341,9 @@ contract BridgeV2 is
         uint256 amount,
         bytes32 destinationCaller
     ) external payable override nonReentrant returns (uint256, bytes32) {
+        if (sender == address(0)) {
+            revert BridgeV2_ZeroSender();
+        }
         return
             _deposit(
                 destinationChain,
@@ -283,16 +355,15 @@ contract BridgeV2 is
             );
     }
 
-    /**
-     * @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
-     * Emits a `DepositToBridge` event.
-     * @param token address of the token burned on the source chain
-     * @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
-     * @param amount amount of tokens to burn (must be non-zero)
-     * @param destinationCaller caller on the `destinationChain`, as bytes32
-     * @return nonce The nonce of payload.
-     * @return payloadHash The hash of payload
-     */
+    /// @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
+    /// Emits a `DepositToBridge` event.
+    /// @param destinationChain The chain where bridge the token.
+    /// @param token address of the token burned on the source chain
+    /// @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
+    /// @param amount amount of tokens to burn (must be non-zero)
+    /// @param destinationCaller caller on the `destinationChain`, as bytes32
+    /// @return nonce The nonce of payload.
+    /// @return payloadHash The hash of payload
     function deposit(
         bytes32 destinationChain,
         address token,
@@ -327,6 +398,9 @@ contract BridgeV2 is
         // recipient must be nonzero
         if (recipient == bytes32(0)) {
             revert BridgeV2_ZeroRecipient();
+        }
+        if (!GMPUtils.validateAddressLength(destinationChain, recipient)) {
+            revert BridgeV2_InvalidRecipient();
         }
 
         BridgeV2Storage storage $ = _getStorage();
@@ -475,6 +549,12 @@ contract BridgeV2 is
         emit WithdrawFromBridge(recipient, chainId, token, amount);
     }
 
+    /// @notice Decode bridge message. The version of message should be less or equal to current.
+    /// @param msgBody Encoded body of bridge message.
+    /// @return token The address of token to be minted
+    /// @return sender The sender of tokens
+    /// @return recipient The recipient of tokens
+    /// @return amount The amount to be minted on destination chain
     function decodeMsgBody(
         bytes memory msgBody
     ) public pure returns (address, address, address, uint256) {
@@ -537,15 +617,21 @@ contract BridgeV2 is
         address to,
         uint256 amount
     ) external onlyOwner {
+        if (to == address(0)) {
+            revert BridgeV2_ZeroRecipient();
+        }
         SafeERC20.safeTransfer(tokenContract, to, amount);
     }
 
-    function destinationBridge(
-        bytes32 chainId
-    ) external view returns (bytes32) {
+    /// @notice Get the address of bridge contract on destination chain
+    /// @param chainId The destination chain id
+    /// @return bridge The address of the bridge contract
+    function destinationBridge(bytes32 chainId) public view returns (bytes32) {
         return _getStorage().bridgeContract[chainId];
     }
 
+    /// @notice Get the mailbox contract address
+    /// @return mailbox The mailbox address
     function mailbox() external view returns (address) {
         return address(_getStorage().mailbox);
     }
@@ -554,6 +640,7 @@ contract BridgeV2 is
         bytes4 interfaceId
     ) public view override(ERC165Upgradeable, IERC165) returns (bool) {
         return
+            type(IBridgeV2).interfaceId == interfaceId ||
             type(IHandler).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
