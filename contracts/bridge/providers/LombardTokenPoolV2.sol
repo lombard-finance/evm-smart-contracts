@@ -164,7 +164,6 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             });
     }
 
-    /// @notice Mint tokens from the pool to the recipient
     /// @dev The _validateReleaseOrMint check is an essential security check
     /// @notice Mint tokens from the pool to the recipient
     /// * sourcePoolData is part of the verified message and passed directly from
@@ -175,6 +174,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     /// contains a valid ValSet signatures for that GMP message. This way, the only
     /// non-reverting offchainTokenData that can be supplied is a valid proof for the
     /// specific message that was sent on source.
+    /// @param releaseOrMintIn The pool data provided by offRamp
+    /// @return releaseOrMintOut The struct with destination amount inside
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
     ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
@@ -215,6 +216,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     }
 
     /// @notice Sets the lChainId and allowed caller for a CCIP chain selector.
+    /// @param remoteChainSelector CCIP chain selector of remote chain
+    /// @param lChainId Lombard chain id of remote chain
+    /// @param allowedCaller The address of TokenPool on destination chain
     function setPath(
         uint64 remoteChainSelector,
         bytes32 lChainId,

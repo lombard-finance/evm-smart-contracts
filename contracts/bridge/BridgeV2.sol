@@ -116,7 +116,9 @@ contract BridgeV2 is
             revert BridgeV2_ZeroToken();
         }
 
-        if (!GMPUtils.validateAddressLength(destinationChain, destinationToken)) {
+        if (
+            !GMPUtils.validateAddressLength(destinationChain, destinationToken)
+        ) {
             revert BridgeV2_InvalidToken();
         }
 
