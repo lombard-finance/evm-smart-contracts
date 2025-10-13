@@ -36,6 +36,39 @@ interface IGMPBascule {
     event MintValidated(bytes32 mintID, uint256 mintAmount);
 
     /**
+     * Event emitted when a mint is allowed on this chain without validation.
+     * @param mintID Unique identifier for a mint that took place on another chain and was minted on this chain.
+     * @param mintAmount Amount of the mint.
+     */
+    event MintNotValidated(bytes32 mintID, uint256 mintAmount);
+
+    /**
+     * Event emitted when the validation threshold is updated.
+     * @param oldThreshold The old threshold.
+     * @param newThreshold The new threshold.
+     */
+    event UpdateValidateThreshold(uint256 oldThreshold, uint256 newThreshold);
+
+    /// @dev Error when trusted address is zero
+    error ZeroTrustedAddress();
+
+    /**
+     * Error when a mint fails validation.
+     * This means the corresponding mint is not in the map.
+     * @param mintID Unique identifier for mint that failed validation.
+     * @param mintAmount Amount of the mint.
+     */
+    error MintFailedValidation(
+        bytes32 mintID,
+        uint256 mintAmount
+    );
+
+    /**
+     * Error when trying to change the validation threshold to the same value.
+     */
+    error SameValidationThreshold();
+
+    /**
      * Error on attempt to mint an already minted tokens.
      * @param mintID Unique identifier for mint that failed validation.
      * @param mintAmount Amount of the withdrawal.

@@ -39,8 +39,25 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // Role that can validate mints
     bytes32 public constant MINT_VALIDATOR_ROLE =
         keccak256("MINT_VALIDATOR_ROLE");
+    // Role that can be used to change the validation threshold
+    bytes32 public constant VALIDATION_GUARDIAN_ROLE =
+        keccak256("VALIDATION_GUARDIAN_ROLE");
 
-    // Maximum number of batch mints it's possible to make at once
+    // The bascule validates all mints whose amounts are greater than or
+    // equal to this threshold. The bascule allows all mints below this
+    // threshold. The contract will still produce events that off-chain code can
+    // use to monitor smaller mints. This threshold can only be changed by
+    // the guardian.
+    //
+    // When the threshold is zero (the default), the bascule validates all
+    // mints.
+    //
+    // NOTE: Raising this threshold should be done with extreme caution.  In
+    // particular, you MUST make sure that validateMint is called with a
+    // correct mint amount.
+    uint256 private _validateThreshold;
+
+    // Maximum number of batch deposits it's possible to make at once
     uint256 public maxMints;
 
     // Mapping that tracks deposits on a different chain that can be used to
@@ -75,7 +92,24 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         _grantRole(MINT_REPORTER_ROLE, aMintReporter);
         _grantRole(MINT_VALIDATOR_ROLE, aMintValidator);
         maxMints = aMaxMints;
+        // By default, the bascule validates all mints and does not grant
+        // anyone the guardian role. This means that increasing the threshold (or
+        // turning off validation) requires two steps: (1) grant role and (2) change
+        // threshold. To preserve this invariant, we renounce the validation
+        // guardian role when the threshold is raised.
+        //
+        // Initialize explicitly for readability/maintainability
+        _validateThreshold = 0; // validate all
         trustedSigner = aTrustedSigner;
+    }
+
+    /// GETTERS ///
+
+    /**
+     * Returns the minimum threshold for validating mints.
+     */
+    function validateThreshold() public view returns (uint256) {
+        return _validateThreshold;
     }
 
     /// ACCESS CONTROL FUNCTIONS ///
@@ -92,6 +126,49 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
      */
     function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    /**
+     * Update the threshold for checking validation mints.
+     * Lowering the threshold means we validate more mints; it only requires
+     * the default admin role. Increasing the threshold means we validate fewer
+     * mints; it requires the validation guardian role (which the admin must
+     * first grant), which is immediately renounced after the threshold is raised.
+     *
+     * NOTE: Raising this threshold should be done with extreme caution.  In
+     * particular, you MUST make sure that validateMint is called with a
+     * correct mint amount (i.e., the amount of the actual mint).
+     *
+     * Emits {UpdateValidateThreshold}.
+     */
+    function updateValidateThreshold(
+        uint256 newThreshold
+    ) public whenNotPaused {
+        // Retains the original reverting behavior of the original
+        // for compatibility with off-chain code.
+        if (newThreshold == validateThreshold()) {
+            revert SameValidationThreshold();
+        }
+        if (newThreshold < validateThreshold()) {
+            if (!hasRole(DEFAULT_ADMIN_ROLE, _msgSender())) {
+                revert AccessControlUnauthorizedAccount(
+                    _msgSender(),
+                    DEFAULT_ADMIN_ROLE
+                );
+            }
+        } else {
+            if (!hasRole(VALIDATION_GUARDIAN_ROLE, _msgSender())) {
+                revert AccessControlUnauthorizedAccount(
+                    _msgSender(),
+                    VALIDATION_GUARDIAN_ROLE
+                );
+            }
+            // Renounce the validation guardian role. This ensures the caller doesn't
+            // have peristent privileges to effectively disable validation.
+            renounceRole(VALIDATION_GUARDIAN_ROLE, _msgSender());
+        }
+        // Actually update the threshold
+        _updateValidateThreshold(newThreshold);
     }
 
     /**
@@ -116,6 +193,9 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     function setTrustedSigner(
         address aTrustedSigner
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (trustedSigner == address(0)) {
+            revert ZeroTrustedAddress();
+        }
         trustedSigner = aTrustedSigner;
         emit TrustedSignerUpdated(aTrustedSigner);
     }
@@ -169,7 +249,8 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     }
 
     /**
-     * Validate a mint (before executing it)
+     * Validate a mint (before executing it) if the amount is above
+     * threshold.
      *
      * This function checks if our accounting has recorded a mint that
      * corresponds to this validate request. A mint can only be minted once.
@@ -183,21 +264,43 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     ) external override whenNotPaused onlyRole(MINT_VALIDATOR_ROLE) {
         bytes32 mintID = _mintID(mintMsg);
         Mint memory mint = mintHistory[mintID];
-        // Mint found and not validated
+        // Mint found and not minted
         if (mint.status == MintState.REPORTED) {
             mintHistory[mintID].status = MintState.MINTED;
             emit MintValidated(mintID, mintMsg.amount);
             return;
         }
-        // Already minted
+        // Already withdrawn
         if (mint.status == MintState.MINTED) {
             revert AlreadyMinted(mintID, mintMsg.amount);
         }
         // Not reported
-        revert NotReported(mintID);
+        if (mintMsg.amount >= validateThreshold()) {
+            // We disallow a withdrawal if it's not in the depositHistory and
+            // the value is above the threshold.
+            revert MintFailedValidation(mintID, mintMsg.amount);
+        }
+        // We don't have the depositID in the depositHistory, and the value of the
+        // withdrawal is below the threshold, so we allow the withdrawal without
+        // additional on-chain validation.
+        //
+        // Unlike in original Bascule, this contract records withdrawals
+        // even when the validation threshold is raised.
+        mintHistory[mintID].status = MintState.MINTED;
+        emit MintNotValidated(mintID, mintMsg.amount);
     }
 
     /// PRIVATE FUNCTIONS ///
+    /**
+     * Update the validate threshold.
+     * @param newThreshold New threshold.
+     *
+     * Emits {UpdateValidateThreshold}.
+     */
+    function _updateValidateThreshold(uint256 newThreshold) internal {
+        emit UpdateValidateThreshold(_validateThreshold, newThreshold);
+        _validateThreshold = newThreshold;
+    }
 
     /**
      * Checks the proof provided for deposit.
@@ -209,9 +312,6 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         bytes32 data,
         bytes memory sig
     ) internal view returns (bool) {
-        if (trustedSigner == address(0)) {
-            return true;
-        }
         (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(
             data,
             sig
