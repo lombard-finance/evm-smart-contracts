@@ -6,6 +6,9 @@
       "TimeLock": "",
       "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
     },
+    "deprecated": {
+      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc"
+    },
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "StakedLBTC": "0x93283b6B889C591893dB0dc93baD71656D5d8923",
@@ -14,16 +17,15 @@
       "AssetRouter": "0x8565fdD1E2A58BED9724F137beB67eB6Ef746158",
       "Oracle": "0x549778509fBBEd7A8d8F4c51bECb2C9d0E2717De",
       "Mailbox": "0xf030Efc0826138847c44F468c3405C86bCD09267",
-      "Bridge": "0x845f8e3c214d8d0e4d83Fc094f302AA26a12a0Bc",
       "BridgeV2": "0xFF9aef444d833Bf5ebBaa40a5dff55Dfa5739Cd7",
       "IBCVoucher": "0x8f2403f14d0ca553273b7d55013e499194f9ec78"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
-      "CLAdapter": "",
-      "LombardTokenPool": ""
+      "ChainSelector": "16015286601757825753",
+      "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
+      "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
+      "LombardTokenPoolV2_stakedLBTC": "0x8E5996a57771dF023A0b32f7b0845Ea381C837f8",
+      "LombardTokenPoolV2_nativeLBTC": "0x1c48717D360D97f24076B0422E1b881F7D3B5839"
     },
     "stakeAndBake": {
       "StakeAndBake": "",
@@ -167,6 +169,34 @@
       "LBTCOFTAdapter_beraCartio": "",
       "LBTCOFTAdapter_solanaDevnetStaging": "",
       "LBTCOFTAdapter_solanaDevnetGastald": ""
+    }
+  },
+  "avalancheFuji": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a869",
+    "admin": {
+      "Owner": "0x8150532B41bf7f992B58C531432399dD9640cb28",
+      "TimeLock": "",
+      "Deployer": ["0x8150532B41bf7f992B58C531432399dD9640cb28"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0x76a083ae2945c54007b3f410299298A178C4FEdc",
+      "StakedLBTC": "0xc47e4b3124597FDF8DD07843D4a7052F2eE80C30",
+      "Mailbox": "0x78C159615cE96c4cBf3f16F8cdfeCf7b76456d30",
+      "BridgeV2": "0xa2e96F8E7de37Be991Ee0Ac8e878ED5784350f4B",
+      "AssetRouter": "0x473BC7f657FDDfF55C7899455C1976849BCC2A13",
+      "BridgeTokenAdapter": "0x0A65C37d07c32E5eA8ea40495b7f249cdE26935e",
+      "StakedLBTCOracle": "0x6E9389dAAaf673880a23a76671B8103639317028"
+    },
+    "avalanche": {
+      "BridgeToken": "0x7FbdC44BfEBDe80C970ba622B678daB36cee31f6"
+    },
+    "chainlink": {
+      "ChainSelector": "14767482510784806043",
+      "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
+      "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
+      "BridgeTokenPool": "0x820a0E0bB2eec313a153c98584573a07ceE7c7C3",
+      "LombardTokenPoolV2": "0x119Aaa375454fE254811F0878A0D983Af11A7586"
     }
   }
 }
