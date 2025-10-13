@@ -33,7 +33,8 @@
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
       "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
       "IBCVoucher": "0x8B9247bF7C5fB15c358831494fcD343660D98b34",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "chainlink": {
       "ChainSelector": "16015286601757825753",
@@ -55,7 +56,8 @@
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "deprecated": {
       "CLAdapter": "0xa4427417dcDC7AD23Ea3d367B3230B3A51Fbb26D",
@@ -83,7 +85,8 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "chainlink": {
       "ChainSelector": "10344971235874465080",
@@ -104,7 +107,8 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "chainlink": {
       "ChainSelector": "3676871237479449268",
