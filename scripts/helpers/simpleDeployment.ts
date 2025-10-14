@@ -6,7 +6,7 @@ export async function deploy(
   args: any[],
   contractFile: string,
   hre: HardhatRuntimeEnvironment
-): Promise<{ contractAddress: any }> {
+): Promise<{ contractAddress: string }> {
   const { ethers, run, upgrades } = hre;
 
   const impl = await ethers.deployContract(contract, args);

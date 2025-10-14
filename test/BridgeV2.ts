@@ -22,6 +22,7 @@ import { ContractTransactionReceipt } from 'ethers';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 import PayloadStruct = GMPUtils.PayloadStruct;
+import { randomAddress } from 'hardhat/internal/hardhat-network/provider/utils/random';
 
 const BRIDGE_PAYLOAD_SIZE = 388;
 const MAX_FEE_DISCOUNT = 10000n;
@@ -262,13 +263,13 @@ describe('BridgeV2', function () {
       });
 
       it('Reverts when called by not an owner', async () => {
-        await expect(sbridge.connect(signer1).removeDestinationToken(dChain, sToken, dToken))
+        await expect(sbridge.connect(signer1).removeDestinationToken(dChain, sToken))
           .to.be.revertedWithCustomError(sbridge, 'OwnableUnauthorizedAccount')
           .withArgs(signer1.address);
       });
 
       it('removeDestinationToken owner can remove tokens mapping', async () => {
-        await expect(sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken))
+        await expect(sbridge.connect(owner).removeDestinationToken(dChain, sToken))
           .to.emit(sbridge, 'DestinationTokenRemoved')
           .withArgs(dChain, dToken, sToken);
 
@@ -293,23 +294,24 @@ describe('BridgeV2', function () {
 
       it('Reverts when destination chain is 0', async () => {
         const dChain = encode(['uint256'], [0]);
-        await expect(
-          sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken)
-        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroPath');
+        await expect(sbridge.connect(owner).removeDestinationToken(dChain, sToken)).to.be.revertedWithCustomError(
+          sbridge,
+          'BridgeV2_ZeroPath'
+        );
       });
 
       it('Reverts when source token is 0 address', async () => {
         const sToken = ethers.ZeroAddress;
-        await expect(
-          sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken)
-        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroToken');
+        await expect(sbridge.connect(owner).removeDestinationToken(dChain, sToken)).to.be.revertedWithCustomError(
+          sbridge,
+          'BridgeV2_ZeroToken'
+        );
       });
 
-      it('Reverts when destination token is 0 address', async () => {
-        const dToken = encode(['address'], [ethers.ZeroAddress]);
+      it('Reverts when destination token is not set', async () => {
         await expect(
-          sbridge.connect(owner).removeDestinationToken(dChain, sToken, dToken)
-        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_ZeroToken');
+          sbridge.connect(owner).removeDestinationToken(dChain, signer1.address)
+        ).to.be.revertedWithCustomError(sbridge, 'BridgeV2_TokenNotAllowed');
       });
     });
   });
@@ -398,8 +400,7 @@ describe('BridgeV2', function () {
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload);
 
       const tx = await dmailbox.connect(signer1).deliverAndHandle(payload, proof);
-      const receipt = await tx.wait();
-      receipt?.logs.forEach(l => console.log(l));
+      // const receipt = await tx.wait();
 
       await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
 
@@ -1236,7 +1237,6 @@ describe('BridgeV2', function () {
           // @ts-ignore
           const errorEvent = receipt?.logs.find(l => l.eventName === 'MessageHandleError')?.args;
           expect(errorEvent.reason).to.be.eq('');
-          console.log(errorEvent.customError);
           expect(errorEvent.customError).to.be.eq(arg.customError(arg));
         });
       });
@@ -1399,7 +1399,6 @@ describe('BridgeV2', function () {
       const limitConfig = rateLimits.get(dLBTC.address + lChainId);
       const delta = BigInt(limitConfig.limit / limitConfig.window);
       const limitStatusBefore = await dbridge.getTokenRateLimit(dLBTC, lChainId);
-      console.log(limitStatusBefore);
       const amount = limitStatusBefore[1] + delta * 1000n;
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],

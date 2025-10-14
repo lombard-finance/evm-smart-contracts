@@ -4,12 +4,12 @@ pragma solidity 0.8.24;
 import {IERC20} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
-import {IBridge} from "../IBridge.sol";
 import {Pool} from "@chainlink/contracts-ccip/contracts/libraries/Pool.sol";
 import {TokenPool} from "@chainlink/contracts-ccip/contracts/pools/TokenPool.sol";
 import {CLAdapter} from "./CLAdapter.sol";
 
 /// @dev NOT TESTED AFTER UPGRADE OF CCIP TO 1.6.0
+/// @custom:security-contact legal@lombard.finance
 contract LombardTokenPool is TokenPool {
     CLAdapter public adapter;
 
@@ -29,7 +29,7 @@ contract LombardTokenPool is TokenPool {
     /// @dev The _validateLockOrBurn check is an essential security check
     function lockOrBurn(
         Pool.LockOrBurnInV1 calldata lockOrBurnIn
-    ) external virtual override returns (Pool.LockOrBurnOutV1 memory) {
+    ) public virtual override returns (Pool.LockOrBurnOutV1 memory) {
         _validateLockOrBurn(lockOrBurnIn);
 
         // send out to burn
@@ -40,7 +40,12 @@ contract LombardTokenPool is TokenPool {
             lockOrBurnIn.amount
         );
 
-        emit Burned(lockOrBurnIn.originalSender, burnedAmount);
+        emit LockedOrBurned({
+            remoteChainSelector: lockOrBurnIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            amount: burnedAmount
+        });
 
         bytes memory destPoolData = abi.encode(sha256(payload));
 
@@ -57,8 +62,11 @@ contract LombardTokenPool is TokenPool {
     /// @dev The _validateReleaseOrMint check is an essential security check
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
-    ) external virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
-        _validateReleaseOrMint(releaseOrMintIn);
+    ) public virtual override returns (Pool.ReleaseOrMintOutV1 memory) {
+        _validateReleaseOrMint(
+            releaseOrMintIn,
+            releaseOrMintIn.sourceDenominatedAmount
+        );
 
         uint64 amount = adapter.initiateWithdrawal(
             releaseOrMintIn.remoteChainSelector,
@@ -66,7 +74,13 @@ contract LombardTokenPool is TokenPool {
             releaseOrMintIn.offchainTokenData
         );
 
-        emit Minted(msg.sender, releaseOrMintIn.receiver, uint256(amount));
+        emit ReleasedOrMinted({
+            remoteChainSelector: releaseOrMintIn.remoteChainSelector,
+            token: address(i_token),
+            sender: msg.sender,
+            recipient: releaseOrMintIn.receiver,
+            amount: uint256(amount)
+        });
 
         return Pool.ReleaseOrMintOutV1({destinationAmount: uint256(amount)});
     }
