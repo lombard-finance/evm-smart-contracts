@@ -72,7 +72,6 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // The address entitled to sign payload deposit reporter brings
     address public trustedSigner;
 
-
     /// @dev Create a new GMPBasculeV1.
     /// @param aDefaultAdmin Address of the admin. This address should be controlled by a multisig.
     /// @param aPauser Address of the account that may pause.

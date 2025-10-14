@@ -58,10 +58,7 @@ interface IGMPBascule {
      * @param mintID Unique identifier for mint that failed validation.
      * @param mintAmount Amount of the mint.
      */
-    error MintFailedValidation(
-        bytes32 mintID,
-        uint256 mintAmount
-    );
+    error MintFailedValidation(bytes32 mintID, uint256 mintAmount);
 
     /**
      * Error when trying to change the validation threshold to the same value.
