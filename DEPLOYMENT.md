@@ -294,7 +294,7 @@ Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address 
 
 Deploy `LombardTokenPoolV2` contract on each chain for each token.
 ```bash
-yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}]
+yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}] [--fallback-decimals ${FALLBACK_DECIMALS}]
 ```
 **Write contracts address to json file.**
 
