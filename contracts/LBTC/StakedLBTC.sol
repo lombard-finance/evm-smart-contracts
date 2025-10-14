@@ -105,7 +105,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
 
         __StakedLBTC_init(
             "Lombard Staked Bitcoin", // TODO: set new name
-            "stLBTC", // TODO: set new symbol
+            "LBTC", // TODO: set new symbol
             consortium_,
             treasury
         );
