@@ -55,7 +55,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // NOTE: Raising this threshold should be done with extreme caution.  In
     // particular, you MUST make sure that validateMint is called with a
     // correct mint amount.
-    uint256 private _validateThreshold;
+    uint256 public validateThreshold;
 
     // Maximum number of batch deposits it's possible to make at once
     uint256 public maxMints;
@@ -98,17 +98,8 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         // guardian role when the threshold is raised.
         //
         // Initialize explicitly for readability/maintainability
-        _validateThreshold = 0; // validate all
+        validateThreshold = 0; // validate all
         trustedSigner = aTrustedSigner;
-    }
-
-    /// GETTERS ///
-
-    /**
-     * Returns the minimum threshold for validating mints.
-     */
-    function validateThreshold() public view returns (uint256) {
-        return _validateThreshold;
     }
 
     /// ACCESS CONTROL FUNCTIONS ///
@@ -297,8 +288,8 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
      * Emits {UpdateValidateThreshold}.
      */
     function _updateValidateThreshold(uint256 newThreshold) internal {
-        emit UpdateValidateThreshold(_validateThreshold, newThreshold);
-        _validateThreshold = newThreshold;
+        emit UpdateValidateThreshold(validateThreshold, newThreshold);
+        validateThreshold = newThreshold;
     }
 
     /**
