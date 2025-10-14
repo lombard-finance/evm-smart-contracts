@@ -29,13 +29,15 @@ task('deploy-ccip-token-pool-v2', 'Deploys the `LombardTokenPoolV2` contract')
   .addParam('router', 'CCIP Router contract address')
   .addOptionalParam('admin', 'The owner of the proxy')
   .addOptionalParam('tokenAdapter', 'The token adapter if presented')
-  .addOptionalParam('fallbackDecimals', 'fallback decimals', "8")
+  .addOptionalParam('fallbackDecimals', 'fallback decimals', '8')
   .setAction(async (taskArgs, hre) => {
     const { bridge, token, rmn, router, admin, tokenAdapter, fallbackDecimals } = taskArgs;
     const { ethers } = hre;
 
     const contract = tokenAdapter ? 'BridgeTokenPool' : 'LombardTokenPoolV2';
-    const args = tokenAdapter ? [bridge, token, tokenAdapter, [], rmn, router] : [bridge, token, [], rmn, router, fallbackDecimals];
+    const args = tokenAdapter
+      ? [bridge, token, tokenAdapter, [], rmn, router]
+      : [bridge, token, [], rmn, router, fallbackDecimals];
 
     const { contractAddress: tokenPoolAddr } = await deploy(
       contract,
