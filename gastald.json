@@ -166,5 +166,33 @@
       "CLAdapter": "0x8b3ecc204Ee394c8d003337C3C87ae6eDaC76bF8",
       "LombardTokenPool": "0xbd80acb96f69683Fb3155516a30f46ACC44a0cB8"
     }
+  },
+  "avalancheFuji": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a869",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "StakedLBTC": "",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03",
+      "BridgeV2": "",
+      "AssetRouter": "",
+      "BridgeTokenAdapter": "",
+      "StakedLBTCOracle": ""
+    },
+    "avalanche": {
+      "BridgeToken": ""
+    },
+    "chainlink": {
+      "ChainSelector": "14767482510784806043",
+      "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
+      "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
+      "BridgeTokenPool": "",
+      "LombardTokenPoolV2": ""
+    }
   }
 }
