@@ -10,6 +10,7 @@ import {
   randomAddress,
   randomBigInt,
   rawSign,
+  signDepositBtcV0Payload,
   Signer
 } from './helpers';
 import { GMPBasculeV1, IGMPBascule } from '../typechain-types';
@@ -37,7 +38,7 @@ function generateReport(signer: Signer, count: bigint) {
       amount: randomBigInt(8),
       nonce: randomBigInt(10),
       toToken: TOKEN_ADDRESS,
-      recipient: randomAddress(true)
+      recipient: randomAddress()
     };
     const mintID = calcMintID(mint);
     const proof = rawSign(signer, mintID);
@@ -57,6 +58,7 @@ describe('GMPBasculeV1', function () {
     mintReporter: Signer,
     mintValidator: Signer,
     trustedSigner: Signer,
+    validationGuardian: Signer,
     signer1: Signer;
 
   let bascule: GMPBasculeV1 & Addressable;
@@ -64,7 +66,8 @@ describe('GMPBasculeV1', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [_, owner, pauser, mintReporter, mintValidator, trustedSigner, signer1] = await getSignersWithPrivateKeys();
+    [_, owner, pauser, mintReporter, mintValidator, trustedSigner, signer1, validationGuardian] =
+      await getSignersWithPrivateKeys();
 
     bascule = await deployContract<GMPBasculeV1 & Addressable>(
       'GMPBasculeV1',
@@ -79,6 +82,8 @@ describe('GMPBasculeV1', function () {
       false
     );
     bascule.address = await bascule.getAddress();
+
+    await bascule.connect(owner).grantRole(await bascule.VALIDATION_GUARDIAN_ROLE(), validationGuardian.address);
 
     snapshot = await takeSnapshot();
   });
@@ -100,6 +105,12 @@ describe('GMPBasculeV1', function () {
 
     it('PAUSER_ROLE', async function () {
       expect(await bascule.PAUSER_ROLE()).to.be.eq(ethers.keccak256(ethers.toUtf8Bytes('PAUSER_ROLE')));
+    });
+
+    it('VALIDATION_GUARDIAN_ROLE', async function () {
+      expect(await bascule.VALIDATION_GUARDIAN_ROLE()).to.be.eq(
+        ethers.keccak256(ethers.toUtf8Bytes('VALIDATION_GUARDIAN_ROLE'))
+      );
     });
 
     it('MINT_VALIDATOR_ROLE', async function () {
@@ -134,6 +145,10 @@ describe('GMPBasculeV1', function () {
 
     it('Max mints', async function () {
       expect(await bascule.maxMints()).to.be.eq(defaultMaxMints);
+    });
+
+    it('Validate threshold', async function () {
+      expect(await bascule.validateThreshold()).to.be.eq(0n);
     });
 
     it('Paused is false', async function () {
@@ -184,6 +199,64 @@ describe('GMPBasculeV1', function () {
         await expect(bascule.connect(signer1).setTrustedSigner(newValue)).to.revertedWithCustomError(
           bascule,
           'AccessControlUnauthorizedAccount'
+        );
+      });
+    });
+
+    describe('Threshold', function () {
+      before(async function () {
+        await snapshot.restore();
+      });
+
+      // Guardian is only allowed to increase the threshold for once. Account looses guardian role after the call.
+      it('updateValidateThreshold: guardian can increase threshold only once', async function () {
+        const oldValue = await bascule.validateThreshold();
+        const newValue = oldValue + randomBigInt(8);
+        await expect(bascule.connect(validationGuardian).updateValidateThreshold(newValue))
+          .to.emit(bascule, 'UpdateValidateThreshold')
+          .withArgs(oldValue, newValue);
+
+        expect(await bascule.validateThreshold()).to.be.eq(newValue);
+      });
+
+      it('updateValidateThreshold: guardian lost their authority', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(
+          bascule.connect(validationGuardian).updateValidateThreshold(oldValue + 1n)
+        ).to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
+      });
+
+      it('updateValidateThreshold: default admin can decrease', async function () {
+        const oldValue = await bascule.validateThreshold();
+        const newValue = oldValue - randomBigInt(5);
+        await expect(bascule.connect(owner).updateValidateThreshold(newValue))
+          .to.emit(bascule, 'UpdateValidateThreshold')
+          .withArgs(oldValue, newValue);
+
+        expect(await bascule.validateThreshold()).to.be.eq(newValue);
+      });
+
+      it('updateValidateThreshold: reverts when default admin increases', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(bascule.connect(owner).updateValidateThreshold(oldValue + 1n)).to.revertedWithCustomError(
+          bascule,
+          'AccessControlUnauthorizedAccount'
+        );
+      });
+
+      it('updateValidateThreshold: reverts when called by unauthorized account', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(bascule.connect(signer1).updateValidateThreshold(oldValue - 1n)).to.revertedWithCustomError(
+          bascule,
+          'AccessControlUnauthorizedAccount'
+        );
+      });
+
+      it('updateValidateThreshold: reverts when threshold is the same', async function () {
+        const oldValue = await bascule.validateThreshold();
+        await expect(bascule.connect(signer1).updateValidateThreshold(oldValue)).to.revertedWithCustomError(
+          bascule,
+          'SameValidationThreshold'
         );
       });
     });
@@ -408,23 +481,6 @@ describe('GMPBasculeV1', function () {
           .withArgs(0, mintID, proof);
       });
 
-      it('reportMints: skips signature check when trusted signer is 0 address', async function () {
-        const reportId = randomBytes(32);
-        const mint: IGMPBascule.MessageStruct = {
-          amount: randomBigInt(8),
-          nonce: randomBigInt(10),
-          toToken: TOKEN_ADDRESS,
-          recipient: randomAddress()
-        };
-        const proof = randomBytes(65);
-
-        await bascule.connect(owner).setTrustedSigner(ethers.ZeroAddress);
-
-        await expect(bascule.connect(mintReporter).reportMints(reportId, [mint], [proof]))
-          .to.emit(bascule, 'MintsReported')
-          .withArgs(reportId, 1);
-      });
-
       it('reportMints: reverts when max number of mints is exceeded', async function () {
         const { mints, proofs } = generateReport(trustedSigner, defaultMaxMints + 1n);
 
@@ -460,7 +516,7 @@ describe('GMPBasculeV1', function () {
     });
 
     describe('Validate mints', function () {
-      it('validateMint: when mint has not been reported', async function () {
+      it('validateMint: when deposit has not been reported but amount is above threshold', async function () {
         const amount = randomBigInt(8);
         const mint: IGMPBascule.MessageStruct = {
           amount,
@@ -471,8 +527,29 @@ describe('GMPBasculeV1', function () {
         const mintID = calcMintID(mint);
 
         await expect(bascule.connect(mintValidator).validateMint(mint))
-          .to.be.revertedWithCustomError(bascule, 'NotReported')
-          .withArgs(mintID);
+          .to.be.revertedWithCustomError(bascule, 'MintFailedValidation')
+          .withArgs(mintID, amount);
+      });
+
+      it('validateMint: when mint has not been reported and it does not need to be', async function () {
+        const amount = randomBigInt(8);
+        await bascule.connect(validationGuardian).updateValidateThreshold(amount + 1n);
+
+        const mint: IGMPBascule.MessageStruct = {
+          amount,
+          nonce: randomBigInt(10),
+          toToken: TOKEN_ADDRESS,
+          recipient: randomAddress()
+        };
+        const mintID = calcMintID(mint);
+
+        await expect(bascule.connect(mintValidator).validateMint(mint))
+          .to.emit(bascule, 'MintNotValidated')
+          .withArgs(mintID, amount);
+
+        await expect(bascule.connect(mintValidator).validateMint(mint))
+          .to.be.revertedWithCustomError(bascule, 'AlreadyMinted')
+          .withArgs(mintID, amount);
       });
 
       it('validateMint: reverts when called by unauthorized account', async function () {
