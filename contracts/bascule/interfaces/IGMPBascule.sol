@@ -82,7 +82,7 @@ interface IGMPBascule {
     error BadMintReport();
 
     /**
-     * Error when batch deposit size does not match the side of proofs.
+     * Error when batch deposit size does not match the size of proofs.
      */
     error BadMintProofsSize();
 
