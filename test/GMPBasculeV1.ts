@@ -219,17 +219,10 @@ describe('GMPBasculeV1', function () {
         expect(await bascule.validateThreshold()).to.be.eq(newValue);
       });
 
-      it('updateValidateThreshold: guardian lost their authority', async function () {
-        const oldValue = await bascule.validateThreshold();
-        await expect(
-          bascule.connect(validationGuardian).updateValidateThreshold(oldValue + 1n)
-        ).to.revertedWithCustomError(bascule, 'AccessControlUnauthorizedAccount');
-      });
-
-      it('updateValidateThreshold: default admin can decrease', async function () {
+      it('updateValidateThreshold: guarian can decrease', async function () {
         const oldValue = await bascule.validateThreshold();
         const newValue = oldValue - randomBigInt(5);
-        await expect(bascule.connect(owner).updateValidateThreshold(newValue))
+        await expect(bascule.connect(validationGuardian).updateValidateThreshold(newValue))
           .to.emit(bascule, 'UpdateValidateThreshold')
           .withArgs(oldValue, newValue);
 
@@ -254,7 +247,7 @@ describe('GMPBasculeV1', function () {
 
       it('updateValidateThreshold: reverts when threshold is the same', async function () {
         const oldValue = await bascule.validateThreshold();
-        await expect(bascule.connect(signer1).updateValidateThreshold(oldValue)).to.revertedWithCustomError(
+        await expect(bascule.connect(validationGuardian).updateValidateThreshold(oldValue)).to.revertedWithCustomError(
           bascule,
           'SameValidationThreshold'
         );

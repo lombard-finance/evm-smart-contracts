@@ -133,29 +133,11 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
      */
     function updateValidateThreshold(
         uint256 newThreshold
-    ) public whenNotPaused {
+    ) public onlyRole(VALIDATION_GUARDIAN_ROLE) whenNotPaused {
         // Retains the original reverting behavior of the original
         // for compatibility with off-chain code.
-        if (newThreshold == validateThreshold()) {
+        if (newThreshold == validateThreshold) {
             revert SameValidationThreshold();
-        }
-        if (newThreshold < validateThreshold()) {
-            if (!hasRole(DEFAULT_ADMIN_ROLE, _msgSender())) {
-                revert AccessControlUnauthorizedAccount(
-                    _msgSender(),
-                    DEFAULT_ADMIN_ROLE
-                );
-            }
-        } else {
-            if (!hasRole(VALIDATION_GUARDIAN_ROLE, _msgSender())) {
-                revert AccessControlUnauthorizedAccount(
-                    _msgSender(),
-                    VALIDATION_GUARDIAN_ROLE
-                );
-            }
-            // Renounce the validation guardian role. This ensures the caller doesn't
-            // have peristent privileges to effectively disable validation.
-            renounceRole(VALIDATION_GUARDIAN_ROLE, _msgSender());
         }
         // Actually update the threshold
         _updateValidateThreshold(newThreshold);
@@ -265,7 +247,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
             revert AlreadyMinted(mintID, mintMsg.amount);
         }
         // Not reported
-        if (mintMsg.amount >= validateThreshold()) {
+        if (mintMsg.amount >= validateThreshold) {
             // We disallow a withdrawal if it's not in the depositHistory and
             // the value is above the threshold.
             revert MintFailedValidation(mintID, mintMsg.amount);
