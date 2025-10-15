@@ -196,8 +196,8 @@
       "ChainSelector": "14767482510784806043",
       "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
       "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
-      "BridgeTokenPool": "",
-      "LombardTokenPoolV2": ""
+      "BridgeTokenPool": "0xCe4F2ceaA15b509E132fBD61D6eAcB6888B23c55",
+      "LombardTokenPoolV2": "0xafaE5Fd36F5b12d9588f1b6B7610C336C8EB46Dd"
     }
   }
 }
