@@ -294,5 +294,33 @@
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     }
+  },
+  "avalanche": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a86a",
+    "admin": {
+      "Owner": "",
+      "TimeLock": "",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "Consortium": "",
+      "StakedLBTC": "",
+      "Mailbox": "",
+      "BridgeV2": "",
+      "AssetRouter": "",
+      "BridgeTokenAdapter": "",
+      "StakedLBTCOracle": ""
+    },
+    "avalanche": {
+      "BridgeToken": "0x152b9d0FdC40C096757F570A51E494bd4b943E50"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "BridgeTokenPool": "",
+      "LombardTokenPoolV2_stakedLBTC": ""
+    }
   }
 }
