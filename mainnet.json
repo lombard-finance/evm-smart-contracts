@@ -316,9 +316,9 @@
       "BridgeToken": "0x152b9d0FdC40C096757F570A51E494bd4b943E50"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
+      "ChainSelector": "6433500567565415381",
+      "Router": "0xF4c7E640EdA248ef95972845a62bdC74237805dB",
+      "RMN": "0xcBD48A8eB077381c3c4Eb36b402d7283aB2b11Bc",
       "BridgeTokenPool": "",
       "LombardTokenPoolV2_stakedLBTC": ""
     }
