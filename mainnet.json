@@ -15,7 +15,9 @@
       "StakedLBTC": "0x8236a87084f8B84306f72007F36F2618A5634494",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
-      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
+     "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "fbtc": {
       "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
@@ -27,7 +29,8 @@
       "Router": "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
       "RMN": "0x411dE17f12D1A34ecC7F45f49844626267c75e81",
       "CLAdapter": "0x2298d44CFDa0ceAfE7F5Ef5FD587B67d7b9b1Fbb",
-      "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
+      "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453",
+      "LombardTokenPoolV2_stakedLBTC": "0x88E18636EfFC3b3cd520FC72B710eb99C0017BC7"
     },
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
@@ -66,6 +69,8 @@
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "BTCB": {
@@ -77,7 +82,8 @@
       "Router": "0x34B03Cb9086d7D758AC55af71584F81A598759FE",
       "RMN": "0x9e09697842194f77d315E0907F1Bda77922e8f84",
       "CLAdapter": "0xf1fc1be000db6fa2193ab75e461a5603400d031f",
-      "LombardTokenPool": "0x75BEafC5E96aD88B4BD0Ae44a56FebCAD64FE11F"
+      "LombardTokenPool": "0x75BEafC5E96aD88B4BD0Ae44a56FebCAD64FE11F",
+      "LombardTokenPoolV2_stakedLBTC": "0xf191a1CE04fD54f090B4d97316258b6009C562d7"
     },
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
@@ -104,6 +110,8 @@
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "DepositNotarizationBlacklist": "0xdf0D1818C5276aD63Ce73E20223657d4920E5e82",
       "PoR": "0xe7Ebc588F4EC9297d9867aD75a9b5D86848c8018",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
@@ -117,7 +125,8 @@
       "Router": "0x881e3A65B4d4a04dD529061dd0071cf975F58bCD",
       "RMN": "0xC842c69d54F83170C42C4d556B4F6B2ca53Dd3E8",
       "CLAdapter": "0x35df1153b69b245a12336b8ed5c12f1cb8279916",
-      "LombardTokenPool": "0x84166eAf4530994C565E6aCC774a6950Ce8c88aA"
+      "LombardTokenPool": "0x84166eAf4530994C565E6aCC774a6950Ce8c88aA",
+      "LombardTokenPoolV2_stakedLBTC": "0x2A70CbF60a9252Ff312719885088283f930750BA"
     },
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
@@ -156,6 +165,8 @@
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "layerZero": {
@@ -166,7 +177,8 @@
       "Router": "0xB4e1Ff7882474BB93042be9AD5E1fA387949B860",
       "RMN": "0x60536Ef486DB5E0e1771874E31485c12e3c2844f",
       "CLAdapter": "0x6ebe222a56Ee24421ad2BB78b7c88648C9954006",
-      "LombardTokenPool": "0x3BA7EDC2C37D8069B1A29159290604da93887Fa2"
+      "LombardTokenPool": "0x3BA7EDC2C37D8069B1A29159290604da93887Fa2",
+      "LombardTokenPoolV2_stakedLBTC": "0x775C438b07d5667aEFa3DE493A7cc2Df3a199E99"
     },
     "cubist": {
       "BasculeV2": "0x4515755A7E22411AF547815a856ac7f16d85dD5C"
@@ -239,6 +251,7 @@
       "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
       "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0"
@@ -248,7 +261,9 @@
       "Router": "0x7c19b79D2a054114Ab36ad758A36e92376e267DA",
       "RMN": "0x32270E4FA459cA47ae0334488e27ffb9bC9aB4a1",
       "CLAdapter": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037",
-      "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C"
+      "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C",
+      "LombardTokenPoolV2_stakedLBTC": "0xE4B5166b1D60C2208A934176522461c470A37d56",
+      "LombardTokenPoolV2_nativeLBTC": "0x5aDBb45BCCDFe663C8F77742737705Ac67b77a3B"
     },
     "cubist": {
       "BasculeV2": "0x723c1c3AE8e062e93d03989CFdaf9Cb1424D2d05"
