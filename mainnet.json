@@ -17,7 +17,7 @@
       "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
-     "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "fbtc": {
       "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
