@@ -34,4 +34,4 @@ jobs:
               run: yarn hardhat compile
 
             - name: Check
-              run: for net in mainnet base bsc berachain sonic ink katana scroll bob ; do yarn hardhat ccip check --network $net; done
+              run: for net in mainnet base bsc berachain sonic ink katana scroll bob morph ; do yarn hardhat ccip check --network $net; done
