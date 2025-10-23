@@ -17,7 +17,7 @@ export type RuleFunc = (
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>,  
+  nativeTokens: Map<string, string>
 ) => Promise<void>;
 
 export type LedgerRatio = {

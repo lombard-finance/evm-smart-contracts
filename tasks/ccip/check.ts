@@ -55,27 +55,27 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
         const address: string = value[1] as string;
         // console.log(`Lombard data ---> chain: ${chain}, name: ${name}, value: ${address}`);
         switch (true) {
-          case (name == BRIDGE_CONTRACT):
+          case name == BRIDGE_CONTRACT:
             const bridge = address;
             bridges.set(chain, bridge.toLowerCase());
             break;
-          case (name == MAILBOX_CONTRACT):
+          case name == MAILBOX_CONTRACT:
             mailboxes.set(chain, address.toLowerCase());
             break;
-          case (name == STAKED_LBTC_CONTRACT):
-          case (name == LBTC_CONTRACT):
+          case name == STAKED_LBTC_CONTRACT:
+          case name == LBTC_CONTRACT:
             if (address.length > 0) {
               stakedTokens.set(chain, address.toLowerCase());
             }
             break;
-          case (name == NATIVE_LBTC_CONTRACT):
-          case (name == BRIDGE_TOKEN):
+          case name == NATIVE_LBTC_CONTRACT:
+          case name == BRIDGE_TOKEN:
             if (address.length > 0) {
               nativeTokens.set(chain, address.toLowerCase());
             }
             break;
           default:
-            // Do nothing
+          // Do nothing
         }
       });
     }
@@ -90,7 +90,7 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
       }
     }
 
-    const ccipConfig =config[CCIP_SECTION];
+    const ccipConfig = config[CCIP_SECTION];
     if (ccipConfig) {
       Object.entries(ccipConfig).forEach(value => {
         const name = value[0];
@@ -100,7 +100,7 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
           if (data.length < 1) {
             return;
           }
-          let tokenPoollist = tokenPools.get(chain)
+          let tokenPoollist = tokenPools.get(chain);
           if (!tokenPoollist) {
             tokenPoollist = [];
           }
@@ -108,13 +108,13 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
           tokenPools.set(chain, tokenPoollist);
           needToCheckChain = true;
         } else if (name == CCIP_CHAIN_SELECTOR) {
-          chainSelectors.set(chain, BigInt(data))
+          chainSelectors.set(chain, BigInt(data));
           needToCheckChain = true;
         } else if (name == CCIP_ROUTER) {
-          routers.set(chain, data.toLowerCase())
+          routers.set(chain, data.toLowerCase());
           needToCheckChain = true;
         } else if (name == CCIP_RMN) {
-          rmns.set(chain, data.toLowerCase())
+          rmns.set(chain, data.toLowerCase());
           needToCheckChain = true;
         }
       });
@@ -135,7 +135,19 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
     // console.log(`chains to check ${chainsLocal}`);
 
     for (const f of RULESET) {
-      await f(hre, targetChain, chainsLocal, chainSelectorsLocal, rmns, routers, mailboxes, bridges, tokenPools, stakedTokens, nativeTokens);
+      await f(
+        hre,
+        targetChain,
+        chainsLocal,
+        chainSelectorsLocal,
+        rmns,
+        routers,
+        mailboxes,
+        bridges,
+        tokenPools,
+        stakedTokens,
+        nativeTokens
+      );
     }
   }
 }
@@ -152,7 +164,7 @@ async function checkMailbox(
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>,  
+  nativeTokens: Map<string, string>
 ) {
   const mailboxAddress = mailboxes.get(chain);
   if (!mailboxAddress) {
@@ -173,7 +185,9 @@ async function checkMailbox(
   if (!res.feeDisabled) {
     console.log(`\t📛\tmailbox fee is NOT disabled!`);
   }
-  console.log(`Mailbox(${mailboxAddress}) config for BridgeV2(${bridgeAddress}): maxPayloadSize ${res.maxPayloadSize}, feeDisabled ${res.feeDisabled}`);
+  console.log(
+    `Mailbox(${mailboxAddress}) config for BridgeV2(${bridgeAddress}): maxPayloadSize ${res.maxPayloadSize}, feeDisabled ${res.feeDisabled}`
+  );
 
   // ToDO: implement check for inbound and outboud paths
 
@@ -191,14 +205,14 @@ async function checkBridge(
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>,  
+  nativeTokens: Map<string, string>
 ) {
   const bridgeAddress = bridges.get(chain);
   if (!bridgeAddress) {
     console.log(`\t⚠️\tbridge is not present on this chain`);
     return;
   }
-  const bridge = await hre.ethers.getContractAt(BRIDGE_CONTRACT, bridgeAddress); 
+  const bridge = await hre.ethers.getContractAt(BRIDGE_CONTRACT, bridgeAddress);
   // ToDO: implement check
   return;
 }
@@ -214,14 +228,14 @@ async function checkTokenPool(
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>,  
+  nativeTokens: Map<string, string>
 ) {
   const tokenPoolAddresses = tokenPools.get(chain);
   if (!tokenPoolAddresses || tokenPoolAddresses.length < 1) {
     console.log(`\t⚠️\ttoken pools are not present on this chain`);
     return;
   }
-  for (const address of tokenPoolAddresses){
+  for (const address of tokenPoolAddresses) {
     const chainSelectors = new Map(chainSelectorsGlobal);
     console.log(`Checking token pool ${address}`);
     const tokenPool = await hre.ethers.getContractAt(TOKEN_POOL_CONTRACT, address);
@@ -244,7 +258,7 @@ async function checkTokenPool(
     const bridgeAddress = (await tokenPool['bridge']())?.toLowerCase();
     if (bridgeAddress != bridges.get(chain)) {
       console.log(`\t📛\twrong bridge set in token pool (${bridgeAddress})`);
-    }  
+    }
     // Check RMN
     if (!tokenPool.interface.hasFunction('getRmnProxy')) {
       console.log(`\t📛\tunexpected token pool contract version: missing "getRmnProxy()" fuction`);
@@ -253,7 +267,7 @@ async function checkTokenPool(
     const rmnAddress = (await tokenPool['getRmnProxy']())?.toLowerCase();
     if (rmnAddress != rmns.get(chain)) {
       console.log(`\t📛\twrong rmn set in token pool (${rmnAddress})`);
-    }  
+    }
     // Check Router
     if (!tokenPool.interface.hasFunction('getRouter')) {
       console.log(`\t📛\tunexpected token pool contract version: missing "getRmnProxy()" fuction`);
@@ -262,13 +276,13 @@ async function checkTokenPool(
     const routerAddress = (await tokenPool['getRouter']())?.toLowerCase();
     if (routerAddress != routers.get(chain)) {
       console.log(`\t📛\twrong router set in token pool (${routerAddress})`);
-    }  
+    }
     // Check supported chains
     if (!tokenPool.interface.hasFunction('getSupportedChains')) {
       console.log(`\t📛\tunexpected token pool contract version: missing "getSupportedChains()" fuction`);
       return;
     }
-    const supportedChains =  await tokenPool['getSupportedChains']();
+    const supportedChains = await tokenPool['getSupportedChains']();
     supportedChains.forEach(chn => {
       let found = false;
       chainSelectors.forEach((v, k) => {
@@ -313,7 +327,9 @@ async function checkTokenPool(
         expectedToken = stakedTokens.get(chn)!;
       }
       if (remoteToken != expectedToken) {
-        console.log(`\t📛\tunexpected token ${remoteToken} set as remote for chain ${chn}   expected token: ${expectedToken}`);
+        console.log(
+          `\t📛\tunexpected token ${remoteToken} set as remote for chain ${chn}   expected token: ${expectedToken}`
+        );
       }
       if (remotePools.length != 1) {
         console.log(`\t📛\tunexpected number of remote pools ${remotePools.length} set for chain ${chn}`);
@@ -334,17 +350,17 @@ async function checkTokenPool(
         }
       }
       const inboundConfig = await tokenPool['getCurrentInboundRateLimiterState'](selector);
-      console.log(`Rate limit config for remote chain ${chn} and token ${remoteToken}:`)
-      console.log(`Inbound:`)
-      console.log(`\tenabled: ${inboundConfig.isEnabled}`)
-      console.log(`\tcapacity: ${inboundConfig.capacity}`)
-      console.log(`\trate: ${inboundConfig.rate}`)
+      console.log(`Rate limit config for remote chain ${chn} and token ${remoteToken}:`);
+      console.log(`Inbound:`);
+      console.log(`\tenabled: ${inboundConfig.isEnabled}`);
+      console.log(`\tcapacity: ${inboundConfig.capacity}`);
+      console.log(`\trate: ${inboundConfig.rate}`);
       const outboundConfig = await tokenPool['getCurrentOutboundRateLimiterState'](selector);
-      console.log(`Outbound:`)
-      console.log(`\tenabled: ${outboundConfig.isEnabled}`)
-      console.log(`\tcapacity: ${outboundConfig.capacity}`)
-      console.log(`\trate: ${outboundConfig.rate}`)      
+      console.log(`Outbound:`);
+      console.log(`\tenabled: ${outboundConfig.isEnabled}`);
+      console.log(`\tcapacity: ${outboundConfig.capacity}`);
+      console.log(`\trate: ${outboundConfig.rate}`);
     }
-  } 
+  }
   return;
 }
