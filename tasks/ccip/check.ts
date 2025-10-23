@@ -56,8 +56,7 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
         // console.log(`Lombard data ---> chain: ${chain}, name: ${name}, value: ${address}`);
         switch (true) {
           case name == BRIDGE_CONTRACT:
-            const bridge = address;
-            bridges.set(chain, bridge.toLowerCase());
+            bridges.set(chain, address.toLowerCase());
             break;
           case name == MAILBOX_CONTRACT:
             mailboxes.set(chain, address.toLowerCase());
@@ -96,26 +95,33 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
         const name = value[0];
         const data: string = value[1] as string;
         // console.log(`CCIP data ---> chain: ${chain}, name: ${name}, value: ${data}`);
-        if (name.startsWith(TOKEN_POOL_CONTRACT) || name == BRIDGE_TOKEN_POOL) {
-          if (data.length < 1) {
-            return;
-          }
-          let tokenPoollist = tokenPools.get(chain);
-          if (!tokenPoollist) {
-            tokenPoollist = [];
-          }
-          tokenPoollist = tokenPoollist.concat([data.toLowerCase()]);
-          tokenPools.set(chain, tokenPoollist);
-          needToCheckChain = true;
-        } else if (name == CCIP_CHAIN_SELECTOR) {
-          chainSelectors.set(chain, BigInt(data));
-          needToCheckChain = true;
-        } else if (name == CCIP_ROUTER) {
-          routers.set(chain, data.toLowerCase());
-          needToCheckChain = true;
-        } else if (name == CCIP_RMN) {
-          rmns.set(chain, data.toLowerCase());
-          needToCheckChain = true;
+        switch (true) {
+          case name.startsWith(TOKEN_POOL_CONTRACT) || name == BRIDGE_TOKEN_POOL:
+            if (data.length < 1) {
+              return;
+            }
+            let tokenPoollist = tokenPools.get(chain);
+            if (!tokenPoollist) {
+              tokenPoollist = [];
+            }
+            tokenPoollist = tokenPoollist.concat([data.toLowerCase()]);
+            tokenPools.set(chain, tokenPoollist);
+            needToCheckChain = true;
+            break;
+          case name == CCIP_CHAIN_SELECTOR:
+            chainSelectors.set(chain, BigInt(data));
+            needToCheckChain = true;
+            break;
+          case name == CCIP_ROUTER:
+            routers.set(chain, data.toLowerCase());
+            needToCheckChain = true;
+            break;
+          case name == CCIP_RMN:
+            rmns.set(chain, data.toLowerCase());
+            needToCheckChain = true;
+            break;
+          default:
+          // Do nothing
         }
       });
     }
@@ -322,9 +328,9 @@ async function checkTokenPool(
       remoteToken = '0x' + remoteToken.substring(remoteToken.length - 40).toLowerCase();
       let expectedToken = '';
       if (isNativeToken) {
-        expectedToken = nativeTokens.get(chn)!;
+        expectedToken = nativeTokens.get(chn) || '';
       } else {
-        expectedToken = stakedTokens.get(chn)!;
+        expectedToken = stakedTokens.get(chn) || '';
       }
       if (remoteToken != expectedToken) {
         console.log(
