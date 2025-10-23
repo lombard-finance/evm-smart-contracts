@@ -340,7 +340,7 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
-    avalance: {
+    avalanche: {
       loggingEnabled: true,
       url: vars.get('AVALANCHE_RPC', 'https://avalanche.public-rpc.com'),
       chainId: 43114,
