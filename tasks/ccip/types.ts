@@ -10,14 +10,14 @@ export type RuleFunc = (
   hre: HardhatRuntimeEnvironment,
   chain: string,
   chains: string[],
-  chainSelectors: Map<string, bigint>,
+  chainSelectors: Map<string, LChainBasicData>,
   rmns: Map<string, string>,
   routers: Map<string, string>,
   mailboxes: Map<string, string>,
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>
+  nativeTokens: Map<string, NativeTokenData>
 ) => Promise<void>;
 
 export type LedgerRatio = {
@@ -33,4 +33,14 @@ export type CcipBasicData = {
   chainSelector: string;
   rmn: string;
   router: string;
+};
+
+export type LChainBasicData = {
+  chainSelector: bigint;
+  lChainId: string;
+};
+
+export type NativeTokenData = {
+  token: string | undefined;
+  adapter: string | undefined;
 };

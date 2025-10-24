@@ -131,7 +131,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             getRemoteToken(lockOrBurnIn.remoteChainSelector),
             (bytes32)
         );
-        if (bridgeDestToken != poolDestToken && bridgeDestToken != path.adapter)  {
+        if (
+            bridgeDestToken != poolDestToken && bridgeDestToken != path.adapter
+        ) {
             revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
         }
 
