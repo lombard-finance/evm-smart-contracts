@@ -34,4 +34,4 @@ jobs:
               run: yarn hardhat compile
 
             - name: Check
-              run: for net in sepolia baseSepolia bscTestnet sonicTestnet ink katanaTatara scrollTestnet ; do yarn hardhat ccip check gastald.json --network $net; done
+              run: for net in sepolia baseSepolia bscTestnet sonicTestnet katanaTatara scrollTestnet avalancheFuji ; do yarn hardhat ccip check gastald.json --network $net; done
