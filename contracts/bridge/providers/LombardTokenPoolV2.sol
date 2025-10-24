@@ -48,6 +48,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     struct Path {
         bytes32 allowedCaller;
         bytes32 lChainId;
+        bytes32 adapter;
     }
 
     uint8 internal constant SUPPORTED_BRIDGE_MSG_VERSION = 1;
@@ -130,7 +131,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             getRemoteToken(lockOrBurnIn.remoteChainSelector),
             (bytes32)
         );
-        if (bridgeDestToken != poolDestToken) {
+        if (bridgeDestToken != poolDestToken && bridgeDestToken != path.adapter)  {
             revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
         }
 
@@ -222,7 +223,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     function setPath(
         uint64 remoteChainSelector,
         bytes32 lChainId,
-        bytes calldata allowedCaller
+        bytes calldata allowedCaller,
+        bytes32 adapter
     ) external onlyOwner {
         if (!isSupportedChain(remoteChainSelector)) {
             revert ChainNotSupported();
@@ -247,7 +249,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
 
         chainSelectorToPath[remoteChainSelector] = Path({
             lChainId: lChainId,
-            allowedCaller: decodedAllowedCaller
+            allowedCaller: decodedAllowedCaller,
+            adapter: adapter
         });
 
         emit PathSet(remoteChainSelector, lChainId, decodedAllowedCaller);

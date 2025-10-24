@@ -74,6 +74,7 @@ task('setup-token-pool', 'Configure TokenPoolAdapter smart-contract')
 
 task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
   .addPositionalParam('tokenPool', 'The address of token pool smart-contract')
+  .addParam('adapter', 'The address of token adapter on destination chain', '0x0000000000000000000000000000000000000000')
   .addOptionalParam('remoteToken', 'The address of the token at remote chain')
   .addOptionalParam('remoteSelector', 'Remote chain selector of destination chain')
   .addOptionalParam('remoteChain', 'Chain id of remote selector')
@@ -83,7 +84,7 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
     const { ethers } = hre;
     const encoder = ethers.AbiCoder.defaultAbiCoder();
 
-    const { tokenPool: tokenPoolArg, remoteSelector, remoteChain, remotePool, remoteToken, populate } = taskArgs;
+    const { tokenPool: tokenPoolArg, remoteSelector, remoteChain, remotePool, remoteToken, adapter, populate } = taskArgs;
 
     const tokenPool = await ethers.getContractAt('LombardTokenPoolV2', tokenPoolArg);
 
@@ -128,11 +129,13 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
 
       console.log(`Chain ${remoteChainId} set for chain selector ${remoteSelector}`);
 
+      const adapterBytes = adapter.length != 42 ? adapter : encoder.encode(['address'], [adapter]);
+
       if (populate) {
-        const txData = await tokenPool.setPath.populateTransaction(remoteSelector, remoteChainId, remotePoolBytes);
+        const txData = await tokenPool.setPath.populateTransaction(remoteSelector, remoteChainId, remotePoolBytes, adapterBytes);
         console.log(`setPath: ${JSON.stringify(txData, null, 2)}`);
       } else {
-        const tx = await tokenPool.setPath(remoteSelector, remoteChainId, remotePoolBytes);
+        const tx = await tokenPool.setPath(remoteSelector, remoteChainId, remotePoolBytes, adapterBytes);
         await tx.wait(2);
       }
     }

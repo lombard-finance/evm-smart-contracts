@@ -47,7 +47,7 @@
       "CLAdapter": "0x4797b507c621226E5FaF0CFAADbDb4acf076c066",
       "LombardTokenPool": "0xaFB9546D2001cB8850e476Ff8BF51104742bFD95",
       "LombardTokenPoolV2_LBTC": "0x8867A40CfF489f0De05AD61731ca8F2c7c0fEb71",
-      "LombardTokenPoolV2_nativeLBTC": "0x48B2D923b099576498eCDCad25aBDBf3A3fc5915"
+      "LombardTokenPoolV2_nativeLBTC": "0x0805259E426C87307E08C78cC0A730269762B63e"
     }
   },
   "bscTestnet": {
