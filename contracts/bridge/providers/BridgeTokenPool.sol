@@ -59,7 +59,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
         // verify bridge destination token equal to pool
         bytes32 bridgeDestToken = bridge.getAllowedDestinationToken(
             path.lChainId,
-            lockOrBurnIn.localToken
+            getTokenAdapter
         );
         bytes32 poolDestToken = abi.decode(
             getRemoteToken(lockOrBurnIn.remoteChainSelector),
