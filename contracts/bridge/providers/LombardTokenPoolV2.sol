@@ -152,7 +152,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         emit LockedOrBurned({
             remoteChainSelector: lockOrBurnIn.remoteChainSelector,
             token: address(i_token),
-            sender: msg.sender,
+            sender: lockOrBurnIn.originalSender,
             amount: lockOrBurnIn.amount
         });
 
