@@ -65,7 +65,9 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
             getRemoteToken(lockOrBurnIn.remoteChainSelector),
             (bytes32)
         );
-        if (bridgeDestToken != poolDestToken) {
+        if (
+            bridgeDestToken != poolDestToken && bridgeDestToken != path.adapter
+        ) {
             revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
         }
 
@@ -86,7 +88,7 @@ contract BridgeTokenPool is LombardTokenPoolV2 {
         emit LockedOrBurned({
             remoteChainSelector: lockOrBurnIn.remoteChainSelector,
             token: address(i_token),
-            sender: msg.sender,
+            sender: lockOrBurnIn.originalSender,
             amount: lockOrBurnIn.amount
         });
 
