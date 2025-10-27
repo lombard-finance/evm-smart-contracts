@@ -33,7 +33,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     event PathSet(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
-        bytes32 allowedCaller
+        bytes32 allowedCaller,
+        bytes32 adapter
     );
 
     /// @param remoteChainSelector CCIP selector of destination chain
@@ -255,7 +256,12 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             adapter: adapter
         });
 
-        emit PathSet(remoteChainSelector, lChainId, decodedAllowedCaller);
+        emit PathSet(
+            remoteChainSelector,
+            lChainId,
+            decodedAllowedCaller,
+            adapter
+        );
     }
 
     /// @notice remove path mapping
