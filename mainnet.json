@@ -33,7 +33,7 @@
       "CLAdapter": "0x2298d44CFDa0ceAfE7F5Ef5FD587B67d7b9b1Fbb",
       "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453",
       "LombardTokenPoolV2_stakedLBTC": "0x88E18636EfFC3b3cd520FC72B710eb99C0017BC7",
-      "LombardTokenPoolV2_nativeLBTC": "0x61003ba35d6F57e0B61442BC88C2C7a45Bf56095"
+      "LombardTokenPoolV2_nativeLBTC": "0xBA59cF1c1563a9B93A8C5D70F8E445eaCa9842D0"
     },
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
@@ -266,7 +266,7 @@
       "CLAdapter": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037",
       "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C",
       "LombardTokenPoolV2_stakedLBTC": "0xE4B5166b1D60C2208A934176522461c470A37d56",
-      "LombardTokenPoolV2_nativeLBTC": "0x5aDBb45BCCDFe663C8F77742737705Ac67b77a3B"
+      "LombardTokenPoolV2_nativeLBTC": "0xf1fc1bE000Db6fa2193aB75E461a5603400d031F"
     },
     "cubist": {
       "BasculeV2": "0x723c1c3AE8e062e93d03989CFdaf9Cb1424D2d05"
@@ -338,7 +338,7 @@
       "Router": "0xF4c7E640EdA248ef95972845a62bdC74237805dB",
       "RMN": "0xcBD48A8eB077381c3c4Eb36b402d7283aB2b11Bc",
       "BridgeTokenPool": "0xC03b339FebB290F1cF062387Ae3c902F6fC57A54",
-      "LombardTokenPoolV2_stakedLBTC": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037"
+      "LombardTokenPoolV2_stakedLBTC": "0xd24658051aa6c8ACf874F686D5dA325a87d2D146"
     }
   }
 }
