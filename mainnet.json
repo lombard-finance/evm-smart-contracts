@@ -150,7 +150,15 @@
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+    },
+    "chainlink": {
+      "ChainSelector": "1294465214383781161",
+      "Router": "0x71a275704c283486fBa26dad3dd0DB78804426eF",
+      "RMN": "0x25943b8C30C47F4eF09CcF2BAE315EbaF591881d",
+      "LombardTokenPoolV2_stakedLBTC": "0xc6c22D4Be6Cc50E6D01BD6325b6cD715A52f8154"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x630e12D53D4E041b8C5451aD035Ea841E08391d7"
@@ -211,7 +219,16 @@
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D"
+    },
+    "chainlink": {
+      "ChainSelector": "13624601974233774587",
+      "Router": "0x1912C3cFafE8A76A32a92861d815aC2837F237Ca",
+      "RMN": "0x1E11bAB3f07fa72312182fFDc460AE45400E6e7b",
+      "LombardTokenPoolV2_stakedLBTC": "0x9Ef2919f333Cdf13Fb609C0341bE0c852f691788"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0xC832183d4d5fc5831daaC892a93dBBfd798034E3"
@@ -281,7 +298,15 @@
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
-      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4"
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D"
+    },
+    "chainlink": {
+      "ChainSelector": "5936861837188149645",
+      "Router": "0x966519C334D895121B61584CAdeBc15571b62983",
+      "RMN": "0xbDCb06538A5f4F5aCC69bb0B7548d314d3c1A8Fd",
+      "LombardTokenPoolV2_stakedLBTC": "0xAe5E2940Fc01C0f8076D36749509C75E43da0C70"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x1298131cDa718bBcA7ACB1f2411e71c05E16f269"
