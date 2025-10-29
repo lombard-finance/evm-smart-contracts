@@ -271,10 +271,10 @@ contract StakeAndBakeNativeToken is
         // First, mint the LBTC.
         $.adapter.mintV1(data.mintPayload, data.proof);
         // Get the recipient.
-        (, address owner,,,,) = abi.decode(
-                data.mintPayload[4:],
-                (uint256, address, uint256, bytes32, uint32, address)
-            );
+        (, address owner, , , , ) = abi.decode(
+            data.mintPayload[4:],
+            (uint256, address, uint256, bytes32, uint32, address)
+        );
 
         // We check if we can simply use transferFrom.
         // Otherwise, we permit the depositor to transfer the minted value.,
@@ -282,7 +282,6 @@ contract StakeAndBakeNativeToken is
             IERC20(address($.nativeLbtc)).allowance(owner, address(this)) <
             data.amount
         ) {
-
             if (data.permitPayload.length < 83) {
                 revert InvalidPermitPayload();
             }
@@ -296,7 +295,7 @@ contract StakeAndBakeNativeToken is
                     data.permitPayload,
                     (uint256, uint256, uint8, bytes32, bytes32)
                 );
-            
+
             if (data.amount > permitAmount) {
                 revert WrongAmount();
             }
