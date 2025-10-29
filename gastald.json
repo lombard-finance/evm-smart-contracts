@@ -207,6 +207,10 @@
       "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
       "BridgeTokenPool": "0x9FcE360a06938931c264C4cA8714a419C73bDD38",
       "LombardTokenPoolV2_stakedLBTC": "0x5670d25418Be55c90Df00D2FBF1d66EAa9436A0C"
+    },
+    "stakeAndBake": {
+      "StakeAndBakeForNativeToken": "0xFe1e76D9e065e879A9D1914482f0F13d85F39877",
+      "ERC4626Depositor": "0x98ecd62Edb3596D267C683d3782079DF24C10199"
     }
   },
   "tacSpb": {
