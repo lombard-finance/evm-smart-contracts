@@ -43,7 +43,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     event PathRemoved(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
-        bytes32 allowedCaller
+        bytes32 allowedCaller,
+        bytes32 adapter
     );
 
     struct Path {
@@ -278,7 +279,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         emit PathRemoved(
             remoteChainSelector,
             path.lChainId,
-            path.allowedCaller
+            path.allowedCaller,
+            path.adapter
         );
     }
 
