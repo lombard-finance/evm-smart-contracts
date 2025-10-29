@@ -61,8 +61,8 @@ contract StakeAndBakeNativeToken is
         uint256 amount;
     }
 
-    /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBake
-    struct StakeAndBakeStorage {
+    /// @custom:storage-location erc7201:lombardfinance.storage.StakeAndBakeNativeToken
+    struct StakeAndBakeNativeTokenStorage {
         IERC20 nativeLbtc;
         INativeLBTC adapter;
         IDepositor depositor;
@@ -74,9 +74,9 @@ contract StakeAndBakeNativeToken is
     bytes32 public constant FEE_OPERATOR_ROLE = keccak256("FEE_OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
 
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBake")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakeAndBakeNativeToken")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant STAKE_AND_BAKE_STORAGE_LOCATION =
-        0xd0321c9642a0f7a5931cd62db04cb9e2c0d32906ef8824eece128a7ad5e4f500;
+        0x0e47f6bdb2c8c295db7a485b9611b576c67616f4bb0fcb676c069d08170f1800;
 
     uint256 public constant MAXIMUM_FEE = 100000;
 
@@ -87,7 +87,10 @@ contract StakeAndBakeNativeToken is
     }
 
     modifier depositorSet() {
-        if (address(_getStakeAndBakeStorage().depositor) == address(0)) {
+        if (
+            address(_getStakeAndBakeNativeTokenStorage().depositor) ==
+            address(0)
+        ) {
             revert NoDepositorSet();
         }
         _;
@@ -118,7 +121,8 @@ contract StakeAndBakeNativeToken is
         // `batchStakeAndBake`.
         _grantRole(CLAIMER_ROLE, address(this));
 
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         $.nativeLbtc = nativeLbtc_;
         if (address(adapter_) == address(0)) {
             revert ZeroAddress();
@@ -134,7 +138,8 @@ contract StakeAndBakeNativeToken is
      */
     function setFee(uint256 fee) external onlyRole(FEE_OPERATOR_ROLE) {
         if (fee > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee);
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         $.fee = fee;
         emit FeeChanged(fee);
     }
@@ -146,7 +151,8 @@ contract StakeAndBakeNativeToken is
     function setGasLimit(
         uint256 gasLimit
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         $.gasLimit = gasLimit;
         emit GasLimitChanged(gasLimit);
     }
@@ -159,7 +165,8 @@ contract StakeAndBakeNativeToken is
         address depositor
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (depositor == address(0)) revert ZeroAddress();
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         $.depositor = IDepositor(depositor);
         emit DepositorSet(depositor);
     }
@@ -177,7 +184,8 @@ contract StakeAndBakeNativeToken is
         whenNotPaused
         returns (bytes[] memory)
     {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         bytes[] memory ret = new bytes[](data.length);
         for (uint256 i; i < data.length; ) {
             try this.stakeAndBakeInternal{gas: $.gasLimit}(data[i]) returns (
@@ -222,18 +230,20 @@ contract StakeAndBakeNativeToken is
         returns (bytes memory)
     {
         return
-            this.stakeAndBakeInternal{gas: _getStakeAndBakeStorage().gasLimit}(
-                data
-            );
+            this.stakeAndBakeInternal{
+                gas: _getStakeAndBakeNativeTokenStorage().gasLimit
+            }(data);
     }
 
     function getStakeAndBakeFee() external view returns (uint256) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         return $.fee;
     }
 
     function getStakeAndBakeDepositor() external view returns (IDepositor) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
         return $.depositor;
     }
 
@@ -250,7 +260,8 @@ contract StakeAndBakeNativeToken is
         address owner,
         bytes calldata depositPayload
     ) internal returns (bytes memory) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
@@ -266,7 +277,8 @@ contract StakeAndBakeNativeToken is
     function _stakeAndBake(
         StakeAndBakeData calldata data
     ) internal returns (bytes memory) {
-        StakeAndBakeStorage storage $ = _getStakeAndBakeStorage();
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
 
         // First, mint the LBTC.
         $.adapter.mintV1(data.mintPayload, data.proof);
@@ -330,10 +342,10 @@ contract StakeAndBakeNativeToken is
         return _deposit(data.amount - feeAmount, owner, data.depositPayload);
     }
 
-    function _getStakeAndBakeStorage()
+    function _getStakeAndBakeNativeTokenStorage()
         private
         pure
-        returns (StakeAndBakeStorage storage $)
+        returns (StakeAndBakeNativeTokenStorage storage $)
     {
         assembly {
             $.slot := STAKE_AND_BAKE_STORAGE_LOCATION
