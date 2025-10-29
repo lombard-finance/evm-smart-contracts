@@ -25,10 +25,18 @@
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
     },
     "community": {
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "chainlink": {
+      "ChainSelector": "9043146809313071210",
+      "Router": "0x183f6069A0D5c2DEC1Dd1eCF3B1581e12dEb4Efe",
+      "RMN": "0x91ca2Aa7429e5F702f1F750b317AB604d5a6a16e",
+      "LombardTokenPoolV2_stakedLBTC": "0x770D1bbdca08e3272233709B27C004F510bfDf86"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0xfc7B20D9B59A8A466f4fC3d34aA69a7D98e71d7A"
