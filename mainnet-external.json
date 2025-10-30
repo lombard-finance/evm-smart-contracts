@@ -17,6 +17,7 @@
     }
   },
   "cornMaizenet": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000001406f40",
     "admin": {
       "Owner": "0x51E8F1fF7fE71A8f5F403ee09beb99B1694Ea9bf",
       "TimeLock": "",
