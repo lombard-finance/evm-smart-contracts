@@ -255,6 +255,12 @@ contract StakeAndBakeNativeToken is
         _unpause();
     }
 
+    function getTokenAndAdapter() external view returns (IERC20, INativeLBTC) {
+        StakeAndBakeNativeTokenStorage
+            storage $ = _getStakeAndBakeNativeTokenStorage();
+        return ($.nativeLbtc, $.adapter);
+    }
+
     function _deposit(
         uint256 stakeAmount,
         address owner,
