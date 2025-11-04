@@ -12,5 +12,7 @@ task('deploy-erc4626-mock', 'Deploys the ERC4626 Mock contract')
 
     console.log(`Deployment address is ${await deployment.getAddress()}`);
 
-    await verify(run, await deployment.getAddress());
+    await verify(run, await deployment.getAddress(), {
+      constructorArguments: [asset]
+    });
   });
