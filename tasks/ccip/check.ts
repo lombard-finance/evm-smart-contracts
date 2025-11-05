@@ -1,10 +1,15 @@
 import * as fs from 'node:fs';
 import { HardhatRuntimeEnvironment, RunSuperFunction } from 'hardhat/types';
 import path from 'node:path';
-import { AddressList, RuleFunc } from './types';
+import { AddressList, LChainBasicData, NativeTokenData, RuleFunc } from './types';
 
 const RULESET: Array<RuleFunc> = [checkMailbox, checkBridge, checkTokenPool];
 
+const LOMBARD_SECTION = 'lombard';
+const AVALANCHE_SECTION = 'avalanche';
+const CCIP_SECTION = 'chainlink';
+const CHAIN_ID_SECTION = 'chainId';
+const AVALANCHE_CHAIN = 'avalanche';
 const MAILBOX_CONTRACT = 'Mailbox';
 const BRIDGE_CONTRACT = 'BridgeV2';
 const TOKEN_POOL_CONTRACT = 'LombardTokenPoolV2';
@@ -14,15 +19,11 @@ const BRIDGE_TOKEN = 'BridgeToken';
 const TOKEN_ADAPTER_CONTRACT = 'BridgeTokenAdapter';
 const STAKED_LBTC_CONTRACT = 'StakedLBTC';
 const LBTC_CONTRACT = 'LBTC';
-const LOMBARD_SECTION = 'lombard';
-const AVALANCHE_SECTION = 'avalanche';
-const CCIP_SECTION = 'chainlink';
 const CCIP_CHAIN_SELECTOR = 'ChainSelector';
 const CCIP_ROUTER = 'Router';
 const CCIP_RMN = 'RMN';
-const AVALANCHE_CHAIN = 'avalanche';
-
-const CHAINS_TO_SKIP = ['ink'];
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const CHAINS_TO_SKIP = ['ink', 'inkTestnet', 'holesky', 'sonicTestnet'];
 
 export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSuper: RunSuperFunction<any>) {
   const p = path.join(taskArgs.filename);
@@ -33,20 +34,22 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
   const mailboxes: Map<string, string> = new Map();
   const bridges: Map<string, string> = new Map();
   const tokenPools: Map<string, string[]> = new Map();
-  const nativeTokens: Map<string, string> = new Map();
+  const nativeTokens: Map<string, NativeTokenData> = new Map();
   const stakedTokens: Map<string, string> = new Map();
-  const chainSelectors: Map<string, bigint> = new Map();
+  const chainSelectors: Map<string, LChainBasicData> = new Map();
   const routers: Map<string, string> = new Map();
   const rmns: Map<string, string> = new Map();
   const chains: string[] = [];
 
   Object.entries(addresses).forEach(value => {
     let needToCheckChain = false;
+    let bridgeFound = false;
     const chain = value[0];
     if (CHAINS_TO_SKIP.includes(chain)) {
       return;
     }
     const config = value[1];
+    const chainId = config[CHAIN_ID_SECTION] ?? '';
     // console.log(`chain: ${chain}, config: ${JSON.stringify(config)}`);
     const lombardConfig = config[LOMBARD_SECTION];
     if (lombardConfig) {
@@ -57,6 +60,7 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
         switch (true) {
           case name == BRIDGE_CONTRACT:
             bridges.set(chain, address.toLowerCase());
+            bridgeFound = address.length > 2;
             break;
           case name == MAILBOX_CONTRACT:
             mailboxes.set(chain, address.toLowerCase());
@@ -68,9 +72,13 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
             }
             break;
           case name == NATIVE_LBTC_CONTRACT:
-          case name == BRIDGE_TOKEN:
             if (address.length > 0) {
-              nativeTokens.set(chain, address.toLowerCase());
+              setOrUpdateNativeToken(chain, nativeTokens, address.toLowerCase());
+            }
+            break;
+          case name == TOKEN_ADAPTER_CONTRACT:
+            if (address.length > 0) {
+              setOrUpdateNativeToken(chain, nativeTokens, undefined, address.toLowerCase());
             }
             break;
           default:
@@ -84,13 +92,14 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
       if (avalancheConfig) {
         const bridgeToken = avalancheConfig[BRIDGE_TOKEN];
         if (bridgeToken && bridgeToken.length > 0) {
-          nativeTokens.set(chain, bridgeToken.toLowerCase());
+          setOrUpdateNativeToken(chain, nativeTokens, bridgeToken.toLowerCase());
+          console.log(`native token: ${JSON.stringify(nativeTokens.get(chain))}`);
         }
       }
     }
 
     const ccipConfig = config[CCIP_SECTION];
-    if (ccipConfig) {
+    if (ccipConfig && bridgeFound) {
       Object.entries(ccipConfig).forEach(value => {
         const name = value[0];
         const data: string = value[1] as string;
@@ -109,7 +118,10 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
             needToCheckChain = true;
             break;
           case name == CCIP_CHAIN_SELECTOR:
-            chainSelectors.set(chain, BigInt(data));
+            chainSelectors.set(chain, {
+              chainSelector: BigInt(data),
+              lChainId: chainId
+            });
             needToCheckChain = true;
             break;
           case name == CCIP_ROUTER:
@@ -163,14 +175,14 @@ async function checkMailbox(
   hre: HardhatRuntimeEnvironment,
   chain: string,
   chains: string[],
-  chainSelectors: Map<string, bigint>,
+  chainSelectors: Map<string, LChainBasicData>,
   rmns: Map<string, string>,
   routers: Map<string, string>,
   mailboxes: Map<string, string>,
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>
+  nativeTokens: Map<string, NativeTokenData>
 ) {
   const mailboxAddress = mailboxes.get(chain);
   if (!mailboxAddress) {
@@ -204,22 +216,67 @@ async function checkBridge(
   hre: HardhatRuntimeEnvironment,
   chain: string,
   chains: string[],
-  chainSelectors: Map<string, bigint>,
+  chainSelectors: Map<string, LChainBasicData>,
   rmns: Map<string, string>,
   routers: Map<string, string>,
   mailboxes: Map<string, string>,
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>
+  nativeTokens: Map<string, NativeTokenData>
 ) {
   const bridgeAddress = bridges.get(chain);
   if (!bridgeAddress) {
     console.log(`\t⚠️\tbridge is not present on this chain`);
     return;
   }
+  console.log(`Checking bridge ${bridgeAddress}`);
   const bridge = await hre.ethers.getContractAt(BRIDGE_CONTRACT, bridgeAddress);
-  // ToDO: implement check
+  // check sender config
+  const myTokenPools = tokenPools.get(chain);
+  if (myTokenPools) {
+    for (const tp of myTokenPools) {
+      const res = await bridge['getSenderConfig'](tp);
+      if (!res.whitelisted) {
+        console.log(`\t📛\ttoken pool ${tp} is not whitelisted`);
+      }
+      if (res.feeDiscount != 10000n) {
+        console.log(`\t⚠️\tunexpected fee discount for token pool ${tp}`);
+      }
+    }
+  }
+  const localStakedToken = stakedTokens.get(chain);
+  const localNativeToken = nativeTokens.get(chain);
+  for (const [chain, item] of chainSelectors) {
+    // check destination bridge
+    const expectedDstBridge = bridges.get(chain);
+    let dstBridge = await bridge['destinationBridge'](item.lChainId);
+    dstBridge = '0x' + dstBridge.substring(dstBridge.length - 40).toLowerCase();
+    if (!(dstBridge == expectedDstBridge || (!expectedDstBridge && dstBridge == ZERO_ADDRESS))) {
+      console.log(`\t📛\twrong destination bridge: ${dstBridge} vs. expected ${expectedDstBridge} for ${chain}`);
+    }
+    const nativeToken = nativeTokens.get(chain);
+    if (nativeToken && localNativeToken) {
+      let targetToken = localNativeToken.adapter ?? localNativeToken.token;
+      targetToken = targetToken ? targetToken : '';
+      const config = await bridge['getTokenRateLimit'](targetToken, item.lChainId);
+      if (config.amountCanBeSent == 0n) {
+        console.log(`\t📛\trate limit is not set for ${targetToken} of ${chain}`);
+      } else {
+        console.log(`\trate limit for ${targetToken} of ${chain}: ${config.amountCanBeSent}`);
+      }
+    }
+    const stakedToken = stakedTokens.get(chain);
+    if (stakedToken && localStakedToken) {
+      const config = await bridge['getTokenRateLimit'](localStakedToken, item.lChainId);
+      if (config.amountCanBeSent == 0n) {
+        console.log(`\t📛\trate limit is not set for ${localStakedToken} of ${chain}`);
+      } else {
+        console.log(`\trate limit for ${localStakedToken} of ${chain}: ${config.amountCanBeSent}`);
+      }
+    }
+  }
+
   return;
 }
 
@@ -227,14 +284,14 @@ async function checkTokenPool(
   hre: HardhatRuntimeEnvironment,
   chain: string,
   chains: string[],
-  chainSelectorsGlobal: Map<string, bigint>,
+  chainSelectorsGlobal: Map<string, LChainBasicData>,
   rmns: Map<string, string>,
   routers: Map<string, string>,
   mailboxes: Map<string, string>,
   bridges: Map<string, string>,
   tokenPools: Map<string, string[]>,
   stakedTokens: Map<string, string>,
-  nativeTokens: Map<string, string>
+  nativeTokens: Map<string, NativeTokenData>
 ) {
   const tokenPoolAddresses = tokenPools.get(chain);
   if (!tokenPoolAddresses || tokenPoolAddresses.length < 1) {
@@ -252,7 +309,8 @@ async function checkTokenPool(
     }
     const tokenAddress = (await tokenPool['getToken']())?.toLowerCase();
     const isStakedToken = stakedTokens.get(chain) == tokenAddress;
-    const isNativeToken = nativeTokens.get(chain) == tokenAddress;
+    const nativeTokenData = nativeTokens.get(chain);
+    const isNativeToken = nativeTokenData ? nativeTokenData.token == tokenAddress : false;
     if (!(isStakedToken || isNativeToken)) {
       console.log(`\t📛\twrong token set in token pool (${tokenAddress})`);
     }
@@ -292,7 +350,7 @@ async function checkTokenPool(
     supportedChains.forEach(chn => {
       let found = false;
       chainSelectors.forEach((v, k) => {
-        if (v == chn) {
+        if (v.chainSelector == chn) {
           found = true;
           if (k == chain) {
             console.log(`\t⚠️\tunexpected destination chain selector (${chn.toString()})`);
@@ -303,10 +361,13 @@ async function checkTokenPool(
         console.log(`\t⚠️\tunknown destination chain selector (${chn.toString()})`);
       }
     });
-    chainSelectors.forEach((selector, chain) => {
-      if (!supportedChains.includes(selector)) {
-        console.log(`\t⚠️\tchain ${chain} is not configured as destination in token pool`);
-        chainSelectors.delete(chain);
+    chainSelectors.forEach((item, chn) => {
+      const isTokenPresent = (isStakedToken && stakedTokens.get(chn)) || (isNativeToken && nativeTokens.get(chn));
+      if (!supportedChains.includes(item.chainSelector)) {
+        if (isTokenPresent) {
+          console.log(`\t⚠️\tchain ${chn} is not configured as destination in token pool`);
+        }
+        chainSelectors.delete(chn);
       }
     });
     // Check remote tokens and pools provide data rate limit config
@@ -318,9 +379,9 @@ async function checkTokenPool(
       console.log(`\t📛\tunexpected token pool contract version: missing "getRemoteToken()" fuction`);
       return;
     }
-    for (const [chn, selector] of chainSelectors) {
-      const remotePools = await tokenPool['getRemotePools'](selector);
-      let remoteToken = await tokenPool['getRemoteToken'](selector);
+    for (const [chn, item] of chainSelectors) {
+      const remotePools = await tokenPool['getRemotePools'](item.chainSelector);
+      let remoteToken = await tokenPool['getRemoteToken'](item.chainSelector);
       if (remoteToken == '0x') {
         console.log(`\t📛\tno remote token set for chain ${chn}`);
         continue;
@@ -328,7 +389,8 @@ async function checkTokenPool(
       remoteToken = '0x' + remoteToken.substring(remoteToken.length - 40).toLowerCase();
       let expectedToken = '';
       if (isNativeToken) {
-        expectedToken = nativeTokens.get(chn) || '';
+        const nativeTokenData = nativeTokens.get(chn);
+        expectedToken = nativeTokenData ? (nativeTokenData.token ?? '') : '';
       } else {
         expectedToken = stakedTokens.get(chn) || '';
       }
@@ -355,13 +417,13 @@ async function checkTokenPool(
           }
         }
       }
-      const inboundConfig = await tokenPool['getCurrentInboundRateLimiterState'](selector);
+      const inboundConfig = await tokenPool['getCurrentInboundRateLimiterState'](item.chainSelector);
       console.log(`Rate limit config for remote chain ${chn} and token ${remoteToken}:`);
       console.log(`Inbound:`);
       console.log(`\tenabled: ${inboundConfig.isEnabled}`);
       console.log(`\tcapacity: ${inboundConfig.capacity}`);
       console.log(`\trate: ${inboundConfig.rate}`);
-      const outboundConfig = await tokenPool['getCurrentOutboundRateLimiterState'](selector);
+      const outboundConfig = await tokenPool['getCurrentOutboundRateLimiterState'](item.chainSelector);
       console.log(`Outbound:`);
       console.log(`\tenabled: ${outboundConfig.isEnabled}`);
       console.log(`\tcapacity: ${outboundConfig.capacity}`);
@@ -369,4 +431,20 @@ async function checkTokenPool(
     }
   }
   return;
+}
+
+function setOrUpdateNativeToken(
+  chain: string,
+  nativeTokens: Map<string, NativeTokenData>,
+  token: string | undefined = undefined,
+  adapter: string | undefined = undefined
+) {
+  let nt = nativeTokens.get(chain);
+  if (nt) {
+    nt.token = token ? token : nt.token;
+    nt.adapter = adapter ? adapter : nt.adapter;
+  } else {
+    nt = { token, adapter };
+  }
+  nativeTokens.set(chain, nt);
 }

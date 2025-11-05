@@ -47,7 +47,7 @@
       "CLAdapter": "0x4797b507c621226E5FaF0CFAADbDb4acf076c066",
       "LombardTokenPool": "0xaFB9546D2001cB8850e476Ff8BF51104742bFD95",
       "LombardTokenPoolV2_LBTC": "0x8867A40CfF489f0De05AD61731ca8F2c7c0fEb71",
-      "LombardTokenPoolV2_nativeLBTC": "0x48B2D923b099576498eCDCad25aBDBf3A3fc5915"
+      "LombardTokenPoolV2_nativeLBTC": "0x0805259E426C87307E08C78cC0A730269762B63e"
     }
   },
   "bscTestnet": {
@@ -179,7 +179,7 @@
       "CLAdapter": "0x8b3ecc204Ee394c8d003337C3C87ae6eDaC76bF8",
       "LombardTokenPool": "0xbd80acb96f69683Fb3155516a30f46ACC44a0cB8",
       "LombardTokenPoolV2_stakedLBTC": "0x258A8De76f64010e6098B4Fd5BD8855280d551A1",
-      "LombardTokenPoolV2_nativeLBTC": "0x929ccf4857bA38875167F5D6247D37f903626980"
+      "LombardTokenPoolV2_nativeLBTC": "0x9F4b7632D5bD926c383664aDbd20De3A9382E0a4"
     }
   },
   "avalancheFuji": {
@@ -207,7 +207,11 @@
       "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
       "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
       "BridgeTokenPool": "0x9FcE360a06938931c264C4cA8714a419C73bDD38",
-      "LombardTokenPoolV2_stakedLBTC": "0xafaE5Fd36F5b12d9588f1b6B7610C336C8EB46Dd"
+      "LombardTokenPoolV2_stakedLBTC": "0x5670d25418Be55c90Df00D2FBF1d66EAa9436A0C"
+    },
+    "stakeAndBake": {
+      "StakeAndBakeForNativeToken": "0xFe1e76D9e065e879A9D1914482f0F13d85F39877",
+      "ERC4626Depositor": "0x98ecd62Edb3596D267C683d3782079DF24C10199"
     }
   },
   "tacSpb": {

@@ -24,7 +24,7 @@ export async function check(taskArgs: any, hre: HardhatRuntimeEnvironment, runSu
   }
 
   const response = await fetch(
-    'https://mainnet-rest.lombard-fi.com/lombard-finance/ledger/btcstaking/current_ratio/uclbtc'
+    'https://ledger-mainnet.lombard-fi.com:1317/lombard-finance/ledger/btcstaking/current_ratio/uclbtc'
   );
   const ratioData = (await response.json()) as LedgerRatioResponse;
   console.log(`Expected raio: ${ratioData.ratio.value}, expected timestamp: ${ratioData.ratio.timestamp}`);

@@ -33,7 +33,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     event PathSet(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
-        bytes32 allowedCaller
+        bytes32 allowedCaller,
+        bytes32 adapter
     );
 
     /// @param remoteChainSelector CCIP selector of destination chain
@@ -42,12 +43,14 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     event PathRemoved(
         uint64 indexed remoteChainSelector,
         bytes32 indexed lChainId,
-        bytes32 allowedCaller
+        bytes32 allowedCaller,
+        bytes32 adapter
     );
 
     struct Path {
         bytes32 allowedCaller;
         bytes32 lChainId;
+        bytes32 adapter;
     }
 
     uint8 internal constant SUPPORTED_BRIDGE_MSG_VERSION = 1;
@@ -130,7 +133,9 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             getRemoteToken(lockOrBurnIn.remoteChainSelector),
             (bytes32)
         );
-        if (bridgeDestToken != poolDestToken) {
+        if (
+            bridgeDestToken != poolDestToken && bridgeDestToken != path.adapter
+        ) {
             revert RemoteTokenMismatch(bridgeDestToken, poolDestToken);
         }
 
@@ -151,7 +156,7 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         emit LockedOrBurned({
             remoteChainSelector: lockOrBurnIn.remoteChainSelector,
             token: address(i_token),
-            sender: msg.sender,
+            sender: lockOrBurnIn.originalSender,
             amount: lockOrBurnIn.amount
         });
 
@@ -222,7 +227,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     function setPath(
         uint64 remoteChainSelector,
         bytes32 lChainId,
-        bytes calldata allowedCaller
+        bytes calldata allowedCaller,
+        bytes32 adapter
     ) external onlyOwner {
         if (!isSupportedChain(remoteChainSelector)) {
             revert ChainNotSupported();
@@ -247,10 +253,16 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
 
         chainSelectorToPath[remoteChainSelector] = Path({
             lChainId: lChainId,
-            allowedCaller: decodedAllowedCaller
+            allowedCaller: decodedAllowedCaller,
+            adapter: adapter
         });
 
-        emit PathSet(remoteChainSelector, lChainId, decodedAllowedCaller);
+        emit PathSet(
+            remoteChainSelector,
+            lChainId,
+            decodedAllowedCaller,
+            adapter
+        );
     }
 
     /// @notice remove path mapping
@@ -267,7 +279,8 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
         emit PathRemoved(
             remoteChainSelector,
             path.lChainId,
-            path.allowedCaller
+            path.allowedCaller,
+            path.adapter
         );
     }
 
