@@ -36,8 +36,8 @@
       "LombardTokenPoolV2_nativeLBTC": "0xBA59cF1c1563a9B93A8C5D70F8E445eaCa9842D0"
     },
     "stakeAndBake": {
-      "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
-      "TellerWithMultiAssetSupportDepositor": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+      "StakeAndBake_stakedLBTC_Veda": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "TellerWithMultiAssetSupportDepositor_stakedLBTC_Veda": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
