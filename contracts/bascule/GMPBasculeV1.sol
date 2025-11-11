@@ -301,7 +301,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
 
     function _mintID(Message memory self) internal view returns (bytes32) {
         return
-            sha256(
+            keccak256(
                 abi.encode(
                     self.nonce,
                     block.chainid,
