@@ -1,6 +1,6 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, Signature } from 'ethers';
+import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, randomBytes, Signature } from 'ethers';
 import { Consortium, ERC20, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
@@ -412,6 +412,10 @@ export function randomString(length: number): string {
   }
 
   return result;
+}
+
+export function randomAddress(): AddressLike {
+  return ethers.hexlify(randomBytes(20));
 }
 
 /**

@@ -35,3 +35,25 @@ task('deploy-basculeV3', 'Deploys the BasculeV3 contract (non-upgradable)')
       hre
     );
   });
+
+task('deploy-gmp-bascule', 'Deploys the GMPBasculeV1 contract (non-upgradable)')
+  .addParam('admin', 'The address of the owner', 'self')
+  .addParam('pauser', 'The address that should have pauser role', 'self')
+  .addParam('mintReporter', 'The address that should have mint reporter role')
+  .addParam('mintValidator', 'The address that should have mint validator role')
+  .addParam('maxMints', 'The maximum number of mints that can be in report batch')
+  .addParam('trustedSigner', 'The address of trusted signer')
+  .setAction(async (taskArgs, hre) => {
+    let { admin: adminArg, pauser: pauserArg, mintReporter, mintValidator, maxMints, trustedSigner } = taskArgs;
+
+    const [signer] = await hre.ethers.getSigners();
+    const admin = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
+    const pauser = hre.ethers.isAddress(pauserArg) ? pauserArg : await signer.getAddress();
+
+    await deploy(
+      'GMPBasculeV1',
+      [admin, pauser, mintReporter, mintValidator, maxMints, trustedSigner],
+      'contracts/bascule/GMPBasculeV1.sol:GMPBasculeV1',
+      hre
+    );
+  });
