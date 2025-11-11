@@ -20,7 +20,7 @@ import { randomBytes } from 'ethers';
 const TOKEN_ADDRESS = randomAddress();
 
 function calcMintID(mint: IGMPBascule.MessageStruct) {
-  return ethers.sha256(
+  return ethers.keccak256(
     encode(
       ['uint256', 'bytes32', 'address', 'address', 'uint256'],
       [mint.nonce, CHAIN_ID, mint.recipient, mint.toToken, mint.amount]
