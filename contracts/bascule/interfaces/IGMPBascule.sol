@@ -26,7 +26,7 @@ interface IGMPBascule {
      * Warning event emitted when a mint was already reported.
      * @param mintID The ID of the already-reported mint.
      */
-    event MintAlreadyReported(bytes32 indexed mintID);
+    event MintAlreadyReportedOrProcessed(bytes32 indexed mintID);
 
     /**
      * Event emitted when a withdrawal is validated.
