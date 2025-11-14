@@ -366,5 +366,31 @@
       "BridgeTokenPool": "0x67927d7eA19F9A1053f4f5BBdf827Ed9870F1a1B",
       "LombardTokenPoolV2_stakedLBTC": "0xd24658051aa6c8ACf874F686D5dA325a87d2D146"
     }
+  },
+  "monad": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000008f",
+    "admin": {
+      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "TimeLock": "",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "StakedLBTC": "",
+      "NativeLBTC": "",
+      "Consortium": "",
+      "Bridge": "",
+      "BridgeV2": "",
+      "AssetRouter": "",
+      "StakedLBTCOracle": "",
+      "Mailbox": ""
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "LombardTokenPoolV2_stakedLBTC": "",
+      "LombardTokenPoolV2_nativeLBTC": ""
+    }
   }
 }
