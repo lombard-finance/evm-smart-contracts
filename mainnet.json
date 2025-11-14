@@ -370,27 +370,27 @@
   "monad": {
     "chainId": "0x000000000000000000000000000000000000000000000000000000000000008f",
     "admin": {
-      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
       "TimeLock": "",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
-      "ProxyFactory": "",
-      "StakedLBTC": "",
-      "NativeLBTC": "",
-      "Consortium": "",
-      "Bridge": "",
-      "BridgeV2": "",
-      "AssetRouter": "",
-      "StakedLBTCOracle": "",
-      "Mailbox": ""
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
+      "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "GMPBasculeV1": "0x379e827bd39559F55a1DdF6B6B8458626c39203E"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
-      "LombardTokenPoolV2_stakedLBTC": "",
-      "LombardTokenPoolV2_nativeLBTC": ""
+      "ChainSelector": "8481857512324358265",
+      "Router": "0x33566fE5976AAa420F3d5C64996641Fc3858CaDB",
+      "RMN": "0x99dFCa5d88f4D9C023531F4403966b8d61562AcD",
+      "LombardTokenPoolV2_stakedLBTC": "0xD9527ffE58CbEcC9A64511Fc559e0C0825Df940a",
+      "LombardTokenPoolV2_nativeLBTC": "0xAe5E2940Fc01C0f8076D36749509C75E43da0C70"
     }
   }
 }
