@@ -370,7 +370,7 @@
   "monad": {
     "chainId": "0x000000000000000000000000000000000000000000000000000000000000008f",
     "admin": {
-      "Owner": "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079",
+      "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
       "TimeLock": "",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
