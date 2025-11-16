@@ -8,7 +8,8 @@
     },
     "deprecated": {
       "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
-      "Consortium": "0xed6d647e2f81e5262101aff72c4a7bcdcfd780e0"
+      "Consortium": "0xed6d647e2f81e5262101aff72c4a7bcdcfd780e0",
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
@@ -16,10 +17,10 @@
       "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
-      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "GMPBasculeV1": "0xC3ecFE771564e3f28CFB7a9b203F4d10279338eD"
     },
     "fbtc": {
       "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
@@ -65,13 +66,13 @@
     },
     "deprecated": {
       "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
-      "Consortium": "0x1c600B19C7A5d397BEaaf03ea3646898f1E2D02e"
+      "Consortium": "0x1c600B19C7A5d397BEaaf03ea3646898f1E2D02e",
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
@@ -106,13 +107,13 @@
     },
     "deprecated": {
       "ThresholdKey": "0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691",
-      "Consortium": "0x1c600B19C7A5d397BEaaf03ea3646898f1E2D02e"
+      "Consortium": "0x1c600B19C7A5d397BEaaf03ea3646898f1E2D02e",
+      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b"
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xa869817b48b25eee986bdf4be04062e6fd2c418b",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "DepositNotarizationBlacklist": "0xdf0D1818C5276aD63Ce73E20223657d4920E5e82",
@@ -171,11 +172,13 @@
       "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
+    "deprecated": {
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
+    },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
@@ -265,16 +268,19 @@
       "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
+    "deprecated": {
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
+    },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
-      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
-      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0"
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "GMPBasculeV1": "0xD7F069e67345ED91AC699e7EcFDc211782495888"
     },
     "chainlink": {
       "ChainSelector": "2459028469735686113",
@@ -354,7 +360,8 @@
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
       "BridgeTokenAdapter": "0x85D1D52e11290F174444d21C2a167bEDBE36e4d2",
-      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "GMPBasculeV1": "0xC409f4a25065e64eA754dDa4fA8c3Ea6544fcF2F"
     },
     "avalanche": {
       "BridgeToken": "0x152b9d0FdC40C096757F570A51E494bd4b943E50"
