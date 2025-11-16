@@ -9,7 +9,7 @@ task('setup-claimer', 'Call `addClaimer` on smart-contract')
 
     const { target, claimer, populate } = taskArgs;
 
-    const lbtc = await ethers.getContractAt('LBTC', target);
+    const lbtc = await ethers.getContractAt('StakedLBTC', target);
 
     if (populate) {
       const txData = await lbtc.addClaimer.populateTransaction(claimer);

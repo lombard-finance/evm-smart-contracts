@@ -114,3 +114,29 @@ task('setup-token-rate-limits', 'Set withdrawal rate limits for `BridgeV2` contr
       await tx.wait(2);
     }
   });
+
+task('setup-bridge-sender-config', 'Set sender config for `BridgeV2` contract.')
+  .addPositionalParam('bridge', 'The address of bridge')
+  .addPositionalParam('sender', 'The sender address')
+  .addOptionalParam('feeDiscount', 'The fee discount', 100_00n.toString())
+  .addFlag('whitelisted')
+  .addFlag('populate')
+  .setAction(async (taskArgs, hre, network) => {
+    const { ethers } = hre;
+
+    const { bridge, sender, feeDiscount, whitelisted: isWhitelisted, populate } = taskArgs;
+
+    if (!ethers.isAddress(bridge)) {
+      throw Error(`invalid arg: bridge (${bridge}) should be an address`);
+    }
+
+    const bridgeContract = await ethers.getContractAt('BridgeV2', bridge);
+
+    if (populate) {
+      const txData = await bridgeContract.setSenderConfig.populateTransaction(sender, feeDiscount, isWhitelisted);
+      console.log(`setSenderConfig: ${JSON.stringify(txData, null, 2)}`);
+    } else {
+      const tx = await bridgeContract.setSenderConfig(sender, feeDiscount, isWhitelisted);
+      await tx.wait(2);
+    }
+  });

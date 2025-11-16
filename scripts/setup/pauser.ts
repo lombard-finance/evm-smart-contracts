@@ -9,7 +9,7 @@ task('setup-transfer-pauser-role', 'Call `changePauser` on smart-contract')
 
     const { target, pauser, populate } = taskArgs;
 
-    const lbtc = await ethers.getContractAt('LBTC', target);
+    const lbtc = await ethers.getContractAt('StakedLBTC', target);
 
     if (populate) {
       const txData = await lbtc.changePauser.populateTransaction(pauser);
