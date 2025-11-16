@@ -347,6 +347,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    monad: {
+      loggingEnabled: true,
+      url: vars.get('MONAD_RPC', 'Put correct RPC URL here'),
+      chainId: 143,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
     }
   },
   etherscan: {
@@ -610,7 +618,8 @@ const config: HardhatUserConfig = {
       katana: 'no',
       tac: 'no',
       bob: 'no',
-      avalanche: vars.get('ETHERSCAN_API_KEY', '')
+      avalanche: vars.get('ETHERSCAN_API_KEY', ''),
+      monad: 'no'
     }
   },
   sourcify: {

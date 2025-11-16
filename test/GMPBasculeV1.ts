@@ -375,7 +375,7 @@ describe('GMPBasculeV1', function () {
         await expect(bascule.connect(mintReporter).reportMints(reportId, [mint], [proof]))
           .to.emit(bascule, 'MintsReported')
           .withArgs(reportId, 1)
-          .and.to.emit(bascule, 'MintAlreadyReported')
+          .and.to.emit(bascule, 'MintAlreadyReportedOrProcessed')
           .withArgs(mintID);
 
         expect((await bascule.mintHistory(mintID))[1]).to.be.eq(2);

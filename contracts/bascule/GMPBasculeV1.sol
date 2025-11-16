@@ -210,7 +210,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
                 mintHistory[mintID] = Mint(mintMsg, MintState.REPORTED);
             } else {
                 // Only warn instead of reverting, unlike old contract
-                emit MintAlreadyReported(mintID);
+                emit MintAlreadyReportedOrProcessed(mintID);
             }
 
             unchecked {
