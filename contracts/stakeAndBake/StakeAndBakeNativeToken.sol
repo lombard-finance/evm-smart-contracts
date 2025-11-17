@@ -273,10 +273,7 @@ contract StakeAndBakeNativeToken is
 
         // Since a vault could only work with msg.sender, the depositor needs to own the LBTC.
         // The depositor should then send the staked vault shares back to the `owner`.
-        IERC20(address($.nativeLbtc)).safeIncreaseAllowance(
-            address($.depositor),
-            stakeAmount
-        );
+        $.nativeLbtc.safeIncreaseAllowance(address($.depositor), stakeAmount);
 
         // Finally, deposit LBTC to the given vault.
         return $.depositor.deposit(owner, stakeAmount, depositPayload);
@@ -298,10 +295,7 @@ contract StakeAndBakeNativeToken is
 
         // We check if we can simply use transferFrom.
         // Otherwise, we permit the depositor to transfer the minted value.,
-        if (
-            IERC20(address($.nativeLbtc)).allowance(owner, address(this)) <
-            data.amount
-        ) {
+        if ($.nativeLbtc.allowance(owner, address(this)) < data.amount) {
             if (data.permitPayload.length < 83) {
                 revert InvalidPermitPayload();
             }
@@ -330,11 +324,7 @@ contract StakeAndBakeNativeToken is
             );
         }
 
-        IERC20(address($.nativeLbtc)).safeTransferFrom(
-            owner,
-            address(this),
-            data.amount
-        );
+        $.nativeLbtc.safeTransferFrom(owner, address(this), data.amount);
 
         // Take the current maximum fee from the user.
         uint256 feeAmount = $.fee;
@@ -342,10 +332,7 @@ contract StakeAndBakeNativeToken is
             revert ZeroDepositAmount();
         }
         if (feeAmount > 0) {
-            IERC20(address($.nativeLbtc)).safeTransfer(
-                $.adapter.getTreasury(),
-                feeAmount
-            );
+            $.nativeLbtc.safeTransfer($.adapter.getTreasury(), feeAmount);
         }
         return _deposit(data.amount - feeAmount, owner, data.depositPayload);
     }
