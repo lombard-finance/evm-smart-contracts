@@ -399,5 +399,31 @@
       "LombardTokenPoolV2_stakedLBTC": "0xD9527ffE58CbEcC9A64511Fc559e0C0825Df940a",
       "LombardTokenPoolV2_nativeLBTC": "0xAe5E2940Fc01C0f8076D36749509C75E43da0C70"
     }
+  },
+  "stable": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000003dc",
+    "admin": {
+      "Owner": "",
+      "TimeLock": "",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "StakedLBTC": "",
+      "NativeLBTC": "",
+      "Consortium": "",
+      "BridgeV2": "",
+      "AssetRouter": "",
+      "StakedLBTCOracle": "",
+      "Mailbox": "",
+      "GMPBasculeV1": ""
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "LombardTokenPoolV2_stakedLBTC": "",
+      "LombardTokenPoolV2_nativeLBTC": ""
+    }
   }
 }
