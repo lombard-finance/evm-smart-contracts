@@ -7,6 +7,12 @@ import 'hardhat-deploy';
 
 import './scripts';
 import './tasks';
+import {
+  HardhatNetworkAccountsUserConfig,
+  HardhatNetworkChainsUserConfig,
+  HardhatNetworkForkingUserConfig,
+  HardhatNetworkMiningUserConfig
+} from 'hardhat/src/types/config';
 
 const config: HardhatUserConfig = {
   gasReporter: {
@@ -355,6 +361,15 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    stable: {
+      loggingEnabled: true,
+      url: vars.get('STABLE_RPC', 'Put correct RPC URL here'),
+      chainId: 988,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000,
+      gasPrice: 0
     }
   },
   etherscan: {
@@ -583,6 +598,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: 'https://api.snowscan.xyz/api',
           browserURL: 'https://snowscan.xyz/'
+        }
+      },
+      {
+        network: 'stable',
+        chainId: 988,
+        urls: {
+          apiURL: 'https://api.stablescan.xyz/api',
+          browserURL: 'https://stablescan.xyz/'
         }
       }
     ],
