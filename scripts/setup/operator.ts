@@ -9,12 +9,12 @@ task('setup-operator', 'Call `transferOperatorRole` on smart-contract')
 
     const { target, operator, populate } = taskArgs;
 
-    const lbtc = await ethers.getContractAt('LBTC', target);
+    const lbtc = await ethers.getContractAt('StakedLBTC', target);
 
     if (populate) {
-      const txData = await lbtc.transferOperatorRole.populateTransaction(operator);
+      const txData = await lbtc.changeOperator.populateTransaction(operator);
       console.log('Raw transaction:\n', JSON.stringify(txData, null, 2));
     } else {
-      await (await lbtc.transferOperatorRole(operator)).wait(2);
+      await (await lbtc.changeOperator(operator)).wait(2);
     }
   });
