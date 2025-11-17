@@ -66,7 +66,7 @@ contract StakeAndBakeNativeToken is
         IERC20 nativeLbtc;
         INativeLBTC adapter;
         IDepositor depositor;
-        /// @notice Amount to be taken as fee in tokens to be staked
+        /// @notice Amount to be taken as fee in minimal units of token to be staked
         uint256 fee;
         uint256 gasLimit;
     }
@@ -79,6 +79,7 @@ contract StakeAndBakeNativeToken is
     bytes32 private constant STAKE_AND_BAKE_STORAGE_LOCATION =
         0x0e47f6bdb2c8c295db7a485b9611b576c67616f4bb0fcb676c069d08170f1800;
 
+    /// @notice The maximum possible fee in token minimal units
     uint256 public constant MAXIMUM_FEE = 100000;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
