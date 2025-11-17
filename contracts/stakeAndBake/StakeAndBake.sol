@@ -62,6 +62,7 @@ contract StakeAndBake is
     struct StakeAndBakeStorage {
         IStakedLBTC lbtc;
         IDepositor depositor;
+        /// @notice Amount to be taken as fee in tokens to be staked
         uint256 fee;
         uint256 gasLimit;
     }

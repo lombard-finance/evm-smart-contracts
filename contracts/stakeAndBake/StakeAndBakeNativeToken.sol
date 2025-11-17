@@ -66,6 +66,7 @@ contract StakeAndBakeNativeToken is
         IERC20 nativeLbtc;
         INativeLBTC adapter;
         IDepositor depositor;
+        /// @notice Amount to be taken as fee in tokens to be staked
         uint256 fee;
         uint256 gasLimit;
     }
