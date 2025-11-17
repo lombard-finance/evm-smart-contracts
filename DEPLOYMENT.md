@@ -42,7 +42,7 @@ The result of script will be calldata that can be sent from multisig.
 
 ## Proxy factory
 Before any *deterministic* deployment `ProxyFactory` should be deployed.
-Switch secret key to special once
+Switch secret key to special one
 ```bash
 yarn hardhat vars set ${KEY_NAME} ${SK}
 ```
@@ -86,15 +86,19 @@ Set `Bascule` using `changeBascule` if required.
 #### Claimer
 Set claimer
 ```bash
-yarn hardhat setup-claimer --target ${LBTC} --claimer ${CLAIMER} --network ${NETWORK}
+yarn hardhat setup-claimer --target ${LBTC} --claimer ${CLAIMER} --network ${NETWORK} [--populate]
 ```
 
 #### Operator
 Set operator using `transferOperatorRole`.
 
+```bash
+yarn hardhat setup-operator --target ${LBTC} --operator ${CLAIMER} --network ${NETWORK} [--populate]
+```
+
 #### Pauser
 ```bash
-yarn hardhat setup-transfer-pauser-role --target ${LBTC} --pauser ${PAUSER} --network ${NETWORK}
+yarn hardhat setup-transfer-pauser-role --target ${LBTC} --pauser ${PAUSER} --network ${NETWORK} [--populate]
 ```
 
 #### Mint fee
@@ -128,8 +132,8 @@ Write proxy address to json file.
 
 Set pauser and treasury:
 ```bash
-yarn hardhat role grant ${MAILBOX} PAUSER_ROLE ${PAUSER_ADDR} --network ${NETWORK}
-yarn hardhat role grant ${MAILBOX} TREASURER_ROLE ${TREASURY_ADDR} --network ${NETWORK}
+yarn hardhat role grant ${MAILBOX} PAUSER_ROLE ${PAUSER_ADDR} --network ${NETWORK} [--populate]
+yarn hardhat role grant ${MAILBOX} TREASURER_ROLE ${TREASURY_ADDR} --network ${NETWORK} [--populate]
 ```
 
 Enable pathway:
@@ -270,25 +274,6 @@ Write proxy address to json file.
 ## CCIP
 > `Bridge` should be deployed before start
 
-Use `ccip-token-pool-1.5.0` tag to deploy v1.5.0 token pool.
-
-### Adapter & TokenPool (v1.5.0)
-> The version of TokenPool compatbile only with BridgeV1 through adapter.
-
-Deploy `Adapter` (`TokenPool` will be deployed by adapter) on each chain
-```bash
-yarn hardhat deploy-chainlink-adapter --admin ${OWNER} --router ${CCIP_ROUTER} --bridge ${BRIDGE} --rmn ${CCIP_RMN} --network ${NETWORK}
-```
-Write contracts address to json file.
-
-Claim admin rights over `LBTC token` in ccip and set the pool:
-
-Call `registerAdminViaOwner` in blockchain explorer on `RegistryModuleOwnerCustom` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
-
-Call `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
-
-Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address, `pool` address = `LombardTokenPool` address
-
 ### Token Pool (v1.6.1)
 > The version of TokenPool compatible only with BridgeV2.
 
@@ -309,34 +294,31 @@ Call `setSenderConfig` on `BridgeV2` contract for each Token Pool to set 100% (`
 
 Apply chain updates, set path and add remote token pool:
 ```bash
-yarn hardhat setup-token-pool-v2 ${TOKEN_POOL} --remote-token ${REMOTE_TOKEN} --remote-selector ${REMOTE_SELECTOR} --remote-chain ${REMOTE_CHAIN_ID} --remote-pool ${REMOTE_POOL} --network ${NETWORK} [--populate]
+yarn hardhat setup-token-pool-v2 ${TOKEN_POOL} --remote-token ${REMOTE_TOKEN} --remote-selector ${REMOTE_SELECTOR} --remote-chain ${REMOTE_CHAIN_ID} --remote-pool ${REMOTE_POOL} --network ${NETWORK} [--populate] [--legacy]
 ```
 
 Set `TokenPool` rate limits
-> TODO: rate limits script for new pool
+```bash
+yarn hardhat setup-token-pool-rate-limits ${TOKEN_POOL} --remote-selector ${REMOTE_SELECTOR} --inbound-limit-rate ${INBOUND_LIMIT_RATE} --inbound-limit-cap ${INBOUND_LIMIT_CAP} --outbound-limit-rate ${OUTBOUND_LIMIT_RATE} --outbound-limit-cap ${OUTBOUNDLIMIT_CAP} --network ${NETWORK} [--populate]
+```
 
 ### Bridge
 
-Setup Bridge destinations using adapters
+Setup Bridge destinations
 ```bash
-yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK} [--populate]
+yarn hardhat setup-destination-bridge ${BRIDGE} --dest-chain-id ${DESTINATION_CHAIN_ID} --dest-bridge ${DESTINATION_BRIDGE} --network ${NETWORK} [--populate]
+yarn hardhat setup-destination-token ${BRIDGE} --dest-chain-id ${CHAIN_ID} --destination-token ${DESTINATION_TOKEN} --source-token ${SOURCE_TOKEN} --network $NETWORK [--populate]
 ```
 Chain ids can be viewed [here](https://chainlist.org)
 
-Enable `TokenPool`
-```bash
-yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${REMOTE_LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} [--populate]
-```
-Remote selector can be viewed [here](https://docs.chain.link/ccip/directory/mainnet)
-
-Set `TokenPool` rate limits
-```bash
-yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} [--populate]
-```
-
 Setup `Bridge` rate limits, they should ~2x from `TokenPool` limits.
 ```bash
-yarn hardhat setup-bridge-rate-limits --bridge ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --network ${NETWORK} --window ${WINDOW_SECONDS} --limit ${WINDOW_LIMIT} [--populate]
+yarn hardhat setup-token-rate-limits ${BRIDGE} ${TOKEN} --chain-id ${CHAIN_ID} --window ${WINDOW} --limit ${LIMIT} --network ${CHAIN_ID} [--populate]
+```
+
+Allow token pool as sender
+```bash
+yarn hardhat setup-bridge-sender-config ${BRIDGE} ${SENDER} [--fee-discount 10000] [--whitelisted] [--populate] --network ${NETWORK}
 ```
 
 Grant minting ability to bridge

@@ -2,6 +2,7 @@ import { scope, task } from 'hardhat/config';
 import { check } from './check';
 import { transferOwnership } from './transfer';
 import { transferAccessControl } from './transfer-access';
+import { transferDefaulAdmin } from './transfer-default-admin';
 
 export const ownershipScope = scope('ownership');
 
@@ -21,3 +22,9 @@ ownershipScope
   .addPositionalParam('target', 'The address of smart-contract')
   .addPositionalParam('owner', 'The address to be owner')
   .setAction(transferAccessControl);
+
+ownershipScope
+  .task('transfer-default-admin', 'Call `beginDefaultAdminTransfer` on smart-contract')
+  .addPositionalParam('target', 'The address of smart-contract')
+  .addPositionalParam('owner', 'The address to be owner')
+  .setAction(transferDefaulAdmin);

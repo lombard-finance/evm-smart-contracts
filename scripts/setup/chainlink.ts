@@ -84,6 +84,7 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
   .addOptionalParam('remoteChain', 'Chain id of remote selector')
   .addOptionalParam('remotePool', 'The address of remote token pool')
   .addFlag('populate', 'Show transaction data and do not broadcast')
+  .addFlag('legacy', 'Use legacy setPath interface')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
     const encoder = ethers.AbiCoder.defaultAbiCoder();
@@ -95,10 +96,11 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
       remotePool,
       remoteToken,
       adapter,
-      populate
+      populate,
+      legacy
     } = taskArgs;
 
-    const tokenPool = await ethers.getContractAt('LombardTokenPoolV2', tokenPoolArg);
+    const tokenPool = await ethers.getContractAt(legacy ? 'LegacyTokenPoolV2' : 'LombardTokenPoolV2', tokenPoolArg);
 
     if (remoteSelector && remotePool && remoteToken) {
       const remotePoolBytes = remotePool.length != 42 ? remotePool : encoder.encode(['address'], [remotePool]);
@@ -144,12 +146,11 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
       const adapterBytes = adapter.length != 42 ? adapter : encoder.encode(['address'], [adapter]);
 
       if (populate) {
-        const txData = await tokenPool.setPath.populateTransaction(
-          remoteSelector,
-          remoteChainId,
-          remotePoolBytes,
-          adapterBytes
-        );
+        const setPathArgs = [remoteSelector, remoteChainId, remotePoolBytes];
+        if (!legacy) {
+          setPathArgs.push(adapterBytes);
+        }
+        const txData = await tokenPool.setPath.populateTransaction(...setPathArgs);
         console.log(`setPath: ${JSON.stringify(txData, null, 2)}`);
       } else {
         const tx = await tokenPool.setPath(remoteSelector, remoteChainId, remotePoolBytes, adapterBytes);
@@ -160,8 +161,8 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
     console.log('DONE');
   });
 
-task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
-  .addParam('clAdapter', 'The address of chainlink adapter smart-contract')
+task('setup-token-pool-rate-limits', 'Apply CCIP token pool updates')
+  .addPositionalParam('tokenPool', 'The address of the token pool')
   .addParam('remoteSelector', 'Remote chain selector of destination chain')
   .addOptionalParam('inboundLimitRate')
   .addOptionalParam('inboundLimitCap')
@@ -172,7 +173,7 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
     const { ethers } = hre;
 
     const {
-      clAdapter,
+      tokenPool: tokenPoolAddr,
       remoteSelector,
       populate,
 
@@ -183,9 +184,7 @@ task('setup-ccip-apply-updates', 'Apply CCIP token pool updates')
       outboundLimitCap
     } = taskArgs;
 
-    const adapter = await ethers.getContractAt('CLAdapter', clAdapter);
-
-    const tokenPool = await ethers.getContractAt('LombardTokenPool', await adapter.tokenPool());
+    const tokenPool = await ethers.getContractAt('LombardTokenPoolV2', tokenPoolAddr);
 
     if (populate) {
       const rawTx = await tokenPool.setChainRateLimiterConfig.populateTransaction(

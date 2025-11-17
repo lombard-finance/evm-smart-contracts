@@ -5,7 +5,7 @@ import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ERC165Upgradeable, IERC165} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IBascule} from "../bascule/interfaces/IBascule.sol";
+import {IGMPBascule} from "../bascule/interfaces/IGMPBascule.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {IAssetOperation} from "./interfaces/IAssetOperation.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
@@ -45,7 +45,7 @@ contract AssetRouter is
         mapping(bytes32 => Routes) routes;
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IMailbox mailbox;
-        IBascule bascule;
+        IGMPBascule bascule;
         address nativeToken;
         mapping(address => TokenConfig) tokenConfigs;
     }
@@ -301,7 +301,7 @@ contract AssetRouter is
         _changeBascule(newVal);
     }
 
-    function bascule() external view override returns (IBascule) {
+    function bascule() external view override returns (IGMPBascule) {
         return _getAssetRouterStorage().bascule;
     }
 
@@ -781,26 +781,34 @@ contract AssetRouter is
         (Assets.Release memory receipt, ) = Assets.decodeRelease(
             payload.msgBody
         );
-        _confirmDeposit($, payload.id, receipt.amount);
+        _confirmMint(
+            $,
+            payload.msgNonce,
+            receipt.recipient,
+            receipt.toToken,
+            receipt.amount
+        );
 
         IBaseLBTC(receipt.toToken).mint(receipt.recipient, receipt.amount);
         return abi.encode(receipt.recipient, receipt.toToken, receipt.amount);
     }
 
     /**
-     * @dev Checks that the deposit was validated by the Bascule drawbridge.
+     * @dev Checks that the mint was validated by the Bascule drawbridge.
      * @param $ LBTC storage.
-     * @param depositID The unique ID of the deposit.
-     * @param amount The withdrawal amount.
      */
-    function _confirmDeposit(
+    function _confirmMint(
         AssetRouterStorage storage $,
-        bytes32 depositID,
+        uint256 nonce,
+        address recipient,
+        address toToken,
         uint256 amount
     ) internal {
-        IBascule bascule_ = $.bascule;
+        IGMPBascule bascule_ = $.bascule;
         if (address(bascule_) != address(0)) {
-            bascule_.validateWithdrawal(depositID, amount);
+            bascule_.validateMint(
+                IGMPBascule.Message(nonce, recipient, toToken, amount)
+            );
         }
     }
 
@@ -808,7 +816,7 @@ contract AssetRouter is
     function _changeBascule(address newVal) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         emit AssetRouter_BasculeChanged(address($.bascule), newVal);
-        $.bascule = IBascule(newVal);
+        $.bascule = IGMPBascule(newVal);
     }
 
     function _changeOracle(address token, address newVal) internal {
