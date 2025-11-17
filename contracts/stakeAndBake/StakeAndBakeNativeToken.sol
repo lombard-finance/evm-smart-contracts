@@ -109,6 +109,9 @@ contract StakeAndBakeNativeToken is
         uint256 gasLimit_
     ) external initializer {
         if (fee_ > MAXIMUM_FEE) revert FeeGreaterThanMaximum(fee_);
+        if (address(adapter_) == address(0)) {
+            revert ZeroAddress();
+        }
 
         __ReentrancyGuard_init();
         __Pausable_init();
@@ -126,9 +129,6 @@ contract StakeAndBakeNativeToken is
         StakeAndBakeNativeTokenStorage
             storage $ = _getStakeAndBakeNativeTokenStorage();
         $.nativeLbtc = nativeLbtc_;
-        if (address(adapter_) == address(0)) {
-            revert ZeroAddress();
-        }
         $.adapter = adapter_;
         $.fee = fee_;
         $.gasLimit = gasLimit_;
