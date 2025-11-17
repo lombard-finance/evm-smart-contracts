@@ -7,12 +7,6 @@ import 'hardhat-deploy';
 
 import './scripts';
 import './tasks';
-import {
-  HardhatNetworkAccountsUserConfig,
-  HardhatNetworkChainsUserConfig,
-  HardhatNetworkForkingUserConfig,
-  HardhatNetworkMiningUserConfig
-} from 'hardhat/src/types/config';
 
 const config: HardhatUserConfig = {
   gasReporter: {
