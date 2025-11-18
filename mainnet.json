@@ -408,15 +408,15 @@
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
-      "ProxyFactory": "",
-      "StakedLBTC": "",
-      "NativeLBTC": "",
-      "Consortium": "",
-      "BridgeV2": "",
-      "AssetRouter": "",
-      "StakedLBTCOracle": "",
-      "Mailbox": "",
-      "GMPBasculeV1": ""
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
+      "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
+      "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "GMPBasculeV1": "0xC03b339FebB290F1cF062387Ae3c902F6fC57A54"
     },
     "chainlink": {
       "ChainSelector": "",
