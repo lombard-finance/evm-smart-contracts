@@ -69,10 +69,10 @@ Write proxy address to json file.
 hardhat setup-initial-valset --target ${CONSORTIUM} --populate --network ${NETWORK} --valset ${VALSET}
 ```
 
-## LBTC (deterministic)
+## StakedLBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
 
-Deploy `LBTC` contract
+Deploy `StakedLBTC` contract
 ```bash
 yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --treasury ${OWNER}
 ```
@@ -96,6 +96,11 @@ Set operator using `transferOperatorRole`.
 yarn hardhat setup-operator --target ${LBTC} --operator ${CLAIMER} --network ${NETWORK} [--populate]
 ```
 
+#### Minter
+```bash
+yarn hardhat token-add-minter --target ${LBTC} --account ${MINTER} --token-type StakedLBTC [--populate] --network ${NETWORK}
+```
+
 #### Pauser
 ```bash
 yarn hardhat setup-transfer-pauser-role --target ${LBTC} --pauser ${PAUSER} --network ${NETWORK} [--populate]
@@ -107,8 +112,21 @@ Set mint fee from operator
 yarn hardhat setup-mint-fee --target ${LBTC} --fee ${MINT_FEE} --network ${NETWORK}
 ```
 
-#### Redeem
-Enable redeem using `toggleWithdrawals` if required.
+#### Assset router
+Set asset router address
+```bash
+yarn hardhat token-set-asset-router --target ${STAKED_LBTC} --token-type stakedLBTC  --asset-router ${ASSET_ROUTER_ADDRESS} --network monad
+```
+
+Set token config
+```bash
+yarn hardhat asset-router-set-token-config-ext --target ${ASSET_ROUTER_ADDRESS} --token 0xecAc9C5F704e954931349Da37F60E39f515c11c1 --oracle ${ORACLE_ADDRESS} --redeem-fee 10000 --min-redeem-amount 3300 --max-mint-commission 0 --to-native-commission 0 --network ${NETWORK}
+```
+
+Set asset router as minter
+```bash
+yarn hardhat token-add-minter --target ${STAKED_LBTC} --account ${ASSET_ROUTER} --token-type StakedLBTC [--populate] --network ${NETWORK}
+```
 
 ## Oracle
 
@@ -117,8 +135,6 @@ Deploy `StakedLBTCOracle` contract
 yarn hardhat deploy-oracle [--ledger-network ${ENV}] [--admin ${OWNER}] --consortium ${CONSORTIUM} --network ${NETWORK} --token ${TOKEN} --denom ${DENOM_HASH} [--ratio ${INITIAL_RATIO}] [--switch-time ${SWITCH_TIME}] [--max-interval ${MAX_SWITCH_INTERVAL}] [--proxy-factory-addr ${PROXY_FACTORY}]
 ```
 Write proxy address to json file.
-
-### Configuration
 
 ## Mailbox (GMP)
 
@@ -195,25 +211,30 @@ Write proxy address to json file.
 
 Set callers:
 ```bash
-yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${STAKED_LBTC} --network ${NETWORK}
-yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${NATIVE_LBTC} --network ${NETWORK}
+yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${STAKED_LBTC} --network ${NETWORK} [--populate]
+yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${NATIVE_LBTC} --network ${NETWORK} [--populate]
 ```
 
 Set claimer:
 ```bash
-yarn hardhat role grant ${ASSET_ROUTER} CLAIMER_ROLE ${CLAIMER_ADDR} --network ${NETWORK}
+yarn hardhat role grant ${ASSET_ROUTER} CLAIMER_ROLE ${CLAIMER_ADDR} --network ${NETWORK} [--populate]
 ```
 
 Set operator:
 ```bash
-yarn hardhat role grant ${ASSET_ROUTER} OPERATOR_ROLE ${OPERATOR_ADDR} --network ${NETWORK}
+yarn hardhat role grant ${ASSET_ROUTER} OPERATOR_ROLE ${OPERATOR_ADDR} --network ${NETWORK} [--populate]
 ```
 
-Set redeem routes:
+Set redeem and deposit routes:
 ```bash
-yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${FROM_TOKEN} --from-chain ${FROM_CHAIN} --to-token ${TO_TOKEN} --to-chain ${TO_CHAIN} --route-type 2 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${STAKED_LBTC} --from-chain ${SOURCE_CHAIN} --to-token 0x0000000000000000000000000000000000000001 --to-chain 0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f --route-type 2 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${STAKED_LBTC} --from-chain ${SOURCE_CHAIN} --to-token ${NATIVE_LBTC} --to-chain ${SOURCE_CHAIN} --route-type 2 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${NATIVE_LBTC} --from-chain ${SOURCE_CHAIN} --to-token ${STAKED_LBTC} --to-chain ${SOURCE_CHAIN} --route-type 1 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token 0x0000000000000000000000000000000000000001 --from-chain 0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f --to-token ${STAKED_LBTC} --to-chain ${SOURCE_CHAIN} --route-type 1 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${NATIVE_LBTC} --from-chain ${SOURCE_CHAIN} --to-token 0x0000000000000000000000000000000000000001 --to-chain 0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f --route-type 2 --network ${NETWORK} [--populate]
 ```
 Bitcoin token address: `0x0000000000000000000000000000000000000001`
+Bitcoin mainnet chain id: `0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`
 
 Whitelist asset router in mailbox:
 ```bash
@@ -231,17 +252,15 @@ Write proxy address to json file.
 
 ### Configuration
 
-Set burn commission
-
+Set asset router address
 ```bash
-yarn hardhat setup-burn-commission --target ${TOKEN} --value ${COMMISSION} --network ${NETWORK}
+yarn hardhat token-set-asset-router --target ${NATIVE_LBTC} --token-type nativeLBTC  --asset-router ${ASSET_ROUTER_ADDRESS} --network ${NETWORK}
 ```
 
-Enable withdrawals
-
+Set token config
 ```bash
-yarn hardhat setup-toggle-withdrawals --target ${TOKEN} --network ${NETWORK}
-````
+yarn hardhat asset-router-set-token-config-ext --target ${ASSET_ROUTER_ADDRESS} --token 0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072 --redeem-fee 0 --min-redeem-amount 3300 --max-mint-commission 0 --to-native-commission 10000 --network katana
+```
 
 ## Bridge Token Adapter
 Replaces `NativeLBTC` contract with custom integration for BridgeToken (BTC.b).
@@ -279,7 +298,7 @@ Write proxy address to json file.
 
 Deploy `LombardTokenPoolV2` contract on each chain for each token.
 ```bash
-yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}] [--fallback-decimals ${FALLBACK_DECIMALS}]
+yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}] [--fallback-decimals ${FALLBACK_DECIMALS}] [--admin ${ADMIN}]
 ```
 **Write contracts address to json file.**
 
