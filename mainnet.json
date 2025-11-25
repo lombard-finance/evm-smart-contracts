@@ -407,7 +407,7 @@
   "stable": {
     "chainId": "0x00000000000000000000000000000000000000000000000000000000000003dc",
     "admin": {
-      "Owner": "",
+      "Owner": "0xAa4bc534bc7Be0E28a0686Ab6910A9B21dFdc2B1",
       "TimeLock": "",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
@@ -421,6 +421,32 @@
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "GMPBasculeV1": "0xC03b339FebB290F1cF062387Ae3c902F6fC57A54"
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "LombardTokenPoolV2_stakedLBTC": "",
+      "LombardTokenPoolV2_nativeLBTC": ""
+    }
+  },
+  "megaeth": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000010e6",
+    "admin": {
+      "Owner": "",
+      "TimeLock": "",
+      "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "StakedLBTC": "",
+      "NativeLBTC": "",
+      "Consortium": "",
+      "BridgeV2": "",
+      "AssetRouter": "",
+      "StakedLBTCOracle": "",
+      "Mailbox": "",
+      "GMPBasculeV1": ""
     },
     "chainlink": {
       "ChainSelector": "",
