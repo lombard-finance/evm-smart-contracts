@@ -362,6 +362,14 @@ const config: HardhatUserConfig = {
       chainId: 988,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
+      gas: 8_000_000
+    },
+    megaeth: {
+      loggingEnabled: true,
+      url: vars.get('MEGA_ETH_RPC', 'Put correct RPC URL here'),
+      chainId: 4326,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
       gas: 8_000_000,
       gasPrice: 0
     }
@@ -600,6 +608,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: 'https://api.stablescan.xyz/api',
           browserURL: 'https://stablescan.xyz/'
+        }
+      },
+      {
+        network: 'megaeth',
+        chainId: 4326,
+        urls: {
+          apiURL: 'https://megaeth-testnet-v3.blockscout.com/api',
+          browserURL: 'https://megaeth-testnet-v3.blockscout.com'
         }
       }
     ],
