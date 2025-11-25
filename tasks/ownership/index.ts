@@ -17,6 +17,7 @@ ownershipScope
   .task('transfer', 'Call `transferOwnership` on smart-contract')
   .addPositionalParam('target', 'The address of smart-contract')
   .addPositionalParam('owner', 'The address to be owner')
+  .addFlag('populate', 'Only populate calldata')
   .setAction(transferOwnership);
 
 ownershipScope
@@ -35,6 +36,7 @@ ownershipScope
   .task('transfer-default-admin', 'Call `beginDefaultAdminTransfer` on smart-contract')
   .addPositionalParam('target', 'The address of smart-contract')
   .addPositionalParam('owner', 'The address to be owner')
+  .addFlag('populate', 'Only populate calldata')
   .setAction(transferDefaulAdmin);
 
 ownershipScope
