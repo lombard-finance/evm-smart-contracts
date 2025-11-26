@@ -423,9 +423,9 @@
       "GMPBasculeV1": "0xC03b339FebB290F1cF062387Ae3c902F6fC57A54"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
+      "ChainSelector": "16978377838628290997",
+      "Router": "0xECFF67559c0583027A5fbd85136E33bC4D66eeA0",
+      "RMN": "0x8A76fe7fA6da27f85a626c5C53730B38D13603d7",
       "LombardTokenPoolV2_stakedLBTC": "",
       "LombardTokenPoolV2_nativeLBTC": ""
     }
@@ -449,9 +449,9 @@
       "GMPBasculeV1": "0xAe5E2940Fc01C0f8076D36749509C75E43da0C70"
     },
     "chainlink": {
-      "ChainSelector": "16978377838628290997",
-      "Router": "0xECFF67559c0583027A5fbd85136E33bC4D66eeA0",
-      "RMN": "0x8A76fe7fA6da27f85a626c5C53730B38D13603d7",
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
       "LombardTokenPoolV2_stakedLBTC": "",
       "LombardTokenPoolV2_nativeLBTC": ""
     }
