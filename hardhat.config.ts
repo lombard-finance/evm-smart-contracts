@@ -370,8 +370,7 @@ const config: HardhatUserConfig = {
       chainId: 4326,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
-      gas: 8_000_000,
-      gasPrice: 0
+      gas: 8_000_000
     }
   },
   etherscan: {
