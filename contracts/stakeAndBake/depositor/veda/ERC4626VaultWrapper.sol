@@ -1,0 +1,377 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {IDepositor} from "../IDepositor.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ITeller} from "./ITeller.sol";
+
+/**
+ * @title DeFi Vault Token Wrapper.
+ * @author Lombard.Finance
+ * @notice This contract is part of the Lombard.Finance protocol
+ */
+contract ERC4626VaultWrapper is
+    IDepositor,
+    IERC4626,
+    ERC20PausableUpgradeable,
+    ERC20PermitUpgradeable,
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardUpgradeable
+{
+    using SafeERC20 for IERC20;
+
+    /// @dev error thrown when the passed depositAmount is zero
+    error ZeroAssets();
+    /// @dev error thrown when not implemented function gets called
+    error NotImplemented();
+    /// @dev error thrown when function called from not authorized account
+    error UnauthorizedAccount(address account);
+    /// @dev error thrown the number of shares minted is less than threshold given
+    error MinimumMintNotMet(uint256 minimumMint, uint256 shares);
+
+    event NameAndSymbolChanged(string name, string symbol);
+
+    /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
+    struct ERC4626VaultWrapperStorage {
+        ITeller teller;
+        address vault;
+        IERC20 depositAsset;
+        address stakeAndBake;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC4626VaultWrapper")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC4626_VAULT_WRAPPER_STORAGE_LOCATION =
+        0x072eb778170426cc48e1e3a2b5a9c8132a05efd66817089899462c7e39d25e00;
+
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC20StorageLocation =
+        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.EIP712")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant EIP712StorageLocation =
+        0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d100;
+
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+
+    /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    // ------------------------------- EXTERNAL MUTATIVE FUNCTIONS -------------------------------
+
+    /// INTIALIZERS ///
+
+    function initialize(
+        address owner_,
+        IERC20 depositAsset_,
+        string calldata name_,
+        string calldata symbol_,
+        uint48 ownerDelay_,
+        // address pauser_,
+        ITeller teller_,
+        address stakeAndBake_
+    ) external initializer {
+        __AccessControlDefaultAdminRules_init(ownerDelay_, owner_);
+
+        __ERC20_init(name_, symbol_);
+        __ERC20Pausable_init();
+        __ERC20Permit_init(name_);
+
+        // _grantRole(PAUSER_ROLE, pauser_);
+
+        __ReentrancyGuard_init();
+
+        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+        $.depositAsset = depositAsset_;
+        $.teller = teller_;
+        $.stakeAndBake = stakeAndBake_;
+        $.vault = teller_.vault();
+    }
+
+    /// MODIFIERS ///
+
+    modifier onlyStakeAndBake() {
+        if (
+            address(_getERC4626VaultWrapperStorage().stakeAndBake) == msg.sender
+        ) {
+            revert UnauthorizedAccount(msg.sender);
+        }
+        _;
+    }
+
+    /**
+     * @notice Deposit function.
+     * @param owner The address of the user who will receive the shares
+     * @param depositAmount The amount of tokens to deposit to the vault
+     * @param depositPayload The ABI encoded parameters for the vault deposit function
+     * @dev depositPayload encodes the minimumMint for the vault
+     */
+    function deposit(
+        address owner,
+        uint256 depositAmount,
+        bytes calldata depositPayload
+    ) external nonReentrant onlyStakeAndBake returns (bytes memory) {
+        uint256 minimumMint = abi.decode(depositPayload, (uint256));
+
+        uint256 shares = _deposit(
+            _msgSender(),
+            owner,
+            depositAmount,
+            minimumMint
+        );
+
+        // Ensure minimumMint is reached.
+        if (shares < minimumMint) {
+            revert MinimumMintNotMet(minimumMint, shares);
+        }
+        bytes memory ret = abi.encode(shares);
+        return ret;
+    }
+
+    /**
+     * @notice Deposit function.
+     * @param assets The amount asset to deposit
+     * @param receiver The address of the user who will receive the shares
+     */
+    function deposit(
+        uint256 assets,
+        address receiver
+    ) external override returns (uint256 shares) {
+        return _deposit(_msgSender(), receiver, assets, 0);
+    }
+
+    /**
+     * @notice Redeem function.
+     * @param shares The amount shares to redeem
+     * @param receiver The address of the user who will receive the asets
+     * @param owner The address of the shares owner
+     */
+
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) external override returns (uint256 assets) {
+        return _withdraw(_msgSender(), receiver, owner, 0, shares);
+    }
+
+    /**
+     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+     */
+    function decimals()
+        public
+        view
+        override(ERC20Upgradeable, IERC20Metadata)
+        returns (uint8)
+    {
+        return
+            IERC20Metadata(_getERC4626VaultWrapperStorage().vault).decimals();
+    }
+
+    function totalAssets()
+        external
+        view
+        override
+        returns (uint256 totalManagedAssets)
+    {
+        return
+            IERC20(_getERC4626VaultWrapperStorage().vault).balanceOf(
+                address(this)
+            );
+    }
+
+    function asset()
+        external
+        view
+        override
+        returns (address assetTokenAddress)
+    {
+        return address(_getERC4626VaultWrapperStorage().depositAsset);
+    }
+
+    /** @dev See {IERC4626-maxDeposit}. */
+    function maxDeposit(address) public view virtual returns (uint256) {
+        return type(uint256).max;
+    }
+
+    /** @dev See {IERC4626-maxMint}. */
+    function maxMint(address) public view virtual returns (uint256) {
+        return type(uint256).max;
+    }
+
+    /** @dev See {IERC4626-maxRedeem}. */
+    function maxRedeem(address owner) public view virtual returns (uint256) {
+        return balanceOf(owner);
+    }
+
+    // ------------------------------- INTERNAL MUTATIVE FUNCTIONS -------------------------------
+
+    /**
+     * @dev Deposit/mint common workflow.
+     */
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 depositAmount,
+        uint256 minimumMint
+    ) internal returns (uint256) {
+        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+
+        SafeERC20.safeTransferFrom(
+            $.depositAsset,
+            caller,
+            address(this),
+            depositAmount
+        );
+
+        // Give the vault the needed allowance.
+        $.depositAsset.safeIncreaseAllowance($.vault, depositAmount);
+
+        // Deposit and obtain vault shares.
+        uint256 shares = $.teller.bulkDeposit(
+            $.depositAsset,
+            depositAmount,
+            minimumMint,
+            address(this)
+        );
+
+        _mint(receiver, shares);
+
+        emit Deposit(caller, receiver, depositAmount, shares);
+
+        return shares;
+    }
+
+    /**
+     * @dev Withdraw/redeem common workflow.
+     */
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256,
+        uint256 shares
+    ) internal returns (uint256) {
+        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+        if (caller != owner) {
+            _spendAllowance(owner, caller, shares);
+        }
+
+        // ToDO: add code that will check current shares balance of the owner and try to use it for redeem
+
+        _burn(owner, shares);
+        uint256 assets = $.teller.bulkWithdraw(
+            $.depositAsset,
+            shares,
+            0,
+            receiver
+        );
+
+        SafeERC20.safeTransfer($.depositAsset, receiver, assets);
+
+        emit Withdraw(caller, receiver, owner, assets, shares);
+
+        return assets;
+    }
+
+    function _changeNameAndSymbol(
+        string memory name_,
+        string memory symbol_
+    ) internal {
+        ERC20Storage storage $ = _getERC20Storage_();
+        $._name = name_;
+        $._symbol = symbol_;
+        EIP712Storage storage $_ = _getEIP712Storage_();
+        $_._name = name_;
+        emit NameAndSymbolChanged(name_, symbol_);
+    }
+
+    function _getERC20Storage_() private pure returns (ERC20Storage storage $) {
+        assembly {
+            $.slot := ERC20StorageLocation
+        }
+    }
+
+    function _getEIP712Storage_()
+        private
+        pure
+        returns (EIP712Storage storage $)
+    {
+        assembly {
+            $.slot := EIP712StorageLocation
+        }
+    }
+
+    function _getERC4626VaultWrapperStorage()
+        private
+        pure
+        returns (ERC4626VaultWrapperStorage storage $)
+    {
+        assembly {
+            $.slot := ERC4626_VAULT_WRAPPER_STORAGE_LOCATION
+        }
+    }
+
+    /**
+     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+     */
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._update(from, to, value);
+    }
+
+    // -------------------------------- NOT IMLEMENTED FUNCTIONS ---------------------------------
+
+    function convertToShares(uint256) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function convertToAssets(uint256) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function previewDeposit(uint256) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function previewMint(uint256) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function maxWithdraw(address) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function previewWithdraw(uint256) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function previewRedeem(uint256) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function mint(uint256, address) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function withdraw(
+        uint256,
+        address,
+        address
+    ) external pure override returns (uint256) {
+        revert NotImplemented();
+    }
+}
