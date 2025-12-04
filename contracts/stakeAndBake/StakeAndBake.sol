@@ -62,6 +62,7 @@ contract StakeAndBake is
     struct StakeAndBakeStorage {
         IStakedLBTC lbtc;
         IDepositor depositor;
+        /// @notice Amount to be taken as fee in minimal units of token to be staked
         uint256 fee;
         uint256 gasLimit;
     }
@@ -74,6 +75,7 @@ contract StakeAndBake is
     bytes32 private constant STAKE_AND_BAKE_STORAGE_LOCATION =
         0xd0321c9642a0f7a5931cd62db04cb9e2c0d32906ef8824eece128a7ad5e4f500;
 
+    /// @notice The maximum possible fee in token minimal units
     uint256 public constant MAXIMUM_FEE = 100000;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract

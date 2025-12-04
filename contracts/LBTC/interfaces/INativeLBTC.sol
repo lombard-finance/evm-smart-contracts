@@ -5,4 +5,6 @@ import {IBaseLBTC} from "./IBaseLBTC.sol";
 
 interface INativeLBTC is IBaseLBTC {
     error FeeGreaterThanAmount();
+
+    function mintV1(bytes calldata rawPayload, bytes calldata proof) external;
 }
