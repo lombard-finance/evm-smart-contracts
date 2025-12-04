@@ -150,9 +150,17 @@ contract ERC4626VaultWrapper is
     function deposit(
         IERC20 token,
         uint256 assets,
-        address receiver
+        address receiver,
+        uint256 minShareAmount
     ) external returns (uint256 shares) {
-        return _depositCustom(token, _msgSender(), receiver, assets, 0);
+        return
+            _depositCustom(
+                token,
+                _msgSender(),
+                receiver,
+                assets,
+                minShareAmount
+            );
     }
 
     /**

@@ -26,15 +26,14 @@ import {
 import {
   AssetRouter,
   Consortium,
-  ERC4626Depositor,
-  ERC4626Mock,
   ERC4626VaultWrapper,
   Mailbox,
   RatioFeedMock,
   StakeAndBake,
   StakedLBTC,
   TellerWithMultiAssetSupportDepositor,
-  TellerWithMultiAssetSupportMock
+  TellerWithMultiAssetSupportMock,
+  WBTCMock
 } from '../typechain-types';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 
@@ -906,6 +905,57 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       )
         .to.be.revertedWithCustomError(stakeAndBake, 'CallerNotSelf')
         .withArgs(owner.address);
+    });
+  });
+
+  describe('Simple Deposit/Stake', function () {
+    before(async function () {
+      await snapshot.restore();
+    });
+
+    it('deposit (stake) LBTC token', async function () {
+      const amountToStake = randomBigInt(8);
+      const expectedShareAmount = (amountToStake * (10000n - vaultFee)) / 10000n;
+      await stakedLbtc.connect(owner).addMinter(operator.address);
+      await stakedLbtc.connect(operator)['mint(address,uint256)'](signer3.address, amountToStake);
+      await stakedLbtc.connect(signer3).approve(erc4626Wrapper.address, amountToStake);
+      const tx = await erc4626Wrapper
+        .connect(signer3)
+        [
+          'deposit(address,uint256,address,uint256)'
+        ](stakedLbtc.address, amountToStake, signer2.address, expectedShareAmount);
+
+      await expect(tx)
+        .to.emit(teller, 'Transfer')
+        .withArgs(ethers.ZeroAddress, erc4626Wrapper.address, expectedShareAmount);
+      await expect(tx)
+        .to.emit(erc4626Wrapper, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer2.address, expectedShareAmount);
+      await expect(tx).to.changeTokenBalance(teller, erc4626Wrapper, expectedShareAmount);
+      await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, expectedShareAmount);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, signer3, -amountToStake);
+    });
+
+    it('deposit (stake) different token', async function () {
+      const amountToStake = randomBigInt(8);
+      const expectedShareAmount = amountToStake;
+      const wbtc = await deployContract<WBTCMock & Addressable>('WBTCMock', []);
+      wbtc.address = await wbtc.getAddress();
+      await wbtc.connect(operator).mint(signer3.address, amountToStake);
+      await wbtc.connect(signer3).approve(erc4626Wrapper.address, amountToStake);
+      const tx = await erc4626Wrapper
+        .connect(signer3)
+        ['deposit(address,uint256,address,uint256)'](wbtc.address, amountToStake, signer2.address, expectedShareAmount);
+
+      await expect(tx)
+        .to.emit(teller, 'Transfer')
+        .withArgs(ethers.ZeroAddress, erc4626Wrapper.address, expectedShareAmount);
+      await expect(tx)
+        .to.emit(erc4626Wrapper, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer2.address, expectedShareAmount);
+      await expect(tx).to.changeTokenBalance(teller, erc4626Wrapper, expectedShareAmount);
+      await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, expectedShareAmount);
+      await expect(tx).to.changeTokenBalance(wbtc, signer3, -amountToStake);
     });
   });
 });
