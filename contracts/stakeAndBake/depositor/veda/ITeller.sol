@@ -23,11 +23,4 @@ interface ITeller {
     ) external returns (uint256 shares);
 
     function vault() external view returns (address);
-
-    function bulkWithdraw(
-        IERC20 withdrawAsset,
-        uint256 shareAmount,
-        uint256 minimumAssets,
-        address to
-    ) external returns (uint256 assetsOut);
 }
