@@ -48,7 +48,6 @@ contract ERC4626VaultWrapper is
     /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
     struct ERC4626VaultWrapperStorage {
         ITeller teller;
-        IERC20Metadata vault;
         mapping(address => IERC20) sabAsset;
     }
 
@@ -97,7 +96,6 @@ contract ERC4626VaultWrapper is
 
         ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
         $.teller = teller_;
-        $.vault = IERC20Metadata(teller_.vault());
     }
 
     /// MODIFIERS ///
@@ -197,7 +195,9 @@ contract ERC4626VaultWrapper is
         override(ERC4626Upgradeable, ERC20Upgradeable)
         returns (uint8)
     {
-        return _getERC4626VaultWrapperStorage().vault.decimals();
+        return
+            IERC20Metadata(_getERC4626VaultWrapperStorage().teller.vault())
+                .decimals();
     }
 
     // ------------------------------- INTERNAL MUTATIVE FUNCTIONS -------------------------------
@@ -217,7 +217,7 @@ contract ERC4626VaultWrapper is
         SafeERC20.safeTransferFrom(token, caller, address(this), depositAmount);
 
         // Give the vault the needed allowance.
-        token.safeIncreaseAllowance(address($.vault), depositAmount);
+        token.safeIncreaseAllowance($.teller.vault(), depositAmount);
 
         // Deposit and obtain vault shares.
         uint256 shares = $.teller.bulkDeposit(
