@@ -32,6 +32,8 @@ contract ERC4626VaultWrapper is
 
     /// @dev error thrown when the passed depositAmount is zero
     error ZeroAssets();
+    /// @dev error thrown when the passed address is zero
+    error ZeroAddress();
     /// @dev error thrown when not implemented function gets called
     error NotImplemented();
     /// @dev error thrown when function called from not authorized account
@@ -40,6 +42,8 @@ contract ERC4626VaultWrapper is
     error MinimumMintNotMet(uint256 minimumMint, uint256 shares);
 
     event NameAndSymbolChanged(string name, string symbol);
+    event StakeAndBakeAdded(address stakeAndBake, address token);
+    event StakeAndBakeRemoved(address stakeAndBake);
 
     /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
     struct ERC4626VaultWrapperStorage {
@@ -149,6 +153,31 @@ contract ERC4626VaultWrapper is
         address receiver
     ) external returns (uint256 shares) {
         return _depositCustom(token, _msgSender(), receiver, assets, 0);
+    }
+
+    /**
+     * @notice Whitelist StakeAndBake contract.
+     * @param stakeAndBake The address of StakeAndBake contract
+     * @param token The address of the token controlled by StakeAndBake
+     */
+    function addStakeAndBake(
+        address stakeAndBake,
+        address token
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (token == address(0)) revert ZeroAddress();
+        _getERC4626VaultWrapperStorage().sabAsset[stakeAndBake] = IERC20(token);
+        emit StakeAndBakeAdded(stakeAndBake, token);
+    }
+
+    /**
+     * @notice Remove StakeAndBake contract.
+     * @param stakeAndBake The address of StakeAndBake contract
+     */
+    function removeStakeAndBake(
+        address stakeAndBake
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        delete _getERC4626VaultWrapperStorage().sabAsset[stakeAndBake];
+        emit StakeAndBakeRemoved(stakeAndBake);
     }
 
     /**
