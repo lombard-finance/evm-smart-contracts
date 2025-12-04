@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IDepositor} from "../IDepositor.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -21,7 +22,7 @@ import {ITeller} from "./ITeller.sol";
  */
 contract ERC4626VaultWrapper is
     IDepositor,
-    IERC4626,
+    ERC4626Upgradeable,
     ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlDefaultAdminRulesUpgradeable,
@@ -44,8 +45,7 @@ contract ERC4626VaultWrapper is
     struct ERC4626VaultWrapperStorage {
         ITeller teller;
         IERC20Metadata vault;
-        IERC20 depositAsset;
-        address stakeAndBake;
+        mapping(address => IERC20) sabAsset;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC4626VaultWrapper")) - 1)) & ~bytes32(uint256(0xff))
@@ -73,13 +73,11 @@ contract ERC4626VaultWrapper is
 
     function initialize(
         address owner_,
-        IERC20 depositAsset_,
         string calldata name_,
         string calldata symbol_,
         uint48 ownerDelay_,
-        // address pauser_,
-        ITeller teller_,
-        address stakeAndBake_
+        address pauser_,
+        ITeller teller_
     ) external initializer {
         __AccessControlDefaultAdminRules_init(ownerDelay_, owner_);
 
@@ -87,14 +85,14 @@ contract ERC4626VaultWrapper is
         __ERC20Pausable_init();
         __ERC20Permit_init(name_);
 
-        // _grantRole(PAUSER_ROLE, pauser_);
+        __ERC4626_init(IERC20(teller_.vault()));
+
+        _grantRole(PAUSER_ROLE, pauser_);
 
         __ReentrancyGuard_init();
 
         ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
-        $.depositAsset = depositAsset_;
         $.teller = teller_;
-        $.stakeAndBake = stakeAndBake_;
         $.vault = IERC20Metadata(teller_.vault());
     }
 
@@ -102,7 +100,8 @@ contract ERC4626VaultWrapper is
 
     modifier onlyStakeAndBake() {
         if (
-            address(_getERC4626VaultWrapperStorage().stakeAndBake) == msg.sender
+            address(_getERC4626VaultWrapperStorage().sabAsset[_msgSender()]) ==
+            address(0)
         ) {
             revert UnauthorizedAccount(msg.sender);
         }
@@ -123,7 +122,8 @@ contract ERC4626VaultWrapper is
     ) external nonReentrant onlyStakeAndBake returns (bytes memory) {
         uint256 minimumMint = abi.decode(depositPayload, (uint256));
 
-        uint256 shares = _deposit(
+        uint256 shares = _depositCustom(
+            _getERC4626VaultWrapperStorage().sabAsset[_msgSender()],
             _msgSender(),
             owner,
             depositAmount,
@@ -144,25 +144,11 @@ contract ERC4626VaultWrapper is
      * @param receiver The address of the user who will receive the shares
      */
     function deposit(
+        IERC20 token,
         uint256 assets,
         address receiver
-    ) external override returns (uint256 shares) {
-        return _deposit(_msgSender(), receiver, assets, 0);
-    }
-
-    /**
-     * @notice Redeem function.
-     * @param shares The amount shares to redeem
-     * @param receiver The address of the user who will receive the asets
-     * @param owner The address of the shares owner
-     */
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external override returns (uint256 assets) {
-        return _withdraw(_msgSender(), receiver, owner, 0, shares);
+    ) external returns (uint256 shares) {
+        return _depositCustom(token, _msgSender(), receiver, assets, 0);
     }
 
     /**
@@ -171,47 +157,10 @@ contract ERC4626VaultWrapper is
     function decimals()
         public
         view
-        override(ERC20Upgradeable, IERC20Metadata)
+        override(ERC4626Upgradeable, ERC20Upgradeable)
         returns (uint8)
     {
-        return
-            _getERC4626VaultWrapperStorage().vault.decimals();
-    }
-
-    function totalAssets()
-        external
-        view
-        override
-        returns (uint256 totalManagedAssets)
-    {
-        return
-            IERC20(_getERC4626VaultWrapperStorage().vault).balanceOf(
-                address(this)
-            );
-    }
-
-    function asset()
-        external
-        view
-        override
-        returns (address assetTokenAddress)
-    {
-        return address(_getERC4626VaultWrapperStorage().depositAsset);
-    }
-
-    /** @dev See {IERC4626-maxDeposit}. */
-    function maxDeposit(address) public view virtual returns (uint256) {
-        return type(uint256).max;
-    }
-
-    /** @dev See {IERC4626-maxMint}. */
-    function maxMint(address) public view virtual returns (uint256) {
-        return type(uint256).max;
-    }
-
-    /** @dev See {IERC4626-maxRedeem}. */
-    function maxRedeem(address owner) public view virtual returns (uint256) {
-        return balanceOf(owner);
+        return _getERC4626VaultWrapperStorage().vault.decimals();
     }
 
     // ------------------------------- INTERNAL MUTATIVE FUNCTIONS -------------------------------
@@ -219,7 +168,8 @@ contract ERC4626VaultWrapper is
     /**
      * @dev Deposit/mint common workflow.
      */
-    function _deposit(
+    function _depositCustom(
+        IERC20 token,
         address caller,
         address receiver,
         uint256 depositAmount,
@@ -227,19 +177,14 @@ contract ERC4626VaultWrapper is
     ) internal returns (uint256) {
         ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
 
-        SafeERC20.safeTransferFrom(
-            $.depositAsset,
-            caller,
-            address(this),
-            depositAmount
-        );
+        SafeERC20.safeTransferFrom(token, caller, address(this), depositAmount);
 
         // Give the vault the needed allowance.
-        $.depositAsset.safeIncreaseAllowance(address($.vault), depositAmount);
+        token.safeIncreaseAllowance(address($.vault), depositAmount);
 
         // Deposit and obtain vault shares.
         uint256 shares = $.teller.bulkDeposit(
-            $.depositAsset,
+            token,
             depositAmount,
             minimumMint,
             address(this)
@@ -250,49 +195,6 @@ contract ERC4626VaultWrapper is
         emit Deposit(caller, receiver, depositAmount, shares);
 
         return shares;
-    }
-
-    /**
-     * @dev Withdraw/redeem common workflow.
-     */
-    function _withdraw(
-        address caller,
-        address receiver,
-        address owner,
-        uint256,
-        uint256 shares
-    ) internal returns (uint256) {
-        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
-        uint256 vaultTokenBalance = $.vault.balanceOf(owner);
-        uint256 sharesToBurn = shares;
-        if (vaultTokenBalance > 0) {
-            uint256 vaultTokensToTransfer = $.vault.allowance(owner, address(this));
-            if (vaultTokensToTransfer > 0) {
-                uint256 amtToTransfer = Math.min(sharesToBurn, vaultTokensToTransfer);
-                SafeERC20.safeTransferFrom($.vault, owner, address(this), amtToTransfer);
-                sharesToBurn -= sharesToBurn;
-            }
-        }
-
-        if (caller != owner) {
-            _spendAllowance(owner, caller, sharesToBurn);
-        }
-
-        // ToDO: add code that will check current shares balance of the owner and try to use it for redeem
-
-        _burn(owner, sharesToBurn);
-        uint256 assets = $.teller.bulkWithdraw(
-            $.depositAsset,
-            shares,
-            0,
-            receiver
-        );
-
-        SafeERC20.safeTransfer($.depositAsset, receiver, assets);
-
-        emit Withdraw(caller, receiver, owner, assets, shares);
-
-        return assets;
     }
 
     function _changeNameAndSymbol(
@@ -342,47 +244,5 @@ contract ERC4626VaultWrapper is
         uint256 value
     ) internal virtual override(ERC20Upgradeable, ERC20PausableUpgradeable) {
         super._update(from, to, value);
-    }
-
-    // -------------------------------- NOT IMLEMENTED FUNCTIONS ---------------------------------
-
-    function convertToShares(uint256) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function convertToAssets(uint256) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function previewDeposit(uint256) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function previewMint(uint256) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function maxWithdraw(address) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function previewWithdraw(uint256) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function previewRedeem(uint256) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function mint(uint256, address) external pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function withdraw(
-        uint256,
-        address,
-        address
-    ) external pure override returns (uint256) {
-        revert NotImplemented();
     }
 }
