@@ -43,7 +43,7 @@ contract ERC4626VaultWrapper is
     /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
     struct ERC4626VaultWrapperStorage {
         ITeller teller;
-        address vault;
+        IERC20Metadata vault;
         IERC20 depositAsset;
         address stakeAndBake;
     }
@@ -95,7 +95,7 @@ contract ERC4626VaultWrapper is
         $.depositAsset = depositAsset_;
         $.teller = teller_;
         $.stakeAndBake = stakeAndBake_;
-        $.vault = teller_.vault();
+        $.vault = IERC20Metadata(teller_.vault());
     }
 
     /// MODIFIERS ///
@@ -175,7 +175,7 @@ contract ERC4626VaultWrapper is
         returns (uint8)
     {
         return
-            IERC20Metadata(_getERC4626VaultWrapperStorage().vault).decimals();
+            _getERC4626VaultWrapperStorage().vault.decimals();
     }
 
     function totalAssets()
@@ -235,7 +235,7 @@ contract ERC4626VaultWrapper is
         );
 
         // Give the vault the needed allowance.
-        $.depositAsset.safeIncreaseAllowance($.vault, depositAmount);
+        $.depositAsset.safeIncreaseAllowance(address($.vault), depositAmount);
 
         // Deposit and obtain vault shares.
         uint256 shares = $.teller.bulkDeposit(
@@ -263,13 +263,24 @@ contract ERC4626VaultWrapper is
         uint256 shares
     ) internal returns (uint256) {
         ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+        uint256 vaultTokenBalance = $.vault.balanceOf(owner);
+        uint256 sharesToBurn = shares;
+        if (vaultTokenBalance > 0) {
+            uint256 vaultTokensToTransfer = $.vault.allowance(owner, address(this));
+            if (vaultTokensToTransfer > 0) {
+                uint256 amtToTransfer = Math.min(sharesToBurn, vaultTokensToTransfer);
+                SafeERC20.safeTransferFrom($.vault, owner, address(this), amtToTransfer);
+                sharesToBurn -= sharesToBurn;
+            }
+        }
+
         if (caller != owner) {
-            _spendAllowance(owner, caller, shares);
+            _spendAllowance(owner, caller, sharesToBurn);
         }
 
         // ToDO: add code that will check current shares balance of the owner and try to use it for redeem
 
-        _burn(owner, shares);
+        _burn(owner, sharesToBurn);
         uint256 assets = $.teller.bulkWithdraw(
             $.depositAsset,
             shares,
