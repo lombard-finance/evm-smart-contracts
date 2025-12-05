@@ -19,6 +19,7 @@ import {ITeller} from "./ITeller.sol";
  * @title DeFi Vault Token Wrapper.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact legal@lombard.finance 
  */
 contract ERC4626VaultWrapper is
     IDepositor,
