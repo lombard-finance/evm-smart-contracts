@@ -70,6 +70,7 @@ interface IBridgeV2 {
     function mailbox() external view returns (address);
 
     function MSG_VERSION() external view returns (uint8);
+    function MSG_VERSIONS() external view returns (uint8[] memory);
 
     function deposit(
         bytes32 destinationChain,
@@ -77,7 +78,8 @@ interface IBridgeV2 {
         address sender,
         bytes32 recipient,
         uint256 amount,
-        bytes32 destinationCaller
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
     ) external payable returns (uint256, bytes32);
 
     function deposit(
@@ -85,7 +87,8 @@ interface IBridgeV2 {
         address token,
         bytes32 recipient,
         uint256 amount,
-        bytes32 destinationCaller
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
     ) external payable returns (uint256, bytes32);
 
     function getAllowedDestinationToken(
