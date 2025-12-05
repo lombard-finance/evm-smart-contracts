@@ -122,7 +122,7 @@ contract ERC4626VaultWrapper is
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external nonReentrant onlyStakeAndBake returns (bytes memory) {
+    ) external onlyStakeAndBake returns (bytes memory) {
         uint256 minimumMint = abi.decode(depositPayload, (uint256));
 
         uint256 shares = _depositCustom(
