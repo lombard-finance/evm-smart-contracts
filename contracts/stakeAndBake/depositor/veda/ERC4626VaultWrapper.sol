@@ -100,6 +100,14 @@ contract ERC4626VaultWrapper is
         $.teller = teller_;
     }
 
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
     /**
      * @notice Deposit function.
      * @param owner The address of the user who will receive the shares
