@@ -18,8 +18,9 @@ import {ITeller} from "./ITeller.sol";
 /**
  * @title DeFi Vault Token Wrapper.
  * @author Lombard.Finance
- * @notice This contract is part of the Lombard.Finance protocol
- * @custom:security-contact legal@lombard.finance 
+ * @notice This contract is part of the Lombard.Finance protocol. Its purpose is to wrap LBTCv tokens minted by Veda vault
+ *         so that users will receive this wrapper's tokens instead of LBTCv when they do deposit or use StakeAndBake feature
+ * @custom:security-contact legal@lombard.finance
  */
 contract ERC4626VaultWrapper is
     IDepositor,
@@ -99,18 +100,6 @@ contract ERC4626VaultWrapper is
         $.teller = teller_;
     }
 
-    /// MODIFIERS ///
-
-    modifier onlyStakeAndBake() {
-        if (
-            address(_getERC4626VaultWrapperStorage().sabAsset[_msgSender()]) ==
-            address(0)
-        ) {
-            revert UnauthorizedAccount(msg.sender);
-        }
-        _;
-    }
-
     /**
      * @notice Deposit function.
      * @param owner The address of the user who will receive the shares
@@ -122,11 +111,16 @@ contract ERC4626VaultWrapper is
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external onlyStakeAndBake returns (bytes memory) {
+    ) external returns (bytes memory) {
+        IERC20 assetToken = _getERC4626VaultWrapperStorage().sabAsset[
+            _msgSender()
+        ];
+        if (address(assetToken) == address(0))
+            revert UnauthorizedAccount(msg.sender);
         uint256 minimumMint = abi.decode(depositPayload, (uint256));
 
         uint256 shares = _depositCustom(
-            _getERC4626VaultWrapperStorage().sabAsset[_msgSender()],
+            assetToken,
             _msgSender(),
             owner,
             depositAmount,
