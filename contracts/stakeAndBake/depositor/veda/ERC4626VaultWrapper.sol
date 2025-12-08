@@ -42,6 +42,8 @@ contract ERC4626VaultWrapper is
     error UnauthorizedAccount(address account);
     /// @dev error thrown the number of shares minted is less than threshold given
     error MinimumMintNotMet(uint256 minimumMint, uint256 shares);
+    /// @dev error thrown if new teller points to a different vault
+    error VaultCannotBeChanged();
 
     event NameAndSymbolChanged(string name, string symbol);
     event StakeAndBakeAdded(address stakeAndBake, address token);
@@ -173,7 +175,9 @@ contract ERC4626VaultWrapper is
         ITeller teller_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (address(teller_) == address(0)) revert ZeroAddress();
-        emit TellerChanged(_getERC4626VaultWrapperStorage().teller, teller_);
+        ITeller oldTeller = _getERC4626VaultWrapperStorage().teller;
+        if (teller_.vault() != oldTeller.vault()) revert();
+        emit TellerChanged(oldTeller, teller_);
         _getERC4626VaultWrapperStorage().teller = teller_;
     }
 
