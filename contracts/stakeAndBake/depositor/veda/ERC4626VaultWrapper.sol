@@ -176,7 +176,7 @@ contract ERC4626VaultWrapper is
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (address(teller_) == address(0)) revert ZeroAddress();
         ITeller oldTeller = _getERC4626VaultWrapperStorage().teller;
-        if (teller_.vault() != oldTeller.vault()) revert();
+        if (teller_.vault() != oldTeller.vault()) revert VaultCannotBeChanged();
         emit TellerChanged(oldTeller, teller_);
         _getERC4626VaultWrapperStorage().teller = teller_;
     }
