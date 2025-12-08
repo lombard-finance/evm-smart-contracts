@@ -46,6 +46,7 @@ contract ERC4626VaultWrapper is
     event NameAndSymbolChanged(string name, string symbol);
     event StakeAndBakeAdded(address stakeAndBake, address token);
     event StakeAndBakeRemoved(address stakeAndBake);
+    event TellerChanged(ITeller indexed prevVal, ITeller indexed newVal);
 
     /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
     struct ERC4626VaultWrapperStorage {
@@ -162,6 +163,18 @@ contract ERC4626VaultWrapper is
                 assets,
                 minShareAmount
             );
+    }
+
+    /**
+     * @notice Changes teller address.
+     * @param teller_ The address of the teller
+     */
+    function changeTeller(
+        ITeller teller_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (address(teller_) == address(0)) revert ZeroAddress();
+        emit TellerChanged(_getERC4626VaultWrapperStorage().teller, teller_);
+        _getERC4626VaultWrapperStorage().teller = teller_;
     }
 
     /**
