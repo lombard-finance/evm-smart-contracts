@@ -1,4 +1,5 @@
 import { config, ethers, upgrades } from 'hardhat';
+import { impersonateAccount } from '@nomicfoundation/hardhat-network-helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, randomBytes, Signature } from 'ethers';
 import { Consortium, ERC20, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
@@ -15,14 +16,14 @@ export const CHAIN_ID: string = encode(['uint256'], [31337]);
 
 export const e18: bigint = 10n ** 18n;
 export const e8: bigint = 10n ** 8n;
-export const LEDGER_CHAIN_ID: string = encode(['uint256'], ['0x112233445566778899000000']);
+export const LEDGER_CHAIN_ID: string = '0x0387b25e8e61f2ce4838b04795b231f09ee73ffd391da018bef4bc5c4975897b';
 export const BITCOIN_CHAIN_ID: string = encode(
   ['uint256'],
   ['0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f']
 );
 export const BTC_STAKING_MODULE_ADDRESS: string = encode(['uint256'], ['0x0089e3e4e7a699d6f131d893aeef7ee143706ac23a']);
 export const ASSETS_MODULE_ADDRESS: string = encode(['uint256'], ['0x008bf729ffe074caee622c02928173467e658e19e2']);
-export const LEDGER_MAILBOX: string = encode(['uint256'], ['0x222233445566778899000000']);
+export const LEDGER_MAILBOX: string = '0x000000000000000000000000cc0bbbee7c9dd4f3f30e01c7f1fcbeb839f30c47';
 export const LEDGER_CALLER: string = encode(['uint256'], [0n]);
 export const BITCOIN_NATIVE_COIN: string = encode(['uint256'], ['0x00000000000000000000000000000000000001']);
 
@@ -567,4 +568,18 @@ export class Addressable {
 
   // @ts-ignore
   private _address: string;
+}
+
+export async function impersonateWithEth(address: string, amount: bigint = e18): Promise<HardhatEthersSigner> {
+  await impersonateAccount(address);
+  const account = await ethers.getSigner(address);
+
+  //Deposit some Eth to account
+  if (amount > 0n) {
+    const [treasury] = await ethers.getSigners();
+    await treasury.sendTransaction({ to: address, value: amount });
+  }
+
+  console.log(`Account impersonated at address: ${account.address}`);
+  return account;
 }
