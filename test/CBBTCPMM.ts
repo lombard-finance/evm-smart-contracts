@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, upgrades } from 'hardhat';
+import { ethers, network, upgrades } from 'hardhat';
 import { WBTCMock, StakedLBTC, CBBTCPMM } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
@@ -27,6 +27,8 @@ describe('CBBTCPMM', function () {
   }
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [deployer, withdrawalAddress, signer1, signer2, operator, pauser] = await ethers.getSigners();
 
     cbbtc = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');

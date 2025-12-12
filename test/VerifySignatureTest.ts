@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { VerifySignatureTest } from '../typechain-types';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 
@@ -8,6 +8,8 @@ describe('VerifySignatureTest', function () {
   let signer: SignerWithAddress;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     const VerifySignatureTest = await ethers.getContractFactory('VerifySignatureTest');
     verifySignatureTest = (await VerifySignatureTest.deploy()) as VerifySignatureTest;
     await verifySignatureTest.waitForDeployment();

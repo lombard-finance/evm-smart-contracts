@@ -371,6 +371,14 @@ const config: HardhatUserConfig = {
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
+    },
+    hardhat: {
+      forking: {
+        url: 'https://ethereum-rpc.publicnode.com',
+        blockNumber: 23983296
+      },
+      chainId: 1,
+      initialBaseFeePerGas: 0
     }
   },
   etherscan: {

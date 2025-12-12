@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -80,9 +80,10 @@ describe('BridgeTokenAdapter', function () {
   let ratioFeed: RatioFeedMock & Addressable;
   let assetRouter: AssetRouter & Addressable;
   let bridgeToken: BridgeTokenMock;
-  let assetRouterBytes: string;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [
       _,
       owner,
@@ -149,7 +150,6 @@ describe('BridgeTokenAdapter', function () {
       mailbox.address,
       ethers.ZeroAddress
     ]);
-    assetRouterBytes = encode(['address'], [await assetRouter.getAddress()]);
     await assetRouter.connect(owner).changeOracle(bridgeTokenAdapter.address, ratioFeed.address);
     await assetRouter.connect(owner).changeToNativeCommission(bridgeTokenAdapter.address, toNativeCommission);
     assetRouter.address = await assetRouter.getAddress();
@@ -536,7 +536,7 @@ describe('BridgeTokenAdapter', function () {
           name: 'invalid destination chain',
           signers: () => [notary1, notary2],
           signatures: [true, true],
-          chainId: encode(['uint256'], [1]),
+          chainId: encode(['uint256'], [12345]),
           recipient: () => signer1.address,
           amount: randomBigInt(8),
           tokenAddress: () => bridgeTokenAdapter.address,

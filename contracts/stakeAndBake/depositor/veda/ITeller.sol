@@ -23,4 +23,23 @@ interface ITeller {
     ) external returns (uint256 shares);
 
     function vault() external view returns (address);
+
+    error TellerWithMultiAssetSupport__ShareLockPeriodTooLong();
+    error TellerWithMultiAssetSupport__SharesAreLocked();
+    error TellerWithMultiAssetSupport__SharesAreUnLocked();
+    error TellerWithMultiAssetSupport__BadDepositHash();
+    error TellerWithMultiAssetSupport__AssetNotSupported();
+    error TellerWithMultiAssetSupport__ZeroAssets();
+    error TellerWithMultiAssetSupport__MinimumMintNotMet();
+    error TellerWithMultiAssetSupport__MinimumAssetsNotMet();
+    error TellerWithMultiAssetSupport__PermitFailedAndAllowanceTooLow();
+    error TellerWithMultiAssetSupport__ZeroShares();
+    error TellerWithMultiAssetSupport__DualDeposit();
+    error TellerWithMultiAssetSupport__Paused();
+    error TellerWithMultiAssetSupport__TransferDenied(
+        address from,
+        address to,
+        address operator
+    );
+    error TellerWithMultiAssetSupport__SharePremiumTooLarge();
 }

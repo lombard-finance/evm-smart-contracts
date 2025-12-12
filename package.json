@@ -36,7 +36,7 @@
     "chai": "^4.2.0",
     "dotenv": "^16.4.5",
     "ethers": "^6.4.0",
-    "hardhat": "^2.22.12",
+    "hardhat": "^2.22.16",
     "hardhat-deploy": "^0.14.0",
     "hardhat-gas-reporter": "2.3.0",
     "prettier": "^3.3.3",

@@ -1,7 +1,7 @@
 import { time, loadFixture } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { LombardTimeLock } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { TxBuilder } from './helpers';
 
@@ -9,6 +9,10 @@ const MIN_DELAY = 10;
 const VALUE = '1000';
 
 describe('LombardTimeLock', function () {
+  before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+  });
+
   async function deployFixture() {
     const [owner, proposer, executor, admin, account1] = await ethers.getSigners();
 
