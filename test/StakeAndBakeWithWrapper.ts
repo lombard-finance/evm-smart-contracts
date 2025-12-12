@@ -1,4 +1,4 @@
-import { ethers, network } from 'hardhat';
+import { config, ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -72,6 +72,17 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
   let stakeAndBakeFee: bigint;
 
   before(async function () {
+    await network.provider.send("hardhat_reset", [
+      {
+        forking: {
+          jsonRpcUrl: config.networks.hardhat.forking?.url,
+          blockNumber: config.networks.hardhat.forking?.blockNumber,
+        },
+      },
+    ]);
+    const block = await ethers.provider.getBlockNumber();
+    expect(block).to.be.gt(23000000, '-------- Please switch to eth fork --------');
+
     [_, owner, signer1, signer2, signer3, notary1, operator, claimer, pauser, minter] =
       await getSignersWithPrivateKeys();
 
@@ -142,7 +153,7 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     vedavault = (await ethers.getContractAt(
       '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
       '0x5401b8620E5FB570064CA9114fd1e135fd77D57c'
-    )) as IERC20 & Addressable;
+    )) as unknown as IERC20 & Addressable;
     vedavault.address = '0x5401b8620E5FB570064CA9114fd1e135fd77D57c';
 
     rateProvider = (await ethers.getContractAt(
@@ -154,7 +165,7 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     wbtc = (await ethers.getContractAt(
       '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
       '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'
-    )) as IERC20 & Addressable;
+    )) as unknown as IERC20 & Addressable;
     wbtc.address = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
 
     erc4626Wrapper = await deployContract<ERC4626VaultWrapper & Addressable>('ERC4626VaultWrapper', [

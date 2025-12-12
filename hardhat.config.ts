@@ -366,23 +366,24 @@ const config: HardhatUserConfig = {
     },
     megaeth: {
       loggingEnabled: true,
-      url: vars.get('MEGA_ETH_RPC', 'Put correct RPC URL here'),
+      url: vars.get(
+        'MEGA_ETH_RPC',
+        'https://alpha.megaeth.com/rpc?user=lombard+v1&token=1763427229-%2Bx6HFUDu9OhJwV%2FTCFOL0xTt%2FPJRAXPeirIcuytvnes%3D'
+      ),
       chainId: 4326,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
     },
-    hardhat: {
-      forking:
-        process.env.FORK === 'true'
-          ? {
-              url: 'https://enterprise.onerpc.com/eth?apikey=',
-              blockNumber: 23983296
-            }
-          : undefined,
-      chainId: 1,
-      initialBaseFeePerGas: 0
-    }
+    hardhat:
+      {
+        forking: {
+          url: 'https://ethereum-rpc.publicnode.com',
+          blockNumber: 23983296
+        },
+        chainId: 1,
+        initialBaseFeePerGas: 0
+      }
   },
   etherscan: {
     customChains: [

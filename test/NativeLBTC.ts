@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -62,6 +62,8 @@ describe('NativeLBTC', function () {
   let assetRouter: AssetRouter & Addressable;
 
   before(async function () {
+    await network.provider.request({ method: "hardhat_reset", params: [] });
+
     [
       _,
       owner,
@@ -604,7 +606,7 @@ describe('NativeLBTC', function () {
           name: 'invalid destination chain',
           signers: () => [notary1, notary2],
           signatures: [true, true],
-          chainId: encode(['uint256'], [1]),
+          chainId: encode(['uint256'], [12345]),
           recipient: () => signer1.address,
           amount: randomBigInt(8),
           tokenAddress: () => nativeLbtc.address,

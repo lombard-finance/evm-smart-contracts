@@ -1,6 +1,6 @@
 // test/PoR.test.ts
 import { expect } from 'chai';
-import { ethers, upgrades } from 'hardhat';
+import { ethers, network, upgrades } from 'hardhat';
 import { PoR } from '../typechain-types'; // Adjust the import based on your typechain output
 import { Signer } from 'ethers';
 
@@ -8,6 +8,10 @@ describe('PoR', function () {
   let por: PoR;
   let owner: Signer;
   let operator: Signer;
+
+  before(async function() {
+    await network.provider.request({ method: "hardhat_reset", params: [] });
+  })
 
   beforeEach(async () => {
     [owner, operator] = await ethers.getSigners();
@@ -275,7 +279,7 @@ describe('PoR', function () {
       });
 
       it('should return proper values in a range', async function () {
-        const [addresses, rootPkIds, messages, signatures] = await por.getPoRAddressSignatureMessages(1, 2);
+        const [addresses, rootPkIds, messages, signatures] = await por['getPoRAddressSignatureMessages(uint256,uint256)'](1,2);
         expect(addresses).to.deep.equal(['0xAddress2', '0xAddress3']);
         expect(rootPkIds).to.deep.equal([ethers.keccak256(pubkey2), ethers.keccak256(pubkey3)]);
         expect(messages).to.deep.equal(['Message2', 'Message3']);
@@ -283,7 +287,7 @@ describe('PoR', function () {
       });
 
       it('should return all values if no range is provided', async function () {
-        const data = await por.getPoRAddressSignatureMessages();
+        const data = await por['getPoRAddressSignatureMessages()']();
         expect(data.map((d: any) => d.addressStr)).to.deep.equal(['0xAddress1', '0xAddress2', '0xAddress3']);
         expect(data.map((d: any) => d.rootPkId)).to.deep.equal([
           ethers.keccak256(pubkey1),
@@ -299,7 +303,7 @@ describe('PoR', function () {
       });
 
       it('should return empty arrays if start is greater than end', async function () {
-        const [addresses, rootPkIds, messages, signatures] = await por.getPoRAddressSignatureMessages(2, 1);
+        const [addresses, rootPkIds, messages, signatures] = await por['getPoRAddressSignatureMessages(uint256,uint256)'](2, 1);
         expect(addresses).to.deep.equal([]);
         expect(rootPkIds).to.deep.equal([]);
         expect(messages).to.deep.equal([]);

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { getRandomValues } from 'crypto';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { Bascule } from '../typechain-types';
@@ -21,6 +21,8 @@ describe('Bascule', function () {
   let snapshot: SnapshotRestorer;
 
   before(async () => {
+    await network.provider.request({ method: "hardhat_reset", params: [] });
+
     [admin, pauser, depositReporter, withdrawalValidator, guardian] = await ethers.getSigners();
     bascule = await ethers.deployContract('Bascule', [admin, pauser, depositReporter, withdrawalValidator, 4n]);
 

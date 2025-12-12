@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -10,7 +10,6 @@ import {
   randomAddress,
   randomBigInt,
   rawSign,
-  signDepositBtcV0Payload,
   Signer
 } from './helpers';
 import { GMPBasculeV1, IGMPBascule } from '../typechain-types';
@@ -66,6 +65,8 @@ describe('GMPBasculeV1', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
+    await network.provider.request({ method: "hardhat_reset", params: [] });
+
     [_, owner, pauser, mintReporter, mintValidator, trustedSigner, signer1, validationGuardian] =
       await getSignersWithPrivateKeys();
 

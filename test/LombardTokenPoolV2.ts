@@ -1,6 +1,7 @@
 import { BridgeV2, LombardTokenPoolV2 } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { Addressable, deployContract, getSignersWithPrivateKeys, Signer } from './helpers';
+import { network } from 'hardhat';
 
 describe('LombardTokenPoolV2', function () {
   let deployer: Signer, owner: Signer, router: Signer, rmnProxy: Signer, mailbox: Signer;
@@ -8,6 +9,8 @@ describe('LombardTokenPoolV2', function () {
   let snapshot: SnapshotRestorer;
 
   before(async () => {
+    await network.provider.request({ method: "hardhat_reset", params: [] });
+
     [deployer, owner, router, rmnProxy, mailbox] = await getSignersWithPrivateKeys();
 
     const tokenWithDecimals = await deployContract('BridgeTokenMock', [], false);

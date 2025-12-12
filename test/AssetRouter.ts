@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -21,7 +21,6 @@ import {
   getSignersWithPrivateKeys,
   GMP_V1_SELECTOR,
   initNativeLBTC,
-  initStakedLBTC,
   LEDGER_CALLER,
   LEDGER_CHAIN_ID,
   LEDGER_MAILBOX,
@@ -37,7 +36,6 @@ import {
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
-import { applyProviderWrappers } from 'hardhat/internal/core/providers/construction';
 
 const DAY = 86400;
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
@@ -72,6 +70,7 @@ describe('AssetRouter', function () {
   let assetRouterBytes: string;
 
   before(async function () {
+    await network.provider.request({ method: "hardhat_reset", params: [] });
     [
       _,
       owner,
@@ -430,7 +429,7 @@ describe('AssetRouter', function () {
       });
 
       it('changeRedeemForBtcMinAmount() authorized caller can', async function () {
-        const [oldRdeemFee, ,] = await assetRouter.tokenConfig(signer1.address);
+        const [oldRdeemFee] = await assetRouter.tokenConfig(signer1.address);
         const newValue = randomBigInt(4);
         await assetRouter.connect(owner).grantRole(await assetRouter.CALLER_ROLE(), signer1);
         await expect(assetRouter.connect(signer1)['changeRedeemForBtcMinAmount(uint256)'](newValue))
@@ -737,9 +736,8 @@ describe('AssetRouter', function () {
         });
       });
 
-      it(`mint() when bascule is enabled`, async function () {
-        this.skip();
-        await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
+      it.skip(`mint() when bascule is enabled`, async function () {
+        await assetRouter.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await stakedLbtc.totalSupply();
 
         const recipient = signer2;
@@ -784,7 +782,7 @@ describe('AssetRouter', function () {
           name: 'invalid destination chain',
           signers: () => [notary1, notary2],
           signatures: [true, true],
-          chainId: encode(['uint256'], [1]),
+          chainId: encode(['uint256'], [12345]),
           recipient: () => signer1.address,
           amount: randomBigInt(8),
           customError: () => [mailbox, 'Mailbox_MessagePathDisabled']
@@ -832,9 +830,8 @@ describe('AssetRouter', function () {
       });
 
       //TODO: BASCULE DOES NOT CHECK DEPOSITS WHEN ENABLED
-      it('mint() reverts when not reported to bascule', async function () {
-        this.skip();
-        await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
+      it.skip('mint() reverts when not reported to bascule', async function () {
+        await assetRouter.connect(owner).changeBascule(await bascule.getAddress());
 
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         await assetRouter.connect(signer1).mint(payload, proof);
@@ -972,9 +969,8 @@ describe('AssetRouter', function () {
         }
       });
 
-      it('mintWithFee() when bascule enabled', async function () {
-        this.skip();
-        await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
+      it.skip('mintWithFee() when bascule enabled', async function () {
+        await assetRouter.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await stakedLbtc.totalSupply();
 
         // new

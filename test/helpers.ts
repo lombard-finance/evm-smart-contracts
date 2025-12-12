@@ -2,7 +2,7 @@ import { config, ethers, upgrades } from 'hardhat';
 import { impersonateAccount } from '@nomicfoundation/hardhat-network-helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, randomBytes, Signature } from 'ethers';
-import { Consortium, ERC20, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
+import { Consortium, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
 export type Signer = HardhatEthersSigner & {
@@ -12,7 +12,7 @@ export type Signer = HardhatEthersSigner & {
 
 export const encode = (types: string[], values: any[]) => ethers.AbiCoder.defaultAbiCoder().encode(types, values);
 
-export const CHAIN_ID: string = encode(['uint256'], [31337]);
+export const CHAIN_ID: string = encode(['uint256'], [1]);
 
 export const e18: bigint = 10n ** 18n;
 export const e8: bigint = 10n ** 8n;
