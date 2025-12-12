@@ -50,7 +50,7 @@ describe('BridgeV2', function () {
   let weiPerByte = 1000n;
 
   before(async () => {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, owner, pauser, treasury, minter, notary, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 

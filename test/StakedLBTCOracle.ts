@@ -32,7 +32,7 @@ describe('StakedLBTCOracle', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [_, owner, treasury, notary1, notary2, signer1] = await getSignersWithPrivateKeys();
 

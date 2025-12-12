@@ -8,9 +8,9 @@ import { expect } from 'chai';
 import hre, { network } from 'hardhat';
 
 describe('DepositNotarizationBlacklist', function () {
-  before(async function() {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
-  })
+  before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+  });
 
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,

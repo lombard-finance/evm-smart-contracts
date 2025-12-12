@@ -33,7 +33,7 @@ describe('BasculeV3', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [
       _,

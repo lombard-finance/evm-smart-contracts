@@ -23,7 +23,7 @@ describe('OFTAdapter', function () {
   let bLZEndpoint: EndpointV2Mock;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 

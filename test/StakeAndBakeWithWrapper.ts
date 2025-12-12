@@ -72,13 +72,13 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
   let stakeAndBakeFee: bigint;
 
   before(async function () {
-    await network.provider.send("hardhat_reset", [
+    await network.provider.send('hardhat_reset', [
       {
         forking: {
           jsonRpcUrl: config.networks.hardhat.forking?.url,
-          blockNumber: config.networks.hardhat.forking?.blockNumber,
-        },
-      },
+          blockNumber: config.networks.hardhat.forking?.blockNumber
+        }
+      }
     ]);
     const block = await ethers.provider.getBlockNumber();
     expect(block).to.be.gt(23000000, '-------- Please switch to eth fork --------');

@@ -21,7 +21,7 @@ describe('Consortium', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
     lombard = await deployContract<Consortium>('Consortium', [deployer.address]);
@@ -268,7 +268,7 @@ describe('Consortium with real data', function () {
   let deployer: Signer;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer] = await getSignersWithPrivateKeys();
     consortium = await deployContract<Consortium>('Consortium', [deployer.address]);

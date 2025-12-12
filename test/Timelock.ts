@@ -9,9 +9,9 @@ const MIN_DELAY = 10;
 const VALUE = '1000';
 
 describe('LombardTimeLock', function () {
-  before(async function() {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
-  })
+  before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+  });
 
   async function deployFixture() {
     const [owner, proposer, executor, admin, account1] = await ethers.getSigners();

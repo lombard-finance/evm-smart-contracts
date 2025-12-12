@@ -70,7 +70,7 @@ describe('AssetRouter', function () {
   let assetRouterBytes: string;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
     [
       _,
       owner,

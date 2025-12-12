@@ -62,7 +62,7 @@ describe('NativeLBTC', function () {
   let assetRouter: AssetRouter & Addressable;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [
       _,

@@ -82,7 +82,7 @@ describe('BridgeTokenAdapter', function () {
   let bridgeToken: BridgeTokenMock;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [
       _,

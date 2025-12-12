@@ -64,7 +64,7 @@ describe('StakedLBTC', function () {
   let assetRouterBytes: string;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [_, owner, treasury, minter, claimer, operator, pauser, reporter, notary1, notary2, signer1, signer2, signer3] =
       await getSignersWithPrivateKeys();

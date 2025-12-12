@@ -44,7 +44,7 @@ describe('Mailbox', function () {
   let sMailboxBytes: string, dMailboxBytes: string;
 
   before(async () => {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, owner, pauser, treasury, notary, signer1, signer2] = await getSignersWithPrivateKeys();
 

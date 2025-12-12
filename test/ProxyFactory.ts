@@ -11,7 +11,7 @@ describe('ProxyFactory', () => {
   let deployer: HardhatEthersSigner, admin: HardhatEthersSigner, acc: HardhatEthersSigner;
 
   before(async () => {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, admin, acc] = await ethers.getSigners();
 

@@ -24,7 +24,7 @@ describe('IBCVoucher', function () {
   const oneHour = 60 * 60;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [_, signer1, signer2, admin, relayer, operator, pauser, treasury] = await ethers.getSigners();
 

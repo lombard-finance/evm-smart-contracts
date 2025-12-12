@@ -65,7 +65,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
   const vaultFee = 100n; // vault fee 1%
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 

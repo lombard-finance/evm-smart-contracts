@@ -9,7 +9,7 @@ describe('LombardTokenPoolV2', function () {
   let snapshot: SnapshotRestorer;
 
   before(async () => {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, owner, router, rmnProxy, mailbox] = await getSignersWithPrivateKeys();
 

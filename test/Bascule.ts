@@ -21,7 +21,7 @@ describe('Bascule', function () {
   let snapshot: SnapshotRestorer;
 
   before(async () => {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [admin, pauser, depositReporter, withdrawalValidator, guardian] = await ethers.getSigners();
     bascule = await ethers.deployContract('Bascule', [admin, pauser, depositReporter, withdrawalValidator, 4n]);

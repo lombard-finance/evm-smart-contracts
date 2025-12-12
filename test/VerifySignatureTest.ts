@@ -8,7 +8,7 @@ describe('VerifySignatureTest', function () {
   let signer: SignerWithAddress;
 
   before(async function () {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     const VerifySignatureTest = await ethers.getContractFactory('VerifySignatureTest');
     verifySignatureTest = (await VerifySignatureTest.deploy()) as VerifySignatureTest;

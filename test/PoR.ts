@@ -9,9 +9,9 @@ describe('PoR', function () {
   let owner: Signer;
   let operator: Signer;
 
-  before(async function() {
-    await network.provider.request({ method: "hardhat_reset", params: [] });
-  })
+  before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+  });
 
   beforeEach(async () => {
     [owner, operator] = await ethers.getSigners();
@@ -279,7 +279,9 @@ describe('PoR', function () {
       });
 
       it('should return proper values in a range', async function () {
-        const [addresses, rootPkIds, messages, signatures] = await por['getPoRAddressSignatureMessages(uint256,uint256)'](1,2);
+        const [addresses, rootPkIds, messages, signatures] = await por[
+          'getPoRAddressSignatureMessages(uint256,uint256)'
+        ](1, 2);
         expect(addresses).to.deep.equal(['0xAddress2', '0xAddress3']);
         expect(rootPkIds).to.deep.equal([ethers.keccak256(pubkey2), ethers.keccak256(pubkey3)]);
         expect(messages).to.deep.equal(['Message2', 'Message3']);
@@ -303,7 +305,9 @@ describe('PoR', function () {
       });
 
       it('should return empty arrays if start is greater than end', async function () {
-        const [addresses, rootPkIds, messages, signatures] = await por['getPoRAddressSignatureMessages(uint256,uint256)'](2, 1);
+        const [addresses, rootPkIds, messages, signatures] = await por[
+          'getPoRAddressSignatureMessages(uint256,uint256)'
+        ](2, 1);
         expect(addresses).to.deep.equal([]);
         expect(rootPkIds).to.deep.equal([]);
         expect(messages).to.deep.equal([]);
