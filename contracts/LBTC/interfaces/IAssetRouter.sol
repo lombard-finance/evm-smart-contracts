@@ -27,6 +27,7 @@ interface IAssetRouter {
     error AssertRouter_WrongRedeemDestinationChain();
     error AssertRouter_WrongRouteType();
     error AssertRouter_WrongToken();
+    error AssertRouter_AmountTooSmall();
 
     event AssetRouter_FeeCharged(uint256 indexed fee, bytes userSignature);
     event AssetRouter_RedeemFeeChanged(
@@ -87,6 +88,10 @@ interface IAssetRouter {
     event AssetRouter_DustFeeRateChanged(
         uint256 indexed oldRate,
         uint256 indexed newRate
+    );
+    event AssetRouter_DepositMinAmountChanged(
+        uint256 indexed prevVal,
+        uint256 indexed newVal
     );
 
     function getRouteType(

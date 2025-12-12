@@ -48,6 +48,7 @@ contract AssetRouter is
         IGMPBascule bascule;
         address nativeToken;
         mapping(address => TokenConfig) tokenConfigs;
+        uint256 depositMinAmount;
     }
 
     struct Routes {
@@ -196,6 +197,12 @@ contract AssetRouter is
         _setMaxMintCommission(token, maximumMintCommission_);
     }
 
+    function changeDepositMinAmount(
+        uint256 depositMinAmount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeDepositMinAmount(depositMinAmount);
+    }
+
     function tokenConfig(
         address token
     )
@@ -276,6 +283,11 @@ contract AssetRouter is
     function bitcoinChainId() external view override returns (bytes32) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         return $.bitcoinChainId;
+    }
+
+    function depositMinAmount() external view returns (uint256) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        return $.depositMinAmount;
     }
 
     function _getAssetRouterStorage()
@@ -401,6 +413,7 @@ contract AssetRouter is
         uint256 amount
     ) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (amount < $.depositMinAmount) revert AssertRouter_AmountTooSmall();
         if (
             _getRouteType(
                 GMPUtils.addressToBytes32($.nativeToken),
@@ -914,6 +927,12 @@ contract AssetRouter is
         uint256 oldFee = $.tokenConfigs[token].maximumMintCommission;
         $.tokenConfigs[token].maximumMintCommission = fee;
         emit AssetRouter_MintFeeChanged(oldFee, fee);
+    }
+
+    function _changeDepositMinAmount(uint256 newVal) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        emit AssetRouter_DepositMinAmountChanged($.depositMinAmount, newVal);
+        $.depositMinAmount = newVal;
     }
 
     function _getTokenConfig(
