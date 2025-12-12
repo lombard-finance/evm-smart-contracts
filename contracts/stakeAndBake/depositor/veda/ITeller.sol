@@ -36,6 +36,10 @@ interface ITeller {
     error TellerWithMultiAssetSupport__ZeroShares();
     error TellerWithMultiAssetSupport__DualDeposit();
     error TellerWithMultiAssetSupport__Paused();
-    error TellerWithMultiAssetSupport__TransferDenied(address from, address to, address operator);
+    error TellerWithMultiAssetSupport__TransferDenied(
+        address from,
+        address to,
+        address operator
+    );
     error TellerWithMultiAssetSupport__SharePremiumTooLarge();
 }
