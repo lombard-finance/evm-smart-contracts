@@ -366,10 +366,7 @@ const config: HardhatUserConfig = {
     },
     megaeth: {
       loggingEnabled: true,
-      url: vars.get(
-        'MEGA_ETH_RPC',
-        'https://alpha.megaeth.com/rpc?user=lombard+v1&token=1763427229-%2Bx6HFUDu9OhJwV%2FTCFOL0xTt%2FPJRAXPeirIcuytvnes%3D'
-      ),
+      url: vars.get('MEGA_ETH_RPC', 'Put correct RPC URL here'),
       chainId: 4326,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
