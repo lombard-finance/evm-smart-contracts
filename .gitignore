@@ -19,4 +19,5 @@ node_modules
 package-lock.json
 
 # Other
-build-info-formatted.json
+build-info-formatted*.json
+edr-cache/*

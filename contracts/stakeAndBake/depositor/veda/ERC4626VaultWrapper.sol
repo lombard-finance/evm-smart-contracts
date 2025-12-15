@@ -249,6 +249,20 @@ contract ERC4626VaultWrapper is
         return shares;
     }
 
+    /**
+     * @dev Internal conversion function (from assets to shares), strictly 1 to 1
+     */
+    function _convertToShares(uint256 assets, Math.Rounding) internal pure override returns (uint256) {
+        return assets;
+    }
+
+    /**
+     * @dev Internal conversion function (from shares to assets), strictly 1 to 1
+     */
+    function _convertToAssets(uint256 shares, Math.Rounding) internal pure override returns (uint256) {
+        return shares;
+    }
+
     function _changeNameAndSymbol(
         string memory name_,
         string memory symbol_
