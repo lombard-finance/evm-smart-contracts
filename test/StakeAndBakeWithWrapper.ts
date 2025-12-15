@@ -32,9 +32,9 @@ import {
   Mailbox,
   ProxyAdmin,
   StakeAndBake,
-  StakedLBTC
+  StakedLBTC,
+  TellerWithMultiAssetSupportMock
 } from '../typechain-types';
-import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 const ONE_SHARE = 100000000n;
@@ -146,9 +146,9 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     assetRouterBytes = encode(['address'], [assetRouter.address]);
     await assetRouter.connect(lbtcOwner).changeBascule(ethers.ZeroAddress);
 
-    teller = (await ethers.getContractAt('ITeller', '0x4e8f5128f473c6948127f9cbca474a6700f99bab')) as ITeller &
+    teller = (await ethers.getContractAt('ITeller', '0x4E8f5128F473C6948127f9Cbca474a6700F99bab')) as ITeller &
       Addressable;
-    teller.address = '0x4e8f5128f473c6948127f9cbca474a6700f99bab';
+    teller.address = '0x4E8f5128F473C6948127f9Cbca474a6700F99bab';
 
     vedavault = (await ethers.getContractAt(
       '@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20',
@@ -223,9 +223,13 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     } as unknown as DefaultData;
   }
 
-  describe('Setters', function () {
+  describe('Setters and getters', function () {
     before(async function () {
       await snapshot.restore();
+    });
+
+    it('decimals same as for teller', async function () {
+      expect(await erc4626Wrapper.decimals()).to.be.eq(8n);
     });
 
     it('addStakeAndBake only admin can', async function () {
@@ -276,12 +280,80 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
         erc4626Wrapper.connect(signer1).removeStakeAndBake(stakeAndBake.address)
       ).to.be.revertedWithCustomError(erc4626Wrapper, 'AccessControlUnauthorizedAccount');
     });
+
+    it('changeTeller owner can when vault is the same', async function () {
+      const oldTeller = teller.address;
+      const vault = await teller.vault();
+      const newTeller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
+        'TellerWithMultiAssetSupportMock',
+        [await stakedLbtc.getAddress()],
+        false
+      );
+      await newTeller.setVault(vault);
+      newTeller.address = await teller.getAddress();
+
+      await expect(erc4626Wrapper.connect(owner).changeTeller(newTeller))
+        .to.emit(erc4626Wrapper, 'TellerChanged')
+        .withArgs(oldTeller, newTeller);
+    });
+
+    it('changeTeller rejects when vault is different', async function () {
+      const newTeller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
+        'TellerWithMultiAssetSupportMock',
+        [await stakedLbtc.getAddress()],
+        false
+      );
+      newTeller.address = await teller.getAddress();
+
+      await expect(erc4626Wrapper.connect(owner).changeTeller(newTeller)).to.be.revertedWithCustomError(
+        erc4626Wrapper,
+        'VaultCannotBeChanged'
+      );
+    });
+
+    it('changeTeller rejects when new teller is 0 address', async function () {
+      const newTeller = ethers.ZeroAddress;
+      await expect(erc4626Wrapper.connect(owner).changeTeller(newTeller)).to.be.revertedWithCustomError(
+        erc4626Wrapper,
+        'ZeroAddress'
+      );
+    });
+
+    it('changeTeller rejects when called by not admin', async function () {
+      const vault = await teller.vault();
+      const newTeller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
+        'TellerWithMultiAssetSupportMock',
+        [await stakedLbtc.getAddress()],
+        false
+      );
+      await newTeller.setVault(vault);
+      newTeller.address = await teller.getAddress();
+
+      await expect(erc4626Wrapper.connect(signer1).changeTeller(newTeller)).to.be.revertedWithCustomError(
+        erc4626Wrapper,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('convertToAssets', async function () {
+      console.log('assets', await erc4626Wrapper.convertToAssets(100000000));
+    });
+
+    it('eip712Domain', async function () {
+      console.log('eip712Domain', await erc4626Wrapper.eip712Domain());
+    });
   });
 
   describe('Pause', function () {
     before(async function () {
       await snapshot.restore();
       await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
+
+      const amountToStake = randomBigInt(8);
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amountToStake);
+      await stakedLbtc.connect(signer1).approve(vedavault.address, amountToStake);
+      await teller.connect(signer1).deposit(stakedLbtc.address, amountToStake, expectedShares);
     });
 
     it('pause: reverts when called by not a pauser', async function () {
@@ -329,7 +401,29 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       ).to.be.revertedWithCustomError(erc4626Wrapper, 'EnforcedPause');
     });
 
-    //TODO: add other deposits
+    it('deposit lbtc: rejects when contract is paused', async function () {
+      const amountToStake = 100000000n;
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStake);
+      await stakedLbtc.connect(signer3).approve(erc4626Wrapper.address, amountToStake);
+
+      await expect(
+        erc4626Wrapper
+          .connect(signer3)
+          [
+            'deposit(address,uint256,address,uint256)'
+          ](stakedLbtc.address, amountToStake, signer3.address, expectedShares)
+      ).to.be.revertedWithCustomError(erc4626Wrapper, 'EnforcedPause');
+    });
+
+    it('deposit LBTCv: rejects when contract is paused', async function () {
+      const amount = await vedavault.balanceOf(signer1);
+      await vedavault.connect(signer1).approve(erc4626Wrapper.address, amount);
+      await expect(
+        erc4626Wrapper.connect(signer1)['deposit(uint256,address)'](amount, signer1.address)
+      ).to.be.revertedWithCustomError(erc4626Wrapper, 'EnforcedPause');
+    });
 
     it('unpause: reverts when called by not an owner', async function () {
       await expect(erc4626Wrapper.connect(pauser).unpause()).to.be.reverted;
@@ -586,134 +680,8 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       await expect(tx).to.changeTokenBalance(stakedLbtc, vedavault, stakeAmount - stakeAndBakeFee);
     });
 
-    it('stakeAndBake: rejects when permit has expired', async function () {
+    it('stakeAndBake: rejects when stakeAndBake is not set on wrapper', async function () {
       await snapshot.restore();
-      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
-      const mintAmount = randomBigInt(8);
-      const permitAmount = mintAmount;
-      const stakeAmount = mintAmount;
-      const expectedShares = await getShares(stakeAmount - stakeAndBakeFee, stakedLbtc.address);
-
-      const data = await defaultData(signer2, mintAmount);
-      const deadline = (await time.latest()) + 100;
-      const chainId = (await ethers.provider.getNetwork()).chainId;
-
-      const { v, r, s } = await generatePermitSignature(
-        stakedLbtc.address,
-        signer2,
-        stakeAndBake.address,
-        permitAmount,
-        deadline,
-        chainId,
-        0n
-      );
-      const permitPayload = encode(
-        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
-        [permitAmount, deadline, v, r, s]
-      );
-      const depositPayload = encode(['uint256'], [expectedShares]);
-
-      await time.increase(101);
-
-      await expect(
-        stakeAndBake.connect(claimer).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof,
-          amount: stakeAmount
-        })
-      ).to.be.revertedWithCustomError(stakedLbtc, 'ERC2612ExpiredSignature');
-    });
-
-    it('batchStakeAndBake: skips invalid payloads', async function () {
-      await snapshot.restore();
-      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
-      const mintAmount = randomBigInt(8);
-      const stakeAmount = mintAmount;
-      const expectedShares = await getShares(stakeAmount - stakeAndBakeFee, stakedLbtc.address);
-
-      const stakeAndBakeData = [];
-      for (const signer of [signer2, signer3]) {
-        const data = await defaultData(signer, mintAmount);
-        const deadline = (await time.latest()) + 100;
-        const chainId = (await ethers.provider.getNetwork()).chainId;
-
-        const { v, r, s } = await generatePermitSignature(
-          stakedLbtc.address,
-          signer,
-          stakeAndBake.address,
-          stakeAmount,
-          deadline,
-          chainId,
-          0n
-        );
-        const permitPayload = encode(
-          ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
-          [stakeAmount, deadline, v, r, s]
-        );
-        const depositPayload = encode(['uint256'], [expectedShares]);
-        stakeAndBakeData.push({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof,
-          amount: stakeAmount
-        });
-      }
-      stakeAndBakeData[0].proof = stakeAndBakeData[1].proof;
-      const tx = await stakeAndBake.connect(claimer).batchStakeAndBake(stakeAndBakeData);
-
-      await expect(tx).to.emit(stakeAndBake, 'BatchStakeAndBakeReverted').withArgs(0, anyValue, anyValue);
-
-      await expect(tx).to.changeTokenBalance(vedavault, erc4626Wrapper, expectedShares);
-      await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer3, expectedShares);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, signer3, mintAmount - stakeAmount);
-      expect(await stakedLbtc.allowance(signer3.address, stakeAndBake.address)).to.be.eq(mintAmount - stakeAmount);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, stakeAndBakeFee);
-      await expect(tx).to.changeTokenBalance(stakedLbtc, vedavault, stakeAmount - stakeAndBakeFee);
-    });
-
-    it('stakeAndBake: rejects when signature does not match', async function () {
-      await snapshot.restore();
-      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
-      const mintAmount = randomBigInt(8);
-      const permitAmount = mintAmount;
-      const stakeAmount = mintAmount;
-      const expectedShares = await getShares(stakeAmount, stakedLbtc.address);
-      const data = await defaultData(signer2, mintAmount);
-      const deadline = (await time.latest()) + 100;
-      const chainId = (await ethers.provider.getNetwork()).chainId;
-
-      const { v, r, s } = await generatePermitSignature(
-        stakedLbtc.address,
-        signer2,
-        stakedLbtc.address,
-        permitAmount,
-        deadline,
-        chainId,
-        0n
-      );
-      const permitPayload = encode(
-        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
-        [permitAmount, deadline, v, r, s]
-      );
-      const depositPayload = encode(['uint256'], [expectedShares]);
-
-      await expect(
-        stakeAndBake.connect(claimer).stakeAndBake({
-          permitPayload: permitPayload,
-          depositPayload: depositPayload,
-          mintPayload: data.payload,
-          proof: data.proof,
-          amount: stakeAmount
-        })
-      ).to.be.revertedWithCustomError(stakedLbtc, 'ERC2612InvalidSigner');
-    });
-
-    it('stakeAndBake: rejects when called by not a claimer', async function () {
-      await snapshot.restore();
-      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
       const mintAmount = randomBigInt(8);
       const permitAmount = mintAmount;
       const stakeAmount = mintAmount;
@@ -738,14 +706,14 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       const depositPayload = encode(['uint256'], [expectedShares]);
 
       await expect(
-        stakeAndBake.connect(signer2).stakeAndBake({
+        stakeAndBake.connect(claimer).stakeAndBake({
           permitPayload: permitPayload,
           depositPayload: depositPayload,
           mintPayload: data.payload,
           proof: data.proof,
           amount: stakeAmount
         })
-      ).to.be.revertedWithCustomError(stakeAndBake, 'AccessControlUnauthorizedAccount');
+      ).to.be.revertedWithCustomError(erc4626Wrapper, 'UnauthorizedAccount');
     });
 
     it('stakeAndBake: rejects when depositor is not set', async function () {
@@ -793,45 +761,6 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       ).to.be.revertedWithCustomError(stakeAndBake, 'NoDepositorSet');
     });
 
-    it('batchStakeAndBake: rejects when called by not a claimer', async function () {
-      await snapshot.restore();
-      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
-      const mintAmount = randomBigInt(8);
-      const permitAmount = mintAmount;
-      const stakeAmount = mintAmount;
-      const expectedShares = await getShares(stakeAmount, stakedLbtc.address);
-      const data = await defaultData(signer2, mintAmount);
-      const deadline = (await time.latest()) + 100;
-      const chainId = (await ethers.provider.getNetwork()).chainId;
-
-      const { v, r, s } = await generatePermitSignature(
-        stakedLbtc.address,
-        signer2,
-        stakeAndBake.address,
-        permitAmount,
-        deadline,
-        chainId,
-        0n
-      );
-      const permitPayload = encode(
-        ['uint256', 'uint256', 'uint8', 'uint256', 'uint256'],
-        [permitAmount, deadline, v, r, s]
-      );
-      const depositPayload = encode(['uint256'], [expectedShares]);
-
-      await expect(
-        stakeAndBake.connect(signer2).batchStakeAndBake([
-          {
-            permitPayload: permitPayload,
-            depositPayload: depositPayload,
-            mintPayload: data.payload,
-            proof: data.proof,
-            amount: stakeAmount
-          }
-        ])
-      ).to.be.revertedWithCustomError(stakeAndBake, 'AccessControlUnauthorizedAccount');
-    });
-
     it('stakeAndBakeInternal: rejects when called by not the contract itself', async function () {
       await snapshot.restore();
       await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
@@ -869,6 +798,38 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       )
         .to.be.revertedWithCustomError(stakeAndBake, 'CallerNotSelf')
         .withArgs(claimer.address);
+    });
+  });
+
+  describe('Deposit with payload', function () {
+    let stakeAndBakeMock: HardhatEthersSigner;
+    before(async function () {
+      await snapshot.restore();
+      stakeAndBakeMock = signer3;
+      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBakeMock.address, stakedLbtc.address);
+    });
+
+    it('Successful deposit as StakeAndBake contract', async function () {
+      const staker = signer1;
+      const amountToStake = randomBigInt(8);
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](stakeAndBakeMock.address, amountToStake);
+      await stakedLbtc.connect(stakeAndBakeMock).approve(erc4626Wrapper.address, amountToStake);
+
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+      const depositPayload = encode(['uint256'], [expectedShares]);
+
+      const tx = await erc4626Wrapper
+        .connect(stakeAndBakeMock)
+        ['deposit(address,uint256,bytes)'](staker, amountToStake, depositPayload);
+
+      await expect(tx)
+        .to.emit(vedavault, 'Transfer')
+        .withArgs(ethers.ZeroAddress, erc4626Wrapper.address, expectedShares);
+      await expect(tx).to.emit(erc4626Wrapper, 'Transfer').withArgs(ethers.ZeroAddress, staker.address, expectedShares);
+      await expect(tx).to.changeTokenBalance(erc4626Wrapper, staker, expectedShares);
+      await expect(tx).to.changeTokenBalance(vedavault, erc4626Wrapper, expectedShares);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, stakeAndBakeMock, -amountToStake);
+      await expect(tx).to.changeTokenBalance(stakedLbtc, vedavault, amountToStake);
     });
   });
 
@@ -940,6 +901,22 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       await expect(tx).to.changeTokenBalance(vedavault, erc4626Wrapper, expectedShares);
       await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, expectedShares);
       await expect(tx).to.changeTokenBalance(vedavault, signer3, -expectedShares);
+    });
+
+    it('redeem', async function () {
+      const amountToStake = randomBigInt(8);
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStake);
+      await stakedLbtc.connect(signer3).approve(vedavault.address, amountToStake);
+      await teller.connect(signer3).deposit(stakedLbtc.address, amountToStake, expectedShares);
+
+      await vedavault.connect(signer3).approve(erc4626Wrapper.address, expectedShares);
+      await erc4626Wrapper.connect(signer3)['deposit(uint256,address)'](expectedShares, signer2.address);
+
+      const tx = await erc4626Wrapper.connect(signer2).redeem(expectedShares, signer3, signer2);
+      await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, -expectedShares);
+      await expect(tx).to.changeTokenBalance(vedavault, signer3, expectedShares);
     });
   });
 });
