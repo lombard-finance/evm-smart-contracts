@@ -924,7 +924,9 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
         'BoringVault',
         '0x5401b8620E5FB570064CA9114fd1e135fd77D57c'
       )) as BoringVault;
-      await vedavaultExt.connect(owner).exit(owner.address, stakedLbtc.address, 0n, erc4626Wrapper.address, balanceDeviation);
+      await vedavaultExt
+        .connect(owner)
+        .exit(owner.address, stakedLbtc.address, 0n, erc4626Wrapper.address, balanceDeviation);
 
       await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStake);
       await stakedLbtc.connect(signer3).approve(vedavault.address, amountToStake);
@@ -978,7 +980,7 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       const assetBalance = await vedavault.balanceOf(erc4626Wrapper);
       const totalSupply = await erc4626Wrapper.totalSupply();
       const redeemAmount = (expectedShares * 2n) / 3n;
-      
+
       const superAdmin = await impersonateWithEth('0xb7cB7131FFc18f87eEc66991BECD18f2FF70d2af');
       const auth = (await ethers.getContractAt(
         'RolesAuthority',
@@ -989,8 +991,10 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
         'BoringVault',
         '0x5401b8620E5FB570064CA9114fd1e135fd77D57c'
       )) as BoringVault;
-      await vedavaultExt.connect(owner).exit(owner.address, stakedLbtc.address, 0n, erc4626Wrapper.address, expectedShares-redeemAmount);
-      
+      await vedavaultExt
+        .connect(owner)
+        .exit(owner.address, stakedLbtc.address, 0n, erc4626Wrapper.address, expectedShares - redeemAmount);
+
       const tx = await erc4626Wrapper.connect(signer2).redeem(redeemAmount, signer3, signer2);
       await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, -redeemAmount);
       await expect(tx).to.changeTokenBalance(vedavault, signer3, redeemAmount);

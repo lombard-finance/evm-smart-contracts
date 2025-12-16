@@ -7,7 +7,10 @@ pragma solidity >=0.8.0;
 abstract contract Auth {
     event OwnershipTransferred(address indexed user, address indexed newOwner);
 
-    event AuthorityUpdated(address indexed user, Authority indexed newAuthority);
+    event AuthorityUpdated(
+        address indexed user,
+        Authority indexed newAuthority
+    );
 
     address public owner;
 
@@ -27,18 +30,27 @@ abstract contract Auth {
         _;
     }
 
-    function isAuthorized(address user, bytes4 functionSig) internal view virtual returns (bool) {
+    function isAuthorized(
+        address user,
+        bytes4 functionSig
+    ) internal view virtual returns (bool) {
         Authority auth = authority; // Memoizing authority saves us a warm SLOAD, around 100 gas.
 
         // Checking if the caller is the owner only after calling the authority saves gas in most cases, but be
         // aware that this makes protected functions uncallable even to the owner if the authority is out of order.
-        return (address(auth) != address(0) && auth.canCall(user, address(this), functionSig)) || user == owner;
+        return
+            (address(auth) != address(0) &&
+                auth.canCall(user, address(this), functionSig)) ||
+            user == owner;
     }
 
     function setAuthority(Authority newAuthority) public virtual {
         // We check if the caller is the owner first because we want to ensure they can
         // always swap out the authority even if it's reverting or using up a lot of gas.
-        require(msg.sender == owner || authority.canCall(msg.sender, address(this), msg.sig));
+        require(
+            msg.sender == owner ||
+                authority.canCall(msg.sender, address(this), msg.sig)
+        );
 
         authority = newAuthority;
 
@@ -71,17 +83,33 @@ contract RolesAuthority is Auth, Authority {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event UserRoleUpdated(address indexed user, uint8 indexed role, bool enabled);
+    event UserRoleUpdated(
+        address indexed user,
+        uint8 indexed role,
+        bool enabled
+    );
 
-    event PublicCapabilityUpdated(address indexed target, bytes4 indexed functionSig, bool enabled);
+    event PublicCapabilityUpdated(
+        address indexed target,
+        bytes4 indexed functionSig,
+        bool enabled
+    );
 
-    event RoleCapabilityUpdated(uint8 indexed role, address indexed target, bytes4 indexed functionSig, bool enabled);
+    event RoleCapabilityUpdated(
+        uint8 indexed role,
+        address indexed target,
+        bytes4 indexed functionSig,
+        bool enabled
+    );
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _owner, Authority _authority) Auth(_owner, _authority) {}
+    constructor(
+        address _owner,
+        Authority _authority
+    ) Auth(_owner, _authority) {}
 
     /*//////////////////////////////////////////////////////////////
                             ROLE/USER STORAGE
@@ -91,9 +119,13 @@ contract RolesAuthority is Auth, Authority {
 
     mapping(address => mapping(bytes4 => bool)) public isCapabilityPublic;
 
-    mapping(address => mapping(bytes4 => bytes32)) public getRolesWithCapability;
+    mapping(address => mapping(bytes4 => bytes32))
+        public getRolesWithCapability;
 
-    function doesUserHaveRole(address user, uint8 role) public view virtual returns (bool) {
+    function doesUserHaveRole(
+        address user,
+        uint8 role
+    ) public view virtual returns (bool) {
         return (uint256(getUserRoles[user]) >> role) & 1 != 0;
     }
 
@@ -102,7 +134,10 @@ contract RolesAuthority is Auth, Authority {
         address target,
         bytes4 functionSig
     ) public view virtual returns (bool) {
-        return (uint256(getRolesWithCapability[target][functionSig]) >> role) & 1 != 0;
+        return
+            (uint256(getRolesWithCapability[target][functionSig]) >> role) &
+                1 !=
+            0;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -116,7 +151,8 @@ contract RolesAuthority is Auth, Authority {
     ) public view virtual override returns (bool) {
         return
             isCapabilityPublic[target][functionSig] ||
-            bytes32(0) != getUserRoles[user] & getRolesWithCapability[target][functionSig];
+            bytes32(0) !=
+            getUserRoles[user] & getRolesWithCapability[target][functionSig];
     }
 
     /*//////////////////////////////////////////////////////////////
