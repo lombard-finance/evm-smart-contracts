@@ -25,6 +25,7 @@ import {
 } from './helpers';
 import {
   AssetRouter,
+  BoringVault,
   Consortium,
   ERC4626VaultWrapper,
   IERC20,
@@ -32,6 +33,7 @@ import {
   ITeller,
   Mailbox,
   ProxyAdmin,
+  RolesAuthority,
   StakeAndBake,
   StakedLBTC,
   TellerWithMultiAssetSupportMock
@@ -902,6 +904,46 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       await expect(tx).to.changeTokenBalance(vedavault, erc4626Wrapper, expectedShares);
       await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, expectedShares);
       await expect(tx).to.changeTokenBalance(vedavault, signer3, -expectedShares);
+      await expect(tx).not.to.emit(erc4626Wrapper, 'AssetBalanceDeviation');
+    });
+
+    it('deposit vault token LBTCv with abnormal asset balance', async function () {
+      const snapshotLocal = await takeSnapshot();
+      const amountToStake = randomBigInt(8);
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+
+      const superAdmin = await impersonateWithEth('0xb7cB7131FFc18f87eEc66991BECD18f2FF70d2af');
+      const auth = (await ethers.getContractAt(
+        'RolesAuthority',
+        '0xF3E03eF7df97511a52f31ea7a22329619db2bdF4'
+      )) as RolesAuthority;
+      await auth.connect(superAdmin).setUserRole(owner.address, 3n, true);
+      const totalBalanceBefore = await vedavault.balanceOf(erc4626Wrapper.address);
+      const balanceDeviation = totalBalanceBefore / 3n;
+      const vedavaultExt = (await ethers.getContractAt(
+        'BoringVault',
+        '0x5401b8620E5FB570064CA9114fd1e135fd77D57c'
+      )) as BoringVault;
+      await vedavaultExt.connect(owner).exit(owner.address, stakedLbtc.address, 0n, erc4626Wrapper.address, balanceDeviation);
+
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStake);
+      await stakedLbtc.connect(signer3).approve(vedavault.address, amountToStake);
+      await teller.connect(signer3).deposit(stakedLbtc.address, amountToStake, expectedShares);
+
+      await vedavault.connect(signer3).approve(erc4626Wrapper.address, expectedShares);
+      const tx = await erc4626Wrapper.connect(signer3)['deposit(uint256,address)'](expectedShares, signer2.address);
+
+      await expect(tx).to.emit(vedavault, 'Transfer').withArgs(signer3.address, erc4626Wrapper.address, expectedShares);
+      await expect(tx)
+        .to.emit(erc4626Wrapper, 'Transfer')
+        .withArgs(ethers.ZeroAddress, signer2.address, expectedShares);
+      await expect(tx).to.changeTokenBalance(vedavault, erc4626Wrapper, expectedShares);
+      await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, expectedShares);
+      await expect(tx).to.changeTokenBalance(vedavault, signer3, -expectedShares);
+      await expect(tx)
+        .to.emit(erc4626Wrapper, 'AssetBalanceDeviation')
+        .withArgs(totalBalanceBefore + expectedShares, totalBalanceBefore - balanceDeviation + expectedShares);
+      await snapshotLocal.restore();
     });
 
     it('redeem', async function () {
@@ -918,6 +960,44 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       const tx = await erc4626Wrapper.connect(signer2).redeem(expectedShares, signer3, signer2);
       await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, -expectedShares);
       await expect(tx).to.changeTokenBalance(vedavault, signer3, expectedShares);
+      await expect(tx).not.to.emit(erc4626Wrapper, 'AssetBalanceDeviation');
+    });
+
+    it('redeem with abnormal asset balance', async function () {
+      const snapshotLocal = await takeSnapshot();
+      const amountToStake = randomBigInt(8);
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStake);
+      await stakedLbtc.connect(signer3).approve(vedavault.address, amountToStake);
+      await teller.connect(signer3).deposit(stakedLbtc.address, amountToStake, expectedShares);
+
+      await vedavault.connect(signer3).approve(erc4626Wrapper.address, expectedShares);
+      await erc4626Wrapper.connect(signer3)['deposit(uint256,address)'](expectedShares, signer2.address);
+
+      const assetBalance = await vedavault.balanceOf(erc4626Wrapper);
+      const totalSupply = await erc4626Wrapper.totalSupply();
+      const redeemAmount = (expectedShares * 2n) / 3n;
+      
+      const superAdmin = await impersonateWithEth('0xb7cB7131FFc18f87eEc66991BECD18f2FF70d2af');
+      const auth = (await ethers.getContractAt(
+        'RolesAuthority',
+        '0xF3E03eF7df97511a52f31ea7a22329619db2bdF4'
+      )) as RolesAuthority;
+      await auth.connect(superAdmin).setUserRole(owner.address, 3n, true);
+      const vedavaultExt = (await ethers.getContractAt(
+        'BoringVault',
+        '0x5401b8620E5FB570064CA9114fd1e135fd77D57c'
+      )) as BoringVault;
+      await vedavaultExt.connect(owner).exit(owner.address, stakedLbtc.address, 0n, erc4626Wrapper.address, expectedShares-redeemAmount);
+      
+      const tx = await erc4626Wrapper.connect(signer2).redeem(redeemAmount, signer3, signer2);
+      await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, -redeemAmount);
+      await expect(tx).to.changeTokenBalance(vedavault, signer3, redeemAmount);
+      await expect(tx)
+        .to.emit(erc4626Wrapper, 'AssetBalanceDeviation')
+        .withArgs(totalSupply - redeemAmount, assetBalance - expectedShares);
+      await snapshotLocal.restore();
     });
   });
 
