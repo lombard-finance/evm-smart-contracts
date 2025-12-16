@@ -224,7 +224,7 @@ contract ERC4626VaultWrapper is
 
     /**
      * @notice Rescue ERC20 tokens locked up in this contract.
-     * @dev When not paused. Only TREASURER_ROLE
+     * @dev When not paused. Only DEFAULT_ADMIN_ROLE
      * @param tokenContract ERC20 token contract address
      * @param to Recipient address
      * @param amount Amount to withdraw
