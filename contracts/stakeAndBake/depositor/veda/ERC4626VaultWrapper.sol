@@ -44,6 +44,8 @@ contract ERC4626VaultWrapper is
     error MinimumMintNotMet(uint256 minimumMint, uint256 shares);
     /// @dev error thrown if new teller points to a different vault
     error VaultCannotBeChanged();
+    /// @dev error thrown if rescueERC20 is called to transfer asser and amopunt is too big
+    error RescueAssetAmountTooBig();
 
     event NameAndSymbolChanged(string name, string symbol);
     event StakeAndBakeAdded(address stakeAndBake, address token);
@@ -218,6 +220,32 @@ contract ERC4626VaultWrapper is
         return
             IERC20Metadata(_getERC4626VaultWrapperStorage().teller.vault())
                 .decimals();
+    }
+
+    /**
+     * @notice Rescue ERC20 tokens locked up in this contract.
+     * @dev When not paused. Only DEFAULT_ADMIN_ROLE
+     * @param tokenContract ERC20 token contract address
+     * @param to Recipient address
+     * @param amount Amount to withdraw
+     */
+    function rescueERC20(
+        IERC20 tokenContract,
+        address to,
+        uint256 amount
+    ) external whenNotPaused onlyRole(DEFAULT_ADMIN_ROLE) {
+        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+        IERC20 asset = IERC20($.teller.vault());
+        if (tokenContract != asset) {
+            SafeERC20.safeTransfer(tokenContract, to, amount);
+        } else if (
+            amount + _convertToAssets(totalSupply(), Math.Rounding.Ceil) <=
+            tokenContract.balanceOf(address(this))
+        ) {
+            SafeERC20.safeTransfer(tokenContract, to, amount);
+        } else {
+            revert RescueAssetAmountTooBig();
+        }
     }
 
     // ------------------------------- INTERNAL MUTATIVE FUNCTIONS -------------------------------

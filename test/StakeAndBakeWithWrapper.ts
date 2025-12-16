@@ -14,6 +14,7 @@ import {
   getPayloadForAction,
   getSignersWithPrivateKeys,
   impersonateWithEth,
+  initStakedLBTC,
   LEDGER_CHAIN_ID,
   LEDGER_MAILBOX,
   MINT_SELECTOR,
@@ -917,6 +918,75 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       const tx = await erc4626Wrapper.connect(signer2).redeem(expectedShares, signer3, signer2);
       await expect(tx).to.changeTokenBalance(erc4626Wrapper, signer2, -expectedShares);
       await expect(tx).to.changeTokenBalance(vedavault, signer3, expectedShares);
+    });
+  });
+
+  describe('Rescue ERC20', function () {
+    let token: StakedLBTC & Addressable;
+    let dummy: Signer;
+    let amountToStakeAdd: bigint;
+    let expectedSharesAdd: bigint;
+
+    before(async function () {
+      await snapshot.restore();
+      const rndAddr = ethers.Wallet.createRandom();
+      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
+      dummy = signer2;
+      await token.connect(owner).addMinter(owner);
+      await token.connect(owner)['mint(address,uint256)'](dummy, e18);
+    });
+
+    it('Owner can transfer ERC20 from mailbox', async () => {
+      const amount = randomBigInt(8);
+      let tx = await token.connect(dummy).transfer(erc4626Wrapper, amount);
+      await expect(tx).changeTokenBalance(token, erc4626Wrapper, amount);
+
+      tx = await erc4626Wrapper.connect(owner).rescueERC20(token, dummy, amount);
+      await expect(tx).changeTokenBalance(token, dummy, amount);
+      await expect(tx).changeTokenBalance(token, erc4626Wrapper, -amount);
+    });
+
+    it('Reverts when called by not the owner', async () => {
+      const amount = randomBigInt(8);
+      const tx = await token.connect(dummy).transfer(erc4626Wrapper, amount);
+      await expect(tx).changeTokenBalance(token, erc4626Wrapper, amount);
+
+      await expect(erc4626Wrapper.connect(dummy).rescueERC20(token.address, dummy.address, amount))
+        .to.revertedWithCustomError(erc4626Wrapper, 'AccessControlUnauthorizedAccount')
+        .withArgs(dummy.address, await erc4626Wrapper.DEFAULT_ADMIN_ROLE());
+    });
+
+    it('Owner cannot transfer asset from mailbox if amount is too big', async () => {
+      const amountToStake = 100000000n;
+      const expectedShares = await getShares(amountToStake, stakedLbtc.address);
+
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStake);
+      await stakedLbtc.connect(signer3).approve(erc4626Wrapper.address, amountToStake);
+
+      await erc4626Wrapper
+        .connect(signer3)
+        [
+          'deposit(address,uint256,address,uint256)'
+        ](stakedLbtc.address, amountToStake, signer3.address, expectedShares);
+
+      amountToStakeAdd = randomBigInt(8);
+      expectedSharesAdd = await getShares(amountToStakeAdd, stakedLbtc.address);
+
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, amountToStakeAdd);
+      await stakedLbtc.connect(signer3).approve(vedavault.address, amountToStakeAdd);
+      await teller.connect(signer3).deposit(stakedLbtc.address, amountToStakeAdd, expectedSharesAdd);
+
+      await vedavault.connect(signer3).transfer(erc4626Wrapper.address, expectedSharesAdd);
+
+      await expect(
+        erc4626Wrapper.connect(owner).rescueERC20(vedavault.address, dummy.address, expectedSharesAdd + 1n)
+      ).to.revertedWithCustomError(erc4626Wrapper, 'RescueAssetAmountTooBig');
+    });
+
+    it('Owner can transfer asset from mailbox if amount is NOT too big', async () => {
+      const tx = await erc4626Wrapper.connect(owner).rescueERC20(vedavault.address, dummy, expectedSharesAdd);
+      await expect(tx).changeTokenBalance(vedavault, dummy, expectedSharesAdd);
+      await expect(tx).changeTokenBalance(vedavault, erc4626Wrapper, -expectedSharesAdd);
     });
   });
 });
