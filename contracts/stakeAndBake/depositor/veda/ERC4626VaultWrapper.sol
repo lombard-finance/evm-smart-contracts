@@ -46,12 +46,16 @@ contract ERC4626VaultWrapper is
     error VaultCannotBeChanged();
     /// @dev error thrown if rescueERC20 is called to transfer asser and amopunt is too big
     error RescueAssetAmountTooBig();
+    /// @dev error thrown if total shares supply is not equal to total asset supply
+    error UnexpectedAssetBalance(
+        uint256 totalSharesSupply,
+        uint256 assetBalance
+    );
 
     event NameAndSymbolChanged(string name, string symbol);
     event StakeAndBakeAdded(address stakeAndBake, address token);
     event StakeAndBakeRemoved(address stakeAndBake);
     event TellerChanged(ITeller indexed prevVal, ITeller indexed newVal);
-    event AssetBalanceDeviation(uint256 totalSupply, uint256 assetBalance);
 
     /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
     struct ERC4626VaultWrapperStorage {
@@ -300,10 +304,10 @@ contract ERC4626VaultWrapper is
         return shares;
     }
 
-    function _checkAssetTotalBalance() internal {
+    function _checkAssetTotalBalance() internal view {
         uint256 assetBalance = totalAssets();
         if (totalSupply() > assetBalance) {
-            emit AssetBalanceDeviation(totalSupply(), assetBalance);
+            revert UnexpectedAssetBalance(totalSupply(), assetBalance);
         }
     }
 
