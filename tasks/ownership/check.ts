@@ -7,7 +7,8 @@ import { AddressList, RuleFunc } from './types';
 import { AdminBucket } from './admin-bucket';
 
 const IGNORE_SCOPE_LIST: string[] = [
-  'admin' // ignored, because used as source of possible admins
+  'admin', // ignored, because used as source of possible admins
+  'deprecated'
 ];
 const IGNORE_CONTRACT_LIST = [
   'ThresholdKey',

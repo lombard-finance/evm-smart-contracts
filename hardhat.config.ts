@@ -193,6 +193,14 @@ const config: HardhatUserConfig = {
       timeout: 90_000,
       gas: 8_000_000
     },
+    avalancheFuji: {
+      loggingEnabled: true,
+      url: vars.get('AVALANCHE_FUJI_RPC', 'https://avalanche-fuji-c-chain-rpc.publicnode.com'),
+      chainId: 43113,
+      accounts: [vars.get('TESTNET_DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     // mainnets
     mainnet: {
       loggingEnabled: true,
@@ -328,6 +336,38 @@ const config: HardhatUserConfig = {
       loggingEnabled: true,
       url: vars.get('BOB_RPC', 'https://rpc.gobob.xyz/'),
       chainId: 60808,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    avalanche: {
+      loggingEnabled: true,
+      url: vars.get('AVALANCHE_RPC', 'https://avalanche.public-rpc.com'),
+      chainId: 43114,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    monad: {
+      loggingEnabled: true,
+      url: vars.get('MONAD_RPC', 'Put correct RPC URL here'),
+      chainId: 143,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    stable: {
+      loggingEnabled: true,
+      url: vars.get('STABLE_RPC', 'Put correct RPC URL here'),
+      chainId: 988,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    megaeth: {
+      loggingEnabled: true,
+      url: vars.get('MEGA_ETH_RPC', 'Put correct RPC URL here'),
+      chainId: 4326,
       accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
       timeout: 90_000,
       gas: 8_000_000
@@ -552,48 +592,78 @@ const config: HardhatUserConfig = {
           apiURL: 'https://explorer.gobob.xyz/api',
           browserURL: 'https://explorer.gobob.xyz/'
         }
+      },
+      {
+        network: 'avalanche',
+        chainId: 43114,
+        urls: {
+          apiURL: 'https://api.snowscan.xyz/api',
+          browserURL: 'https://snowscan.xyz/'
+        }
+      },
+      {
+        network: 'stable',
+        chainId: 988,
+        urls: {
+          apiURL: 'https://api.stablescan.xyz/api',
+          browserURL: 'https://stablescan.xyz/'
+        }
+      },
+      {
+        network: 'megaeth',
+        chainId: 4326,
+        urls: {
+          apiURL: 'https://megaeth-testnet-v3.blockscout.com/api',
+          browserURL: 'https://megaeth-testnet-v3.blockscout.com'
+        }
       }
     ],
-    apiKey: {
-      // testnets
-      holesky: vars.get('ETHERSCAN_API_KEY', ''),
-      sepolia: vars.get('ETHERSCAN_API_KEY', ''),
-      bscTestnet: vars.get('BSCSCAN_API_KEY', ''),
-      scroll_testnet: vars.get('SCROLLSCAN_API_KEY', ''),
-      zircuit_testnet: vars.get('ZIRCUIT_API_KEY', ''),
-      mantle_testnet: vars.get('MANTLE_API_KEY', ''),
-      linea_testnet: vars.get('LINEA_API_KEY', ''),
-      okx_testnet: vars.get('OKX_API_KEY', ''),
-      baseSepolia: vars.get('BASE_API_KEY', ''),
-      arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
-      beraBartio: 'no',
-      beraCartio: 'no',
-      swell_testnet: 'no',
-      sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
-      etherlinkTestnet: 'no',
-      inkSepolia: 'no',
-      katanaTatara: 'no',
-      tacSpb: 'no',
-      // mainnets
-      mainnet: vars.get('ETHERSCAN_API_KEY', ''),
-      bsc: vars.get('BSCSCAN_API_KEY', ''),
-      scroll: vars.get('SCROLLSCAN_API_KEY', ''),
-      zircuit: vars.get('ZIRCUIT_API_KEY', ''),
-      linea: vars.get('LINEA_API_KEY', ''),
-      mantle: vars.get('MANTLE_API_KEY', ''),
-      base: vars.get('BASE_API_KEY', ''),
-      arbitrum: vars.get('ARBITRUM_API_KEY', ''),
-      cornMaizenet: 'no',
-      swell: 'no',
-      berachain: vars.get('BERACHAIN_API_KEY', ''),
-      sonic: vars.get('SONIC_API_KEY', ''),
-      morph: 'no',
-      etherlink: 'no',
-      ink: 'no',
-      katana: 'no',
-      tac: 'no',
-      bob: 'no'
-    }
+    apiKey: vars.get('ETHERSCAN_API_KEY', '')
+    // apiKey: {
+    //   // testnets
+    //   holesky: vars.get('ETHERSCAN_API_KEY', ''),
+    //   sepolia: vars.get('ETHERSCAN_API_KEY', ''),
+    //   bscTestnet: vars.get('BSCSCAN_API_KEY', ''),
+    //   scroll_testnet: vars.get('SCROLLSCAN_API_KEY', ''),
+    //   zircuit_testnet: vars.get('ZIRCUIT_API_KEY', ''),
+    //   mantle_testnet: vars.get('MANTLE_API_KEY', ''),
+    //   linea_testnet: vars.get('LINEA_API_KEY', ''),
+    //   okx_testnet: vars.get('OKX_API_KEY', ''),
+    //   baseSepolia: vars.get('BASE_API_KEY', ''),
+    //   arbitrumSepolia: vars.get('ARBITRUM_API_KEY', ''),
+    //   beraBartio: 'no',
+    //   beraCartio: 'no',
+    //   beraBepolia: vars.get('ETHERSCAN_API_KEY', ''),
+    //   swell_testnet: 'no',
+    //   sonicTestnet: vars.get('SONICSCAN_API_KEY', ''),
+    //   etherlinkTestnet: 'no',
+    //   inkSepolia: 'no',
+    //   katanaTatara: 'no',
+    //   tacSpb: 'no',
+    //   avalancheFujiTestnet: vars.get('ETHERSCAN_API_KEY', ''),
+    //   cornTestnet: vars.get('ETHERSCAN_API_KEY', ''),
+    //   // mainnets
+    //   mainnet: vars.get('ETHERSCAN_API_KEY', ''),
+    //   bsc: vars.get('BSCSCAN_API_KEY', ''),
+    //   scroll: vars.get('SCROLLSCAN_API_KEY', ''),
+    //   zircuit: vars.get('ZIRCUIT_API_KEY', ''),
+    //   linea: vars.get('LINEA_API_KEY', ''),
+    //   mantle: vars.get('MANTLE_API_KEY', ''),
+    //   base: vars.get('BASE_API_KEY', ''),
+    //   arbitrum: vars.get('ARBITRUM_API_KEY', ''),
+    //   cornMaizenet: 'no',
+    //   swell: 'no',
+    //   berachain: vars.get('BERACHAIN_API_KEY', ''),
+    //   sonic: vars.get('SONIC_API_KEY', ''),
+    //   morph: 'no',
+    //   etherlink: 'no',
+    //   ink: 'no',
+    //   katana: vars.get('ETHERSCAN_API_KEY', ''),
+    //   tac: 'no',
+    //   bob: 'no',
+    //   avalanche: vars.get('ETHERSCAN_API_KEY', ''),
+    //   monad: 'no',
+    // }
   },
   sourcify: {
     enabled: false

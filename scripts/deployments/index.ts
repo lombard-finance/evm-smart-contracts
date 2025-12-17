@@ -23,4 +23,6 @@ export * from './mocks';
 export * from './bridge-v2';
 export * from './oracle';
 export * from './asset-router';
-export * from './bascule-v3';
+export * from './bascule';
+export * from './bridge-token-adapter';
+export * from './erc4626-mock';

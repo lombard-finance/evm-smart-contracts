@@ -6,7 +6,6 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
-import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
@@ -63,7 +62,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         uint256 __removed__dustFeeRate;
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         /// @custom:oz-renamed-from bascule
-        IBascule __removed__bascule;
+        address __removed__bascule;
         address pauser;
         mapping(address => bool) minters;
         mapping(address => bool) claimers;
@@ -105,7 +104,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
 
         __StakedLBTC_init(
             "Lombard Staked Bitcoin", // TODO: set new name
-            "stLBTC", // TODO: set new symbol
+            "LBTC", // TODO: set new symbol
             consortium_,
             treasury
         );
@@ -270,8 +269,8 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     /**
      * Get Bascule contract.
      */
-    function Bascule() external view returns (IBascule) {
-        return _getStakedLBTCStorage().assetRouter.bascule();
+    function Bascule() external view returns (address) {
+        return address(_getStakedLBTCStorage().assetRouter.bascule());
     }
 
     function pauser() public view returns (address) {

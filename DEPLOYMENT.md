@@ -42,7 +42,7 @@ The result of script will be calldata that can be sent from multisig.
 
 ## Proxy factory
 Before any *deterministic* deployment `ProxyFactory` should be deployed.
-Switch secret key to special once
+Switch secret key to special one
 ```bash
 yarn hardhat vars set ${KEY_NAME} ${SK}
 ```
@@ -69,12 +69,12 @@ Write proxy address to json file.
 hardhat setup-initial-valset --target ${CONSORTIUM} --populate --network ${NETWORK} --valset ${VALSET}
 ```
 
-## LBTC (deterministic)
+## StakedLBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
 
-Deploy `LBTC` contract
+Deploy `StakedLBTC` contract
 ```bash
-yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --burn-commission ${BURN_COMMISSION} --network ${NETWORK} --treasury ${OWNER}
+yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --treasury ${OWNER}
 ```
 Write proxy address to json file.
 
@@ -86,15 +86,24 @@ Set `Bascule` using `changeBascule` if required.
 #### Claimer
 Set claimer
 ```bash
-yarn hardhat setup-claimer --target ${LBTC} --claimer ${CLAIMER} --network ${NETWORK}
+yarn hardhat setup-claimer --target ${LBTC} --claimer ${CLAIMER} --network ${NETWORK} [--populate]
 ```
 
 #### Operator
 Set operator using `transferOperatorRole`.
 
+```bash
+yarn hardhat setup-operator --target ${LBTC} --operator ${CLAIMER} --network ${NETWORK} [--populate]
+```
+
+#### Minter
+```bash
+yarn hardhat token-add-minter --target ${LBTC} --account ${MINTER} --token-type StakedLBTC [--populate] --network ${NETWORK}
+```
+
 #### Pauser
 ```bash
-yarn hardhat setup-transfer-pauser-role --target ${LBTC} --pauser ${PAUSER} --network ${NETWORK}
+yarn hardhat setup-transfer-pauser-role --target ${LBTC} --pauser ${PAUSER} --network ${NETWORK} [--populate]
 ```
 
 #### Mint fee
@@ -103,8 +112,134 @@ Set mint fee from operator
 yarn hardhat setup-mint-fee --target ${LBTC} --fee ${MINT_FEE} --network ${NETWORK}
 ```
 
-#### Redeem
-Enable redeem using `toggleWithdrawals` if required.
+#### Assset router
+Set asset router address
+```bash
+yarn hardhat token-set-asset-router --target ${STAKED_LBTC} --token-type stakedLBTC  --asset-router ${ASSET_ROUTER_ADDRESS} --network monad
+```
+
+Set token config
+```bash
+yarn hardhat asset-router-set-token-config-ext --target ${ASSET_ROUTER_ADDRESS} --token 0xecAc9C5F704e954931349Da37F60E39f515c11c1 --oracle ${ORACLE_ADDRESS} --redeem-fee 10000 --min-redeem-amount 3300 --max-mint-commission 0 --to-native-commission 0 --network ${NETWORK}
+```
+
+Set asset router as minter
+```bash
+yarn hardhat token-add-minter --target ${STAKED_LBTC} --account ${ASSET_ROUTER} --token-type StakedLBTC [--populate] --network ${NETWORK}
+```
+
+## Oracle
+
+Deploy `StakedLBTCOracle` contract
+```bash
+yarn hardhat deploy-oracle [--ledger-network ${ENV}] [--admin ${OWNER}] --consortium ${CONSORTIUM} --network ${NETWORK} --token ${TOKEN} --denom ${DENOM_HASH} [--ratio ${INITIAL_RATIO}] [--switch-time ${SWITCH_TIME}] [--max-interval ${MAX_SWITCH_INTERVAL}] [--proxy-factory-addr ${PROXY_FACTORY}]
+```
+Write proxy address to json file.
+
+## Mailbox (GMP)
+
+Deploy `Mailbox` contract
+```bash
+yarn hardhat deploy-gmp-mailbox --ledger-network ${ENV} --fee ${WEI_PER_BYTE} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --proxy-factory-addr ${PROXY_FACTORY}
+```
+Write proxy address to json file.
+
+### Configuration
+
+Set pauser and treasury:
+```bash
+yarn hardhat role grant ${MAILBOX} PAUSER_ROLE ${PAUSER_ADDR} --network ${NETWORK} [--populate]
+yarn hardhat role grant ${MAILBOX} TREASURER_ROLE ${TREASURY_ADDR} --network ${NETWORK} [--populate]
+```
+
+Enable pathway:
+```bash
+yarn hardhat mailbox-enable-path --target ${MAILBOX} --remote-chain-id ${REMOTE_CHAIN} --remote-mailbox ${REMOTE_MAILBOX} --direction {inbound|outbound|both} [--populate] --network ${NETWORK}
+```
+
+Pathway to Ledger is required for GMP minting and redeeming.
+The gmp module address (Mailbox on Ledger): `0x000000000000000000000000cc0bbbee7c9dd4f3f30e01c7f1fcbeb839f30c47`
+
+## Bridge V2 (GMP)
+
+Deploy `BridgeV2` contract
+```bash
+yarn hardhat deploy-gmp-bridge [--ledger-network ${ENV}] [--admin ${OWNER}] --mailbox ${MAILBOX} --network ${NETWORK} [--proxy-factory-addr ${PROXY_FACTORY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+Add Bridge as Minter for token:
+```bash
+yarn hardhat role grant ${TOKEN} MINTER_ROLE ${BRIDGE} --network ${NETWORK} [--populate]
+```
+
+Allowlist Bridge in Mailbox:
+```bash
+yarn hardhat mailbox-set-config --target ${MAILBOX} --sender ${BRIDGE} --max-payload-size 388 --fee-disabled [--populate] --network ${NETWORK}
+```
+
+Set destination bridge address:
+```bash
+yarn hardhat setup-destination-bridge ${BRIDGE} --dest-chain-id ${DEST_CHAIN} --dest-bridge ${DEST_BRIDGE} [--populate] --network ${NETWORK}
+```
+
+Allowlist token:
+```bash
+yarn hardhat setup-destination-token ${BRIDGE} --dest-chain-id ${DEST_CHAIN} --destination-token ${DST_TOKEN} --source-token ${SRC_TOKEN} [--populate] --network ${NETWORK}
+```
+
+Set token rate limits:
+```bash
+yarn hardhat setup-token-rate-limits ${BRIDGE} ${TOKEN} --chain-id ${FROM_CHAIN} --window ${SEC} --limit ${LIMIT} [--populate] --network ${NETWORK}
+```
+
+Make allowance to token adapter if presented.
+
+Allowlist senders (such as CCIP Token Pool).
+
+## Asset Router
+
+Deploy `AssetRouter` contract
+```bash
+yarn hardhat deploy-asset-router --ledger-chain-id ${LEDGER_CHAIN_ID} --bitcoin-chain-id ${BITCOIN_CHAIN_ID} --mailbox ${MAILBOX} --network ${NETWORK} [--ledger-network ${ENV}] [--admin ${OWNER}] [--proxy-factory-addr ${PROXY_FACTORY}] [--bascule ${BASCULE}] [--admin-change-delay ${ADMIN_CHANGE_DELAY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+Set callers:
+```bash
+yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${STAKED_LBTC} --network ${NETWORK} [--populate]
+yarn hardhat role grant ${ASSET_ROUTER} CALLER_ROLE ${NATIVE_LBTC} --network ${NETWORK} [--populate]
+```
+
+Set claimer:
+```bash
+yarn hardhat role grant ${ASSET_ROUTER} CLAIMER_ROLE ${CLAIMER_ADDR} --network ${NETWORK} [--populate]
+```
+
+Set operator:
+```bash
+yarn hardhat role grant ${ASSET_ROUTER} OPERATOR_ROLE ${OPERATOR_ADDR} --network ${NETWORK} [--populate]
+```
+
+Set redeem and deposit routes:
+```bash
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${STAKED_LBTC} --from-chain ${SOURCE_CHAIN} --to-token 0x0000000000000000000000000000000000000001 --to-chain 0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f --route-type 2 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${STAKED_LBTC} --from-chain ${SOURCE_CHAIN} --to-token ${NATIVE_LBTC} --to-chain ${SOURCE_CHAIN} --route-type 2 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${NATIVE_LBTC} --from-chain ${SOURCE_CHAIN} --to-token ${STAKED_LBTC} --to-chain ${SOURCE_CHAIN} --route-type 1 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token 0x0000000000000000000000000000000000000001 --from-chain 0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f --to-token ${STAKED_LBTC} --to-chain ${SOURCE_CHAIN} --route-type 1 --network ${NETWORK} [--populate]
+yarn hardhat asset-router-set-route --target ${ASSET_ROUTER} --from-token ${NATIVE_LBTC} --from-chain ${SOURCE_CHAIN} --to-token 0x0000000000000000000000000000000000000001 --to-chain 0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f --route-type 2 --network ${NETWORK} [--populate]
+```
+Bitcoin token address: `0x0000000000000000000000000000000000000001`
+Bitcoin mainnet chain id: `0xff0000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`
+
+Whitelist asset router in mailbox:
+```bash
+yarn hardhat mailbox-set-config --target ${MAILBOX} --sender ${ASSET_ROUTER} --max-payload-size 600 --fee-disabled --network ${NETWORK} [--populate]
+```
 
 ## NativeLBTC (deterministic)
 > Because of `Consortium` address is deterministic it can be set using generated address without deployment.
@@ -117,18 +252,34 @@ Write proxy address to json file.
 
 ### Configuration
 
-Set burn commission
-
+Set asset router address
 ```bash
-yarn hardhat setup-burn-commission --target ${TOKEN} --value ${COMMISSION} --network ${NETWORK}
+yarn hardhat token-set-asset-router --target ${NATIVE_LBTC} --token-type nativeLBTC  --asset-router ${ASSET_ROUTER_ADDRESS} --network ${NETWORK}
 ```
 
-Enable withdrawals
-
+Set token config
 ```bash
-yarn hardhat setup-toggle-withdrawals --target ${TOKEN} --network ${NETWORK}
-````
+yarn hardhat asset-router-set-token-config-ext --target ${ASSET_ROUTER_ADDRESS} --token 0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072 --redeem-fee 0 --min-redeem-amount 3300 --max-mint-commission 0 --to-native-commission 10000 --network katana
+```
 
+## Bridge Token Adapter
+Replaces `NativeLBTC` contract with custom integration for BridgeToken (BTC.b).
+
+Deploy `AssetRouter` contract
+```bash
+yarn hardhat deploy-bridge-token-adapter --consortium ${CONSORTIUM} --network ${NETWORK} [--bridge-token ${BRIDGE_TOKEN}] [--admin ${OWNER}] [--treasury ${TREASURY}] [--admin-change-delay ${ADMIN_CHANGE_DELAY}]
+```
+Write proxy address to json file.
+
+### Configuration
+
+Set `AssetRouter` and `BridgeV2` as minters.
+```bash
+yarn hardhat role grant ${ADAPTER} MINTER_ROLE ${ROUTER} --network ${NETWORK}
+yarn hardhat role grant ${ADAPTER} MINTER_ROLE ${BRIDGE} --network ${NETWORK}
+```
+
+Set allowance for adapter to spend from bridge.
 
 ## Bridge (deterministic)
 > `LBTC` should be deployer before start
@@ -142,45 +293,51 @@ Write proxy address to json file.
 ## CCIP
 > `Bridge` should be deployed before start
 
-Use `ccip-token-pool-1.5.0` tag to deploy v1.5.0 token pool.
+### Token Pool (v1.6.1)
+> The version of TokenPool compatible only with BridgeV2.
 
-### Adapter & TokenPool
-Deploy `Adapter` (`TokenPool` will be deployed by adapter) on each chain
+Deploy `LombardTokenPoolV2` contract on each chain for each token.
 ```bash
-yarn hardhat deploy-chainlink-adapter --admin ${OWNER} --router ${CCIP_ROUTER} --bridge ${BRIDGE} --rmn ${CCIP_RMN} --network ${NETWORK}
+yarn hardhat deploy-ccip-token-pool-v2 --bridge ${BRIDGE} --token ${TOKEN} --rmn ${RMN} --router ${ROUTER} --network ${NETWORK} [--token-adapter ${TOKEN_ADAPTER}] [--fallback-decimals ${FALLBACK_DECIMALS}] [--admin ${ADMIN}]
 ```
-Write contracts address to json file.
+**Write contracts address to json file.**
 
-Claim admin rights over `LBTC token` in ccip and set the pool:
+#### Configuration
 
-Call `registerAdminViaOwner` in blockchain explorer on `RegistryModuleOwnerCustom` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
+Claim admin rights over token in CCIP and set the pool:
+* Call from token owner `registerAdminViaOwner` (or `registerAdminViaGetCCIPAdmin` if presented) in blockchain explorer on `RegistryModuleOwnerCustom` contract (address presented in [ChainLink directory](https://docs.chain.link/ccip/directory)).
+* Call from token owner `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address presented in [ChainLink directory](https://docs.chain.link/ccip/directory)).
+* Call from token owner `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address presented in [ChainLink directory](https://docs.chain.link/ccip/directory)).
 
-Call `acceptAdminRole` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address
+Call `setSenderConfig` on `BridgeV2` contract for each Token Pool to set 100% (`100_00`) fee discount and allowlist it.
 
-Call `setPool` in blockchain explorer on `TokenAdminRegistry` contract (address should be provided by CCIP), `localToken` address = `LTBC` token address, `pool` address = `LombardTokenPool` address
-
-### Bridge
-
-Setup Bridge destinations using adapters
+Apply chain updates, set path and add remote token pool:
 ```bash
-yarn hardhat setup-add-destination --target ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --contract ${DESTINATION_BRIDGE} --rel-commission ${RELATIVE_COMMISSION} --abs-commission ${ABSOLUTE_COMMISSION} --adapter ${SOURCE_ADAPTER} --require-consortium --network ${NETWORK} [--populate]
+yarn hardhat setup-token-pool-v2 ${TOKEN_POOL} --remote-token ${REMOTE_TOKEN} --remote-selector ${REMOTE_SELECTOR} --remote-chain ${REMOTE_CHAIN_ID} --remote-pool ${REMOTE_POOL} --network ${NETWORK} [--populate] [--legacy]
 ```
-Chain ids can be viewed [here](https://chainlist.org)
-
-Enable `TokenPool`
-```bash
-yarn hardhat setup-token-pool --cl-adapter ${SOURCE_ADAPTER} --lbtc ${REMOTE_LBTC} --remote-selector ${DESTINATION_CCIP_SELECTOR} --chain ${DESTINATION_CHAIN_ID} --remote-pool ${DESTINATION_TOKEN_POOL} --network ${NETWORK} [--populate]
-```
-Remote selector can be viewed [here](https://docs.chain.link/ccip/directory/mainnet)
 
 Set `TokenPool` rate limits
 ```bash
-yarn hardhat setup-ccip-apply-updates --cl-adapter ${SOURCE_ADAPTER} --remote-selector ${DESTINATION_CCIP_SELECTOR} --inbound-limit-rate ${INBOUND_REFILL_PER_SECOND} --inbound-limit-cap ${INBOUND_BUCKET_LIMIT} --outbound-limit-rate ${OUTBOUND_REFILL_PER_SECOND} --outbound-limit-cap ${OUTBOUND_BUCKET_LIMIT} --network ${NETWORK} [--populate]
+yarn hardhat setup-token-pool-rate-limits ${TOKEN_POOL} --remote-selector ${REMOTE_SELECTOR} --inbound-limit-rate ${INBOUND_LIMIT_RATE} --inbound-limit-cap ${INBOUND_LIMIT_CAP} --outbound-limit-rate ${OUTBOUND_LIMIT_RATE} --outbound-limit-cap ${OUTBOUNDLIMIT_CAP} --network ${NETWORK} [--populate]
 ```
+
+### Bridge
+
+Setup Bridge destinations
+```bash
+yarn hardhat setup-destination-bridge ${BRIDGE} --dest-chain-id ${DESTINATION_CHAIN_ID} --dest-bridge ${DESTINATION_BRIDGE} --network ${NETWORK} [--populate]
+yarn hardhat setup-destination-token ${BRIDGE} --dest-chain-id ${CHAIN_ID} --destination-token ${DESTINATION_TOKEN} --source-token ${SOURCE_TOKEN} --network $NETWORK [--populate]
+```
+Chain ids can be viewed [here](https://chainlist.org)
 
 Setup `Bridge` rate limits, they should ~2x from `TokenPool` limits.
 ```bash
-yarn hardhat setup-bridge-rate-limits --bridge ${SOURCE_BRIDGE} --chain-id ${TO_CHAIN_ID} --network ${NETWORK} --window ${WINDOW_SECONDS} --limit ${WINDOW_LIMIT} [--populate]
+yarn hardhat setup-token-rate-limits ${BRIDGE} ${TOKEN} --chain-id ${CHAIN_ID} --window ${WINDOW} --limit ${LIMIT} --network ${CHAIN_ID} [--populate]
+```
+
+Allow token pool as sender
+```bash
+yarn hardhat setup-bridge-sender-config ${BRIDGE} ${SENDER} [--fee-discount 10000] [--whitelisted] [--populate] --network ${NETWORK}
 ```
 
 Grant minting ability to bridge

@@ -1,6 +1,6 @@
 import { config, ethers, upgrades } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, Signature } from 'ethers';
+import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, randomBytes, Signature } from 'ethers';
 import { Consortium, ERC20, ERC20PermitUpgradeable, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
 
@@ -414,6 +414,10 @@ export function randomString(length: number): string {
   return result;
 }
 
+export function randomAddress(): AddressLike {
+  return ethers.hexlify(randomBytes(20));
+}
+
 /**
  * address target,
  * uint256 value,
@@ -540,13 +544,15 @@ export class DefaultData {
   userSignature: string | undefined;
   depositId: string;
   cubistProof: string;
+  txid: string;
 
-  constructor(payload: string, payloadHash: string, proof: string) {
+  constructor(payload: string, payloadHash: string, proof: string, txid: string) {
     this.payload = payload;
     this.payloadHash = payloadHash;
     this.proof = proof;
     this.depositId = '';
     this.cubistProof = '';
+    this.txid = ethers.ZeroHash;
   }
 }
 

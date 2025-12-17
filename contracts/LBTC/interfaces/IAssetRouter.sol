@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IBascule} from "../../bascule/interfaces/IBascule.sol";
 import {IMailbox} from "../../gmp/IMailbox.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
+import {IGMPBascule} from "../../bascule/interfaces/IGMPBascule.sol";
 
 interface IAssetRouter {
     // Describes types of possible routes. UNKNOWN means no route or disabled route
@@ -100,7 +100,7 @@ interface IAssetRouter {
     function ratio(address token) external view returns (uint256);
     function getRate(address token) external view returns (uint256);
     function bitcoinChainId() external view returns (bytes32);
-    function bascule() external view returns (IBascule);
+    function bascule() external view returns (IGMPBascule);
     function oracle(address token) external view returns (IOracle);
     function mailbox() external view returns (IMailbox);
     function toNativeCommission(address token) external view returns (uint64);

@@ -22,6 +22,7 @@
     }
   },
   "sepolia": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000aa36a7",
     "admin": {
       "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
       "TimeLock": "",
@@ -33,29 +34,39 @@
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
       "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
       "IBCVoucher": "0x8B9247bF7C5fB15c358831494fcD343660D98b34",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "AssetRouter": "0xc60a46740Ee9e4d27914e369d2CE110a4a5e168c",
+      "StakedLBTCOracle": "0xA09a4aCb956aDe7e94831D06415196D0C013f86d",
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03",
+      "GMPBasculeV1": "0xf3174d5D365db6DfeD3845b5aaDC7eBBF398f867"
     },
     "chainlink": {
       "ChainSelector": "16015286601757825753",
       "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
       "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
       "CLAdapter": "0x4797b507c621226E5FaF0CFAADbDb4acf076c066",
-      "LombardTokenPool": "0xaFB9546D2001cB8850e476Ff8BF51104742bFD95"
+      "LombardTokenPool": "0xaFB9546D2001cB8850e476Ff8BF51104742bFD95",
+      "LombardTokenPoolV2_LBTC": "0x8867A40CfF489f0De05AD61731ca8F2c7c0fEb71",
+      "LombardTokenPoolV2_nativeLBTC": "0x0805259E426C87307E08C78cC0A730269762B63e"
     }
   },
-  "btcTestnet": {
+  "bscTestnet": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000061",
     "admin": {
       "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
       "TimeLock": "",
       "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
     },
-    "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
     "BTCB": "0xdd48f288874c7226603cCC98cab0661b3bd5721A",
     "BTCBPMM": "0x63749Acfc2527A8406E8BC8c93A80f29FDD75e27",
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "deprecated": {
       "CLAdapter": "0xa4427417dcDC7AD23Ea3d367B3230B3A51Fbb26D",
@@ -66,10 +77,12 @@
       "Router": "0xE1053aE1857476f36A3C62580FF9b016E8EE8F6f",
       "RMN": "0xA8C0c11bf64AF62CDCA6f93D3769B88BdD7cb93D",
       "CLAdapter": "0xdb2973e0Aa5A5D979Ce928716e250Ea10798d5E0",
-      "LombardTokenPool": "0x6DD27FfEf860b54C8291856AFDEDB3E5e9D4c68e"
+      "LombardTokenPool": "0x6DD27FfEf860b54C8291856AFDEDB3E5e9D4c68e",
+      "LombardTokenPoolV2_LBTC": "0xc82E470433429F6bC2f2eAa8064C262A1EC627BE"
     }
   },
   "baseSepolia": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000014a34",
     "admin": {
       "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
       "TimeLock": "",
@@ -83,14 +96,17 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "chainlink": {
       "ChainSelector": "10344971235874465080",
       "Router": "0xD3b06cEbF099CE7DA4AcCf578aaebFDBd6e88a93",
       "RMN": "0x99360767a4705f68CcCb9533195B761648d6d807",
       "CLAdapter": "0x84Ad0dAcD195ebCFB7059Dee1A36903e76919eBa",
-      "LombardTokenPool": "0x204ae9A27C2eC4D7B2c0f56447f7e15912B37783"
+      "LombardTokenPool": "0x204ae9A27C2eC4D7B2c0f56447f7e15912B37783",
+      "LombardTokenPoolV2_LBTC": "0x5670d25418Be55c90Df00D2FBF1d66EAa9436A0C"
     }
   },
   "sonicTestnet": {
@@ -104,14 +120,17 @@
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
       "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
-      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F"
+      "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
     },
     "chainlink": {
       "ChainSelector": "3676871237479449268",
       "Router": "0x2fBd4659774D468Db5ca5bacE37869905d8EfA34",
       "RMN": "0xD3166538bd1132329d25E34B240E4D44922A07F0",
       "CLAdapter": "0x385EaD99CC90844080eAE02A6f6c519260CB0D5E",
-      "LombardTokenPool": "0xC1728AC2B0aa47bed025920961E438E0690994F0"
+      "LombardTokenPool": "0xC1728AC2B0aa47bed025920961E438E0690994F0",
+      "LombardTokenPoolV2_LBTC": "0xdb2973e0Aa5A5D979Ce928716e250Ea10798d5E0"
     }
   },
   "inkTestnet": {
@@ -145,19 +164,155 @@
     "lombard": {
       "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
       "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
-      "LBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
+      "StakedLBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
       "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
       "Bridge": "0x38247C4c846D549CAAd2C6c0b6fec0c402b77a0F",
       "AssetRouter": "0xc60a46740Ee9e4d27914e369d2CE110a4a5e168c",
       "Oracle": "0xA09a4aCb956aDe7e94831D06415196D0C013f86d",
-      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03",
+      "GMPBasculeV1": "0x03B7582c65E3eb4dc1bACB9419C32Be3eb27E3B8"
     },
     "chainlink": {
       "ChainSelector": "9090863410735740267",
       "Router": "0x1dF1fe714A376f248d51AAB826C3feeC379e80fC",
       "RMN": "0xAD8BeA8bC5Fe468Dc1F7BbEce59A86584407255f",
       "CLAdapter": "0x8b3ecc204Ee394c8d003337C3C87ae6eDaC76bF8",
-      "LombardTokenPool": "0xbd80acb96f69683Fb3155516a30f46ACC44a0cB8"
+      "LombardTokenPool": "0xbd80acb96f69683Fb3155516a30f46ACC44a0cB8",
+      "LombardTokenPoolV2_stakedLBTC": "0x258A8De76f64010e6098B4Fd5BD8855280d551A1",
+      "LombardTokenPoolV2_nativeLBTC": "0x9F4b7632D5bD926c383664aDbd20De3A9382E0a4"
+    }
+  },
+  "avalancheFuji": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000000a869",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "StakedLBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03",
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "AssetRouter": "0xc60a46740Ee9e4d27914e369d2CE110a4a5e168c",
+      "BridgeTokenAdapter": "0x41BCd71e7C92b1c8dDe53037F9b2c4AA2058b1cB",
+      "StakedLBTCOracle": "0xA09a4aCb956aDe7e94831D06415196D0C013f86d",
+      "GMPBasculeV1": "0x9Aed906aE9eeBa8bCfadF6c88DBE66c9474916D8"
+    },
+    "avalanche": {
+      "BridgeToken": "0xB14f240714Bd23Bda103A7189D512A90326E4D01"
+    },
+    "chainlink": {
+      "ChainSelector": "14767482510784806043",
+      "Router": "0xF694E193200268f9a4868e4Aa017A0118C9a8177",
+      "RMN": "0xAc8CFc3762a979628334a0E4C1026244498E821b",
+      "BridgeTokenPool": "0x9FcE360a06938931c264C4cA8714a419C73bDD38",
+      "LombardTokenPoolV2_stakedLBTC": "0x5670d25418Be55c90Df00D2FBF1d66EAa9436A0C"
+    },
+    "stakeAndBake": {
+      "StakeAndBakeForNativeToken_Silo": "0xFe1e76D9e065e879A9D1914482f0F13d85F39877",
+      "ERC4626Depositor_nativeLBTC_Silo": "0x98ecd62Edb3596D267C683d3782079DF24C10199"
+    }
+  },
+  "tacSpb": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000957",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "Consortium": "0xf9c3D4e6C2a8F0a2E6aB7026cA2060b204585447",
+      "StakedLBTC": "0x107Fc7d90484534704dD2A9e24c7BD45DB4dD1B5",
+      "NativeLBTC": "0x20eA7b8ABb4B583788F1DFC738C709a2d9675681",
+      "AssetRouter": "0xc60a46740Ee9e4d27914e369d2CE110a4a5e168c",
+      "StakedLBTCOracle": "0xA09a4aCb956aDe7e94831D06415196D0C013f86d",
+      "BridgeV2": "0x0bc5E0b62B789fb8E35f9580ABa3834C106d401F",
+      "Mailbox": "0x12026Aa7f04E27f6AE2FB31122caa7cD97577E03"
+    },
+    "chainlink": {
+      "ChainSelector": "9488606126177218005",
+      "Router": "0x1D0b2edF6b66845872b6cC82C036E3601Cb2Be57",
+      "RMN": "0xEAB080c724587fFC9F2EFF82e36EE4Fb27774959",
+      "LombardTokenPoolV2_stakedLBTC": "0x6E53f4DCE25dFa5EB046b9A325365393314e2e23",
+      "LombardTokenPoolV2_nativeLBTC": "0xfbF1e947b81c584942Ecc599D3F814045286d4CE"
+    }
+  },
+  "cornTestnet": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000001406f41",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "Consortium": "",
+      "StakedLBTC": "",
+      "NativeLBTC": "",
+      "AssetRouter": "",
+      "StakedLBTCOracle": "",
+      "BridgeV2": "",
+      "Mailbox": ""
+    },
+    "chainlink": {
+      "ChainSelector": "1467427327723633929",
+      "Router": "0x9981250f56d4d0Fa9736343659B4890ebbb94110",
+      "RMN": "0x3C49708F8F3F7da6D0846d63Fa4E49Ab52ba9539",
+      "LombardTokenPoolV2_stakedLBTC": "",
+      "LombardTokenPoolV2_nativeLBTC": ""
+    }
+  },
+  "etherlinkTestnet": {
+    "chainId": "0x000000000000000000000000000000000000000000000000000000000001f47b",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "Consortium": "",
+      "StakedLBTC": "",
+      "NativeLBTC": "",
+      "AssetRouter": "",
+      "StakedLBTCOracle": "",
+      "BridgeV2": "",
+      "Mailbox": ""
+    },
+    "chainlink": {
+      "ChainSelector": "1910019406958449359",
+      "Router": "0xa1312a58873fb9a16008E259c3eB972038ba46D9",
+      "RMN": "0xEC7088f7952ba58f268E25AC3868DF92bF462AEf",
+      "LombardTokenPoolV2_stakedLBTC": "",
+      "LombardTokenPoolV2_nativeLBTC": ""
+    }
+  },
+  "beraBepolia": {
+    "chainId": "0x00000000000000000000000000000000000000000000000000000000000138c5",
+    "admin": {
+      "Owner": "0xB6BbA517f32C75bE36500c7134ec000CFEE0893f",
+      "TimeLock": "",
+      "Deployer": ["0xB6BbA517f32C75bE36500c7134ec000CFEE0893f"]
+    },
+    "lombard": {
+      "ProxyFactory": "",
+      "Consortium": "",
+      "LBTC": "",
+      "Bridge": "",
+      "BridgeV2": "",
+      "Mailbox": ""
+    },
+    "chainlink": {
+      "ChainSelector": "",
+      "Router": "",
+      "RMN": "",
+      "CLAdapter": "",
+      "LombardTokenPool": "",
+      "LombardTokenPoolV2_LBTC": ""
     }
   }
 }

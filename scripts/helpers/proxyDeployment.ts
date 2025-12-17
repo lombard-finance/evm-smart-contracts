@@ -8,7 +8,7 @@ export async function proxyDeployment(
   args: any[],
   admin: string,
   hre: HardhatRuntimeEnvironment
-): Promise<{ proxy: any; proxyAdmin: any }> {
+): Promise<{ proxy: string; proxyAdmin: string }> {
   const { ethers, run, upgrades } = hre;
 
   const cre = new CustomRuntimeEnvironment(hre);

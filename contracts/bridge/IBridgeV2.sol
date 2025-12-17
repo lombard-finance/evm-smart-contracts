@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {RateLimits} from "../libs/RateLimits.sol";
-
+/// @custom:security-contact legal@lombard.finance
 interface IBridgeV2 {
     error BridgeV2_ZeroAmount();
     error BridgeV2_ZeroRecipient();
+    error BridgeV2_InvalidRecipient();
     error BridgeV2_ZeroPath();
     error BridgeV2_ZeroBridge();
     error BridgeV2_ZeroChainId();
     error BridgeV2_ZeroSender();
     error BridgeV2_ZeroToken();
+    error BridgeV2_InvalidToken();
     error BridgeV2_ZeroMailbox();
     error BridgeV2_AlreadyAllowed(bytes32 tokenId);
     error BridgeV2_TokenNotAllowed();
@@ -86,4 +87,9 @@ interface IBridgeV2 {
         uint256 amount,
         bytes32 destinationCaller
     ) external payable returns (uint256, bytes32);
+
+    function getAllowedDestinationToken(
+        bytes32 destinationChain,
+        address sourceToken
+    ) external view returns (bytes32);
 }
