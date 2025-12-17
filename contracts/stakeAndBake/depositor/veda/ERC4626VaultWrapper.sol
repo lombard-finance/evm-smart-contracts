@@ -46,6 +46,11 @@ contract ERC4626VaultWrapper is
     error VaultCannotBeChanged();
     /// @dev error thrown if rescueERC20 is called to transfer asser and amopunt is too big
     error RescueAssetAmountTooBig();
+    /// @dev error thrown if total shares supply is not equal to total asset supply
+    error UnexpectedAssetBalance(
+        uint256 totalSharesSupply,
+        uint256 assetBalance
+    );
 
     event NameAndSymbolChanged(string name, string symbol);
     event StakeAndBakeAdded(address stakeAndBake, address token);
@@ -209,7 +214,7 @@ contract ERC4626VaultWrapper is
     }
 
     /**
-     * @dev Override of the _update function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
+     * @dev Override of the decimals function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
      */
     function decimals()
         public
@@ -274,6 +279,8 @@ contract ERC4626VaultWrapper is
 
         emit Deposit(caller, receiver, depositAmount, shares);
 
+        _checkAssetTotalBalance();
+
         return shares;
     }
 
@@ -295,6 +302,40 @@ contract ERC4626VaultWrapper is
         Math.Rounding
     ) internal pure override returns (uint256) {
         return shares;
+    }
+
+    function _checkAssetTotalBalance() internal view {
+        uint256 assetBalance = totalAssets();
+        if (totalSupply() > assetBalance) {
+            revert UnexpectedAssetBalance(totalSupply(), assetBalance);
+        }
+    }
+
+    /**
+     * @dev Deposit/mint common workflow.
+     */
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+        super._deposit(caller, receiver, assets, shares);
+        _checkAssetTotalBalance();
+    }
+
+    /**
+     * @dev Withdraw/redeem common workflow.
+     */
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+        super._withdraw(caller, receiver, owner, assets, shares);
+        _checkAssetTotalBalance();
     }
 
     function _changeNameAndSymbol(
