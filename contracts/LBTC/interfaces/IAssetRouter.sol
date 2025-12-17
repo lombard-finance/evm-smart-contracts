@@ -90,6 +90,7 @@ interface IAssetRouter {
         uint256 indexed newRate
     );
     event AssetRouter_DepositMinAmountChanged(
+        address indexed token,
         uint256 indexed prevVal,
         uint256 indexed newVal
     );
@@ -191,4 +192,6 @@ interface IAssetRouter {
     function changeRedeemForBtcMinAmount(uint256 minAmount) external;
 
     function toggleRedeem() external;
+
+    function depositMinAmount(address token) external view returns (uint256);
 }

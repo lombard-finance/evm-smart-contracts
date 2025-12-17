@@ -198,9 +198,10 @@ contract AssetRouter is
     }
 
     function changeDepositMinAmount(
-        uint256 depositMinAmount
+        address token,
+        uint256 _depositMinAmount
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeDepositMinAmount(depositMinAmount);
+        _changeDepositMinAmount(token, _depositMinAmount);
     }
 
     function tokenConfig(
@@ -285,9 +286,12 @@ contract AssetRouter is
         return $.bitcoinChainId;
     }
 
-    function depositMinAmount() external view returns (uint256) {
+    function depositMinAmount(address token) external view returns (uint256) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        return $.depositMinAmount;
+        if ($.nativeToken == token) {
+            return $.depositMinAmount;
+        }
+        return type(uint256).max;
     }
 
     function _getAssetRouterStorage()
@@ -929,9 +933,14 @@ contract AssetRouter is
         emit AssetRouter_MintFeeChanged(oldFee, fee);
     }
 
-    function _changeDepositMinAmount(uint256 newVal) internal {
+    function _changeDepositMinAmount(address token, uint256 newVal) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
-        emit AssetRouter_DepositMinAmountChanged($.depositMinAmount, newVal);
+        if ($.nativeToken != token) revert AssetRouter_WrongNativeToken();
+        emit AssetRouter_DepositMinAmountChanged(
+            token,
+            $.depositMinAmount,
+            newVal
+        );
         $.depositMinAmount = newVal;
     }
 

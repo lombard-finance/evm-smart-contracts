@@ -342,17 +342,18 @@ describe('AssetRouter', function () {
       });
 
       it('changeDepositMinAmount() authorized caller can', async function () {
-        const depositMinAmountBefore = await assetRouter.depositMinAmount();
+        await assetRouter.connect(owner).changeNativeToken(nativeLbtc.address);
+        const depositMinAmountBefore = await assetRouter.depositMinAmount(nativeLbtc.address);
         const newValue = randomBigInt(3);
-        await expect(assetRouter.connect(owner).changeDepositMinAmount(newValue))
+        await expect(assetRouter.connect(owner).changeDepositMinAmount(nativeLbtc.address, newValue))
           .to.emit(assetRouter, 'AssetRouter_DepositMinAmountChanged')
-          .withArgs(depositMinAmountBefore, newValue);
-        const depositMinAmountAfter = await assetRouter.depositMinAmount();
+          .withArgs(nativeLbtc.address, depositMinAmountBefore, newValue);
+        const depositMinAmountAfter = await assetRouter.depositMinAmount(nativeLbtc.address);
         expect(depositMinAmountAfter).to.be.eq(newValue);
       });
 
       it('changeDepositMinAmount() reverts when called by not an authorized caller', async function () {
-        await expect(assetRouter.connect(signer2).changeDepositMinAmount(randomBigInt(3)))
+        await expect(assetRouter.connect(signer2).changeDepositMinAmount(nativeLbtc.address, randomBigInt(3)))
           .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
           .withArgs(signer2.address, await assetRouter.DEFAULT_ADMIN_ROLE());
       });
@@ -2168,7 +2169,7 @@ describe('AssetRouter', function () {
             body
           );
 
-          await assetRouter.connect(owner).changeDepositMinAmount(arg.minAmount(balance));
+          await assetRouter.connect(owner).changeDepositMinAmount(nativeLbtc.address, arg.minAmount(balance));
 
           const tx = await assetRouter
             .connect(sender)
@@ -2238,7 +2239,7 @@ describe('AssetRouter', function () {
 
         it('deposit() reverts when amount is too small', async function () {
           const minAmount = randomBigInt(8);
-          await assetRouter.connect(owner).changeDepositMinAmount(minAmount);
+          await assetRouter.connect(owner).changeDepositMinAmount(nativeLbtc.address, minAmount);
           await expect(
             assetRouter
               .connect(signer1)
