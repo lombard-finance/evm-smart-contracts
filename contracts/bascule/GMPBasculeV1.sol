@@ -57,7 +57,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // correct mint amount.
     uint256 public validateThreshold;
 
-    // Maximum number of batch deposits it's possible to make at once
+    // Maximum number of batch mints it's possible to make at once
     uint256 public maxMints;
 
     // Mapping that tracks deposits on a different chain that can be used to
@@ -144,10 +144,10 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     }
 
     /**
-     * Set the maximum number of deposits that can be reported at once.
+     * Set the maximum number of mints that can be reported at once.
      * May only be invoked by the contract admin.
      *
-     * @param aMaxMints New maximum number of deposits that can be reported at once.
+     * @param aMaxMints New maximum number of mints that can be reported at once.
      */
     function setMaxMints(
         uint256 aMaxMints
@@ -248,11 +248,11 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         }
         // Not reported
         if (mintMsg.amount >= validateThreshold) {
-            // We disallow a withdrawal if it's not in the depositHistory and
+            // We disallow a mint if it's not in the mintHistory and
             // the value is above the threshold.
             revert MintFailedValidation(mintID, mintMsg.amount);
         }
-        // We don't have the depositID in the depositHistory, and the value of the
+        // We don't have the mintID in the mintHistory, and the value of the
         // withdrawal is below the threshold, so we allow the withdrawal without
         // additional on-chain validation.
         //
