@@ -17,7 +17,9 @@ import {ITeller} from "./ITeller.sol";
  * @title DeFi Vault Token Wrapper.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol. Its purpose is to wrap LBTCv tokens minted by Veda vault
- *         so that users will receive this wrapper's tokens instead of LBTCv when they do deposit or use StakeAndBake feature
+ *         so that users will receive this wrapper's tokens instead of LBTCv when they do deposit or use StakeAndBake feature.
+ *         This contract uses ERC20 pause function. That means all functions that presume any kind of token transfer (deposit,
+ *         withdraw, mint, redeem, transfer etc.) will revert when this contract is paused.
  * @custom:security-contact legal@lombard.finance
  */
 contract ERC4626VaultWrapper is
@@ -120,7 +122,7 @@ contract ERC4626VaultWrapper is
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external returns (bytes memory) {
+    ) external whenNotPaused returns (bytes memory) {
         IERC20 assetToken = _getERC4626VaultWrapperStorage().sabAsset[
             _msgSender()
         ];
@@ -154,7 +156,7 @@ contract ERC4626VaultWrapper is
         uint256 assets,
         address receiver,
         uint256 minShareAmount
-    ) external returns (uint256 shares) {
+    ) external whenNotPaused returns (uint256 shares) {
         return
             _depositCustom(
                 token,
