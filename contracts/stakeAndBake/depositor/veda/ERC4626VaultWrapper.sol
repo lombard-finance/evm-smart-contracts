@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
@@ -30,12 +29,8 @@ contract ERC4626VaultWrapper is
 {
     using SafeERC20 for IERC20;
 
-    /// @dev error thrown when the passed depositAmount is zero
-    error ZeroAssets();
     /// @dev error thrown when the passed address is zero
     error ZeroAddress();
-    /// @dev error thrown when not implemented function gets called
-    error NotImplemented();
     /// @dev error thrown when function called from not authorized account
     error UnauthorizedAccount(address account);
     /// @dev error thrown the number of shares minted is less than threshold given
