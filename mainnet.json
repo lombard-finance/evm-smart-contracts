@@ -452,9 +452,9 @@
       "GMPBasculeV1": "0xAe5E2940Fc01C0f8076D36749509C75E43da0C70"
     },
     "chainlink": {
-      "ChainSelector": "",
-      "Router": "",
-      "RMN": "",
+      "ChainSelector": "6093540873831549674",
+      "Router": "0xfa546248C54939AA6C48279CdC1EAf9A1125c411",
+      "RMN": "0xA27056438FfA1f286AB197488808692F0db93F8B",
       "LombardTokenPoolV2_stakedLBTC": "",
       "LombardTokenPoolV2_nativeLBTC": ""
     },
