@@ -92,10 +92,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         _grantRole(MINT_VALIDATOR_ROLE, aMintValidator);
         maxMints = aMaxMints;
         // By default, the bascule validates all mints and does not grant
-        // anyone the guardian role. This means that increasing the threshold (or
-        // turning off validation) requires two steps: (1) grant role and (2) change
-        // threshold. To preserve this invariant, we renounce the validation
-        // guardian role when the threshold is raised.
+        // anyone the guardian role.
         //
         // Initialize explicitly for readability/maintainability
         validateThreshold = 0; // validate all
