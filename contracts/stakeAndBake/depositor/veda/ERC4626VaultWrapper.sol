@@ -122,7 +122,7 @@ contract ERC4626VaultWrapper is
         address owner,
         uint256 depositAmount,
         bytes calldata depositPayload
-    ) external whenNotPaused returns (bytes memory) {
+    ) external returns (bytes memory) {
         IERC20 assetToken = _getERC4626VaultWrapperStorage().sabAsset[
             _msgSender()
         ];
@@ -156,7 +156,7 @@ contract ERC4626VaultWrapper is
         uint256 assets,
         address receiver,
         uint256 minShareAmount
-    ) external whenNotPaused returns (uint256 shares) {
+    ) external returns (uint256 shares) {
         return
             _depositCustom(
                 token,
