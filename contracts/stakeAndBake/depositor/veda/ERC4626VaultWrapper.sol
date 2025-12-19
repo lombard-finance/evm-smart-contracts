@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
@@ -12,14 +11,15 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IDepositor} from "../IDepositor.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ITeller} from "./ITeller.sol";
 
 /**
  * @title DeFi Vault Token Wrapper.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol. Its purpose is to wrap LBTCv tokens minted by Veda vault
- *         so that users will receive this wrapper's tokens instead of LBTCv when they do deposit or use StakeAndBake feature
+ *         so that users will receive this wrapper's tokens instead of LBTCv when they do deposit or use StakeAndBake feature.
+ *         This contract uses ERC20 pause function. That means all functions that presume any kind of token transfer (deposit,
+ *         withdraw, mint, redeem, transfer etc.) will revert when this contract is paused.
  * @custom:security-contact legal@lombard.finance
  */
 contract ERC4626VaultWrapper is
@@ -27,17 +27,12 @@ contract ERC4626VaultWrapper is
     ERC4626Upgradeable,
     ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
-    AccessControlDefaultAdminRulesUpgradeable,
-    ReentrancyGuardUpgradeable
+    AccessControlDefaultAdminRulesUpgradeable
 {
     using SafeERC20 for IERC20;
 
-    /// @dev error thrown when the passed depositAmount is zero
-    error ZeroAssets();
     /// @dev error thrown when the passed address is zero
     error ZeroAddress();
-    /// @dev error thrown when not implemented function gets called
-    error NotImplemented();
     /// @dev error thrown when function called from not authorized account
     error UnauthorizedAccount(address account);
     /// @dev error thrown the number of shares minted is less than threshold given
@@ -103,8 +98,6 @@ contract ERC4626VaultWrapper is
         __ERC4626_init(IERC20(teller_.vault()));
 
         _grantRole(PAUSER_ROLE, pauser_);
-
-        __ReentrancyGuard_init();
 
         ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
         $.teller = teller_;
@@ -273,7 +266,12 @@ contract ERC4626VaultWrapper is
         token.safeIncreaseAllowance($.teller.vault(), depositAmount);
 
         // Deposit and obtain vault shares.
-        uint256 shares = $.teller.deposit(token, depositAmount, minimumMint);
+        uint256 shares = $.teller.bulkDeposit(
+            token,
+            depositAmount,
+            minimumMint,
+            address(this)
+        );
 
         _mint(receiver, shares);
 

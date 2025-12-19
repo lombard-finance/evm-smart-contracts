@@ -185,6 +185,13 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       .to.emit(stakeAndBake, 'DepositorSet')
       .withArgs(erc4626Wrapper.address);
 
+    const superAdmin = await impersonateWithEth('0xb7cB7131FFc18f87eEc66991BECD18f2FF70d2af');
+    const auth = (await ethers.getContractAt(
+      'RolesAuthority',
+      '0xF3E03eF7df97511a52f31ea7a22329619db2bdF4'
+    )) as RolesAuthority;
+    await auth.connect(superAdmin).setUserRole(erc4626Wrapper.address, 12n, true);
+
     snapshot = await takeSnapshot();
     snapshotTimestamp = await time.latest();
   });
