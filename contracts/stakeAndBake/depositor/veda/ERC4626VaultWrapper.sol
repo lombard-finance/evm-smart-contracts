@@ -12,7 +12,6 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IDepositor} from "../IDepositor.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ITeller} from "./ITeller.sol";
 
 /**
@@ -27,8 +26,7 @@ contract ERC4626VaultWrapper is
     ERC4626Upgradeable,
     ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
-    AccessControlDefaultAdminRulesUpgradeable,
-    ReentrancyGuardUpgradeable
+    AccessControlDefaultAdminRulesUpgradeable
 {
     using SafeERC20 for IERC20;
 
@@ -103,8 +101,6 @@ contract ERC4626VaultWrapper is
         __ERC4626_init(IERC20(teller_.vault()));
 
         _grantRole(PAUSER_ROLE, pauser_);
-
-        __ReentrancyGuard_init();
 
         ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
         $.teller = teller_;
