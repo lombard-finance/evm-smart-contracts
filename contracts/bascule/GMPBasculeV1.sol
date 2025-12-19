@@ -165,7 +165,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     function setTrustedSigner(
         address aTrustedSigner
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (trustedSigner == address(0)) {
+        if (aTrustedSigner == address(0)) {
             revert ZeroTrustedAddress();
         }
         trustedSigner = aTrustedSigner;
