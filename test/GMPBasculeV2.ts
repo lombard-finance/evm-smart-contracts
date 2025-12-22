@@ -353,14 +353,14 @@ describe('GMPBasculeV2', function () {
       });
 
       it('Report mint', async function () {
-        expect((await bascule.mintHistory(mintID))).to.be.eq(0);
+        expect(await bascule.mintHistory(mintID)).to.be.eq(0);
 
         const reportId = randomBytes(32);
         await expect(bascule.connect(mintReporter).reportMints(reportId, [mint], [proof]))
           .to.emit(bascule, 'MintsReported')
           .withArgs(reportId, 1);
 
-        expect((await bascule.mintHistory(mintID))).to.be.eq(1);
+        expect(await bascule.mintHistory(mintID)).to.be.eq(1);
       });
 
       it('Validate mint', async function () {
@@ -368,7 +368,7 @@ describe('GMPBasculeV2', function () {
           .to.emit(bascule, 'MintValidated')
           .withArgs(mintID, amount);
 
-        expect((await bascule.mintHistory(mintID))).to.be.eq(2);
+        expect(await bascule.mintHistory(mintID)).to.be.eq(2);
       });
 
       it('Repeat reporting mint', async function () {
@@ -379,7 +379,7 @@ describe('GMPBasculeV2', function () {
           .and.to.emit(bascule, 'MintAlreadyReportedOrProcessed')
           .withArgs(mintID);
 
-        expect((await bascule.mintHistory(mintID))).to.be.eq(2);
+        expect(await bascule.mintHistory(mintID)).to.be.eq(2);
       });
 
       it('Repeat mint validation', async function () {
@@ -387,7 +387,7 @@ describe('GMPBasculeV2', function () {
           .to.be.revertedWithCustomError(bascule, 'AlreadyMinted')
           .withArgs(mintID, amount);
 
-        expect((await bascule.mintHistory(mintID))).to.be.eq(2);
+        expect(await bascule.mintHistory(mintID)).to.be.eq(2);
       });
     });
 
