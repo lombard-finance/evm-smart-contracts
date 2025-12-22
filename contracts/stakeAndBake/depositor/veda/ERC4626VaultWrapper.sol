@@ -266,12 +266,7 @@ contract ERC4626VaultWrapper is
         token.safeIncreaseAllowance($.teller.vault(), depositAmount);
 
         // Deposit and obtain vault shares.
-        uint256 shares = $.teller.bulkDeposit(
-            token,
-            depositAmount,
-            minimumMint,
-            address(this)
-        );
+        uint256 shares = $.teller.deposit(token, depositAmount, minimumMint);
 
         _mint(receiver, shares);
 
