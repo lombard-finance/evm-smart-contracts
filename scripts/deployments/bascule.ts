@@ -36,7 +36,7 @@ task('deploy-basculeV3', 'Deploys the BasculeV3 contract (non-upgradable)')
     );
   });
 
-task('deploy-gmp-bascule', 'Deploys the GMPBasculeV1 contract (non-upgradable)')
+task('deploy-gmp-bascule', 'Deploys the GMPBasculeV2 contract (non-upgradable)')
   .addParam('admin', 'The address of the owner', 'self')
   .addParam('pauser', 'The address that should have pauser role', 'self')
   .addParam('mintReporter', 'The address that should have mint reporter role')
@@ -51,9 +51,9 @@ task('deploy-gmp-bascule', 'Deploys the GMPBasculeV1 contract (non-upgradable)')
     const pauser = hre.ethers.isAddress(pauserArg) ? pauserArg : await signer.getAddress();
 
     await deploy(
-      'GMPBasculeV1',
+      'GMPBasculeV2',
       [admin, pauser, mintReporter, mintValidator, maxMints, trustedSigner],
-      'contracts/bascule/GMPBasculeV1.sol:GMPBasculeV1',
+      'contracts/bascule/GMPBasculeV2.sol:GMPBasculeV2',
       hre
     );
   });
