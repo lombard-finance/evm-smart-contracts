@@ -339,6 +339,23 @@ describe('AssetRouter', function () {
           });
         }
       });
+
+      it('changeDepositMinAmount() authorized caller can', async function () {
+        await assetRouter.connect(owner).changeNativeToken(nativeLbtc.address);
+        const depositMinAmountBefore = await assetRouter.depositMinAmount(nativeLbtc.address);
+        const newValue = randomBigInt(3);
+        await expect(assetRouter.connect(owner).changeDepositMinAmount(nativeLbtc.address, newValue))
+          .to.emit(assetRouter, 'AssetRouter_DepositMinAmountChanged')
+          .withArgs(nativeLbtc.address, depositMinAmountBefore, newValue);
+        const depositMinAmountAfter = await assetRouter.depositMinAmount(nativeLbtc.address);
+        expect(depositMinAmountAfter).to.be.eq(newValue);
+      });
+
+      it('changeDepositMinAmount() reverts when called by not an authorized caller', async function () {
+        await expect(assetRouter.connect(signer2).changeDepositMinAmount(nativeLbtc.address, randomBigInt(3)))
+          .to.revertedWithCustomError(assetRouter, 'AccessControlUnauthorizedAccount')
+          .withArgs(signer2.address, await assetRouter.DEFAULT_ADMIN_ROLE());
+      });
     });
 
     describe('Fees', function () {
@@ -2098,21 +2115,32 @@ describe('AssetRouter', function () {
         {
           name: 'partially',
           balance: randomBigInt(8),
-          amount: (balance: bigint) => balance / 2n
+          amount: (balance: bigint) => balance / 2n,
+          minAmount: (amount: bigint) => 0
         },
         {
           name: 'all',
           balance: randomBigInt(8),
-          amount: (balance: bigint) => balance
+          amount: (balance: bigint) => balance,
+          minAmount: (amount: bigint) => 0
+        },
+        {
+          name: 'min amount',
+          balance: randomBigInt(8),
+          amount: (balance: bigint) => balance,
+          minAmount: (amount: bigint) => amount
         }
       ];
 
       args.forEach(function (arg) {
         it(`deposit() ${arg.name}`, async () => {
+          const sender = signer1;
+          const balanceBefore = await nativeLbtc.balanceOf(sender);
+          await nativeLbtc.connect(minter)['burn(address,uint256)'](sender, balanceBefore);
+          await nativeLbtc.connect(minter).mint(sender, arg.balance);
           const totalSupplyNativeBefore = await nativeLbtc.totalSupply();
           const totalSupplyBefore = await stakedLbtc.totalSupply();
 
-          const sender = signer1;
           const balance = await nativeLbtc.balanceOf(sender);
           const amount = arg.amount(balance);
 
@@ -2136,6 +2164,8 @@ describe('AssetRouter', function () {
             LEDGER_CALLER,
             body
           );
+
+          await assetRouter.connect(owner).changeDepositMinAmount(nativeLbtc.address, arg.minAmount(balance));
 
           const tx = await assetRouter
             .connect(sender)
@@ -2201,6 +2231,16 @@ describe('AssetRouter', function () {
               .connect(signer1)
               ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, randomBigInt(6))
           ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
+        });
+
+        it('deposit() reverts when amount is too small', async function () {
+          const minAmount = randomBigInt(8);
+          await assetRouter.connect(owner).changeDepositMinAmount(nativeLbtc.address, minAmount);
+          await expect(
+            assetRouter
+              .connect(signer1)
+              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, minAmount - 1n)
+          ).to.be.revertedWithCustomError(assetRouter, 'AssertRouter_AmountTooSmall');
         });
       });
     });
