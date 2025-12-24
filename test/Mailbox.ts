@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { Consortium, GMPHandlerMock, Mailbox, MailboxTreasuryMock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
@@ -44,6 +44,8 @@ describe('Mailbox', function () {
   let sMailboxBytes: string, dMailboxBytes: string;
 
   before(async () => {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [deployer, owner, pauser, treasury, notary, signer1, signer2] = await getSignersWithPrivateKeys();
 
     const { chainId } = await ethers.provider.getNetwork();
@@ -621,7 +623,7 @@ describe('Mailbox', function () {
 
     it('Treasury can transfer ERC20 from mailbox', async () => {
       const amount = randomBigInt(8);
-      let tx = await token.connect(dummy)['transfer(address,uint256)'](smailbox, amount);
+      let tx = await token.connect(dummy).transfer(smailbox, amount);
       await expect(tx).changeTokenBalance(token, smailbox, amount);
 
       tx = await smailbox.connect(treasury).rescueERC20(token, dummy, amount);
@@ -631,7 +633,7 @@ describe('Mailbox', function () {
 
     it('Reverts when called by not a treasury', async () => {
       const amount = randomBigInt(8);
-      const tx = await token.connect(dummy)['transfer(address,uint256)'](smailbox, amount);
+      const tx = await token.connect(dummy).transfer(smailbox, amount);
       await expect(tx).changeTokenBalance(token, smailbox, amount);
 
       await expect(smailbox.connect(dummy).rescueERC20(token.address, dummy.address, amount))
@@ -641,7 +643,7 @@ describe('Mailbox', function () {
 
     it('Reverts when mailbox is on pause', async () => {
       const amount = randomBigInt(8);
-      const tx = await token.connect(dummy)['transfer(address,uint256)'](smailbox, amount);
+      const tx = await token.connect(dummy).transfer(smailbox, amount);
       await expect(tx).changeTokenBalance(token, smailbox, amount);
 
       await smailbox.connect(pauser).pause();

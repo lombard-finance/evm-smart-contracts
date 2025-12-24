@@ -19,7 +19,7 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
         uint16 sharePremium;
     }
 
-    address public immutable vault;
+    address public vault;
     mapping(ERC20 => Asset) public assetData;
 
     constructor(address lbtc) ERC20("Staked LBTC", "LBTCv") {
@@ -30,6 +30,10 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
 
     function decimals() public view override returns (uint8) {
         return 8;
+    }
+
+    function setVault(address _vault) public {
+        vault = _vault;
     }
 
     function deposit(

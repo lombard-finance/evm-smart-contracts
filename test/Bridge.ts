@@ -1,27 +1,26 @@
 import {
   Bascule,
-  Consortium,
   Bridge,
-  MockCCIPRouter,
   CCIPRMNMock,
-  LombardTokenPool,
   CLAdapter,
-  EndpointV2Mock,
+  Consortium,
+  LombardTokenPool,
+  MockCCIPRouter,
   StakedLBTC
 } from '../typechain-types';
-import { takeSnapshot, SnapshotRestorer, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
-  getSignersWithPrivateKeys,
-  deployContract,
   CHAIN_ID,
-  getPayloadForAction,
-  NEW_VALSET,
+  deployContract,
   DEPOSIT_BRIDGE_ACTION,
   encode,
+  getPayloadForAction,
+  getSignersWithPrivateKeys,
+  NEW_VALSET,
   signDepositBridgePayload,
   Signer
 } from './helpers';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 
 const aChainSelector = 1;
@@ -47,6 +46,8 @@ describe('Bridge', function () {
   const absoluteFee = 100n;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [deployer, signer1, signer2, signer3, treasurySource, treasuryDestination, admin, pauser, reporter] =
       await getSignersWithPrivateKeys();
 

@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
@@ -7,7 +7,6 @@ import {
   BITCOIN_NATIVE_COIN,
   BTC_STAKING_MODULE_ADDRESS,
   CHAIN_ID,
-  DEFAULT_DUST_FEE_RATE,
   DefaultData,
   deployContract,
   DEPOSIT_REQUEST_SELECTOR,
@@ -32,7 +31,6 @@ import {
   signPayload
 } from './helpers';
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
-import { applyProviderWrappers } from 'hardhat/internal/core/providers/construction';
 
 const DAY = 86400;
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
@@ -66,6 +64,8 @@ describe('StakedLBTC', function () {
   let assetRouterBytes: string;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [_, owner, treasury, minter, claimer, operator, pauser, reporter, notary1, notary2, signer1, signer2, signer3] =
       await getSignersWithPrivateKeys();
 
@@ -462,7 +462,7 @@ describe('StakedLBTC', function () {
           setter: 'changeRedeemFee',
           getter: 'getRedeemFee',
           event: () => [assetRouter, 'AssetRouter_RedeemFeeChanged'],
-          eventArgs: (oldValue, newValue) => [stakedLbtc.address, oldValue, newValue],
+          eventArgs: (oldValue: bigint, newValue: bigint) => [stakedLbtc.address, oldValue, newValue],
           account: 'owner',
           accessError: 'OwnableUnauthorizedAccount',
           canBeZero: true
@@ -646,9 +646,8 @@ describe('StakedLBTC', function () {
       });
 
       //TODO: BASCULE
-      it('mint() when bascule is enabled', async function () {
-        this.skip();
-        await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
+      it.skip('mint() when bascule is enabled', async function () {
+        await assetRouter.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await stakedLbtc.totalSupply();
 
         const recipient = signer2;
@@ -705,7 +704,7 @@ describe('StakedLBTC', function () {
           signatures: [true, true],
           msgFromContract: LEDGER_MAILBOX,
           msgFromChainId: LEDGER_CHAIN_ID,
-          msgToChainId: encode(['uint256'], [1]),
+          msgToChainId: encode(['uint256'], [12345]),
           msgSender: BTC_STAKING_MODULE_ADDRESS,
           msgRecipient: () => assetRouterBytes,
           dCaller: () => assetRouterBytes,
@@ -836,9 +835,8 @@ describe('StakedLBTC', function () {
       });
 
       //TODO: BASCULE
-      it('mint() reverts when not reported to bascule', async function () {
-        this.skip();
-        await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
+      it.skip('mint() reverts when not reported to bascule', async function () {
+        await assetRouter.connect(owner).changeBascule(await bascule.getAddress());
 
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         await stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof);
@@ -975,9 +973,8 @@ describe('StakedLBTC', function () {
       });
 
       //TODO: Bascule
-      it('mintWithFee() when bascule enabled', async function () {
-        this.skip();
-        await stakedLbtc.connect(owner).changeBascule(await bascule.getAddress());
+      it.skip('mintWithFee() when bascule enabled', async function () {
+        await assetRouter.connect(owner).changeBascule(await bascule.getAddress());
         const totalSupplyBefore = await stakedLbtc.totalSupply();
 
         // new

@@ -1,6 +1,6 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { ProxyFactory, StakedLBTC, WBTCMock } from '../typechain-types';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 
@@ -11,6 +11,8 @@ describe('ProxyFactory', () => {
   let deployer: HardhatEthersSigner, admin: HardhatEthersSigner, acc: HardhatEthersSigner;
 
   before(async () => {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [deployer, admin, acc] = await ethers.getSigners();
 
     let factory = await ethers.getContractFactory('ProxyFactory');
@@ -47,6 +49,7 @@ describe('ProxyFactory', () => {
 
     await snapshot.restore();
     // let's deploy a different contract should be in the same address
+    // @ts-ignore
     data = wbtcMockImplementation.interface.encodeFunctionData('initialize', []);
     await proxyFactory
       .connect(deployer)

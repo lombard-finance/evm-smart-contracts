@@ -1,4 +1,4 @@
-import { ethers, upgrades } from 'hardhat';
+import { ethers, network, upgrades } from 'hardhat';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
@@ -32,6 +32,8 @@ describe('StakedLBTCOracle', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [_, owner, treasury, notary1, notary2, signer1] = await getSignersWithPrivateKeys();
 
     consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
@@ -128,7 +130,6 @@ describe('StakedLBTCOracle', function () {
   describe('Setters', function () {
     beforeEach(async function () {
       await snapshot.restore();
-      console.log(await oracle.maxAheadInterval());
     });
 
     it('changeConsortium() only owner can', async function () {
@@ -279,7 +280,6 @@ describe('StakedLBTCOracle', function () {
 
     it('publishNewRatio() after 10 days of no activity', async function () {
       await time.increaseTo(defaultSwitchTime + 86400 * 10);
-      console.log(await time.latest());
 
       const ratioBefore = await oracle.ratio();
       const newRatio = (ratioBefore * 99n) / 100n;

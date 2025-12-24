@@ -1,50 +1,32 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
-  BITCOIN_CHAIN_ID,
-  BTC_STAKING_MODULE_ADDRESS,
   CHAIN_ID,
   DefaultData,
   deployContract,
   encode,
-  generatePermitSignature,
-  getFeeTypedMessage,
-  getGMPPayload,
   getPayloadForAction,
   getSignersWithPrivateKeys,
-  initNativeLBTC,
-  initStakedLBTC,
-  LEDGER_CHAIN_ID,
-  LEDGER_MAILBOX,
-  MINT_SELECTOR,
   NEW_VALSET,
   randomBigInt,
   rawSign,
   signDepositBtcV1Payload,
-  Signer,
-  signPayload
+  Signer
 } from './helpers';
 import {
-  AssetRouter,
   BridgeTokenAdapter,
   BridgeTokenMock,
   Consortium,
   ERC4626Depositor,
   ERC4626Mock,
-  Mailbox,
-  NativeLBTC,
-  RatioFeedMock,
-  StakeAndBake,
   StakeAndBakeNativeToken,
   TellerWithMultiAssetSupportDepositor,
   TellerWithMultiAssetSupportMock
 } from '../typechain-types';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 import { Addressable as EthersAddressable } from 'ethers';
-
-const DAY = 86400;
 
 describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
   let _: Signer,
@@ -60,18 +42,18 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
     trustedSigner: Signer;
   let bridgeToken: BridgeTokenMock & Addressable;
   let bridgeTokenAdapter: BridgeTokenAdapter & Addressable;
-  let bridgeTokenAdapterBytes: string;
   let stakeAndBakeForNativeToken: StakeAndBakeNativeToken & Addressable;
   let erc4626Depositor: ERC4626Depositor & Addressable;
   let vault: ERC4626Mock & Addressable;
   let consortium: Consortium & Addressable;
   let snapshot: SnapshotRestorer;
-  let snapshotTimestamp: number;
 
   const toNativeCommission = 1000n;
   const fee = 1n;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [_, owner, signer1, signer2, signer3, notary1, notary2, operator, pauser, treasury, trustedSigner] =
       await getSignersWithPrivateKeys();
 
@@ -124,7 +106,6 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
       .withArgs(erc4626Depositor.address);
 
     snapshot = await takeSnapshot();
-    snapshotTimestamp = await time.latest();
   });
 
   async function defaultData(

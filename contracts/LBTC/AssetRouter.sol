@@ -48,6 +48,7 @@ contract AssetRouter is
         IGMPBascule bascule;
         address nativeToken;
         mapping(address => TokenConfig) tokenConfigs;
+        uint256 depositMinAmount;
     }
 
     struct Routes {
@@ -196,6 +197,13 @@ contract AssetRouter is
         _setMaxMintCommission(token, maximumMintCommission_);
     }
 
+    function changeDepositMinAmount(
+        address token,
+        uint256 _depositMinAmount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _changeDepositMinAmount(token, _depositMinAmount);
+    }
+
     function tokenConfig(
         address token
     )
@@ -276,6 +284,14 @@ contract AssetRouter is
     function bitcoinChainId() external view override returns (bytes32) {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
         return $.bitcoinChainId;
+    }
+
+    function depositMinAmount(address token) external view returns (uint256) {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if ($.nativeToken == token) {
+            return $.depositMinAmount;
+        }
+        return type(uint256).max;
     }
 
     function _getAssetRouterStorage()
@@ -401,6 +417,7 @@ contract AssetRouter is
         uint256 amount
     ) internal {
         AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if (amount < $.depositMinAmount) revert AssertRouter_AmountTooSmall();
         if (
             _getRouteType(
                 GMPUtils.addressToBytes32($.nativeToken),
@@ -914,6 +931,17 @@ contract AssetRouter is
         uint256 oldFee = $.tokenConfigs[token].maximumMintCommission;
         $.tokenConfigs[token].maximumMintCommission = fee;
         emit AssetRouter_MintFeeChanged(oldFee, fee);
+    }
+
+    function _changeDepositMinAmount(address token, uint256 newVal) internal {
+        AssetRouterStorage storage $ = _getAssetRouterStorage();
+        if ($.nativeToken != token) revert AssetRouter_WrongNativeToken();
+        emit AssetRouter_DepositMinAmountChanged(
+            token,
+            $.depositMinAmount,
+            newVal
+        );
+        $.depositMinAmount = newVal;
     }
 
     function _getTokenConfig(
