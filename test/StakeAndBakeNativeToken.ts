@@ -1,40 +1,28 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
-  BITCOIN_CHAIN_ID,
-  BTC_STAKING_MODULE_ADDRESS,
   CHAIN_ID,
   DefaultData,
   deployContract,
   encode,
   generatePermitSignature,
   getFeeTypedMessage,
-  getGMPPayload,
   getPayloadForAction,
   getSignersWithPrivateKeys,
   initNativeLBTC,
-  initStakedLBTC,
-  LEDGER_CHAIN_ID,
-  LEDGER_MAILBOX,
-  MINT_SELECTOR,
   NEW_VALSET,
   randomBigInt,
   rawSign,
   signDepositBtcV1Payload,
-  Signer,
-  signPayload
+  Signer
 } from './helpers';
 import {
-  AssetRouter,
   Consortium,
   ERC4626Depositor,
   ERC4626Mock,
-  Mailbox,
   NativeLBTC,
-  RatioFeedMock,
-  StakeAndBake,
   StakeAndBakeNativeToken,
   TellerWithMultiAssetSupportDepositor,
   TellerWithMultiAssetSupportMock
@@ -67,6 +55,8 @@ describe('StakeAndBakeForNativeToken', function () {
   const fee = 1n;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury, trustedSigner] =
       await getSignersWithPrivateKeys();
 

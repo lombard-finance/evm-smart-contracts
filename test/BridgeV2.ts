@@ -16,13 +16,11 @@ import {
   Signer,
   signPayload
 } from './helpers';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { ContractTransactionReceipt } from 'ethers';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
-import PayloadStruct = GMPUtils.PayloadStruct;
-import { randomAddress } from 'hardhat/internal/hardhat-network/provider/utils/random';
 
 const BRIDGE_PAYLOAD_SIZE = 388;
 const MAX_FEE_DISCOUNT = 10000n;
@@ -52,6 +50,8 @@ describe('BridgeV2', function () {
   let weiPerByte = 1000n;
 
   before(async () => {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [deployer, owner, pauser, treasury, minter, notary, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
     // Consortium
@@ -335,7 +335,7 @@ describe('BridgeV2', function () {
 
     it('Owner can transfer ERC20 from mailbox', async () => {
       const amount = randomBigInt(8);
-      let tx = await token.connect(dummy)['transfer(address,uint256)'](sbridge, amount);
+      let tx = await token.connect(dummy).transfer(sbridge, amount);
       await expect(tx).changeTokenBalance(token, sbridge, amount);
 
       tx = await sbridge.connect(owner).rescueERC20(token, dummy, amount);
@@ -345,7 +345,7 @@ describe('BridgeV2', function () {
 
     it('Reverts when called by not an owner', async () => {
       const amount = randomBigInt(8);
-      const tx = await token.connect(dummy)['transfer(address,uint256)'](sbridge, amount);
+      const tx = await token.connect(dummy).transfer(sbridge, amount);
       await expect(tx).changeTokenBalance(token, sbridge, amount);
 
       await expect(sbridge.connect(dummy).rescueERC20(token.address, dummy.address, amount))
@@ -1552,7 +1552,7 @@ async function payloadFromReceipt(receipt: ContractTransactionReceipt): Promise<
   return;
 }
 
-function decodePayload(payload: string): PayloadStruct {
+function decodePayload(payload: string): GMPUtils.PayloadStruct {
   const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
     ['bytes32', 'uint256', 'bytes32', 'address', 'address', 'bytes'],
     payload.replace(GMP_V1_SELECTOR, '0x')

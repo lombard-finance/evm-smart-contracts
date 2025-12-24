@@ -1,13 +1,11 @@
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
   CHAIN_ID,
   deployContract,
-  DEPOSIT_BTC_ACTION_V0,
   encode,
-  getPayloadForAction,
   getSignersWithPrivateKeys,
   randomBigInt,
   rawSign,
@@ -35,6 +33,8 @@ describe('BasculeV3', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
+    await network.provider.request({ method: 'hardhat_reset', params: [] });
+
     [
       _,
       owner,

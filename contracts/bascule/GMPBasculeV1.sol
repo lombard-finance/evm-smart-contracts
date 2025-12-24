@@ -57,7 +57,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     // correct mint amount.
     uint256 public validateThreshold;
 
-    // Maximum number of batch deposits it's possible to make at once
+    // Maximum number of batch mints it's possible to make at once
     uint256 public maxMints;
 
     // Mapping that tracks deposits on a different chain that can be used to
@@ -92,10 +92,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         _grantRole(MINT_VALIDATOR_ROLE, aMintValidator);
         maxMints = aMaxMints;
         // By default, the bascule validates all mints and does not grant
-        // anyone the guardian role. This means that increasing the threshold (or
-        // turning off validation) requires two steps: (1) grant role and (2) change
-        // threshold. To preserve this invariant, we renounce the validation
-        // guardian role when the threshold is raised.
+        // anyone the guardian role.
         //
         // Initialize explicitly for readability/maintainability
         validateThreshold = 0; // validate all
@@ -144,10 +141,10 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     }
 
     /**
-     * Set the maximum number of deposits that can be reported at once.
+     * Set the maximum number of mints that can be reported at once.
      * May only be invoked by the contract admin.
      *
-     * @param aMaxMints New maximum number of deposits that can be reported at once.
+     * @param aMaxMints New maximum number of mints that can be reported at once.
      */
     function setMaxMints(
         uint256 aMaxMints
@@ -165,7 +162,7 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
     function setTrustedSigner(
         address aTrustedSigner
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (trustedSigner == address(0)) {
+        if (aTrustedSigner == address(0)) {
             revert ZeroTrustedAddress();
         }
         trustedSigner = aTrustedSigner;
@@ -248,11 +245,11 @@ contract GMPBasculeV1 is IGMPBascule, Pausable, AccessControlDefaultAdminRules {
         }
         // Not reported
         if (mintMsg.amount >= validateThreshold) {
-            // We disallow a withdrawal if it's not in the depositHistory and
+            // We disallow a mint if it's not in the mintHistory and
             // the value is above the threshold.
             revert MintFailedValidation(mintID, mintMsg.amount);
         }
-        // We don't have the depositID in the depositHistory, and the value of the
+        // We don't have the mintID in the mintHistory, and the value of the
         // withdrawal is below the threshold, so we allow the withdrawal without
         // additional on-chain validation.
         //
