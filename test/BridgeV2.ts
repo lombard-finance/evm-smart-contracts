@@ -464,6 +464,48 @@ describe('BridgeV2', function () {
       expect(sLbtcSupplyBefore - sLbtcSupplyAfter).to.be.eq(amount);
     });
 
+    it('New message with optional data', async () => {
+      const sLbtcSupplyBefore = await sLBTC.totalSupply();
+
+      const amount = randomBigInt(10);
+      const optionalData = '0x1234567890abcdef11111deadbeef22222decaf33333';
+      const body = ethers.solidityPacked(
+        ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256', 'bytes'],
+        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, amount, optionalData]
+      );
+      const payload = getGMPPayload(
+        encode(['address'], [smailbox.address]),
+        lChainId,
+        lChainId,
+        globalNonce++,
+        sBridgeBytes,
+        dBridgeBytes,
+        dCaller,
+        body
+      );
+
+      const fee = await sbridge.getFee(signer1);
+      const tx = await sbridge
+        .connect(signer1)
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32,bytes)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, optionalData, { value: fee });
+      await expect(tx)
+        .to.emit(sbridge, 'DepositToBridge')
+        .withArgs(signer1, recipient, ethers.sha256(payload))
+        .to.emit(smailbox, 'MessageSent')
+        .withArgs(lChainId, sbridge.address, dBridgeBytes, payload)
+        .and.to.emit(sLBTC, 'Transfer')
+        .withArgs(signer1.address, sbridge.address, amount);
+      await expect(tx).to.changeTokenBalance(sLBTC, signer1.address, -amount);
+      // Fees go to mailbox
+      await expect(tx).to.changeEtherBalance(signer1, -fee, { includeFee: false });
+      await expect(tx).to.changeEtherBalance(smailbox, fee, { includeFee: false });
+
+      const sLbtcSupplyAfter = await sLBTC.totalSupply();
+      expect(sLbtcSupplyBefore - sLbtcSupplyAfter).to.be.eq(amount);
+    });
+
     it('decodeMsgBody returns input args', async () => {
       const amount = randomBigInt(10);
 
@@ -1028,6 +1070,97 @@ describe('BridgeV2', function () {
         expect(dLbtcSupplyAfter - dLbtcSupplyBefore).to.be.eq(amount);
       });
     });
+    describe('Destination caller is specified and optional bridge message is provided', function () {
+      let sender: Signer;
+      let recipient: Signer;
+      let dCaller: Signer;
+      let amount: bigint;
+      let payload: string;
+      let proof: string;
+      let payloadHash: string;
+      const optionalData = '0x1234567890abcdef11111deadbeef22222decaf33333';
+
+      before(async () => {
+        await snapshot.restore();
+        globalNonce = 1;
+
+        await dbridge.connect(owner).setTokenRateLimits(dLBTC, {
+          chainId: lChainId,
+          limit: AMOUNT * 100n,
+          window: 300n
+        });
+        await sbridge.connect(owner).setSenderConfig(signer1, 0n, true);
+
+        amount = randomBigInt(8);
+        sender = signer1;
+        recipient = signer2;
+        dCaller = signer3;
+        const fee = await sbridge.getFee(signer1);
+        const tx = await sbridge
+          .connect(signer1)
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32,bytes)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), optionalData, { value: fee });
+        let receipt = (await tx.wait()) as ContractTransactionReceipt;
+        // @ts-ignore
+        payload = (await payloadFromReceipt(receipt))?.payload;
+        expect(payload).to.not.undefined;
+
+        let res = await signPayload([notary], [true], payload);
+        proof = res.proof;
+        payloadHash = res.payloadHash;
+      });
+
+      it('deliverAndHandle by authorized caller', async () => {
+        const dLbtcSupplyBefore = await dLBTC.totalSupply();
+
+        const tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, proof);
+        await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
+        await expect(tx)
+          .to.emit(dmailbox, 'MessageDelivered')
+          .withArgs(payloadHash, dCaller.address, globalNonce, encode(['address'], [sbridge.address]), payload);
+        await expect(tx)
+          .to.emit(dbridge, 'WithdrawFromBridge')
+          .withArgs(recipient.address, lChainId, dLBTC.address, amount);
+        await expect(tx).to.emit(dmailbox, 'MessageHandled').withArgs(payloadHash, dCaller.address, optionalData);
+        await expect(tx).to.changeTokenBalance(dLBTC, recipient.address, amount);
+
+        const dLbtcSupplyAfter = await dLBTC.totalSupply();
+        expect(dLbtcSupplyAfter - dLbtcSupplyBefore).to.be.eq(amount);
+      });
+
+      it('deliver another message from the same src', async () => {
+        let amount = randomBigInt(6);
+        const fee = await sbridge.getFee(signer1);
+        let tx = await sbridge
+          .connect(signer1)
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32,bytes)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), optionalData, { value: fee });
+        globalNonce++;
+        let receipt = (await tx.wait()) as ContractTransactionReceipt;
+        // @ts-ignore
+        payload = (await payloadFromReceipt(receipt))?.payload;
+        expect(payload).to.not.undefined;
+
+        let res = await signPayload([notary], [true], payload);
+        const dLbtcSupplyBefore = await dLBTC.totalSupply();
+
+        tx = await dmailbox.connect(dCaller).deliverAndHandle(payload, res.proof);
+        await expect(tx).to.not.emit(dmailbox, 'MessageHandleError');
+        await expect(tx)
+          .to.emit(dmailbox, 'MessageDelivered')
+          .withArgs(res.payloadHash, dCaller.address, globalNonce, encode(['address'], [sbridge.address]), payload);
+        await expect(tx)
+          .to.emit(dbridge, 'WithdrawFromBridge')
+          .withArgs(recipient.address, lChainId, dLBTC.address, amount);
+        await expect(tx).to.emit(dmailbox, 'MessageHandled').withArgs(res.payloadHash, dCaller.address, optionalData);
+        await expect(tx).to.changeTokenBalance(dLBTC, recipient.address, amount);
+
+        const dLbtcSupplyAfter = await dLBTC.totalSupply();
+        expect(dLbtcSupplyAfter - dLbtcSupplyBefore).to.be.eq(amount);
+      });
+    });
 
     describe('Caller is arbitrary', function () {
       let recipient: Signer;
@@ -1143,7 +1276,7 @@ describe('BridgeV2', function () {
           sBridgeBytes: () => sBridgeBytes,
           bodyModifier: (body: string): string => body,
           customError: (arg: any) =>
-            dbridge.interface.encodeErrorResult('BridgeV2_VersionMismatch', [1n, arg.msgVersion()])
+            dbridge.interface.encodeErrorResult('BridgeV2_VersionMismatch', [1n, 2n, arg.msgVersion()])
         },
         {
           name: 'tokens recipient is 0 address',
@@ -1179,7 +1312,18 @@ describe('BridgeV2', function () {
           customError: (arg: any) => dbridge.interface.encodeErrorResult('BridgeV2_BadMsgSender', [])
         },
         {
-          name: 'invalid body length',
+          name: 'invalid body length (less than min)',
+          msgVersion: () => 1n,
+          dstToken: () => dLBTC.address,
+          tokenRecipient: () => signer1.address,
+          amount: () => randomBigInt(8),
+          messagePath: () => messagePath,
+          sBridgeBytes: () => sBridgeBytes,
+          bodyModifier: (body: string): string => body.substring(0, body.length - 2),
+          customError: (arg: any) => dbridge.interface.encodeErrorResult('BridgeV2_InvalidMsgBodyLength', [129, 128])
+        },
+        {
+          name: 'invalid body length (more than min)',
           msgVersion: () => 1n,
           dstToken: () => dLBTC.address,
           tokenRecipient: () => signer1.address,
@@ -1187,7 +1331,7 @@ describe('BridgeV2', function () {
           messagePath: () => messagePath,
           sBridgeBytes: () => sBridgeBytes,
           bodyModifier: (body: string): string => body + 'aa',
-          customError: (arg: any) => dbridge.interface.encodeErrorResult('BridgeV2_InvalidMsgBodyLength', [129, 130])
+          customError: (arg: any) => dbridge.interface.encodeErrorResult('BridgeV2_VersionMismatch', [1, 2, 1])
         }
         // {
         //   name: 'Correct',
