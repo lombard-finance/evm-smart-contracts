@@ -74,7 +74,7 @@ interface IBridgeV2 {
     function mailbox() external view returns (address);
 
     function MSG_VERSION() external view returns (uint8);
-    // function MSG_VERSIONS() external view returns (uint8[] memory);
+    function MSG_VERSION_MIN() external view returns (uint8);
 
     function deposit(
         bytes32 destinationChain,
