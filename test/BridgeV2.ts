@@ -373,7 +373,7 @@ describe('BridgeV2', function () {
       const dCaller = encode(['address'], [ethers.ZeroAddress]);
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, AMOUNT]
+        [await sbridge.MSG_VERSION_MIN(), encode(['address'], [dLBTC.address]), sender, recipient, AMOUNT]
       );
 
       const payload = getGMPPayload(
@@ -429,7 +429,7 @@ describe('BridgeV2', function () {
       const amount = randomBigInt(10);
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, amount]
+        [await sbridge.MSG_VERSION_MIN(), encode(['address'], [dLBTC.address]), sender, recipient, amount]
       );
       const payload = getGMPPayload(
         encode(['address'], [smailbox.address]),
@@ -534,7 +534,7 @@ describe('BridgeV2', function () {
 
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [dLBTC.address]), sender, recipient, amount]
+        [await sbridge.MSG_VERSION_MIN(), encode(['address'], [dLBTC.address]), sender, recipient, amount]
       );
       const payload = getGMPPayload(
         encode(['address'], [smailbox.address]),
@@ -599,7 +599,7 @@ describe('BridgeV2', function () {
       const amount = randomBigInt(10);
       const body = ethers.solidityPacked(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'uint256'],
-        [await sbridge.MSG_VERSION(), encode(['address'], [newDstToken]), sender, recipient, amount]
+        [await sbridge.MSG_VERSION_MIN(), encode(['address'], [newDstToken]), sender, recipient, amount]
       );
 
       const payload = getGMPPayload(

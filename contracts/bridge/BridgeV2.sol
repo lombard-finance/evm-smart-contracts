@@ -764,7 +764,7 @@ contract BridgeV2 is
         if (optionalMessage.length == 0) {
             return
                 abi.encodePacked(
-                    MSG_VERSION,
+                    MSG_VERSION_MIN,
                     destinationToken,
                     sender,
                     recipient,
