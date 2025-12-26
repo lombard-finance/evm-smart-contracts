@@ -43,6 +43,11 @@
       "RMN": "0xba3f6251de62dED61Ff98590cB2fDf6871FbB991",
       "CLAdapter": "0x3d90195D7c9BB0839652dc6B37bF93294d762cb9",
       "LombardTokenPool": "0x220699d93e6628289cbeB93503d07426c133253B"
+    },
+    "stakeAndBake": {
+      "StakeAndBake": "0x77eD6a84fEF665156e81247ECbd43A847B8A6398",
+      "TellerWithMultiAssetSupportDepositor": "0xD7B84B9168a140522E1075113EA347006ea5012f",
+      "ERC4626VaultWrapper": "0xC01838486b9Ab27ec71880E2c9Dd8a0c2C305c6f"
     }
   },
   "bscTestnet": {
@@ -73,7 +78,8 @@
     },
     "stakeAndBake": {
       "StakeAndBake": "0x72143309A662bDB4aad5cA65Ab59eD8977D047C5",
-      "TellerWithMultiAssetSupportDepositor": "0xc09EdE0045844E7a6208Ed964A5D8CF7Fe0E7b20"
+      "TellerWithMultiAssetSupportDepositor": "0x26b669238FA8a28CA665e0E0271e7212d0d5aAa7",
+      "ERC4626VaultWrapper": "0xC01838486b9Ab27ec71880E2c9Dd8a0c2C305c6f"
     }
   },
   "baseSepolia": {
