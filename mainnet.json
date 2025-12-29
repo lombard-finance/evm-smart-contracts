@@ -41,6 +41,9 @@
       "StakeAndBake_stakedLBTC_Veda": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
       "TellerWithMultiAssetSupportDepositor_stakedLBTC_Veda": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
+    "veda": {
+      "ERC4626VaultWrapper": "0x3a4baaBf4DC9910596821615e848f0e6545762F3"
+    },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
       "LBTCOFTAdapter_swell": "0x37E92d760a15231e652a2C502182a6b44c7510c0",
@@ -94,6 +97,9 @@
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
       "TellerWithMultiAssetSupportDepositor": "0xBb92c89608cFAbdAb47aAFb0954D98f13576AD68"
     },
+    "veda": {
+      "ERC4626VaultWrapper": "0x3a4baaBf4DC9910596821615e848f0e6545762F3"
+    },
     "cubist": {
       "BasculeV2": "0x93D0a45766413517E4F122F0ee73254357DF0Fa1"
     }
@@ -136,6 +142,9 @@
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
       "TellerWithMultiAssetSupportDepositor": "0x7c38ffD0F0d7706017b2ac89aE1009D81C33192e"
+    },
+    "veda": {
+      "ERC4626VaultWrapper": "0x3a4baaBf4DC9910596821615e848f0e6545762F3"
     },
     "cubist": {
       "BasculeV2": "0x937ae3923eF063BE92816F48c9364Dd38AF169dA"
