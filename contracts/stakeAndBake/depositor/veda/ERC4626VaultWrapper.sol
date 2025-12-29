@@ -206,6 +206,10 @@ contract ERC4626VaultWrapper is
         emit StakeAndBakeRemoved(stakeAndBake);
     }
 
+    function teller() public view returns (ITeller) {
+        return _getERC4626VaultWrapperStorage().teller;
+    }
+
     /**
      * @dev Override of the decimals function to satisfy both ERC20Upgradeable and ERC20PausableUpgradeable
      */
