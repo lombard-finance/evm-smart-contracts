@@ -464,8 +464,8 @@
       "ChainSelector": "6093540873831549674",
       "Router": "0xfa546248C54939AA6C48279CdC1EAf9A1125c411",
       "RMN": "0xA27056438FfA1f286AB197488808692F0db93F8B",
-      "LombardTokenPoolV2_stakedLBTC": "",
-      "LombardTokenPoolV2_nativeLBTC": ""
+      "LombardTokenPoolV2_stakedLBTC": "0xD7F069e67345ED91AC699e7EcFDc211782495888",
+      "LombardTokenPoolV2_nativeLBTC": "0xa9FC147f45239b56781D09ec748df194d54A7913"
     },
     "cubist": {
       "BasculeV2": "0x8Bbc480999277bCAbF5861C59BCEbFA54956117a"
