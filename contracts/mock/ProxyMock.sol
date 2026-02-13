@@ -10,5 +10,5 @@ contract ProxyMock is Initializable {
         _disableInitializers();
     }
 
-    function initialize() external initializer {}
+    function initialize() external {}
 }

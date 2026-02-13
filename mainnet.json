@@ -81,7 +81,9 @@
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
-      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "NativeLBTC_mock": "",
+      "AssetRouter_mock": ""
     },
     "BTCB": {
       "BTCB": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
@@ -127,7 +129,9 @@
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "DepositNotarizationBlacklist": "0xdf0D1818C5276aD63Ce73E20223657d4920E5e82",
       "PoR": "0xe7Ebc588F4EC9297d9867aD75a9b5D86848c8018",
-      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "NativeLBTC_mock": "",
+      "AssetRouter_mock": ""
     },
     "CBBTC": {
       "CBBTC": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
