@@ -323,6 +323,23 @@ contract BridgeV2 is
         return _getFee(_getStorage(), sender, body);
     }
 
+    /// @notice Get the fee for relaying bridge message through GMP protocol.
+    /// @param sender The caller of deposit method
+    /// @return fee The fee in native currency to be paid during deposit
+    function getFeeWithOptionalMsg(
+        address sender,
+        bytes calldata optionalMessage
+    ) external view returns (uint256) {
+        bytes memory body = _encodeMsg(
+            bytes32(0),
+            bytes32(0),
+            bytes32(0),
+            uint256(0),
+            optionalMessage
+        );
+        return _getFee(_getStorage(), sender, body);
+    }
+
     /**
      * @notice Deposits on behalf of the `sender` and burns tokens from `msg.sender` in order to mint on `destinationChain`.
      * Emits a `DepositToBridge` event.
