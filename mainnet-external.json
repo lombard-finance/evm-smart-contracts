@@ -8,17 +8,17 @@
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Mailbox_mock": "",
-      "BridgeV2_mock": "",
-      "StakedLBTCOracle_mock": "",
-      "NativeLBTC_mock_mock": "",
-      "AssetRouter_mock": ""
+      "Mailbox_mock": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2_mock": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
+      "StakedLBTCOracle_mock": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "NativeLBTC_mock_mock": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "AssetRouter_mock": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
     },
     "community": {
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "stakeAndBake": {
-      "StakeAndBake_mock": ""
+      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x7B3784AD646C10A8Ddf42b47a4f4bd9aFD351E54"
@@ -37,14 +37,14 @@
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
-      "NativeLBTC_mock": "",
-      "AssetRouter_mock": ""
+      "NativeLBTC_mock": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "AssetRouter_mock": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
     },
     "community": {
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "stakeAndBake": {
-      "StakeAndBake_mock": ""
+      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef"
     },
     "chainlink": {
       "ChainSelector": "9043146809313071210",
