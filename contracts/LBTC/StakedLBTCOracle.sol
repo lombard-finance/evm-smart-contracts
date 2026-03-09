@@ -54,6 +54,7 @@ contract StakedLBTCOracle is
         uint256 maxAheadInterval;
         /// @dev diff between current and new ratio in percent, measured to 6 signs (0.000001% ... 100%)
         uint32 ratioThreshold;
+        uint256 prevSwitchTime;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakedLBTCOracle")) - 1)) & ~bytes32(uint256(0xff))
@@ -219,6 +220,7 @@ contract StakedLBTCOracle is
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (block.timestamp >= $.switchTime) {
             $.prevRatio = $.currRatio;
+            $.prevSwitchTime = $.switchTime;
         }
         $.currRatio = ratio_;
         $.switchTime = switchTime_;
@@ -268,7 +270,7 @@ contract StakedLBTCOracle is
         if (block.timestamp >= $.switchTime) {
             return ($.currRatio, $.switchTime);
         }
-        return ($.prevRatio, 0);
+        return ($.prevRatio, $.prevSwitchTime);
     }
     /// @dev not zero
     function _changeConsortium(address newVal) internal {

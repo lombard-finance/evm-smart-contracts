@@ -300,6 +300,7 @@ describe('StakedLBTCOracle', function () {
       await time.increaseTo(defaultSwitchTime + 86400 * 10);
 
       const ratioBefore = await oracle.ratio();
+      const rateBefore = (e18 * e18) / ratioBefore;
       const newRatio = (ratioBefore * 99n) / 100n;
       const newRate = (e18 * e18 * 100n) / (ratioBefore * 99n);
       const newRatioSwitchTime = (await time.latest()) + 600;
@@ -313,10 +314,17 @@ describe('StakedLBTCOracle', function () {
       expect(nextRatio).to.be.eq(newRatio);
       expect(switchTime).to.be.eq(newRatioSwitchTime);
 
+      let [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.lessThan(newRatioSwitchTime);
+      expect(answer).to.be.closeTo(rateBefore, 2n);
+      expect(startedAt).to.be.lessThan(newRatioSwitchTime);
+      expect(updatedAt).to.be.eq(startedAt);
+      expect(answeredInRound).to.be.eq(roundId);
+
       await time.increaseTo(newRatioSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(newRatio);
 
-      const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
       expect(roundId).to.be.eq(newRatioSwitchTime);
       expect(answer).to.be.closeTo(newRate, 2n);
       expect(startedAt).to.be.eq(newRatioSwitchTime);
