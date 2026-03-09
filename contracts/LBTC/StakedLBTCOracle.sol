@@ -155,6 +155,33 @@ contract StakedLBTCOracle is
         return Math.mulDiv(1 ether, 1 ether, _ratio(), Math.Rounding.Ceil);
     }
 
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        )
+    {
+        (uint256 ratio_, uint256 timestamp) = _ratioWithTimestamp();
+        uint256 rate = Math.mulDiv(
+            1 ether,
+            1 ether,
+            ratio_,
+            Math.Rounding.Ceil
+        );
+        return (
+            uint80(timestamp),
+            int256(rate),
+            timestamp,
+            timestamp,
+            uint80(timestamp)
+        );
+    }
+
     function _publishNewRatio(
         bytes calldata rawPayload,
         bytes calldata proof
@@ -226,6 +253,13 @@ contract StakedLBTCOracle is
         return $.prevRatio;
     }
 
+    function _ratioWithTimestamp() internal view returns (uint256, uint256) {
+        StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
+        if (block.timestamp >= $.switchTime) {
+            return ($.currRatio, $.switchTime);
+        }
+        return ($.prevRatio, 0);
+    }
     /// @dev not zero
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);

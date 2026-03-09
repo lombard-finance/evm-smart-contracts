@@ -116,6 +116,15 @@ describe('StakedLBTCOracle', function () {
       expect(await oracle.getRate()).to.be.eq(e18);
     });
 
+    it('Get latestRoundData', async function () {
+      const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(0);
+      expect(answer).to.be.eq(e18);
+      expect(startedAt).to.be.eq(0);
+      expect(updatedAt).to.be.eq(0);
+      expect(answeredInRound).to.be.eq(0);
+    });
+
     it('Switch to the next ratio', async function () {
       await time.increaseTo(defaultSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(defaultNextRatio);
@@ -315,6 +324,14 @@ describe('StakedLBTCOracle', function () {
       const [nextRatio, switchTime] = await oracle.nextRatio();
       expect(nextRatio).to.be.eq(newRatio);
       expect(switchTime).to.be.eq(newRatioSwitchTime);
+
+      const newRate = await oracle.getRate();
+      const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(newRatioSwitchTime);
+      expect(answer).to.be.eq(newRate);
+      expect(startedAt).to.be.eq(newRatioSwitchTime);
+      expect(updatedAt).to.be.eq(newRatioSwitchTime);
+      expect(answeredInRound).to.be.eq(newRatioSwitchTime);
     });
 
     const args = [

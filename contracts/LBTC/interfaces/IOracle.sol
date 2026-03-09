@@ -12,4 +12,14 @@ interface IOracle {
     function getRate() external view returns (uint256);
     function token() external view returns (address);
     function denomHash() external view returns (bytes32);
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        );
 }
