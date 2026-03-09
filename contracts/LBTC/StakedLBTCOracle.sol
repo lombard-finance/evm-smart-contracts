@@ -5,12 +5,14 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 
 contract StakedLBTCOracle is
     IOracle,
+    AggregatorV3Interface,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable
 {
@@ -18,6 +20,7 @@ contract StakedLBTCOracle is
     error RatioInitializedAlready();
     error TooBigRatioChange();
     error WrongToken();
+    error UnexpectedTimestampFormat(uint256 ts);
 
     event Oracle_ConsortiumChanged(
         address indexed prevVal,
@@ -173,6 +176,9 @@ contract StakedLBTCOracle is
             ratio_,
             Math.Rounding.Ceil
         );
+        if (timestamp >= type(uint80).max) {
+            revert UnexpectedTimestampFormat(timestamp);
+        }
         return (
             uint80(timestamp),
             int256(rate),
@@ -180,6 +186,10 @@ contract StakedLBTCOracle is
             timestamp,
             uint80(timestamp)
         );
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
     }
 
     function _publishNewRatio(
