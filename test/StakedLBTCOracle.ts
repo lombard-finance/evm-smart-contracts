@@ -116,6 +116,15 @@ describe('StakedLBTCOracle', function () {
       expect(await oracle.getRate()).to.be.eq(e18);
     });
 
+    it('Get latestRoundData', async function () {
+      const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(0);
+      expect(answer).to.be.eq(e18);
+      expect(startedAt).to.be.eq(0);
+      expect(updatedAt).to.be.eq(0);
+      expect(answeredInRound).to.be.eq(0);
+    });
+
     it('Switch to the next ratio', async function () {
       await time.increaseTo(defaultSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(defaultNextRatio);
@@ -262,6 +271,7 @@ describe('StakedLBTCOracle', function () {
         await time.increase(86400 - 600);
         const ratioBefore = await oracle.ratio();
         const newRatio = (ratioBefore * 999n) / 1000n;
+        const newRate = (e18 * e18 * 1000n) / (ratioBefore * 999n);
         const newRatioSwitchTime = (await time.latest()) + 600;
         const payload = getPayloadForAction([stLbtcDenomHash, newRatio, newRatioSwitchTime], RATIO_UPDATE);
         const { proof } = await signPayload([notary1, notary2], [true, true], payload);
@@ -275,6 +285,14 @@ describe('StakedLBTCOracle', function () {
 
         await time.increaseTo(newRatioSwitchTime + 1);
         expect(await oracle.ratio()).to.be.eq(newRatio);
+        expect(await oracle.getRate()).to.be.closeTo(newRate, 2n);
+
+        const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+        expect(roundId).to.be.eq(newRatioSwitchTime);
+        expect(answer).to.be.closeTo(newRate, 2n);
+        expect(startedAt).to.be.eq(newRatioSwitchTime);
+        expect(updatedAt).to.be.eq(newRatioSwitchTime);
+        expect(answeredInRound).to.be.eq(newRatioSwitchTime);
       }
     });
 
@@ -282,7 +300,9 @@ describe('StakedLBTCOracle', function () {
       await time.increaseTo(defaultSwitchTime + 86400 * 10);
 
       const ratioBefore = await oracle.ratio();
+      const rateBefore = (e18 * e18) / ratioBefore;
       const newRatio = (ratioBefore * 99n) / 100n;
+      const newRate = (e18 * e18 * 100n) / (ratioBefore * 99n);
       const newRatioSwitchTime = (await time.latest()) + 600;
       const payload = getPayloadForAction([stLbtcDenomHash, newRatio, newRatioSwitchTime], RATIO_UPDATE);
       const { proof } = await signPayload([notary1, notary2], [true, true], payload);
@@ -294,8 +314,22 @@ describe('StakedLBTCOracle', function () {
       expect(nextRatio).to.be.eq(newRatio);
       expect(switchTime).to.be.eq(newRatioSwitchTime);
 
+      let [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.lessThan(newRatioSwitchTime);
+      expect(answer).to.be.closeTo(rateBefore, 2n);
+      expect(startedAt).to.be.lessThan(newRatioSwitchTime);
+      expect(updatedAt).to.be.eq(startedAt);
+      expect(answeredInRound).to.be.eq(roundId);
+
       await time.increaseTo(newRatioSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(newRatio);
+
+      [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(newRatioSwitchTime);
+      expect(answer).to.be.closeTo(newRate, 2n);
+      expect(startedAt).to.be.eq(newRatioSwitchTime);
+      expect(updatedAt).to.be.eq(newRatioSwitchTime);
+      expect(answeredInRound).to.be.eq(newRatioSwitchTime);
     });
 
     it('publishNewRatio() when switch time is in the past', async function () {
@@ -315,6 +349,14 @@ describe('StakedLBTCOracle', function () {
       const [nextRatio, switchTime] = await oracle.nextRatio();
       expect(nextRatio).to.be.eq(newRatio);
       expect(switchTime).to.be.eq(newRatioSwitchTime);
+
+      const newRate = await oracle.getRate();
+      const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(newRatioSwitchTime);
+      expect(answer).to.be.eq(newRate);
+      expect(startedAt).to.be.eq(newRatioSwitchTime);
+      expect(updatedAt).to.be.eq(newRatioSwitchTime);
+      expect(answeredInRound).to.be.eq(newRatioSwitchTime);
     });
 
     const args = [

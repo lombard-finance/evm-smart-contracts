@@ -31,4 +31,18 @@ contract RatioFeedMock is IOracle {
     function denomHash() external view returns (bytes32) {
         return bytes32(0);
     }
+
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        )
+    {
+        return (uint80(0), int256(1e36 / _ratio), 0, 0, uint80(0));
+    }
 }
