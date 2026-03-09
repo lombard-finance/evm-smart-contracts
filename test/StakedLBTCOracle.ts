@@ -271,7 +271,7 @@ describe('StakedLBTCOracle', function () {
         await time.increase(86400 - 600);
         const ratioBefore = await oracle.ratio();
         const newRatio = (ratioBefore * 999n) / 1000n;
-        const newRate = e18 * e18 * 1000n / (ratioBefore * 999n);
+        const newRate = (e18 * e18 * 1000n) / (ratioBefore * 999n);
         const newRatioSwitchTime = (await time.latest()) + 600;
         const payload = getPayloadForAction([stLbtcDenomHash, newRatio, newRatioSwitchTime], RATIO_UPDATE);
         const { proof } = await signPayload([notary1, notary2], [true, true], payload);
