@@ -116,7 +116,7 @@ describe('StakedLBTCOracle', function () {
       expect(await oracle.getRate()).to.be.eq(e18);
     });
 
-    it('Get latestRoundData', async function () {
+    it('Get latestRoundData before default switch', async function () {
       const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
       expect(roundId).to.be.eq(0);
       expect(answer).to.be.eq(e18);
@@ -125,7 +125,7 @@ describe('StakedLBTCOracle', function () {
       expect(answeredInRound).to.be.eq(0);
     });
 
-    it('Switch to the next ratio', async function () {
+    it('Switch to the next default ratio', async function () {
       await time.increaseTo(defaultSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(defaultNextRatio);
       expect(await oracle.getRate()).to.be.closeTo((e18 * e18) / defaultNextRatio, 1n);
@@ -133,6 +133,15 @@ describe('StakedLBTCOracle', function () {
       const [nextRatio, switchTime] = await oracle.nextRatio();
       expect(nextRatio).to.be.eq(defaultNextRatio);
       expect(switchTime).to.be.eq(defaultSwitchTime);
+    });
+
+    it('latestRoundData updates after switch time', async function () {
+      const [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(defaultSwitchTime);
+      expect(answer).to.be.closeTo((e18 * e18) / defaultNextRatio, 1n);
+      expect(startedAt).to.be.eq(defaultSwitchTime);
+      expect(updatedAt).to.be.eq(defaultSwitchTime);
+      expect(answeredInRound).to.be.eq(defaultSwitchTime);
     });
   });
 
@@ -226,6 +235,7 @@ describe('StakedLBTCOracle', function () {
       await time.increase(86400 - 600);
       const ratioBefore = await oracle.ratio();
       const newRatio = ratioBefore - randomBigInt(5);
+      const newRate = (e18 * e18) / newRatio;
       const newRatioSwitchTime = (await time.latest()) + 600;
       const payload = getPayloadForAction([stLbtcDenomHash, newRatio, newRatioSwitchTime], RATIO_UPDATE);
       const { proof } = await signPayload([notary1, notary2], [true, true], payload);
@@ -237,31 +247,82 @@ describe('StakedLBTCOracle', function () {
       expect(nextRatio).to.be.eq(newRatio);
       expect(switchTime).to.be.eq(newRatioSwitchTime);
 
+      let [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(defaultSwitchTime);
+      expect(answer).to.be.closeTo((e18 * e18) / defaultNextRatio, 1n);
+      expect(startedAt).to.be.eq(defaultSwitchTime);
+      expect(updatedAt).to.be.eq(defaultSwitchTime);
+      expect(answeredInRound).to.be.eq(defaultSwitchTime);
+
+      // Fast-forward to the switch time
       await time.increaseTo(newRatioSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(newRatio);
+
+      [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(newRatioSwitchTime);
+      expect(answer).to.be.closeTo(newRate, 1n);
+      expect(startedAt).to.be.eq(newRatioSwitchTime);
+      expect(updatedAt).to.be.eq(newRatioSwitchTime);
+      expect(answeredInRound).to.be.eq(newRatioSwitchTime);
     });
 
-    it('publishNewRatio() publish new ratio before the next one was applied', async function () {
-      let newRatioSwitchTime = (await time.latest()) + 86400;
-      const ratioBefore = await oracle.ratio();
-      let payload = getPayloadForAction([stLbtcDenomHash, ratioBefore, newRatioSwitchTime], RATIO_UPDATE);
-      let signed = await signPayload([notary1, notary2], [true, true], payload);
-      await oracle.connect(signer1).publishNewRatio(payload, signed.proof);
+    /*
+    The ratio can be replaced with a newer one within the defaultMaxAheadInterval. The replaced ratio will never
+    take effect. In order to do so, the replacing ratio must have a greater switch time, but not more than
+    defaultMaxAheadInterval.
+     */
+    it('publishNewRatio() overwrites nextRatio before it takes effect', async function () {
+      await time.increaseTo(defaultSwitchTime);
 
-      const newRatio = ratioBefore - randomBigInt(5);
-      newRatioSwitchTime++;
-      payload = getPayloadForAction([stLbtcDenomHash, newRatio, newRatioSwitchTime], RATIO_UPDATE);
+      // Set the ratio that is going to be skipped
+      let skippedRatioSwitchTime = defaultSwitchTime + 3600;
+      const skippedRatio = defaultNextRatio - randomBigInt(5);
+      let payload = getPayloadForAction([stLbtcDenomHash, skippedRatio, skippedRatioSwitchTime], RATIO_UPDATE);
       let { proof } = await signPayload([notary1, notary2], [true, true], payload);
+      await oracle.connect(signer1).publishNewRatio(payload, proof);
+
+      // Publish another ratio that replaces the current next one
+      const replacingRatio = skippedRatio - randomBigInt(5);
+      const replaceTime = defaultSwitchTime + 86400;
+      payload = getPayloadForAction([stLbtcDenomHash, replacingRatio, replaceTime], RATIO_UPDATE);
+      ({ proof } = await signPayload([notary1, notary2], [true, true], payload));
       await expect(oracle.connect(signer1).publishNewRatio(payload, proof))
         .to.emit(oracle, 'Oracle_RatioChanged')
-        .withArgs(ratioBefore, newRatio, newRatioSwitchTime);
+        .withArgs(defaultNextRatio, replacingRatio, replaceTime);
 
-      const [nextRatio, switchTime] = await oracle.nextRatio();
-      expect(nextRatio).to.be.eq(newRatio);
-      expect(switchTime).to.be.eq(newRatioSwitchTime);
+      // The next ratio is not equal to the skipped one
+      let [nextRatio, switchTime] = await oracle.nextRatio();
+      expect(nextRatio).to.be.eq(replacingRatio);
+      expect(switchTime).to.be.eq(replaceTime);
 
-      await time.increaseTo(newRatioSwitchTime + 1);
-      expect(await oracle.ratio()).to.be.eq(newRatio);
+      // The latest round is still the default one
+      let [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(defaultSwitchTime);
+      expect(answer).to.be.closeTo((e18 * e18) / defaultNextRatio, 1n);
+      expect(startedAt).to.be.eq(defaultSwitchTime);
+      expect(updatedAt).to.be.eq(defaultSwitchTime);
+      expect(answeredInRound).to.be.eq(defaultSwitchTime);
+
+      // Fast-forward time to the skipped ratio time of switch
+      await time.increaseTo(skippedRatioSwitchTime + 1);
+
+      // Skipped ratio did not take effect on the round data
+      [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(defaultSwitchTime);
+      expect(answer).to.be.closeTo((e18 * e18) / defaultNextRatio, 1n);
+      expect(startedAt).to.be.eq(defaultSwitchTime);
+      expect(updatedAt).to.be.eq(defaultSwitchTime);
+      expect(answeredInRound).to.be.eq(defaultSwitchTime);
+
+      // Fast-forward time to the switch time of replacing ratio
+      await time.increaseTo(replaceTime + 1);
+      expect(await oracle.ratio()).to.be.eq(replacingRatio);
+      [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
+      expect(roundId).to.be.eq(replaceTime);
+      expect(answer).to.be.closeTo((e18 * e18) / replacingRatio, 1n);
+      expect(startedAt).to.be.eq(replaceTime);
+      expect(updatedAt).to.be.eq(replaceTime);
+      expect(answeredInRound).to.be.eq(replaceTime);
     });
 
     it('publishNewRatio() publish many times', async function () {
@@ -315,11 +376,11 @@ describe('StakedLBTCOracle', function () {
       expect(switchTime).to.be.eq(newRatioSwitchTime);
 
       let [roundId, answer, startedAt, updatedAt, answeredInRound] = await oracle.latestRoundData();
-      expect(roundId).to.be.lessThan(newRatioSwitchTime);
-      expect(answer).to.be.closeTo(rateBefore, 2n);
-      expect(startedAt).to.be.lessThan(newRatioSwitchTime);
-      expect(updatedAt).to.be.eq(startedAt);
-      expect(answeredInRound).to.be.eq(roundId);
+      expect(roundId).to.be.eq(defaultSwitchTime);
+      expect(answer).to.be.closeTo((e18 * e18) / defaultNextRatio, 1n);
+      expect(startedAt).to.be.eq(defaultSwitchTime);
+      expect(updatedAt).to.be.eq(defaultSwitchTime);
+      expect(answeredInRound).to.be.eq(defaultSwitchTime);
 
       await time.increaseTo(newRatioSwitchTime + 1);
       expect(await oracle.ratio()).to.be.eq(newRatio);
