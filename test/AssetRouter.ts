@@ -99,7 +99,8 @@ describe('AssetRouter', function () {
     stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
       await consortium.getAddress(),
       treasury.address,
-      owner.address
+      owner.address,
+      0n
     ]);
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
@@ -116,20 +117,17 @@ describe('AssetRouter', function () {
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 
     // Minter
-    await stakedLbtc.connect(owner).addMinter(minter.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     // Claimer
-    await stakedLbtc.connect(owner).addClaimer(claimer.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
     // Operator
-    await stakedLbtc.connect(owner).changeOperator(operator.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.OPERATOR_ROLE(), operator);
     // Pauser
-    await stakedLbtc.connect(owner).changePauser(pauser.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.PAUSER_ROLE(), pauser.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
-
-    // Initialize permit module
-    await stakedLbtc.connect(owner).reinitialize();
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -171,7 +169,7 @@ describe('AssetRouter', function () {
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 516, true);
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await nativeLbtc.connect(owner).changeAssetRouter(assetRouter.address);
-    await stakedLbtc.connect(owner).addMinter(assetRouter.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), assetRouter.address);
 
     await expect(

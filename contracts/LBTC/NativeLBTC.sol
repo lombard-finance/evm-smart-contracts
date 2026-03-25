@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
@@ -16,11 +15,7 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
  */
-contract NativeLBTC is
-    INativeLBTC,
-    BaseLBTC,
-    AccessControlDefaultAdminRulesUpgradeable
-{
+contract NativeLBTC is INativeLBTC, BaseLBTC {
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct NativeLBTCStorage {
         // slot: 20 + 8 + 1 | 29/32

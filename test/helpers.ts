@@ -280,12 +280,22 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function initStakedLBTC(owner: string, treasury: string, consortium: string = ethers.ZeroAddress) {
+export async function initStakedLBTC(
+  owner: string,
+  treasury: string,
+  consortium: string = ethers.ZeroAddress,
+  initialOwnerDelay: bigint = 0n
+) {
   if (consortium === ethers.ZeroAddress) {
     const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
     consortium = await c.getAddress();
   }
-  const lbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [consortium, treasury, owner]);
+  const lbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
+    consortium,
+    treasury,
+    owner,
+    initialOwnerDelay
+  ]);
   lbtc.address = await lbtc.getAddress();
   return lbtc;
 }
@@ -293,7 +303,8 @@ export async function initStakedLBTC(owner: string, treasury: string, consortium
 export async function initNativeLBTC(
   owner: string,
   treasury: string,
-  consortium: string = ethers.ZeroAddress
+  consortium: string = ethers.ZeroAddress,
+  initialOwnerDelay: bigint = 0n
 ): Promise<NativeLBTC & Addressable> {
   if (consortium === ethers.ZeroAddress) {
     const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
@@ -305,7 +316,7 @@ export async function initNativeLBTC(
     'Native LBTC',
     'nativeLBTC',
     owner,
-    0n
+    initialOwnerDelay
   ]);
   lbtc.address = await lbtc.getAddress();
   return lbtc;

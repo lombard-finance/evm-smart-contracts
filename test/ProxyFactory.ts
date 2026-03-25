@@ -34,7 +34,8 @@ describe('ProxyFactory', () => {
     let data = lbtcImplementation.interface.encodeFunctionData('initialize', [
       deployer.address,
       deployer.address,
-      deployer.address
+      deployer.address,
+      0n
     ]);
 
     const proxyAddress = await proxyFactory.getDeployed(salt);

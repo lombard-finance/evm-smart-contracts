@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -16,9 +17,12 @@ import {Actions} from "../libs/Actions.sol";
  * @author Lombard.finance
  * @notice Implements basic communication with Bridge contract.
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
+ * @dev Shared ERC20 + {AccessControlDefaultAdminRulesUpgradeable}. Role ids (`OPERATOR_ROLE`, etc.) live on each concrete token.
+ *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
  */
 abstract contract BaseLBTC is
     IBaseLBTC,
+    AccessControlDefaultAdminRulesUpgradeable,
     ERC20PausableUpgradeable,
     ERC20PermitUpgradeable,
     ReentrancyGuardUpgradeable

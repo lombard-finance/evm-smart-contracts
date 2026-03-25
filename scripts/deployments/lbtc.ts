@@ -17,10 +17,11 @@ task('deploy-lbtc', 'Deploys the StakedLBTC contract')
   .addParam('treasury', 'The address of the treasury', 'self')
   .addParam('admin', 'The owner of the proxy', 'self')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
+  .addOptionalParam('adminChangeDelay', 'Default admin delay (seconds) for AccessControlDefaultAdminRules', '0')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
-    const { ledgerNetwork, consortium, treasury, admin, proxyFactoryAddr } = taskArgs;
+    const { ledgerNetwork, consortium, treasury, admin, proxyFactoryAddr, adminChangeDelay } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     let owner = await signer.getAddress();
@@ -36,15 +37,11 @@ task('deploy-lbtc', 'Deploys the StakedLBTC contract')
 
     const data = await create3(
       'StakedLBTC',
-      [consortium, treasuryAddr, owner],
+      [consortium, treasuryAddr, owner, adminChangeDelay],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
       hre,
       'LBTC'
     );
-
-    // reinitialize
-    const lbtc = await ethers.getContractAt('StakedLBTC', data.proxy);
-    await lbtc.reinitialize();
   });

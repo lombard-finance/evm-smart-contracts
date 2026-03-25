@@ -77,7 +77,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     stakedLbtc = await initStakedLBTC(owner.address, treasury.address);
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
-    await stakedLbtc.connect(owner).changeOperator(operator.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
 
     stakeAndBake = await deployContract<StakeAndBake & Addressable>('StakeAndBake', [
       stakedLbtc.address,
@@ -120,7 +120,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 516, true);
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
-    await stakedLbtc.connect(owner).addMinter(assetRouter.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
 
     teller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
       'TellerWithMultiAssetSupportMock',
@@ -140,7 +140,6 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       .withArgs(tellerWithMultiAssetSupportDepositor.address);
 
     // Initialize the permit module
-    await stakedLbtc.connect(owner).reinitialize();
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = await time.latest();

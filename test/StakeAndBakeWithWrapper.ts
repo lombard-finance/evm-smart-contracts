@@ -44,6 +44,7 @@ const ONE_SHARE = 100000000n;
 const CHAIN_ID: string = encode(['uint256'], [1]);
 const DAY = 86400;
 
+// TODO: disable this test for now
 describe('StakeandBake_with_ERC4626VaultWrapper', function () {
   let _: Signer,
     owner: Signer,
@@ -106,8 +107,8 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     //   console.log(`LBTC transfer from (${from}) to (${to}) ${amount}`);
     // });
     lbtcOwner = await impersonateWithEth('0x055E84e7FE8955E2781010B866f10Ef6E1E77e59');
-    await stakedLbtc.connect(lbtcOwner).changeOperator(operator.address);
-    await stakedLbtc.connect(lbtcOwner).addMinter(minter);
+    await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
+    await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
 
     stakeAndBake = (await ethers.getContractAt(
       'StakeAndBake',
@@ -1014,7 +1015,7 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
       const rndAddr = ethers.Wallet.createRandom();
       token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
       dummy = signer2;
-      await token.connect(owner).addMinter(owner);
+      await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 

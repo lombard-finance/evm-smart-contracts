@@ -4,12 +4,8 @@ pragma solidity 0.8.24;
 import {IBaseLBTC} from "./IBaseLBTC.sol";
 
 interface IStakedLBTC is IBaseLBTC {
+    /// @dev Used by `migrateToAccessControl` when arguments mismatch legacy state; also legacy custom errors.
     error UnauthorizedAccount(address account);
-
-    event OperatorRoleTransferred(
-        address indexed previousOperator,
-        address indexed newOperator
-    );
     event ClaimerUpdated(address indexed claimer, bool isClaimer);
     event PauserRoleTransferred(
         address indexed previousPauser,
@@ -21,6 +17,8 @@ interface IStakedLBTC is IBaseLBTC {
         bytes calldata payload,
         bytes calldata proof
     ) external returns (address);
+
     function ratio() external view returns (uint256);
+
     function getRate() external view returns (uint256);
 }

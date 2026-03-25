@@ -47,7 +47,8 @@ describe('StakedLBTCOracle', function () {
     stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
       await consortium.getAddress(),
       treasury.address,
-      owner.address
+      owner.address,
+      0n
     ]);
     stakedLbtc.address = await stakedLbtc.getAddress();
 

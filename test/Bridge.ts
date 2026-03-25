@@ -59,7 +59,8 @@ describe('Bridge', function () {
     stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [
       await consortium.getAddress(),
       treasurySource.address,
-      deployer.address
+      deployer.address,
+      0n
     ]);
     bridgeSource = await deployContract<Bridge>('Bridge', [
       await stakedLbtcSource.getAddress(),
@@ -76,7 +77,8 @@ describe('Bridge', function () {
     stakedLbtcDestination = await deployContract<StakedLBTC>('StakedLBTC', [
       await consortium.getAddress(),
       treasuryDestination.address,
-      deployer.address
+      deployer.address,
+      0n
     ]);
     bridgeDestination = await deployContract<Bridge>('Bridge', [
       await stakedLbtcDestination.getAddress(),
@@ -84,14 +86,20 @@ describe('Bridge', function () {
       deployer.address
     ]);
 
-    await stakedLbtcSource.addMinter(await bridgeSource.getAddress());
-    await stakedLbtcDestination.addMinter(await bridgeDestination.getAddress());
+    await stakedLbtcSource
+      .connect(deployer)
+      .grantRole(await stakedLbtcSource.MINTER_ROLE(), await bridgeSource.getAddress());
+    await stakedLbtcDestination
+      .connect(deployer)
+      .grantRole(await stakedLbtcDestination.MINTER_ROLE(), await bridgeDestination.getAddress());
 
     await bridgeSource.changeConsortium(await consortium.getAddress());
     await bridgeDestination.changeConsortium(await consortium.getAddress());
 
-    await stakedLbtcSource.addMinter(deployer);
-    await stakedLbtcDestination.addMinter(deployer);
+    await stakedLbtcSource.connect(deployer).grantRole(await stakedLbtcSource.MINTER_ROLE(), deployer.address);
+    await stakedLbtcDestination
+      .connect(deployer)
+      .grantRole(await stakedLbtcDestination.MINTER_ROLE(), deployer.address);
 
     // set rate limits
     const oo = {
