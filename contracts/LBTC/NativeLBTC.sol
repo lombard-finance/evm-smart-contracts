@@ -47,7 +47,6 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -100,14 +99,6 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasury(newValue);
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
     }
 
     /**

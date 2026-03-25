@@ -243,31 +243,31 @@ describe('StakedLBTC', function () {
           .withArgs(pauserRole, newPauser, owner.address);
       });
 
-      it('pause() pauser can set on pause', async function () {
-        await expect(stakedLbtc.connect(pauser).pause()).to.emit(stakedLbtc, 'Paused').withArgs(pauser.address);
+      it('pauseTransfers() pauser can set on pause', async function () {
+        await expect(stakedLbtc.connect(pauser).pauseTransfers()).to.emit(stakedLbtc, 'Paused').withArgs(pauser.address);
         expect(await stakedLbtc.paused()).to.be.true;
       });
 
-      it('pause() reverts when called by not an pauser', async function () {
+      it('pauseTransfers() reverts when called by not an pauser', async function () {
         const pauserRole = await stakedLbtc.PAUSER_ROLE();
-        await expect(stakedLbtc.connect(owner).pause())
+        await expect(stakedLbtc.connect(owner).pauseTransfers())
           .to.revertedWithCustomError(stakedLbtc, 'AccessControlUnauthorizedAccount')
           .withArgs(owner.address, pauserRole);
       });
 
-      it('unpause() turns off enforced pause', async function () {
-        await stakedLbtc.connect(pauser).pause();
+      it('unpauseTransfers() turns off enforced pause', async function () {
+        await stakedLbtc.connect(pauser).pauseTransfers();
         expect(await stakedLbtc.paused()).to.be.true;
 
-        await expect(stakedLbtc.connect(owner).unpause()).to.emit(stakedLbtc, 'Unpaused').withArgs(owner.address);
+        await expect(stakedLbtc.connect(owner).unpauseTransfers()).to.emit(stakedLbtc, 'Unpaused').withArgs(owner.address);
         expect(await stakedLbtc.paused()).to.be.false;
       });
 
-      it('unpause() reverts when called by not an owner', async function () {
-        await stakedLbtc.connect(pauser).pause();
+      it('unpauseTransfers() reverts when called by not an owner', async function () {
+        await stakedLbtc.connect(pauser).pauseTransfers();
         expect(await stakedLbtc.paused()).to.be.true;
 
-        await expect(stakedLbtc.connect(pauser).unpause())
+        await expect(stakedLbtc.connect(pauser).unpauseTransfers())
           .to.revertedWithCustomError(stakedLbtc, 'AccessControlUnauthorizedAccount')
           .withArgs(pauser.address, DEFAULT_ADMIN_ROLE);
       });
@@ -902,7 +902,7 @@ describe('StakedLBTC', function () {
       });
 
       it('mint() reverts when paused', async function () {
-        await stakedLbtc.connect(pauser).pause();
+        await stakedLbtc.connect(pauser).pauseTransfers();
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         // @ts-ignore
         await expect(stakedLbtc.connect(signer1)['mint(bytes,bytes)'](payload, proof)).to.be.revertedWithCustomError(
@@ -1160,7 +1160,7 @@ describe('StakedLBTC', function () {
         });
 
         it('batchMint() reverts when paused', async function () {
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
           await expect(
             stakedLbtc
               .connect(minter)
@@ -1238,7 +1238,7 @@ describe('StakedLBTC', function () {
         });
 
         it('batchMint() reverts when paused', async function () {
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
           await expect(
             stakedLbtc
               .connect(signer1)
@@ -1390,7 +1390,7 @@ describe('StakedLBTC', function () {
         });
 
         it('batchMintWithFee() reverts when paused', async function () {
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
           await expect(
             stakedLbtc.connect(claimer).batchMintWithFee(
               //@ts-ignore
@@ -1947,7 +1947,7 @@ describe('StakedLBTC', function () {
       const sender = signer1;
       const amount = randomBigInt(8);
       await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1, amount);
-      await stakedLbtc.connect(pauser).pause();
+      await stakedLbtc.connect(pauser).pauseTransfers();
       await expect(stakedLbtc.connect(sender).redeem(amount)).to.be.revertedWithCustomError(
         stakedLbtc,
         'EnforcedPause'
@@ -2075,8 +2075,8 @@ describe('StakedLBTC', function () {
       const sender = signer1;
       await nativeLBTC.connect(minter).mint(sender, randomBigInt(8));
       const amount = await nativeLBTC.balanceOf(sender);
-      await stakedLbtc.connect(pauser).pause();
-      await nativeLBTC.connect(pauser).pause();
+      await stakedLbtc.connect(pauser).pauseTransfers();
+      await nativeLBTC.connect(pauser).pauseTransfers();
 
       await expect(stakedLbtc.connect(sender).deposit(amount)).to.be.revertedWithCustomError(
         stakedLbtc,

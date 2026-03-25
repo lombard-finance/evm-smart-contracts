@@ -89,7 +89,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
 
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev Matches OpenZeppelin `OwnableUpgradeable` namespace (pre-migration proxies only).
@@ -211,14 +210,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasury(newValue);
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
     }
 
     function changeAssetRouter(

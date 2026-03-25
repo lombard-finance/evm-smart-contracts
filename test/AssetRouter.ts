@@ -175,12 +175,12 @@ describe('AssetRouter', function () {
     await expect(
       assetRouter
         .connect(owner)
-        ['changeRedeemForBtcMinAmount(address,uint256)'](stakedLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT)
+      ['changeRedeemForBtcMinAmount(address,uint256)'](stakedLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT)
     );
     await expect(
       assetRouter
         .connect(owner)
-        ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT)
+      ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT)
     );
 
     snapshot = await takeSnapshot();
@@ -867,7 +867,7 @@ describe('AssetRouter', function () {
       });
 
       it('mint() reverts when paused', async function () {
-        await stakedLbtc.connect(pauser).pause();
+        await stakedLbtc.connect(pauser).pauseTransfers();
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         // @ts-ignore
         await expect(assetRouter.connect(signer1).mint(payload, proof)).to.be.revertedWithCustomError(
@@ -1156,7 +1156,7 @@ describe('AssetRouter', function () {
         });
 
         it('batchMint() emits error when token is on pause', async function () {
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
 
           let tx = await assetRouter
             .connect(signer1)
@@ -1164,7 +1164,7 @@ describe('AssetRouter', function () {
           await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
           await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
 
-          await stakedLbtc.connect(owner).unpause();
+          await stakedLbtc.connect(owner).unpauseTransfers();
           tx = await assetRouter.connect(signer1).batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
         });
@@ -1312,7 +1312,7 @@ describe('AssetRouter', function () {
         });
 
         it('batchMintWithFee() emits error when token is on pause', async function () {
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
 
           let tx = await assetRouter.connect(claimer).batchMintWithFee(
             //@ts-ignore
@@ -1324,7 +1324,7 @@ describe('AssetRouter', function () {
           await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
           await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
 
-          await stakedLbtc.connect(owner).unpause();
+          await stakedLbtc.connect(owner).unpauseTransfers();
           tx = await assetRouter.connect(signer1).batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
         });
@@ -1718,7 +1718,7 @@ describe('AssetRouter', function () {
 
           const tx = await assetRouter
             .connect(sender)
-            ['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount);
+          ['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount);
           await expect(tx)
             .to.emit(mailbox, 'MessageSent')
             .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, payload);
@@ -1800,7 +1800,7 @@ describe('AssetRouter', function () {
         it('redeem() reverts when contract paused', async function () {
           const sender = signer1;
           const amount = randomBigInt(6);
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
           await expect(
             assetRouter.connect(sender)['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount)
           ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
@@ -1895,9 +1895,9 @@ describe('AssetRouter', function () {
 
           const tx = await assetRouter
             .connect(sender)
-            [
-              'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
-            ](sender.address, toChain, stakedLbtc.address, toToken, recipient, amount);
+          [
+            'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
+          ](sender.address, toChain, stakedLbtc.address, toToken, recipient, amount);
           await expect(tx)
             .to.emit(mailbox, 'MessageSent')
             .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, payload);
@@ -2062,9 +2062,9 @@ describe('AssetRouter', function () {
             await expect(
               assetRouter
                 .connect(arg.msgSender())
-                [
-                  'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
-                ](arg.fromAddress(), arg.toChainId, fromToken, toToken, recipient, amount)
+              [
+                'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
+              ](arg.fromAddress(), arg.toChainId, fromToken, toToken, recipient, amount)
             ).to.be.revertedWithCustomError(arg.errContract(), arg.err);
           });
         });
@@ -2077,9 +2077,9 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(sender)
-              [
-                'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
-              ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
+            [
+              'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
+            ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_RedeemNotAllowed');
         });
 
@@ -2087,13 +2087,13 @@ describe('AssetRouter', function () {
           const sender = signer1;
           const amount = randomBigInt(6);
           const recipient = encode(['address'], [sender.address]);
-          await stakedLbtc.connect(pauser).pause();
+          await stakedLbtc.connect(pauser).pauseTransfers();
           await expect(
             assetRouter
               .connect(sender)
-              [
-                'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
-              ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
+            [
+              'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
+            ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
           ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
         });
       });
@@ -2167,7 +2167,7 @@ describe('AssetRouter', function () {
 
           const tx = await assetRouter
             .connect(sender)
-            ['deposit(address,address,uint256)'](sender.address, stakedLbtc.address, amount);
+          ['deposit(address,address,uint256)'](sender.address, stakedLbtc.address, amount);
           await expect(tx)
             .to.emit(mailbox, 'MessageSent')
             .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, payload);
@@ -2191,7 +2191,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer2)
-              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, amount)
+            ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_Unauthorized');
         });
 
@@ -2207,7 +2207,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, amount)
+            ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, amount)
           )
             .to.be.revertedWithCustomError(nativeLbtc, 'ERC20InsufficientBalance')
             .withArgs(signer1.address, balance, amount);
@@ -2218,16 +2218,16 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, randomBigInt(6))
+            ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, randomBigInt(6))
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_DepositNotAllowed');
         });
 
         it('deposit() reverts when nativeLBTC paused', async function () {
-          await nativeLbtc.connect(pauser).pause();
+          await nativeLbtc.connect(pauser).pauseTransfers();
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, randomBigInt(6))
+            ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, randomBigInt(6))
           ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
         });
 
@@ -2237,7 +2237,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, minAmount - 1n)
+            ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, minAmount - 1n)
           ).to.be.revertedWithCustomError(assetRouter, 'AssertRouter_AmountTooSmall');
         });
       });
@@ -2319,7 +2319,7 @@ describe('AssetRouter', function () {
 
           const tx = await assetRouter
             .connect(sender)
-            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount);
+          ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount);
           await expect(tx)
             .to.emit(mailbox, 'MessageSent')
             .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, payload);
@@ -2348,7 +2348,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'Assets_ZeroAmount');
         });
 
@@ -2360,7 +2360,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'Assets_ZeroRecipient');
         });
 
@@ -2373,7 +2373,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChain, toToken, recipient, amount)
           )
             .to.be.revertedWithCustomError(nativeLbtc, 'ERC20InsufficientBalance')
             .withArgs(signer1.address, balance, amount);
@@ -2395,7 +2395,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_DepositNotAllowed');
         });
 
@@ -2408,7 +2408,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_DepositNotAllowed');
         });
 
@@ -2421,7 +2421,7 @@ describe('AssetRouter', function () {
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_DepositNotAllowed');
         });
 
@@ -2430,11 +2430,11 @@ describe('AssetRouter', function () {
           const toToken = stakedLbtcBytes;
           const recipient = encode(['address'], [signer1.address]);
           const amount = randomBigInt(6);
-          await nativeLbtc.connect(pauser).pause();
+          await nativeLbtc.connect(pauser).pauseTransfers();
           await expect(
             assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
+            ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
           ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
         });
       });

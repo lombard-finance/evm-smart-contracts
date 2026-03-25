@@ -18,6 +18,7 @@ import {Actions} from "../libs/Actions.sol";
  * @notice Implements basic communication with Bridge contract.
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
  * @dev Shared ERC20 + {AccessControlDefaultAdminRulesUpgradeable}. Role ids (`OPERATOR_ROLE`, etc.) live on each concrete token.
+ *      `PAUSER_ROLE` may call `pauseTransfers()` to activate {ERC20Pausable} (blocks transfers and any `_update` including mint/burn).
  *      `MINT_BURN_PAUSER_ROLE` toggles `mintBurnPaused`; concrete contracts attach `whenMintBurnAllowed` to every external path that mints or burns
  *      so ERC20 transfers stay cheap (no guard in `_update`). New supply-changing entrypoints must use that modifier.
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
@@ -43,6 +44,8 @@ abstract contract BaseLBTC is
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BaseLBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BaseLBTCStorageLocation =
         0xb916f9bd559884fff7955a8f87abe9b4ee4ee4202b8eb445cd8f820d3ee19000;
+
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     bytes32 public constant MINT_BURN_PAUSER_ROLE =
         keccak256("MINT_BURN_PAUSER_ROLE");
@@ -158,6 +161,18 @@ abstract contract BaseLBTC is
     modifier whenMintBurnAllowed() {
         _requireMintBurnAllowed();
         _;
+    }
+
+    /// @notice Activates {ERC20Pausable}: blocks transfers and all balance updates (including mint/burn) until `unpauseTransfers`.
+    /// @custom:access Caller must have `PAUSER_ROLE`
+    function pauseTransfers() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @notice Clears {ERC20Pausable} pause set by `pauseTransfers`.
+    /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
+    function unpauseTransfers() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     /**
