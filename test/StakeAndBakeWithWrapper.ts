@@ -44,8 +44,8 @@ const ONE_SHARE = 100000000n;
 const CHAIN_ID: string = encode(['uint256'], [1]);
 const DAY = 86400;
 
-// TODO: disable this test for now
-describe('StakeandBake_with_ERC4626VaultWrapper', function () {
+const describeFork = config.networks.hardhat.forking ? describe : describe.skip;
+describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
   let _: Signer,
     owner: Signer,
     stakeAndBakeOwner: HardhatEthersSigner,
@@ -76,16 +76,14 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
   let stakeAndBakeFee: bigint;
 
   before(async function () {
+    const forkConfig = config.networks.hardhat.forking;
     await network.provider.send('hardhat_reset', [
       {
-        forking: {
-          jsonRpcUrl: config.networks.hardhat.forking?.url,
-          blockNumber: config.networks.hardhat.forking?.blockNumber
-        }
+        forking: forkConfig ? { jsonRpcUrl: forkConfig.url, blockNumber: forkConfig.blockNumber } : undefined
       }
     ]);
     const block = await ethers.provider.getBlockNumber();
-    expect(block).to.be.gt(23000000, '-------- Please switch to eth fork --------');
+    expect(block).to.be.gt(23000000, 'Run with HARDHAT_FORK=1 yarn test test/StakeAndBakeWithWrapper.ts');
 
     [_, owner, signer1, signer2, signer3, notary1, operator, claimer, pauser, minter] =
       await getSignersWithPrivateKeys();
