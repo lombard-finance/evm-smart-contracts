@@ -144,7 +144,7 @@ describe('NativeLBTC', function () {
 
     await assetRouter
       .connect(owner)
-    ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
+      ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -226,7 +226,9 @@ describe('NativeLBTC', function () {
       });
 
       it('pauseTransfers() pauser can set on pause', async function () {
-        await expect(nativeLbtc.connect(pauser).pauseTransfers()).to.emit(nativeLbtc, 'Paused').withArgs(pauser.address);
+        await expect(nativeLbtc.connect(pauser).pauseTransfers())
+          .to.emit(nativeLbtc, 'Paused')
+          .withArgs(pauser.address);
         expect(await nativeLbtc.paused()).to.be.true;
       });
 
@@ -248,7 +250,9 @@ describe('NativeLBTC', function () {
         await nativeLbtc.connect(pauser).pauseTransfers();
         expect(await nativeLbtc.paused()).to.be.true;
 
-        await expect(nativeLbtc.connect(owner).unpauseTransfers()).to.emit(nativeLbtc, 'Unpaused').withArgs(owner.address);
+        await expect(nativeLbtc.connect(owner).unpauseTransfers())
+          .to.emit(nativeLbtc, 'Unpaused')
+          .withArgs(owner.address);
         expect(await nativeLbtc.paused()).to.be.false;
       });
 
