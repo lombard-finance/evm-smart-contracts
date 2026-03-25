@@ -18,7 +18,10 @@ import {Actions} from "../libs/Actions.sol";
  * @notice Implements basic communication with Bridge contract.
  * Should be extended with business logic of bridging protocols (e.g. CCIP, LayerZero).
  * @dev Shared ERC20 + {AccessControlDefaultAdminRulesUpgradeable}. Role ids (`OPERATOR_ROLE`, etc.) live on each concrete token.
+ *      `MINT_BURN_PAUSER_ROLE` toggles `mintBurnPaused`; concrete contracts attach `whenMintBurnAllowed` to every external path that mints or burns
+ *      so ERC20 transfers stay cheap (no guard in `_update`). New supply-changing entrypoints must use that modifier.
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
+ *      Shared namespaced state for `BaseLBTC` lives in `BaseLBTCStorage`; extend that struct when adding base-level fields.
  */
 abstract contract BaseLBTC is
     IBaseLBTC,
@@ -27,6 +30,23 @@ abstract contract BaseLBTC is
     ERC20PermitUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    error MintBurnPaused();
+
+    event MintBurnPauseChanged(bool paused);
+
+    /// @custom:storage-location erc7201:lombardfinance.storage.BaseLBTC
+    struct BaseLBTCStorage {
+        /// @dev When true, mint/burn entrypoints that use `whenMintBurnAllowed` revert; ERC20 transfers are unaffected.
+        bool mintBurnPaused;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BaseLBTC")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant BaseLBTCStorageLocation =
+        0xb916f9bd559884fff7955a8f87abe9b4ee4ee4202b8eb445cd8f820d3ee19000;
+
+    bytes32 public constant MINT_BURN_PAUSER_ROLE =
+        keccak256("MINT_BURN_PAUSER_ROLE");
+
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant ERC20StorageLocation =
         0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
@@ -88,6 +108,56 @@ abstract contract BaseLBTC is
         assembly {
             $.slot := EIP712StorageLocation
         }
+    }
+
+    function _getBaseLBTCStorage()
+        private
+        pure
+        returns (BaseLBTCStorage storage $)
+    {
+        assembly {
+            $.slot := BaseLBTCStorageLocation
+        }
+    }
+
+    /// @notice Whether mint/burn guard is active (ERC20 transfers unaffected).
+    function mintBurnPaused() external view returns (bool) {
+        return _getBaseLBTCStorage().mintBurnPaused;
+    }
+
+    /// @notice Activates mint/burn guard on decorated entrypoints.
+    /// @custom:access Caller must have `MINT_BURN_PAUSER_ROLE`
+    function pauseMintBurn() external onlyRole(MINT_BURN_PAUSER_ROLE) {
+        BaseLBTCStorage storage $ = _getBaseLBTCStorage();
+        if ($.mintBurnPaused) {
+            return;
+        }
+        $.mintBurnPaused = true;
+        emit MintBurnPauseChanged(true);
+    }
+
+    /// @notice Clears mint/burn guard.
+    /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
+    function unpauseMintBurn() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        BaseLBTCStorage storage $ = _getBaseLBTCStorage();
+        if (!$.mintBurnPaused) {
+            return;
+        }
+        $.mintBurnPaused = false;
+        emit MintBurnPauseChanged(false);
+    }
+
+    /// @dev Reverts if `mintBurnPaused` is set.
+    function _requireMintBurnAllowed() internal view {
+        if (_getBaseLBTCStorage().mintBurnPaused) {
+            revert MintBurnPaused();
+        }
+    }
+
+    /// @dev Use on concrete contracts for any external function that can mint or burn. Does not run on `transfer`.
+    modifier whenMintBurnAllowed() {
+        _requireMintBurnAllowed();
+        _;
     }
 
     /**

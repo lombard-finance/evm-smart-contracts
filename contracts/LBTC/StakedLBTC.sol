@@ -340,7 +340,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function mint(
         address to,
         uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _mint(to, amount);
     }
 
@@ -353,7 +353,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external onlyRole(MINTER_ROLE) {
+    ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _batchMint(to, amount);
     }
 
@@ -365,7 +365,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external nonReentrant returns (address recipient) {
+    ) external nonReentrant whenMintBurnAllowed returns (address recipient) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -381,7 +381,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function batchMint(
         bytes[] calldata payload,
         bytes[] calldata proof
-    ) external nonReentrant {
+    ) external nonReentrant whenMintBurnAllowed {
         if (paused()) {
             revert EnforcedPause();
         }
@@ -405,7 +405,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external onlyRole(CLAIMER_ROLE) {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -421,7 +421,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external onlyRole(CLAIMER_ROLE) {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         if (paused()) {
             revert EnforcedPause();
         }
@@ -464,7 +464,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
      *
      * @param amount Amount of LBTC to burn
      */
-    function burn(uint256 amount) external {
+    function burn(uint256 amount) external whenMintBurnAllowed {
         _burn(_msgSender(), amount);
     }
 
@@ -476,11 +476,11 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function burn(
         address from,
         uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _burn(from, amount);
     }
 
-    function redeem(uint256 amount) external nonReentrant {
+    function redeem(uint256 amount) external nonReentrant whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();

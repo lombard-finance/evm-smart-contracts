@@ -245,7 +245,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function mint(
         address to,
         uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _mint(to, amount);
     }
 
@@ -258,7 +258,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external onlyRole(MINTER_ROLE) {
+    ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _batchMint(to, amount);
     }
 
@@ -270,7 +270,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) public nonReentrant {
+    ) public nonReentrant whenMintBurnAllowed {
         _mint(rawPayload, proof);
     }
 
@@ -282,7 +282,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function batchMintV1(
         bytes[] calldata payload,
         bytes[] calldata proof
-    ) external {
+    ) external whenMintBurnAllowed {
         Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
@@ -310,7 +310,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external onlyRole(CLAIMER_ROLE) {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -326,7 +326,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external onlyRole(CLAIMER_ROLE) {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         Assert.equalLength(mintPayload.length, proof.length);
         Assert.equalLength(mintPayload.length, feePayload.length);
         Assert.equalLength(mintPayload.length, userSignature.length);
@@ -375,7 +375,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
      *
      * @param amount Amount of NativeLBTC to burn
      */
-    function burn(uint256 amount) external {
+    function burn(uint256 amount) external whenMintBurnAllowed {
         _burn(_msgSender(), amount);
     }
 
@@ -387,7 +387,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function burn(
         address from,
         uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _burn(from, amount);
     }
 
