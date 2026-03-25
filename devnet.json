@@ -48,6 +48,10 @@
       "StakeAndBake": "0x77eD6a84fEF665156e81247ECbd43A847B8A6398",
       "TellerWithMultiAssetSupportDepositor": "0xD7B84B9168a140522E1075113EA347006ea5012f",
       "ERC4626VaultWrapper": "0xC01838486b9Ab27ec71880E2c9Dd8a0c2C305c6f"
+    },
+    "layerZero": {
+      "LBTCOFTAdapter_LBTC_solana": "0xb1024371BAB6aF207eA7296eDb15B3ed38E1b55E",
+      "LBTCOFTAdapter_NativeBTC_solana": "0x83cb4937A080261f8C08B89617272008F85bA56E"
     }
   },
   "bscTestnet": {
