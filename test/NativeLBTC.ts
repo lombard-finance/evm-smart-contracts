@@ -238,7 +238,7 @@ describe('NativeLBTC', function () {
         await nativeLbtc.connect(signer1).pauseTransfers();
       });
 
-      it('pauseTransfers() reverts when called by not an pauser', async function () {
+      it('pauseTransfers() reverts when called by not a pauser', async function () {
         await expect(nativeLbtc.connect(owner).pauseTransfers())
           .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
           .withArgs(owner.address, await nativeLbtc.PAUSER_ROLE());

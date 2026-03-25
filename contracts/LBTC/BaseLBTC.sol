@@ -164,12 +164,14 @@ abstract contract BaseLBTC is
     }
 
     /// @notice Activates {ERC20Pausable}: blocks transfers and all balance updates (including mint/burn) until `unpauseTransfers`.
+    /// @dev Delegates to `PausableUpgradeable._pause` (uses `whenNotPaused`): reverts with `EnforcedPause` if already paused — no no-op success.
     /// @custom:access Caller must have `PAUSER_ROLE`
     function pauseTransfers() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
     /// @notice Clears {ERC20Pausable} pause set by `pauseTransfers`.
+    /// @dev Delegates to `PausableUpgradeable._unpause` (uses `whenPaused`): reverts with `ExpectedPause` if not paused — no no-op success.
     /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
     function unpauseTransfers() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();

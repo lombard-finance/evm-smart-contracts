@@ -248,7 +248,7 @@ describe('StakedLBTC', function () {
         expect(await stakedLbtc.paused()).to.be.true;
       });
 
-      it('pauseTransfers() reverts when called by not an pauser', async function () {
+      it('pauseTransfers() reverts when called by not a pauser', async function () {
         const pauserRole = await stakedLbtc.PAUSER_ROLE();
         await expect(stakedLbtc.connect(owner).pauseTransfers())
           .to.revertedWithCustomError(stakedLbtc, 'AccessControlUnauthorizedAccount')
