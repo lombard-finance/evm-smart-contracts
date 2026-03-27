@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {TokenPool} from "@chainlink/contracts-ccip/contracts/pools/TokenPool.sol";
 
 /// @dev USE ONLY FOR SCRIPTS
-interface LegacyTokenPoolV2 {
+interface ILegacyTokenPoolV2 {
     function setPath(
         uint64 remoteChainSelector,
         bytes32 lChainId,
