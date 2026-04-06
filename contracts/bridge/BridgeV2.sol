@@ -653,7 +653,7 @@ contract BridgeV2 is
     /// @return amount The amount to be minted on destination chain
     function decodeMsgBody(
         bytes memory msgBody
-    ) public pure returns (address, address, address, uint256, bytes memory) {
+    ) public pure returns (address, bytes32, address, uint256, bytes memory) {
         if (msgBody.length < MSG_LENGTH) {
             revert BridgeV2_InvalidMsgBodyLength(MSG_LENGTH, msgBody.length);
         }
@@ -720,7 +720,7 @@ contract BridgeV2 is
 
         return (
             GMPUtils.bytes32ToAddress(token),
-            GMPUtils.bytes32ToAddress(sender),
+            sender,
             GMPUtils.bytes32ToAddress(recipient),
             amount,
             optMsg
