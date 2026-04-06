@@ -524,7 +524,7 @@ describe('BridgeV2', function () {
 
       const res = await dbridge.decodeMsgBody(payload.msgBody);
       expect(res[0]).to.be.eq(dLBTC.address);
-      expect(encode(['address'], [res[1]])).to.be.eq(sender);
+      expect(encode(['bytes32'], [res[1]])).to.be.eq(sender);
       expect(encode(['address'], [res[2]])).to.be.eq(recipient);
       expect(res[3]).to.be.eq(amount);
     });
