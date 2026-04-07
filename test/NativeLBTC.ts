@@ -103,7 +103,6 @@ describe('NativeLBTC', function () {
     // Roles
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
-    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.OPERATOR_ROLE(), operator);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauser.address);
 
@@ -144,7 +143,7 @@ describe('NativeLBTC', function () {
 
     await assetRouter
       .connect(owner)
-      ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
+    ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -353,11 +352,6 @@ describe('NativeLBTC', function () {
         //   role: async () => await nativeLbtc.DEFAULT_ADMIN_ROLE(),
         //   defaultAccount: () => owner,
         // },
-        {
-          name: 'Operator',
-          role: async () => await nativeLbtc.OPERATOR_ROLE(),
-          defaultAccount: () => operator
-        }
       ];
 
       roles.forEach(function (role) {
