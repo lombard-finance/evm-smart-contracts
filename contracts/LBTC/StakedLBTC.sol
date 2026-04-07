@@ -164,26 +164,19 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
             _grantRole(OPERATOR_ROLE, $.__removed__operator);
         }
 
-        uint256 i;
-        for (i; i < minters_.length; ) {
+        for (uint256 i; i < minters_.length; ++i) {
             address a = minters_[i];
             if (!$.__removed__minters[a]) {
                 revert UnauthorizedAccount(a);
             }
             _grantRole(MINTER_ROLE, a);
-            unchecked {
-                ++i;
-            }
         }
-        for (i = 0; i < claimers_.length; ) {
+        for (uint256 i; i < claimers_.length; ++i) {
             address a = claimers_[i];
             if (!$.__removed__claimers[a]) {
                 revert UnauthorizedAccount(a);
             }
             _grantRole(CLAIMER_ROLE, a);
-            unchecked {
-                ++i;
-            }
         }
     }
 
