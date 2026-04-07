@@ -134,9 +134,8 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
 
     /// GETTERS ///
 
-    /**
-     * @notice Returns the current maximum mint fee
-     */
+    /// @notice Returns the maximum mint commission for this token from the asset router.
+    /// @return mintFee The configured max mint commission (reverts if asset router is not set).
     function getMintFee() external view returns (uint256) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         if (address($.assetRouter) == address(0)) {
@@ -172,12 +171,9 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         return address(_getNativeLBTCStorage().assetRouter);
     }
 
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     *
-     * Because NativeLBTC repsents BTC we use the same decimals.
-     *
-     */
+    /// @notice Token decimals for user-facing amounts (same as BTC).
+    /// @dev NativeLBTC represents BTC; precision matches satoshi-style 1e8 units.
+    /// @return Always 8 (BTC-style decimals).
     function decimals() public view virtual override returns (uint8) {
         return 8;
     }
@@ -218,9 +214,8 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         return redeemForBtcMinAmount;
     }
 
-    /**
-     * Get Bascule contract.
-     */
+    /// @notice Deposit monitor (Bascule) contract configured for this deployment.
+    /// @return bascule The `IBascule` instance stored in NativeLBTC storage.
     function Bascule() external view returns (IBascule) {
         return _getNativeLBTCStorage().bascule;
     }
@@ -361,20 +356,15 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         );
     }
 
-    /**
-     * @dev Burns NativeLBTC
-     *
-     * @param amount Amount of NativeLBTC to burn
-     */
+    /// @notice Burns caller's NativeLBTC balance.
+    /// @param amount Amount of NativeLBTC to burn from `msg.sender`.
     function burn(uint256 amount) external whenMintBurnAllowed {
         _burn(_msgSender(), amount);
     }
 
-    /**
-     * @dev Allows minters to burn NativeLBTC
-     *
-     * @param amount Amount of NativeLBTC to burn
-     */
+    /// @notice Burns NativeLBTC from an arbitrary holder; minter-only.
+    /// @param from Account whose NativeLBTC balance is burned.
+    /// @param amount Amount of NativeLBTC to burn.
     function burn(
         address from,
         uint256 amount
