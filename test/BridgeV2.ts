@@ -392,9 +392,9 @@ describe('BridgeV2', function () {
       await expect(
         sbridge
           .connect(signer1)
-        [
-          'deposit(bytes32,address,bytes32,uint256,bytes32)'
-        ](lChainId, sLBTC.address, recipient, AMOUNT, dCaller, { value: fee })
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, recipient, AMOUNT, dCaller, { value: fee })
       )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, dBridgeBytes, payload);
@@ -445,9 +445,9 @@ describe('BridgeV2', function () {
       const fee = await sbridge.getFee(signer1);
       const tx = await sbridge
         .connect(signer1)
-      [
-        'deposit(bytes32,address,bytes32,uint256,bytes32)'
-      ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       await expect(tx)
         .to.emit(sbridge, 'DepositToBridge')
         .withArgs(signer1, recipient, ethers.sha256(payload))
@@ -470,9 +470,9 @@ describe('BridgeV2', function () {
       const fee = await sbridge.getFee(signer1);
       const tx = await sbridge
         .connect(signer1)
-      [
-        'deposit(bytes32,address,bytes32,uint256,bytes32)'
-      ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       let receipt = (await tx.wait()) as ContractTransactionReceipt;
       globalNonce++;
       const logsData = await payloadFromReceipt(receipt);
@@ -508,9 +508,9 @@ describe('BridgeV2', function () {
       const fee = await sbridge.getFee(signer1);
       const tx = sbridge
         .connect(signer1)
-      [
-        'deposit(bytes32,address,bytes32,uint256,bytes32)'
-      ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
+        [
+          'deposit(bytes32,address,bytes32,uint256,bytes32)'
+        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee });
       await expect(tx)
         .to.emit(sbridge, 'DepositToBridge')
         .withArgs(signer1, recipient, ethers.sha256(payload))
@@ -535,9 +535,9 @@ describe('BridgeV2', function () {
       await expect(
         sbridge
           .connect(signer1)
-        [
-          'deposit(bytes32,address,bytes32,uint256,bytes32)'
-        ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee })
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: fee })
       )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(lChainId, sbridge.address, newDstBridge, anyValue);
@@ -575,9 +575,9 @@ describe('BridgeV2', function () {
       await expect(
         sbridge
           .connect(signer1)
-        [
-          'deposit(bytes32,address,bytes32,uint256,bytes32)'
-        ](newDstChain, sLBTC.address, recipient, amount, dCaller, { value: fee })
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](newDstChain, sLBTC.address, recipient, amount, dCaller, { value: fee })
       )
         .to.emit(smailbox, 'MessageSent')
         .withArgs(newDstChain, sbridge.address, newDstBridge, payload);
@@ -667,9 +667,9 @@ describe('BridgeV2', function () {
         await expect(
           sbridge
             .connect(sender)
-          [
-            'deposit(bytes32,address,bytes32,uint256,bytes32)'
-          ](arg.destinationChain(), arg.token(), arg.recipient(), arg.amount(), arg.dCaller(), { value: fee })
+            [
+              'deposit(bytes32,address,bytes32,uint256,bytes32)'
+            ](arg.destinationChain(), arg.token(), arg.recipient(), arg.amount(), arg.dCaller(), { value: fee })
         )
           // @ts-ignore
           .to.be.revertedWithCustomError(...arg.customError());
@@ -786,9 +786,9 @@ describe('BridgeV2', function () {
           const extra = arg.extra;
           const tx = await sbridge
             .connect(sender)
-          [
-            'deposit(bytes32,address,bytes32,uint256,bytes32)'
-          ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: actualFee + extra });
+            [
+              'deposit(bytes32,address,bytes32,uint256,bytes32)'
+            ](lChainId, sLBTC.address, recipient, amount, dCaller, { value: actualFee + extra });
           await expect(tx).to.emit(smailbox, 'MessageSent');
           await expect(tx).to.changeEtherBalance(sender, -(actualFee + extra), { includeFee: false });
           await expect(tx).to.changeEtherBalance(smailbox, actualFee + extra, { includeFee: false });
@@ -825,9 +825,9 @@ describe('BridgeV2', function () {
         const fee = await sbridge.getFee(signer1);
         const tx = await sbridge
           .connect(signer1)
-        [
-          'deposit(bytes32,address,bytes32,uint256,bytes32)'
-        ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
         payload = (await payloadFromReceipt(receipt))?.payload;
@@ -890,9 +890,9 @@ describe('BridgeV2', function () {
         const fee = await sbridge.getFee(signer1);
         let tx = await sbridge
           .connect(signer1)
-        [
-          'deposit(bytes32,address,bytes32,uint256,bytes32)'
-        ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [dCaller.address]), { value: fee });
         globalNonce++;
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
@@ -1052,9 +1052,9 @@ describe('BridgeV2', function () {
         const fee = await sbridge.getFee(signer1);
         const tx = await sbridge
           .connect(signer1)
-        [
-          'deposit(bytes32,address,bytes32,uint256,bytes32)'
-        ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [ethers.ZeroAddress]), { value: fee });
+          [
+            'deposit(bytes32,address,bytes32,uint256,bytes32)'
+          ](lChainId, sLBTC.address, encode(['address'], [recipient.address]), amount, encode(['address'], [ethers.ZeroAddress]), { value: fee });
         let receipt = (await tx.wait()) as ContractTransactionReceipt;
         // @ts-ignore
         payload = (await payloadFromReceipt(receipt))?.payload;
@@ -1528,9 +1528,9 @@ describe('BridgeV2', function () {
 
 async function payloadFromReceipt(receipt: ContractTransactionReceipt): Promise<
   | {
-    payload: string;
-    msgSender: string;
-  }
+      payload: string;
+      msgSender: string;
+    }
   | undefined
 > {
   const mailbox = await ethers.getContractFactory('Mailbox');
@@ -1547,7 +1547,7 @@ async function payloadFromReceipt(receipt: ContractTransactionReceipt): Promise<
           msgSender: parsed.args.msgSender
         };
       }
-    } catch { }
+    } catch {}
   }
   return;
 }

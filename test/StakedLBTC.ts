@@ -79,11 +79,7 @@ describe('StakedLBTC', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-      treasury.address,
-      owner.address,
-      0n
-    ]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
@@ -155,7 +151,7 @@ describe('StakedLBTC', function () {
 
     await assetRouter
       .connect(owner)
-    ['changeRedeemForBtcMinAmount(address,uint256)'](stakedLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
+      ['changeRedeemForBtcMinAmount(address,uint256)'](stakedLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -1126,9 +1122,9 @@ describe('StakedLBTC', function () {
         it('batchMint() minter can mint to many accounts', async function () {
           const tx = await stakedLbtc
             .connect(minter)
-          [
-            'batchMint(address[],uint256[])'
-          ]([signer1.address, signer2.address, signer3.address], [amount1, amount2, amount3]);
+            [
+              'batchMint(address[],uint256[])'
+            ]([signer1.address, signer2.address, signer3.address], [amount1, amount2, amount3]);
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2, signer3], [amount1, amount2, amount3]);
         });
 
@@ -1156,9 +1152,9 @@ describe('StakedLBTC', function () {
           await expect(
             stakedLbtc
               .connect(minter)
-            [
-              'batchMint(address[],uint256[])'
-            ]([signer1.address, signer2.address, signer3.address], [amount1, amount2, amount3])
+              [
+                'batchMint(address[],uint256[])'
+              ]([signer1.address, signer2.address, signer3.address], [amount1, amount2, amount3])
           ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
         });
       });
@@ -1178,18 +1174,18 @@ describe('StakedLBTC', function () {
         it('batchMint() anyone can mint batch of valid payloads', async function () {
           const tx = await stakedLbtc
             .connect(signer1)
-          [
-            'batchMint(bytes[],bytes[])'
-          ]([data1.payload, data2.payload, data3.payload], [data1.proof, data2.proof, data3.proof]);
+            [
+              'batchMint(bytes[],bytes[])'
+            ]([data1.payload, data2.payload, data3.payload], [data1.proof, data2.proof, data3.proof]);
           await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2, signer3], [amount1, amount2, amount3]);
         });
 
         it('batchMint() skips used payloads', async function () {
           const tx = await stakedLbtc
             .connect(signer1)
-          [
-            'batchMint(bytes[],bytes[])'
-          ]([data1.payload, data1.payload, data2.payload, data2.payload], [data1.proof, data1.proof, data2.proof, data2.proof]);
+            [
+              'batchMint(bytes[],bytes[])'
+            ]([data1.payload, data1.payload, data2.payload, data2.payload], [data1.proof, data1.proof, data2.proof, data2.proof]);
           await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
           await expect(tx)
             .to.emit(mailbox, 'MessageHandleError')
@@ -1213,7 +1209,7 @@ describe('StakedLBTC', function () {
           await expect(
             stakedLbtc
               .connect(signer1)
-            ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload, payload], [data1.proof, data2.proof, proof])
+              ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload, payload], [data1.proof, data2.proof, proof])
           ).to.be.reverted;
         });
 
@@ -1234,7 +1230,7 @@ describe('StakedLBTC', function () {
           await expect(
             stakedLbtc
               .connect(signer1)
-            ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload], [data1.proof, data2.proof])
+              ['batchMint(bytes[],bytes[])']([data1.payload, data2.payload], [data1.proof, data2.proof])
           ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
         });
       });

@@ -280,16 +280,8 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
   });
 }
 
-export async function initStakedLBTC(
-  owner: string,
-  treasury: string,
-  initialOwnerDelay: bigint = 0n
-) {
-  const lbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-    treasury,
-    owner,
-    initialOwnerDelay
-  ]);
+export async function initStakedLBTC(owner: string, treasury: string, initialOwnerDelay: bigint = 0n) {
+  const lbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury, owner, initialOwnerDelay]);
   lbtc.address = await lbtc.getAddress();
   return lbtc;
 }
@@ -454,7 +446,7 @@ export class TxBuilder {
   private _salt: BytesLike = ethers.encodeBytes32String('');
   private _delay: BigNumberish = '0';
 
-  private constructor() { }
+  private constructor() {}
 
   static new() {
     return new TxBuilder();
