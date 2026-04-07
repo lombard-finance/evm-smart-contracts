@@ -23,6 +23,7 @@ import {Actions} from "../libs/Actions.sol";
  *      so ERC20 transfers stay cheap (no guard in `_update`). New supply-changing entrypoints must use that modifier.
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
  *      Shared namespaced state for `BaseLBTC` lives in `BaseLBTCStorage`; extend that struct when adding base-level fields.
+ * @custom:security-contact legal@lombard.finance
  */
 abstract contract BaseLBTC is
     IBaseLBTC,

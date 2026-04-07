@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {IBaseLBTC} from "./IBaseLBTC.sol";
 
+/// @custom:security-contact legal@lombard.finance
 interface IStakedLBTC is IBaseLBTC {
     /// @dev Used by `migrateToAccessControl` when arguments mismatch legacy state; also legacy custom errors.
     error UnauthorizedAccount(address account);
