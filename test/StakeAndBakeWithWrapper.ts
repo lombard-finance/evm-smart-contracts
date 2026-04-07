@@ -421,9 +421,9 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
       await expect(
         erc4626Wrapper
           .connect(signer3)
-          [
-            'deposit(address,uint256,address,uint256)'
-          ](stakedLbtc.address, amountToStake, signer3.address, expectedShares)
+        [
+          'deposit(address,uint256,address,uint256)'
+        ](stakedLbtc.address, amountToStake, signer3.address, expectedShares)
       ).to.be.revertedWithCustomError(erc4626Wrapper, 'EnforcedPause');
     });
 
@@ -830,7 +830,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
 
       const tx = await erc4626Wrapper
         .connect(stakeAndBakeMock)
-        ['deposit(address,uint256,bytes)'](staker, amountToStake, depositPayload);
+      ['deposit(address,uint256,bytes)'](staker, amountToStake, depositPayload);
 
       await expect(tx)
         .to.emit(vedavault, 'Transfer')
@@ -859,7 +859,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
       await expect(
         erc4626Wrapper
           .connect(stakeAndBakeMock)
-          ['deposit(address,uint256,bytes)'](staker, amountToStake, depositPayload)
+        ['deposit(address,uint256,bytes)'](staker, amountToStake, depositPayload)
       )
         .to.be.revertedWithCustomError(erc4626Wrapper, 'UnexpectedAssetBalance')
         .withArgs(totalBalanceBefore + expectedShares, totalBalanceBefore - 1n + expectedShares);
@@ -882,9 +882,9 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
 
       const tx = await erc4626Wrapper
         .connect(signer3)
-        [
-          'deposit(address,uint256,address,uint256)'
-        ](stakedLbtc.address, amountToStake, signer3.address, expectedShares);
+      [
+        'deposit(address,uint256,address,uint256)'
+      ](stakedLbtc.address, amountToStake, signer3.address, expectedShares);
 
       await expect(tx)
         .to.emit(vedavault, 'Transfer')
@@ -905,7 +905,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
       await wbtc.connect(staker).approve(erc4626Wrapper.address, amountToStake);
       const tx = await erc4626Wrapper
         .connect(staker)
-        ['deposit(address,uint256,address,uint256)'](wbtc.address, amountToStake, signer2.address, expectedShares);
+      ['deposit(address,uint256,address,uint256)'](wbtc.address, amountToStake, signer2.address, expectedShares);
 
       await expect(tx)
         .to.emit(vedavault, 'Transfer')
@@ -1011,7 +1011,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
     before(async function () {
       await snapshot.restore();
       const rndAddr = ethers.Wallet.createRandom();
-      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
+      token = await initStakedLBTC(owner.address, rndAddr.address);
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
@@ -1046,9 +1046,9 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
 
       await erc4626Wrapper
         .connect(signer3)
-        [
-          'deposit(address,uint256,address,uint256)'
-        ](stakedLbtc.address, amountToStake, signer3.address, expectedShares);
+      [
+        'deposit(address,uint256,address,uint256)'
+      ](stakedLbtc.address, amountToStake, signer3.address, expectedShares);
 
       amountToStakeAdd = randomBigInt(8);
       expectedSharesAdd = await getShares(amountToStakeAdd, stakedLbtc.address);

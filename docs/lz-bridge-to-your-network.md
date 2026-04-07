@@ -57,7 +57,7 @@ yarn hardhat deploy-proxy-factory --network <YOUR_NETWORK>
 
 Using **Deployer** private key.
 ```bash
-yarn hardhat deploy-lbtc --consortium 0xf1Bf46D38B16573Ef5CdD44d584888E3f5A9f691 --burn-commission 18446744073709551615 --admin <OWNER> --proxy-factory-addr <PROXY_FACTORY> --network <YOUR_NETWORK>
+yarn hardhat deploy-lbtc --ledger-network mainnet --treasury <TREASURY> --admin <OWNER> --proxy-factory-addr <PROXY_FACTORY> --network <YOUR_NETWORK>
 ```
 
 #### LayerZero OFTAdapter on your chain
