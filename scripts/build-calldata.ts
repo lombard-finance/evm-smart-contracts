@@ -22,44 +22,33 @@ import { ethers, type FunctionFragment } from 'ethers';
  * `function migrateToAccessControl(address[] minters_, address[] claimers_)`.
  */
 export function encodeCalldata(functionFragment: string, args: readonly unknown[]): string {
-  const iface = new ethers.Interface([functionFragment.trim()]);
-  const fn = iface.fragments.find((f): f is FunctionFragment => f.type === 'function');
-  if (!fn) {
-    throw new Error('functionFragment must declare exactly one function');
-  }
-  return iface.encodeFunctionData(fn, args);
+    const iface = new ethers.Interface([functionFragment.trim()]);
+    const fn = iface.fragments.find((f): f is FunctionFragment => f.type === 'function');
+    if (!fn) {
+        throw new Error('functionFragment must declare exactly one function');
+    }
+    return iface.encodeFunctionData(fn, args);
 }
 
 function parseEnv(): { fragment: string; args: unknown[] } {
-  const fragment = process.env.CALLDATA_FRAGMENT?.trim();
-  const raw = process.env.CALLDATA_ARGS;
-  if (!fragment || !raw) {
-    throw new Error('Set CALLDATA_FRAGMENT and CALLDATA_ARGS.');
-  }
-  const args = JSON.parse(raw) as unknown;
-  if (!Array.isArray(args)) {
-    throw new Error('CALLDATA_ARGS must be a JSON array');
-  }
-  return { fragment, args };
+    const fragment = process.env.CALLDATA_FRAGMENT?.trim();
+    const raw = process.env.CALLDATA_ARGS;
+    if (!fragment || !raw) {
+        throw new Error('Set CALLDATA_FRAGMENT and CALLDATA_ARGS.');
+    }
+    const args = JSON.parse(raw) as unknown;
+    if (!Array.isArray(args)) {
+        throw new Error('CALLDATA_ARGS must be a JSON array');
+    }
+    return { fragment, args };
 }
 
 async function main(): Promise<void> {
-  const { fragment, args } = parseEnv();
-  console.log('Calldata: ' + encodeCalldata(fragment, args));
+    const { fragment, args } = parseEnv();
+    console.log('Calldata: ' + encodeCalldata(fragment, args));
 }
 
-/**
- * `hardhat.config.ts` imports `./scripts`, which re-exports this module. Without this guard,
- * `main()` would run at config load and again when `hardhat run` executes this file.
- */
-function invokedAsHardhatRunScript(): boolean {
-  const norm = (s: string) => s.replace(/\\/g, '/');
-  return process.argv.some(arg => norm(arg).endsWith('/build-calldata.ts') || norm(arg).endsWith('/build-calldata.js'));
-}
-
-if (invokedAsHardhatRunScript()) {
-  main().catch(error => {
+main().catch(error => {
     console.error(error);
     process.exitCode = 1;
-  });
-}
+});
