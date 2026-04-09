@@ -3,10 +3,11 @@ pragma solidity 0.8.24;
 
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {CallVerificationInput, IMerkleCallAllowlist} from "./IMerkleCallAllowlist.sol";
+import {IStrategyExecValidator} from "./IStrategyExecValidator.sol";
 
 /// @title MerkleCallAllowlist
 /// @notice On-chain verification per `docs/spec/001-merkle-call-data-allowlist.md`.
-contract MerkleCallAllowlist is IMerkleCallAllowlist {
+contract MerkleCallAllowlist is IMerkleCallAllowlist, IStrategyExecValidator {
     /// @dev Upper bound on `constraintCount` for rule version `0x03` (`docs/spec/001-merkle-call-data-allowlist.md` §14).
     uint256 public constant MAX_CONSTRAINTS = 64;
 
@@ -54,6 +55,21 @@ contract MerkleCallAllowlist is IMerkleCallAllowlist {
         }
 
         return _matchesRule(r, sender, to, value, data);
+    }
+
+    /// @inheritdoc IStrategyExecValidator
+    function isAllowed(
+        address sender,
+        address to,
+        uint256 value,
+        bytes calldata data,
+        bytes calldata validatorArgs
+    ) external view override returns (bool) {
+        CallVerificationInput memory input = abi.decode(
+            validatorArgs,
+            (CallVerificationInput)
+        );
+        return this.isAllowed(sender, to, value, data, input);
     }
 
     function _domainSeparator() private view returns (bytes32) {
