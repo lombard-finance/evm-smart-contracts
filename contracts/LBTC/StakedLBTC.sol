@@ -128,26 +128,21 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
 
     /**
      * @notice One-time migration for proxies deployed before AccessControl (reinitializer version 3).
-     * @param initialAdminDelay Default admin delay (see `AccessControlDefaultAdminRulesUpgradeable`).
-     * @param initialDefaultAdmin Must match the legacy `Ownable` owner at upgrade time.
+     * @dev Only current owner elegible to call this function.
      * @param minters_ Addresses that must have been marked minters in legacy storage; each receives `MINTER_ROLE`.
      * @param claimers_ Same for claimers / `CLAIMER_ROLE`.
      */
     function migrateToAccessControl(
-        uint48 initialAdminDelay,
-        address initialDefaultAdmin,
         address[] calldata minters_,
         address[] calldata claimers_
     ) external reinitializer(3) {
+        address sender = _msgSender();
         address legacy = _legacyOwner();
-        if (initialDefaultAdmin != legacy) {
-            revert UnauthorizedAccount(initialDefaultAdmin);
+        if (sender != legacy) {
+            revert UnauthorizedAccount(sender);
         }
 
-        __AccessControlDefaultAdminRules_init(
-            initialAdminDelay,
-            initialDefaultAdmin
-        );
+        __AccessControlDefaultAdminRules_init(0, sender);
 
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
 
