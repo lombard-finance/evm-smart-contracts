@@ -146,7 +146,7 @@ describe('NativeLBTC', function () {
 
     await assetRouter
       .connect(owner)
-    ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
+      ['changeRedeemForBtcMinAmount(address,uint256)'](nativeLbtc.address, REDEEM_FOR_BTC_MIN_AMOUNT);
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = (await ethers.provider.getBlock('latest'))!.timestamp;
@@ -313,17 +313,19 @@ describe('NativeLBTC', function () {
 
         it('batchMint(addresses,amounts) reverted', async () => {
           const amount = randomBigInt(6);
-          await expect(
-            nativeLbtc.connect(minter).batchMint([signer1], [amount])
-          ).to.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+          await expect(nativeLbtc.connect(minter).batchMint([signer1], [amount])).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
         });
 
         it('batchMintV1(payloads,proofs) reverted', async () => {
           const amount = randomBigInt(6);
           const { payload, proof } = await defaultData(signer1, amount);
-          await expect(
-            nativeLbtc.connect(minter).batchMintV1([payload], [proof])
-          ).to.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+          await expect(nativeLbtc.connect(minter).batchMintV1([payload], [proof])).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
         });
 
         it('batchMintV1WithFee() reverted', async () => {
@@ -462,7 +464,7 @@ describe('NativeLBTC', function () {
           name: 'Minter',
           role: async () => await nativeLbtc.MINTER_ROLE(),
           defaultAccount: () => minter
-        },
+        }
         //TODO: move to negative cases
         // {
         //   name: 'Default admin',
