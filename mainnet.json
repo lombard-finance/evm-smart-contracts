@@ -43,7 +43,8 @@
     },
     "veda": {
       "ERC4626VaultWrapper_BTCe": "0x3a4baaBf4DC9910596821615e848f0e6545762F3",
-      "ERC4626VaultWrapper_BTCu": "0x8501679bba4cb64aA77b2F3FA9c2C5cfF2659c4e"
+      "ERC4626VaultWrapper_BTCu": "0x8501679bba4cb64aA77b2F3FA9c2C5cfF2659c4e",
+      "ERC4626VaultWrapper_BTCmm": "0x3B5f90bCD336FA239D2b9a8C6E3FFe12a5c54a1e"
     },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
