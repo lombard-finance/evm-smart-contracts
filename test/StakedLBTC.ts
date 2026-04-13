@@ -94,12 +94,7 @@ describe('StakedLBTC', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      owner.address,
-      0n
-    ]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
@@ -221,10 +216,6 @@ describe('StakedLBTC', function () {
 
       it('treasury()', async function () {
         expect(await stakedLbtc.getTreasury()).to.equal(treasury.address);
-      });
-
-      it('consortium()', async function () {
-        expect(await stakedLbtc.consortium()).to.equal(await consortium.getAddress());
       });
 
       it('decimals()', async function () {
@@ -592,13 +583,6 @@ describe('StakedLBTC', function () {
           getter: 'getTreasury',
           event: 'TreasuryAddressChanged',
           defaultAccount: () => treasury.address
-        },
-        {
-          name: 'Consortium',
-          setter: 'changeConsortium',
-          getter: 'consortium',
-          event: 'ConsortiumChanged',
-          defaultAccount: () => consortium.address
         },
         {
           name: 'AssetRouter',
@@ -2086,7 +2070,6 @@ describe('StakedLBTC', function () {
 
     it('redeem() reverts when assetRouter is not set', async function () {
       const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        await consortium.getAddress(),
         treasury.address,
         owner.address,
         0n
@@ -2196,7 +2179,6 @@ describe('StakedLBTC', function () {
 
     it('deposit() reverts when assetRouter is not set', async function () {
       const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        await consortium.getAddress(),
         treasury.address,
         owner.address,
         0n
@@ -2210,7 +2192,6 @@ describe('StakedLBTC', function () {
 
     it('deposit() reverts when deposit route is not set', async function () {
       const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        await consortium.getAddress(),
         treasury.address,
         owner.address,
         0n

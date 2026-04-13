@@ -96,12 +96,7 @@ describe('AssetRouter', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      owner.address,
-      0n
-    ]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 

@@ -1011,7 +1011,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
     before(async function () {
       await snapshot.restore();
       const rndAddr = ethers.Wallet.createRandom();
-      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
+      token = await initStakedLBTC(owner.address, rndAddr.address);
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);

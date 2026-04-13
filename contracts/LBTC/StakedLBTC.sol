@@ -3,7 +3,8 @@ pragma solidity 0.8.24;
 
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
@@ -30,7 +31,9 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         string __removed__symbol;
         /// @custom:oz-renamed-from isWithdrawalsEnabled
         bool __removed__isWithdrawalsEnabled;
-        INotaryConsortium consortium;
+        /// @custom:deprecated Retained for storage layout only; not read or written by this implementation.
+        /// @custom:oz-renamed-from consortium
+        address __removed__consortium;
         /// @custom:oz-renamed-from isWBTCEnabled
         bool __removed_isWBTCEnabled;
         /// @custom:oz-renamed-from wbtc
@@ -105,7 +108,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     /// INTIALIZERS ///
 
     function initialize(
-        address consortium_,
         address treasury,
         address initialOwner,
         uint48 initialOwnerDelay
@@ -122,7 +124,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         __StakedLBTC_init(
             "Lombard Staked Bitcoin", // TODO: set new name
             "LBTC", // TODO: set new symbol
-            consortium_,
             treasury
         );
     }
@@ -183,12 +184,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         _changeNameAndSymbol(name_, symbol_);
     }
 
-    function changeConsortium(
-        address newVal
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeConsortium(newVal);
-    }
-
     function changeTreasuryAddress(
         address newValue
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -232,10 +227,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
                 scriptPubkey,
                 amount
             );
-    }
-
-    function consortium() external view virtual returns (INotaryConsortium) {
-        return _getStakedLBTCStorage().consortium;
     }
 
     function getAssetRouter() external view override returns (address) {
@@ -477,11 +468,9 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function __StakedLBTC_init(
         string memory name_,
         string memory symbol_,
-        address consortium_,
         address treasury
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
-        _changeConsortium(consortium_);
         _changeTreasury(treasury);
     }
 
@@ -516,14 +505,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         assembly {
             $.slot := LEGACY_OWNABLE_STORAGE_LOCATION
         }
-    }
-
-    /// @dev not zero
-    function _changeConsortium(address newVal) internal {
-        Assert.zeroAddress(newVal);
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        emit ConsortiumChanged(address($.consortium), newVal);
-        $.consortium = INotaryConsortium(newVal);
     }
 
     /// @dev `treasury` not zero

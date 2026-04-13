@@ -84,10 +84,10 @@ describe('BridgeV2', function () {
     dBridgeBytes = encode(['address'], [dbridge.address]);
 
     // Tokens
-    sLBTC = await initStakedLBTC(owner.address, owner.address, consortium.address);
+    sLBTC = await initStakedLBTC(owner.address, owner.address);
     sLBTC.address = await sLBTC.getAddress();
     await sLBTC.connect(owner).grantRole(await sLBTC.MINTER_ROLE(), minter.address);
-    dLBTC = await initStakedLBTC(owner.address, owner.address, consortium.address);
+    dLBTC = await initStakedLBTC(owner.address, owner.address);
     dLBTC.address = await dLBTC.getAddress();
     await dLBTC.connect(owner).grantRole(await dLBTC.MINTER_ROLE(), minter.address);
     await dLBTC.connect(owner).grantRole(await dLBTC.MINTER_ROLE(), dbridge.address);
@@ -326,7 +326,7 @@ describe('BridgeV2', function () {
       globalNonce = 1;
 
       const rndAddr = ethers.Wallet.createRandom();
-      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
+      token = await initStakedLBTC(owner.address, rndAddr.address);
       token.address = await token.getAddress();
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
@@ -519,7 +519,7 @@ describe('BridgeV2', function () {
     });
 
     it('Other token pair to the same chain', async () => {
-      const sLBTC = await initStakedLBTC(owner.address, owner.address, consortium.address);
+      const sLBTC = await initStakedLBTC(owner.address, owner.address);
       sLBTC.address = await sLBTC.getAddress();
       await sLBTC.connect(owner).grantRole(await sLBTC.MINTER_ROLE(), minter.address);
       await sLBTC.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
@@ -918,7 +918,7 @@ describe('BridgeV2', function () {
 
       it('deliver other token on the chain', async () => {
         const sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-        const dLBTC2 = await initStakedLBTC(owner.address, owner.address, consortium.address);
+        const dLBTC2 = await initStakedLBTC(owner.address, owner.address);
         dLBTC2.address = await dLBTC2.getAddress();
         await dLBTC2.connect(owner).grantRole(await dLBTC2.MINTER_ROLE(), dbridge.address);
         await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
@@ -1127,7 +1127,7 @@ describe('BridgeV2', function () {
           encode(['address', 'bytes32', 'bytes32'], [newSrcMailbox, newSrcChain, lChainId])
         );
 
-        unknownToken = await initStakedLBTC(owner.address, owner.address, consortium.address);
+        unknownToken = await initStakedLBTC(owner.address, owner.address);
         unknownToken.address = await unknownToken.getAddress();
         await unknownToken.connect(owner).grantRole(await unknownToken.MINTER_ROLE(), dbridge.address);
       });
@@ -1261,7 +1261,7 @@ describe('BridgeV2', function () {
       globalNonce = 1;
       // Map another pair
       sLBTC2 = encode(['address'], [ethers.Wallet.createRandom().address]);
-      dLBTC2 = await initStakedLBTC(owner.address, owner.address, consortium.address);
+      dLBTC2 = await initStakedLBTC(owner.address, owner.address);
       dLBTC2.address = await dLBTC2.getAddress();
       await dLBTC2.connect(owner).grantRole(await dLBTC2.MINTER_ROLE(), dbridge.address);
       await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
