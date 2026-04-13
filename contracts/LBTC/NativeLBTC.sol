@@ -14,6 +14,7 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  * @title ERC20 representation of Liquid Bitcoin
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact legal@lombard.finance
  */
 contract NativeLBTC is INativeLBTC, BaseLBTC {
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
