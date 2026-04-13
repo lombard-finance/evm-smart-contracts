@@ -7,7 +7,6 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {EIP1271SignatureUtils} from "../libs/EIP1271SignatureUtils.sol";
 import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {Actions} from "../libs/Actions.sol";
@@ -57,6 +56,11 @@ abstract contract BaseLBTC is
     bytes32 private constant EIP712StorageLocation =
         0xa16a46d94261c7517cc8ff89f61c0ce93598e3c849801011dee649a6a557d100;
 
+    /// @notice EIP-712 digest for a fee approval users sign off-chain (`Actions.FEE_APPROVAL_EIP712_ACTION`).
+    /// @dev Includes `block.chainid`, `fee`, and `expiry` in the struct hash; uses this contract's EIP-712 domain via `_hashTypedDataV4`.
+    /// @param fee Maximum fee the approval allows.
+    /// @param expiry Unix timestamp after which the approval is invalid.
+    /// @return digest Typed data hash to sign or verify with `EIP712`.
     function getFeeDigest(
         uint256 fee,
         uint256 expiry
@@ -124,6 +128,7 @@ abstract contract BaseLBTC is
     }
 
     /// @notice Whether mint/burn guard is active (ERC20 transfers unaffected).
+    /// @return paused True when mint/burn entrypoints are guarded; false when they are allowed.
     function mintBurnPaused() external view returns (bool) {
         return _getBaseLBTCStorage().mintBurnPaused;
     }

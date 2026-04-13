@@ -117,13 +117,15 @@ describe('AssetRouter', function () {
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 
     // Minter
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     // Claimer
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
+    // Operator (StakedLBTC only; NativeLBTC has no OPERATOR_ROLE)
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator);
     // Pauser
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.PAUSER_ROLE(), pauser.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
 
     bascule = await deployContract<Bascule>(
