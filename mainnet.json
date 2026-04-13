@@ -42,7 +42,8 @@
       "TellerWithMultiAssetSupportDepositor_stakedLBTC_Veda": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
     "veda": {
-      "ERC4626VaultWrapper": "0x3a4baaBf4DC9910596821615e848f0e6545762F3"
+      "ERC4626VaultWrapper_BTCe": "0x3a4baaBf4DC9910596821615e848f0e6545762F3",
+      "ERC4626VaultWrapper_BTCu": "0x8501679bba4cb64aA77b2F3FA9c2C5cfF2659c4e"
     },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
