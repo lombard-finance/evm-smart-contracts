@@ -68,7 +68,6 @@ describe('StakeAndBakeForNativeToken', function () {
 
     nativeLbtc = await initNativeLBTC(owner.address, treasury.address, consortium.address);
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
-    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.OPERATOR_ROLE(), operator);
 
     stakeAndBakeForNativeToken = await deployContract<StakeAndBakeNativeToken & Addressable>(
       'StakeAndBakeNativeToken',
