@@ -100,7 +100,7 @@ task('setup-token-pool-v2', 'Configure LombardTokenPoolV2 smart-contract')
       legacy
     } = taskArgs;
 
-    const tokenPool = await ethers.getContractAt(legacy ? 'LegacyTokenPoolV2' : 'LombardTokenPoolV2', tokenPoolArg);
+    const tokenPool = await ethers.getContractAt(legacy ? 'ILegacyTokenPoolV2' : 'LombardTokenPoolV2', tokenPoolArg);
 
     if (remoteSelector && remotePool && remoteToken) {
       const remotePoolBytes = remotePool.length != 42 ? remotePool : encoder.encode(['address'], [remotePool]);
