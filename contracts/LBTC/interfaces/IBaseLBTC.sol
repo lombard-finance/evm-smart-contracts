@@ -41,15 +41,27 @@ interface IBaseLBTC {
     event AssetRouterChanged(address indexed newVal, address indexed prevVal);
 
     function burn(uint256 amount) external;
+
     function burn(address from, uint256 amount) external;
+
     function mint(address to, uint256 amount) external;
+
     function getTreasury() external view returns (address);
+
     function getAssetRouter() external view returns (address);
+
     function isNative() external view returns (bool);
+
     function getRedeemFee() external view returns (uint256);
+
+    /// @notice EIP-712 digest for an off-chain fee approval bound to this token's domain.
+    /// @param fee Fee value encoded in the approval struct.
+    /// @param expiry Expiry timestamp encoded in the approval struct.
+    /// @return digest Typed data hash compatible with `getFeeDigest` on the implementation.
     function getFeeDigest(
         uint256 fee,
         uint256 expiry
     ) external view returns (bytes32);
+
     function isRedeemsEnabled() external view returns (bool);
 }

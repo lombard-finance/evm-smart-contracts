@@ -6,18 +6,15 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
-import {Actions} from "../libs/Actions.sol";
 import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
-import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {Validation} from "./libraries/Validation.sol";
-import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact legal@lombard.finance
  */
 contract StakedLBTC is IStakedLBTC, BaseLBTC {
     using SafeERC20 for IERC20;
@@ -133,26 +130,21 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
 
     /**
      * @notice One-time migration for proxies deployed before AccessControl (reinitializer version 3).
-     * @param initialAdminDelay Default admin delay (see `AccessControlDefaultAdminRulesUpgradeable`).
-     * @param initialDefaultAdmin Must match the legacy `Ownable` owner at upgrade time.
+     * @dev Only current owner elegible to call this function.
      * @param minters_ Addresses that must have been marked minters in legacy storage; each receives `MINTER_ROLE`.
      * @param claimers_ Same for claimers / `CLAIMER_ROLE`.
      */
     function migrateToAccessControl(
-        uint48 initialAdminDelay,
-        address initialDefaultAdmin,
         address[] calldata minters_,
         address[] calldata claimers_
     ) external reinitializer(3) {
+        address sender = _msgSender();
         address legacy = _legacyOwner();
-        if (initialDefaultAdmin != legacy) {
-            revert UnauthorizedAccount(initialDefaultAdmin);
+        if (sender != legacy) {
+            revert UnauthorizedAccount(sender);
         }
 
-        __AccessControlDefaultAdminRules_init(
-            initialAdminDelay,
-            initialDefaultAdmin
-        );
+        __AccessControlDefaultAdminRules_init(0, sender);
 
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
 
@@ -163,26 +155,19 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
             _grantRole(OPERATOR_ROLE, $.__removed__operator);
         }
 
-        uint256 i;
-        for (i; i < minters_.length; ) {
+        for (uint256 i; i < minters_.length; ++i) {
             address a = minters_[i];
             if (!$.__removed__minters[a]) {
                 revert UnauthorizedAccount(a);
             }
             _grantRole(MINTER_ROLE, a);
-            unchecked {
-                ++i;
-            }
         }
-        for (i = 0; i < claimers_.length; ) {
+        for (uint256 i; i < claimers_.length; ++i) {
             address a = claimers_[i];
             if (!$.__removed__claimers[a]) {
                 revert UnauthorizedAccount(a);
             }
             _grantRole(CLAIMER_ROLE, a);
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -248,12 +233,9 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         return address(_getStakedLBTCStorage().assetRouter);
     }
 
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     *
-     * Because LBTC repsents BTC we use the same decimals.
-     *
-     */
+    /// @notice Token decimals for user-facing amounts (same as BTC).
+    /// @dev StakedLBTC represents BTC-denominated stake; precision matches 1e8 units.
+    /// @return Always 8 (BTC-style decimals).
     function decimals() public view virtual override returns (uint8) {
         return 8;
     }
@@ -283,9 +265,8 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         return redeemForBtcMinAmount;
     }
 
-    /**
-     * Get Bascule contract.
-     */
+    /// @notice Bascule contract address as reported by the asset router.
+    /// @return bascule The Bascule address from `IAssetRouter.bascule()`.
     function Bascule() external view returns (address) {
         return address(_getStakedLBTCStorage().assetRouter.bascule());
     }
@@ -301,10 +282,14 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         return isRedeemEnabled;
     }
 
+    /// @notice Staking ratio for this token from the asset router's oracle (or router fallback for unset oracle).
+    /// @return value Ratio scaled as reported by `IAssetRouter.ratio` for `address(this)` (typically 1e18-based).
     function ratio() external view override returns (uint256) {
         return _getStakedLBTCStorage().assetRouter.ratio(address(this));
     }
 
+    /// @notice Conversion rate derived from the staking ratio (inverse relationship in the staked oracle implementation).
+    /// @return rate Rate from `IAssetRouter.getRate` for `address(this)`; used for amount conversions alongside `ratio`.
     function getRate() external view override returns (uint256) {
         return _getStakedLBTCStorage().assetRouter.getRate(address(this));
     }
@@ -338,9 +323,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     }
 
     /**
-     * @notice Mint StakedLBTC by proving a stake action happened
-     * @param rawPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
+     * @notice Mint StakedLBTC by proving a deposit action happened.
+     * @param rawPayload The message with the deposit data.
+     * @param proof Signature of the consortium approving the mint.
+     * @return recipient Address that received the minted tokens (from the asset router).
      */
     function mint(
         bytes calldata rawPayload,
@@ -439,20 +425,15 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         );
     }
 
-    /**
-     * @dev Burns LBTC
-     *
-     * @param amount Amount of LBTC to burn
-     */
+    /// @notice Burns caller's LBTC balance.
+    /// @param amount Amount of LBTC to burn from `msg.sender`.
     function burn(uint256 amount) external whenMintBurnAllowed {
         _burn(_msgSender(), amount);
     }
 
-    /**
-     * @dev Allows minters to burn LBTC
-     *
-     * @param amount Amount of LBTC to burn
-     */
+    /// @notice Burns LBTC from an arbitrary holder; minter-only.
+    /// @param from Account whose LBTC balance is burned.
+    /// @param amount Amount of LBTC to burn.
     function burn(
         address from,
         uint256 amount
@@ -460,6 +441,9 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         _burn(from, amount);
     }
 
+    /// @notice Redeem StakedLBTC into NativeLBTC on this chain via the asset router (cross-module redeem path).
+    /// @dev Forwards to `IAssetRouter.redeem` with `fromToken` = this contract; burns/redeems per router rules.
+    /// @param amount StakedLBTC amount the caller redeems.
     function redeem(uint256 amount) external nonReentrant whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
@@ -468,7 +452,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         $.assetRouter.redeem(_msgSender(), address(this), amount);
     }
 
-    function deposit(uint256 amount) external nonReentrant {
+    /// @notice Start a deposit: burn the caller's NativeLBTC and enqueue a ledger deposit toward this staked token route.
+    /// @dev Forwards to `IAssetRouter.deposit(address,address,uint256)`; enforces router min amount and route type.
+    /// @param amount NativeLBTC amount to burn from `msg.sender` for the deposit intent.
+    function deposit(uint256 amount) external nonReentrant whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
