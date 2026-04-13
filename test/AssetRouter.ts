@@ -36,6 +36,7 @@ import {
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
+import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 
 const DAY = 86400;
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
@@ -122,6 +123,8 @@ describe('AssetRouter', function () {
     // Pauser
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINT_BURN_PAUSER_ROLE(), pauser);
+    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauser);
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -860,14 +863,30 @@ describe('AssetRouter', function () {
         ).to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
       });
 
-      it('mint() reverts when paused', async function () {
-        await stakedLbtc.connect(pauser).pauseTransfers();
-        const { payload, proof } = await defaultData(signer1, randomBigInt(8));
-        // @ts-ignore
-        await expect(assetRouter.connect(signer1).mint(payload, proof)).to.be.revertedWithCustomError(
-          assetRouter,
-          'AssetRouter_MintProcessingError'
-        );
+      describe('mint() pause guards', function () {
+        beforeEach(async function () {
+          await snapshot.restore();
+        });
+
+        it('mint() reverts when transfer paused', async function () {
+          await stakedLbtc.connect(pauser).pauseTransfers();
+          const { payload, proof } = await defaultData(signer1, randomBigInt(8));
+          // @ts-ignore
+          await expect(assetRouter.connect(signer1).mint(payload, proof)).to.be.revertedWithCustomError(
+            assetRouter,
+            'AssetRouter_MintProcessingError'
+          );
+        });
+
+        it('mint() reverts when mint/burn paused', async function () {
+          await stakedLbtc.connect(pauser).pauseMintBurn();
+          const { payload, proof } = await defaultData(signer1, randomBigInt(8));
+          // @ts-ignore
+          await expect(assetRouter.connect(signer1).mint(payload, proof)).to.be.revertedWithCustomError(
+            assetRouter,
+            'AssetRouter_MintProcessingError'
+          );
+        });
       });
     });
 
@@ -1149,18 +1168,39 @@ describe('AssetRouter', function () {
           ).to.be.revertedWithCustomError(stakedLbtc, 'NonEqualLength');
         });
 
-        it('batchMint() emits error when token is on pause', async function () {
-          await stakedLbtc.connect(pauser).pauseTransfers();
+        describe('batchMint() pause guards', function () {
+          it('batchMint() emits BatchMintError when transfer paused', async function () {
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            const tx = await assetRouter
+              .connect(signer1)
+              .batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
+          });
 
-          let tx = await assetRouter
-            .connect(signer1)
-            .batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
-          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
-          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
+          it('batchMint() succeeds after unpauseTransfers', async function () {
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            let tx = await assetRouter
+              .connect(signer1)
+              .batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
 
-          await stakedLbtc.connect(owner).unpauseTransfers();
-          tx = await assetRouter.connect(signer1).batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
-          await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
+            await stakedLbtc.connect(owner).unpauseTransfers();
+            tx = await assetRouter
+              .connect(signer1)
+              .batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
+            await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
+          });
+
+          it('batchMint() emits BatchMintError when mint/burn paused', async function () {
+            await stakedLbtc.connect(pauser).pauseMintBurn();
+            const mb1 = await defaultData(signer1, amount1);
+            const mb2 = await defaultData(signer2, amount2);
+            const tx = await assetRouter.connect(signer1).batchMint([mb1.payload, mb2.payload], [mb1.proof, mb2.proof]);
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(mb1.payloadHash, '', '0x');
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(mb2.payloadHash, '', '0x');
+          });
         });
       });
 
@@ -1305,22 +1345,53 @@ describe('AssetRouter', function () {
             .withArgs(signer1.address, await assetRouter.CLAIMER_ROLE());
         });
 
-        it('batchMintWithFee() emits error when token is on pause', async function () {
-          await stakedLbtc.connect(pauser).pauseTransfers();
+        describe('batchMintWithFee() pause guards', function () {
+          it('batchMintWithFee() emits BatchMintError when transfer paused', async function () {
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            const tx = await assetRouter.connect(claimer).batchMintWithFee(
+              //@ts-ignore
+              [data1.payload, data2.payload, data3.payload],
+              [data1.proof, data2.proof, data3.proof],
+              [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
+              [data1.userSignature, data2.userSignature, data3.userSignature]
+            );
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
+          });
 
-          let tx = await assetRouter.connect(claimer).batchMintWithFee(
-            //@ts-ignore
-            [data1.payload, data2.payload, data3.payload],
-            [data1.proof, data2.proof, data3.proof],
-            [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
-            [data1.userSignature, data2.userSignature, data3.userSignature]
-          );
-          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
-          await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
+          it('batchMintWithFee() succeeds after unpauseTransfers', async function () {
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            let tx = await assetRouter.connect(claimer).batchMintWithFee(
+              //@ts-ignore
+              [data1.payload, data2.payload, data3.payload],
+              [data1.proof, data2.proof, data3.proof],
+              [data1.feeApprovalPayload, data2.feeApprovalPayload, data3.feeApprovalPayload],
+              [data1.userSignature, data2.userSignature, data3.userSignature]
+            );
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data1.payloadHash, '', '0x');
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(data2.payloadHash, '', '0x');
 
-          await stakedLbtc.connect(owner).unpauseTransfers();
-          tx = await assetRouter.connect(signer1).batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
-          await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
+            await stakedLbtc.connect(owner).unpauseTransfers();
+            tx = await assetRouter
+              .connect(signer1)
+              .batchMint([data1.payload, data2.payload], [data1.proof, data2.proof]);
+            await expect(tx).changeTokenBalances(stakedLbtc, [signer1, signer2], [amount1, amount2]);
+          });
+
+          it('batchMintWithFee() emits BatchMintError when mint/burn paused', async function () {
+            await stakedLbtc.connect(pauser).pauseMintBurn();
+            const f1 = await defaultData(signer1, amount1, maxFee + 1n);
+            const f2 = await defaultData(signer2, amount2, maxFee + 1n);
+            const tx = await assetRouter.connect(claimer).batchMintWithFee(
+              //@ts-ignore
+              [f1.payload, f2.payload],
+              [f1.proof, f2.proof],
+              [f1.feeApprovalPayload, f2.feeApprovalPayload],
+              [f1.userSignature, f2.userSignature]
+            );
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(f1.payloadHash, '', '0x');
+            await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError').withArgs(f2.payloadHash, '', '0x');
+          });
         });
       });
     });
@@ -1791,13 +1862,40 @@ describe('AssetRouter', function () {
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_RedeemNotAllowed');
         });
 
-        it('redeem() reverts when contract paused', async function () {
-          const sender = signer1;
-          const amount = randomBigInt(6);
-          await stakedLbtc.connect(pauser).pauseTransfers();
-          await expect(
-            assetRouter.connect(sender)['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount)
-          ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+        describe('redeem(address,address,uint256) pause guards', function () {
+          it('reverts when transfer paused', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            await expect(
+              assetRouter.connect(sender)['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount)
+            ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+          });
+
+          it('succeeds after unpauseTransfers', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            await stakedLbtc.connect(owner).unpauseTransfers();
+
+            const tx = await assetRouter
+              .connect(sender)
+              ['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount);
+            await expect(tx)
+              .to.emit(mailbox, 'MessageSent')
+              .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, anyValue);
+            await expect(tx).to.changeTokenBalance(stakedLbtc, sender, -amount);
+            await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, redeemFee);
+          });
+
+          it('reverts when mint/burn paused', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            await stakedLbtc.connect(pauser).pauseMintBurn();
+            await expect(
+              assetRouter.connect(sender)['redeem(address,address,uint256)'](sender.address, stakedLbtc.address, amount)
+            ).to.be.revertedWithCustomError(stakedLbtc, 'MintBurnPaused');
+          });
         });
       });
     });
@@ -2077,18 +2175,53 @@ describe('AssetRouter', function () {
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_RedeemNotAllowed');
         });
 
-        it('redeem() reverts when contract paused', async function () {
-          const sender = signer1;
-          const amount = randomBigInt(6);
-          const recipient = encode(['address'], [sender.address]);
-          await stakedLbtc.connect(pauser).pauseTransfers();
-          await expect(
-            assetRouter
+        describe('redeem(address,bytes32,address,bytes32,bytes32,uint256) pause guards', function () {
+          it('reverts when transfer paused', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            const recipient = encode(['address'], [sender.address]);
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            await expect(
+              assetRouter
+                .connect(sender)
+                [
+                  'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
+                ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
+            ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+          });
+
+          it('succeeds after unpauseTransfers', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            const recipient = encode(['address'], [sender.address]);
+            await stakedLbtc.connect(pauser).pauseTransfers();
+            await stakedLbtc.connect(owner).unpauseTransfers();
+
+            const tx = await assetRouter
               .connect(sender)
               [
                 'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
-              ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
-          ).to.be.revertedWithCustomError(stakedLbtc, 'EnforcedPause');
+              ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount);
+            await expect(tx)
+              .to.emit(mailbox, 'MessageSent')
+              .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, anyValue);
+            await expect(tx).to.changeTokenBalance(stakedLbtc, sender, -amount);
+            await expect(tx).to.changeTokenBalance(stakedLbtc, treasury, redeemFee);
+          });
+
+          it('reverts when mint/burn paused', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            const recipient = encode(['address'], [sender.address]);
+            await stakedLbtc.connect(pauser).pauseMintBurn();
+            await expect(
+              assetRouter
+                .connect(sender)
+                [
+                  'redeem(address,bytes32,address,bytes32,bytes32,uint256)'
+                ](sender.address, CHAIN_ID, stakedLbtc.address, nativeLbtcBytes, recipient, amount)
+            ).to.be.revertedWithCustomError(stakedLbtc, 'MintBurnPaused');
+          });
         });
       });
     });
@@ -2216,13 +2349,43 @@ describe('AssetRouter', function () {
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_DepositNotAllowed');
         });
 
-        it('deposit() reverts when nativeLBTC paused', async function () {
-          await nativeLbtc.connect(pauser).pauseTransfers();
-          await expect(
-            assetRouter
-              .connect(signer1)
-              ['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, randomBigInt(6))
-          ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
+        describe('deposit(address,address,uint256) NativeLBTC pause guards', function () {
+          it('reverts when transfer paused', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            await nativeLbtc.connect(pauser).pauseTransfers();
+            await expect(
+              assetRouter
+                .connect(sender)
+                ['deposit(address,address,uint256)'](sender.address, stakedLbtc.address, amount)
+            ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
+          });
+
+          it('succeeds after unpauseTransfers', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            await nativeLbtc.connect(pauser).pauseTransfers();
+            await nativeLbtc.connect(owner).unpauseTransfers();
+
+            const tx = await assetRouter
+              .connect(sender)
+              ['deposit(address,address,uint256)'](sender.address, stakedLbtc.address, amount);
+            await expect(tx)
+              .to.emit(mailbox, 'MessageSent')
+              .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, anyValue);
+            await expect(tx).to.changeTokenBalance(nativeLbtc, sender, -amount);
+          });
+
+          it('reverts when mint/burn paused', async function () {
+            const sender = signer1;
+            const amount = randomBigInt(6);
+            await nativeLbtc.connect(pauser).pauseMintBurn();
+            await expect(
+              assetRouter
+                .connect(sender)
+                ['deposit(address,address,uint256)'](sender.address, stakedLbtc.address, amount)
+            ).to.be.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+          });
         });
 
         it('deposit() reverts when amount is too small', async function () {
@@ -2419,17 +2582,49 @@ describe('AssetRouter', function () {
           ).to.be.revertedWithCustomError(assetRouter, 'AssetOperation_DepositNotAllowed');
         });
 
-        it('deposit() reverts when nativeLBTC paused', async function () {
-          const toChainId = CHAIN_ID;
-          const toToken = stakedLbtcBytes;
-          const recipient = encode(['address'], [signer1.address]);
-          const amount = randomBigInt(6);
-          await nativeLbtc.connect(pauser).pauseTransfers();
-          await expect(
-            assetRouter
+        describe('deposit(bytes32,bytes32,bytes32,uint256) NativeLBTC pause guards', function () {
+          it('reverts when transfer paused', async function () {
+            const toChainId = CHAIN_ID;
+            const toToken = stakedLbtcBytes;
+            const recipient = encode(['address'], [signer1.address]);
+            const amount = randomBigInt(6);
+            await nativeLbtc.connect(pauser).pauseTransfers();
+            await expect(
+              assetRouter
+                .connect(signer1)
+                ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
+            ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
+          });
+
+          it('succeeds after unpauseTransfers', async function () {
+            const toChainId = CHAIN_ID;
+            const toToken = stakedLbtcBytes;
+            const recipient = encode(['address'], [signer1.address]);
+            const amount = randomBigInt(6);
+            await nativeLbtc.connect(pauser).pauseTransfers();
+            await nativeLbtc.connect(owner).unpauseTransfers();
+
+            const tx = await assetRouter
               .connect(signer1)
-              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
-          ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
+              ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount);
+            await expect(tx)
+              .to.emit(mailbox, 'MessageSent')
+              .withArgs(LEDGER_CHAIN_ID, assetRouter.address, BTC_STAKING_MODULE_ADDRESS, anyValue);
+            await expect(tx).to.changeTokenBalance(nativeLbtc, signer1, -amount);
+          });
+
+          it('reverts when mint/burn paused', async function () {
+            const toChainId = CHAIN_ID;
+            const toToken = stakedLbtcBytes;
+            const recipient = encode(['address'], [signer1.address]);
+            const amount = randomBigInt(6);
+            await nativeLbtc.connect(pauser).pauseMintBurn();
+            await expect(
+              assetRouter
+                .connect(signer1)
+                ['deposit(bytes32,bytes32,bytes32,uint256)'](toChainId, toToken, recipient, amount)
+            ).to.be.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+          });
         });
       });
     });

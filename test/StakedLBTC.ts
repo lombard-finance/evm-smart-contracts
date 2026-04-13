@@ -4,6 +4,7 @@ import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-t
 import {
   Addressable,
   BITCOIN_CHAIN_ID,
+  calculateStorageSlot,
   BITCOIN_NATIVE_COIN,
   BTC_STAKING_MODULE_ADDRESS,
   CHAIN_ID,
@@ -203,6 +204,27 @@ describe('StakedLBTC', function () {
       userSignature
     } as unknown as DefaultData;
   }
+
+  describe('ERC-7201 namespaced storage', function () {
+    before(async function () {
+      await snapshot.restore();
+    });
+
+    it('lombardfinance.storage.BaseLBTC: mintBurnPaused word', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.BaseLBTC');
+      expect(slot).to.equal(ethers.toBigInt('0xb916f9bd559884fff7955a8f87abe9b4ee4ee4202b8eb445cd8f820d3ee19000'));
+      const word = await ethers.provider.getStorage(stakedLbtc.address, slot);
+      const paused = await stakedLbtc.mintBurnPaused();
+      expect(word).to.equal(encode(['uint256'], [paused ? 1n : 0n]));
+    });
+
+    it('lombardfinance.storage.LBTC: treasury word (slot +5)', async function () {
+      const base = calculateStorageSlot('lombardfinance.storage.LBTC');
+      expect(base).to.equal(ethers.toBigInt('0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700'));
+      const treasuryWord = await ethers.provider.getStorage(stakedLbtc.address, base + 5n);
+      expect(treasuryWord).to.equal(encode(['uint256'], [BigInt(await stakedLbtc.getTreasury())]));
+    });
+  });
 
   describe('Setters and getters', function () {
     describe('View functions', function () {

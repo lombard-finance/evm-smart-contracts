@@ -4,6 +4,7 @@ import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-t
 import {
   Addressable,
   ASSETS_MODULE_ADDRESS,
+  calculateStorageSlot,
   BITCOIN_CHAIN_ID,
   BITCOIN_NATIVE_COIN,
   CHAIN_ID,
@@ -186,6 +187,27 @@ describe('NativeLBTC', function () {
       cubistProof
     } as unknown as DefaultData;
   }
+
+  describe('ERC-7201 namespaced storage', function () {
+    before(async function () {
+      await snapshot.restore();
+    });
+
+    it('lombardfinance.storage.BaseLBTC: mintBurnPaused word', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.BaseLBTC');
+      expect(slot).to.equal(ethers.toBigInt('0xb916f9bd559884fff7955a8f87abe9b4ee4ee4202b8eb445cd8f820d3ee19000'));
+      const word = await ethers.provider.getStorage(nativeLbtc.address, slot);
+      const paused = await nativeLbtc.mintBurnPaused();
+      expect(word).to.equal(encode(['uint256'], [paused ? 1n : 0n]));
+    });
+
+    it('lombardfinance.storage.NativeLBTC: consortium word (slot 0)', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.NativeLBTC');
+      expect(slot).to.equal(ethers.toBigInt('0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000'));
+      const word = await ethers.provider.getStorage(nativeLbtc.address, slot);
+      expect(word).to.equal(encode(['uint256'], [BigInt(await nativeLbtc.consortium())]));
+    });
+  });
 
   describe('Setters and getters', function () {
     describe('View functions', function () {
