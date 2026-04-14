@@ -1,6 +1,11 @@
 import { config, ethers, network } from 'hardhat';
 import { expect } from 'chai';
-import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import {
+  impersonateAccount,
+  SnapshotRestorer,
+  takeSnapshot,
+  time
+} from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
   BTC_STAKING_MODULE_ADDRESS,
@@ -36,7 +41,9 @@ import {
   RolesAuthority,
   StakeAndBake,
   StakedLBTC,
-  TellerWithMultiAssetSupportMock
+  TellerWithMultiAssetSupportMock,
+  TellerWithReferralAwareMock,
+  WBTCMock
 } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
@@ -352,6 +359,91 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
 
     it('eip712Domain', async function () {
       console.log('eip712Domain', await erc4626Wrapper.eip712Domain());
+    });
+  });
+
+  describe('Teller deposit config', function () {
+    beforeEach(async function () {
+      await snapshot.restore();
+      await erc4626Wrapper.connect(owner).addStakeAndBake(stakeAndBake.address, stakedLbtc.address);
+    });
+
+    /** Mock teller mints its own ERC20, not `vault()`; pre-fund wrapper with real LBTCv so `_checkAssetTotalBalance` passes. */
+    async function prefundWrapperWithRealVaultToken(lbtcAmount: bigint) {
+      const wrapperAddr = await erc4626Wrapper.getAddress();
+      const expectedShares = await getShares(lbtcAmount, stakedLbtc.address);
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer3.address, lbtcAmount);
+      await stakedLbtc.connect(signer3).approve(vedavault.address, lbtcAmount);
+      await teller.connect(signer3).deposit(stakedLbtc.address, lbtcAmount, expectedShares);
+      const vaultBal = await vedavault.balanceOf(signer3.address);
+      await vedavault.connect(signer3).transfer(wrapperAddr, vaultBal);
+    }
+
+    it('defaults to 3-arg teller deposit (no referral)', async function () {
+      const [useReferral, referral] = await erc4626Wrapper.getTellerDepositConfig();
+      expect(useReferral).to.be.false;
+      expect(referral).to.eq(ethers.ZeroAddress);
+    });
+
+    it('setTellerDepositConfig updates state and emits', async function () {
+      const ref = ethers.Wallet.createRandom().address;
+      await expect(erc4626Wrapper.connect(owner).setTellerDepositConfig(true, ref))
+        .to.emit(erc4626Wrapper, 'TellerDepositConfigChanged')
+        .withArgs(true, ref);
+      const [useReferral, referral] = await erc4626Wrapper.getTellerDepositConfig();
+      expect(useReferral).to.be.true;
+      expect(referral).to.eq(ref);
+    });
+
+    it('allows zero referral with useReferral true', async function () {
+      await expect(erc4626Wrapper.connect(owner).setTellerDepositConfig(true, ethers.ZeroAddress))
+        .to.emit(erc4626Wrapper, 'TellerDepositConfigChanged')
+        .withArgs(true, ethers.ZeroAddress);
+      const [useReferral, referral] = await erc4626Wrapper.getTellerDepositConfig();
+      expect(useReferral).to.be.true;
+      expect(referral).to.eq(ethers.ZeroAddress);
+    });
+
+    it('setTellerDepositConfig rejects when called by not admin', async function () {
+      await expect(
+        erc4626Wrapper.connect(signer1).setTellerDepositConfig(true, signer1.address)
+      ).to.be.revertedWithCustomError(erc4626Wrapper, 'AccessControlUnauthorizedAccount');
+    });
+
+    it('uses 4-arg teller deposit when configured (mock teller)', async function () {
+      const vaultAddr = await teller.vault();
+      const mockTeller = await deployContract<TellerWithReferralAwareMock & Addressable>(
+        'TellerWithReferralAwareMock',
+        [await stakedLbtc.getAddress()],
+        false
+      );
+      await mockTeller.setVault(vaultAddr);
+      await erc4626Wrapper.connect(owner).changeTeller(await mockTeller.getAddress());
+
+      const ref = ethers.Wallet.createRandom().address;
+      await erc4626Wrapper.connect(owner).setTellerDepositConfig(true, ref);
+
+      await prefundWrapperWithRealVaultToken(10n * ONE_SHARE);
+
+      const amount = ONE_SHARE;
+      const minShares = 1n;
+      await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
+      await stakedLbtc.connect(signer1).approve(await erc4626Wrapper.getAddress(), amount);
+
+      // Mock teller pulls LBTC via transferFrom(wrapper, …); wrapper only approves the real vault in _depositCustom.
+      const wrapperAddr = await erc4626Wrapper.getAddress();
+      await impersonateAccount(wrapperAddr);
+      await network.provider.send('hardhat_setBalance', [wrapperAddr, '0x' + (10n ** 18n).toString(16)]);
+      const wrapperSigner = await ethers.getSigner(wrapperAddr);
+      await stakedLbtc.connect(wrapperSigner).approve(await mockTeller.getAddress(), amount);
+
+      await expect(
+        erc4626Wrapper
+          .connect(signer1)
+          ['deposit(address,uint256,address,uint256)'](stakedLbtc.address, amount, signer1.address, minShares)
+      )
+        .to.emit(mockTeller, 'MockDepositWithReferral')
+        .withArgs(ref);
     });
   });
 

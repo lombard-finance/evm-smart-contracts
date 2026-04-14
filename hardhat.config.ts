@@ -375,7 +375,7 @@ const config: HardhatUserConfig = {
     },
     hardhat: {
       forking: {
-        url: 'https://ethereum-rpc.publicnode.com',
+        url: 'https://eth-mainnet.public.blastapi.io',
         blockNumber: 23983296
       },
       chainId: 1,
