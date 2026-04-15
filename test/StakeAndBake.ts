@@ -77,7 +77,6 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     stakedLbtc = await initStakedLBTC(owner.address, treasury.address);
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
 
     stakeAndBake = await deployContract<StakeAndBake & Addressable>('StakeAndBake', [
       stakedLbtc.address,

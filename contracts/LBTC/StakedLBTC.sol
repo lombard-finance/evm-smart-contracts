@@ -73,7 +73,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         uint256 __removed__maximumFee;
         /// @custom:oz-renamed-from usedPayloads
         mapping(bytes32 => bool) __removed__usedPayloads; // sha256(rawPayload) => used
-        /// @custom:deprecated Superseded by `OPERATOR_ROLE`; retained for storage layout. Not updated after `migrateToAccessControl`.
         /// @custom:oz-renamed-from operator
         address __removed__operator;
         IAssetRouter assetRouter;
@@ -84,7 +83,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     bytes32 private constant STAKED_LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -149,9 +147,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
 
         if ($.__removed__pauser != address(0)) {
             _grantRole(PAUSER_ROLE, $.__removed__pauser);
-        }
-        if ($.__removed__operator != address(0)) {
-            _grantRole(OPERATOR_ROLE, $.__removed__operator);
         }
 
         for (uint256 i; i < minters_.length; ++i) {

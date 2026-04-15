@@ -118,8 +118,6 @@ describe('AssetRouter', function () {
     // Claimer
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
-    // Operator (StakedLBTC only; NativeLBTC has no OPERATOR_ROLE)
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator);
     // Pauser
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);

@@ -116,8 +116,6 @@ describe('StakedLBTC', function () {
     // Claimer
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.CLAIMER_ROLE(), claimer);
-    // Operator (StakedLBTC only; NativeLBTC has no OPERATOR_ROLE)
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator);
     // Pauser
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.PAUSER_ROLE(), pauser);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
@@ -587,14 +585,6 @@ describe('StakedLBTC', function () {
           await expect(stakedLbtc.connect(owner).grantRole(pauserRole, newPauser))
             .to.emit(stakedLbtc, 'RoleGranted')
             .withArgs(pauserRole, newPauser, owner.address);
-        });
-
-        it('grant OPERATOR_ROLE emits RoleGranted', async function () {
-          const newOp = ethers.Wallet.createRandom().address;
-          const operatorRole = await stakedLbtc.OPERATOR_ROLE();
-          await expect(stakedLbtc.connect(owner).grantRole(operatorRole, newOp))
-            .to.emit(stakedLbtc, 'RoleGranted')
-            .withArgs(operatorRole, newOp, owner.address);
         });
       });
 
