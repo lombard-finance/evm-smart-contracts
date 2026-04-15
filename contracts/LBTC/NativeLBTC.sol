@@ -343,7 +343,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function redeemForBtc(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external {
+    ) external whenMintBurnAllowed {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
