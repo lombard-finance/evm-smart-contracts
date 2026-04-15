@@ -379,7 +379,7 @@ const config: HardhatUserConfig = {
       // so hardhat_reset and other Hardhat methods are available.
       ...(process.env.HARDHAT_FORK === '1' && {
         forking: {
-          url: vars.get('MAINNET_RPC', 'https://ethereum-rpc.publicnode.com'),
+          url: vars.get('MAINNET_RPC', 'https://eth-mainnet.public.blastapi.io'),
           blockNumber: 23983296
         }
       }),
