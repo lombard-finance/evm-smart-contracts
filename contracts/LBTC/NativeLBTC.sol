@@ -343,7 +343,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function redeemForBtc(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external {
+    ) external whenMintBurnAllowed {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -398,13 +398,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
             rawPayload[4:]
         );
 
-        _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
-            rawPayload,
-            proof
-        );
+        _validateAndMint(action.recipient, action.amount, rawPayload, proof);
         return (action.recipient, action.amount);
     }
 
@@ -454,13 +448,10 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,
-        uint256 depositAmount,
         bytes calldata payload,
         bytes calldata proof
     ) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-
-        if (amountToMint > depositAmount) revert InvalidMintAmount();
 
         /// make sure that hash of payload not used before
         /// need to check sha256 hash from payload without selector
@@ -473,7 +464,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, legacyHash, depositAmount);
+        _confirmDeposit($, legacyHash, amountToMint);
 
         // Actually mint
         _mint(recipient, amountToMint);

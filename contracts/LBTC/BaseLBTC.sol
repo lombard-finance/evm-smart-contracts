@@ -32,6 +32,7 @@ abstract contract BaseLBTC is
     ReentrancyGuardUpgradeable
 {
     error MintBurnPaused();
+    error MintBurnExpectedPaused();
 
     event MintBurnPauseChanged(bool paused);
 
@@ -136,11 +137,8 @@ abstract contract BaseLBTC is
 
     /// @notice Activates mint/burn guard on decorated entrypoints.
     /// @custom:access Caller must have `MINT_BURN_PAUSER_ROLE`
-    function pauseMintBurn() external onlyRole(MINT_BURN_PAUSER_ROLE) {
+    function pauseMintBurn() external onlyRole(MINT_BURN_PAUSER_ROLE) whenMintBurnAllowed {
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
-        if ($.mintBurnPaused) {
-            return;
-        }
         $.mintBurnPaused = true;
         emit MintBurnPauseChanged(true);
     }
@@ -150,7 +148,7 @@ abstract contract BaseLBTC is
     function unpauseMintBurn() external onlyRole(DEFAULT_ADMIN_ROLE) {
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
         if (!$.mintBurnPaused) {
-            return;
+            revert MintBurnExpectedPaused();
         }
         $.mintBurnPaused = false;
         emit MintBurnPauseChanged(false);

@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 interface IBaseLBTC {
     error RedeemForBtcDisabled();
     error PayloadAlreadyUsed();
-    error InvalidMintAmount();
     error AssetRouterNotSet();
 
     event RedeemRequest(

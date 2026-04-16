@@ -406,7 +406,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
     function redeemForBtc(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external {
+    ) external whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
