@@ -80,7 +80,11 @@ contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
             revert ZeroBridge();
         }
         uint8 bridgeMsgVersion = bridge_.MSG_VERSION();
-        if (bridgeMsgVersion != SUPPORTED_BRIDGE_MSG_VERSION)
+        uint8 bridgeMsgVersionMin = bridge_.MSG_VERSION_MIN();
+        if (
+            bridgeMsgVersion < SUPPORTED_BRIDGE_MSG_VERSION ||
+            bridgeMsgVersionMin > SUPPORTED_BRIDGE_MSG_VERSION
+        )
             revert InvalidMessageVersion(
                 SUPPORTED_BRIDGE_MSG_VERSION,
                 bridgeMsgVersion

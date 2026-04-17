@@ -47,7 +47,8 @@ contract BridgeV2 is
     uint32 internal constant FEE_DISCOUNT_BASE = 100_00;
 
     /// @dev The version of the bridge message. Should be less or equal on another chain to be compatible.
-    uint8 public constant MSG_VERSION = 1;
+    uint8 public constant MSG_VERSION_MIN = 1;
+    uint8 public constant MSG_VERSION = 2;
     uint256 internal constant MSG_LENGTH = 129;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -316,7 +317,25 @@ contract BridgeV2 is
             bytes32(0),
             bytes32(0),
             bytes32(0),
-            uint256(0)
+            uint256(0),
+            new bytes(0)
+        );
+        return _getFee(_getStorage(), sender, body);
+    }
+
+    /// @notice Get the fee for relaying bridge message through GMP protocol.
+    /// @param sender The caller of deposit method
+    /// @return fee The fee in native currency to be paid during deposit
+    function getFeeWithOptionalMsg(
+        address sender,
+        bytes calldata optionalMessage
+    ) external view returns (uint256) {
+        bytes memory body = _encodeMsg(
+            bytes32(0),
+            bytes32(0),
+            bytes32(0),
+            uint256(0),
+            optionalMessage
         );
         return _getFee(_getStorage(), sender, body);
     }
@@ -351,7 +370,45 @@ contract BridgeV2 is
                 sender,
                 recipient,
                 amount,
-                destinationCaller
+                destinationCaller,
+                new bytes(0)
+            );
+    }
+
+    /**
+     * @notice Deposits on behalf of the `sender` and burns tokens from `msg.sender` in order to mint on `destinationChain`.
+     * Emits a `DepositToBridge` event.
+     * @param destinationChain The chain where bridge the token.
+     * @param token Address of the token burned on the source chain.
+     * @param sender The initial address that bridge the token.
+     * @param recipient Address of recipient on `destinationChain`, as bytes32 (must be non-zero)
+     * @param amount Amount of tokens to burn (must be non-zero)
+     * @param destinationCaller Caller on the `destinationChain`, as bytes32
+     * @param optionalMessage Optional message to be added to the payload
+     * @return nonce The nonce of payload.
+     * @return payloadHash The hash of payload
+     */
+    function deposit(
+        bytes32 destinationChain,
+        address token,
+        address sender,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
+    ) external payable override nonReentrant returns (uint256, bytes32) {
+        if (sender == address(0)) {
+            revert BridgeV2_ZeroSender();
+        }
+        return
+            _deposit(
+                destinationChain,
+                IERC20MintableBurnable(token),
+                sender,
+                recipient,
+                amount,
+                destinationCaller,
+                optionalMessage
             );
     }
 
@@ -378,7 +435,38 @@ contract BridgeV2 is
                 _msgSender(),
                 recipient,
                 amount,
-                destinationCaller
+                destinationCaller,
+                new bytes(0)
+            );
+    }
+
+    /// @notice Deposits and burns tokens from tx sender to be minted on `destinationChain`.
+    /// Emits a `DepositToBridge` event.
+    /// @param destinationChain The chain where bridge the token.
+    /// @param token address of the token burned on the source chain
+    /// @param recipient address of mint recipient on `destinationChain`, as bytes32 (must be non-zero)
+    /// @param amount amount of tokens to burn (must be non-zero)
+    /// @param destinationCaller caller on the `destinationChain`, as bytes32
+    /// @param optionalMessage Optional message to be added to the payload
+    /// @return nonce The nonce of payload.
+    /// @return payloadHash The hash of payload
+    function deposit(
+        bytes32 destinationChain,
+        address token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
+    ) external payable override nonReentrant returns (uint256, bytes32) {
+        return
+            _deposit(
+                destinationChain,
+                IERC20MintableBurnable(token),
+                _msgSender(),
+                recipient,
+                amount,
+                destinationCaller,
+                optionalMessage
             );
     }
 
@@ -388,7 +476,8 @@ contract BridgeV2 is
         address sender,
         bytes32 recipient,
         uint256 amount,
-        bytes32 destinationCaller
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
     ) internal returns (uint256 nonce, bytes32 payloadHash) {
         // amount must be nonzero
         if (amount == 0) {
@@ -432,7 +521,8 @@ contract BridgeV2 is
             destinationToken,
             GMPUtils.addressToBytes32(sender),
             recipient,
-            amount
+            amount,
+            optionalMessage
         );
 
         _assertFee($, body);
@@ -516,19 +606,23 @@ contract BridgeV2 is
             revert BridgeV2_BadMsgSender();
         }
 
-        _withdraw($, chainId, payload.msgBody);
+        bytes memory result = _withdraw($, chainId, payload.msgBody);
 
-        return new bytes(0);
+        return result;
     }
 
     function _withdraw(
         BridgeV2Storage storage $,
         bytes32 chainId,
         bytes memory msgBody
-    ) internal {
-        (address token, , address recipient, uint256 amount) = decodeMsgBody(
-            msgBody
-        );
+    ) internal returns (bytes memory) {
+        (
+            address token,
+            ,
+            address recipient,
+            uint256 amount,
+            bytes memory optMsg
+        ) = decodeMsgBody(msgBody);
 
         if (
             $.allowedDestinationToken[
@@ -547,6 +641,8 @@ contract BridgeV2 is
         IERC20MintableBurnable(token).mint(recipient, amount);
 
         emit WithdrawFromBridge(recipient, chainId, token, amount);
+
+        return optMsg;
     }
 
     /// @notice Decode bridge message. The version of message should be less or equal to current.
@@ -557,8 +653,8 @@ contract BridgeV2 is
     /// @return amount The amount to be minted on destination chain
     function decodeMsgBody(
         bytes memory msgBody
-    ) public pure returns (address, address, address, uint256) {
-        if (msgBody.length != MSG_LENGTH) {
+    ) public pure returns (address, bytes32, address, uint256, bytes memory) {
+        if (msgBody.length < MSG_LENGTH) {
             revert BridgeV2_InvalidMsgBodyLength(MSG_LENGTH, msgBody.length);
         }
 
@@ -567,6 +663,7 @@ contract BridgeV2 is
         bytes32 sender;
         bytes32 recipient;
         uint256 amount;
+        bytes memory optMsg;
 
         assembly {
             version := byte(0, mload(add(msgBody, 0x20))) // first byte
@@ -577,8 +674,32 @@ contract BridgeV2 is
             amount := mload(add(msgBody, 0x81)) // bytes 97..128
         }
 
-        if (version != MSG_VERSION) {
-            revert BridgeV2_VersionMismatch(MSG_VERSION, version);
+        if (
+            version < MSG_VERSION_MIN ||
+            version > MSG_VERSION ||
+            (version == MSG_VERSION_MIN && msgBody.length != MSG_LENGTH)
+        ) {
+            revert BridgeV2_VersionMismatch(
+                MSG_VERSION_MIN,
+                MSG_VERSION,
+                version
+            );
+        }
+        if (version == MSG_VERSION) {
+            uint256 len = msgBody.length - MSG_LENGTH;
+            optMsg = new bytes(len);
+            if (len > 0) {
+                assembly {
+                    let dst := optMsg
+                    let src := add(msgBody, 0xa1)
+                    let end := add(src, len)
+                    for {} lt(src, end) {} {
+                        dst := add(dst, 0x20)
+                        mstore(dst, mload(src))
+                        src := add(src, 0x20)
+                    }
+                }
+            }
         }
 
         if (amount == 0) {
@@ -599,9 +720,10 @@ contract BridgeV2 is
 
         return (
             GMPUtils.bytes32ToAddress(token),
-            GMPUtils.bytes32ToAddress(sender),
+            sender,
             GMPUtils.bytes32ToAddress(recipient),
-            amount
+            amount,
+            optMsg
         );
     }
 
@@ -645,19 +767,35 @@ contract BridgeV2 is
             super.supportsInterface(interfaceId);
     }
 
+    // function MSG_VERSIONS() public pure returns (uint8[] memory) {
+    //     return [MSG_VERSION_MIN, MSG_VERSION_MAX];
+    // }
+
     function _encodeMsg(
         bytes32 destinationToken,
         bytes32 sender,
         bytes32 recipient,
-        uint256 amount
+        uint256 amount,
+        bytes memory optionalMessage
     ) internal pure returns (bytes memory) {
+        if (optionalMessage.length == 0) {
+            return
+                abi.encodePacked(
+                    MSG_VERSION_MIN,
+                    destinationToken,
+                    sender,
+                    recipient,
+                    amount
+                );
+        }
         return
             abi.encodePacked(
                 MSG_VERSION,
                 destinationToken,
                 sender,
                 recipient,
-                amount
+                amount,
+                optionalMessage
             );
     }
 
