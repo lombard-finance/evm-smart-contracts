@@ -5,12 +5,14 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 
 contract StakedLBTCOracle is
     IOracle,
+    AggregatorV3Interface,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable
 {
@@ -18,6 +20,7 @@ contract StakedLBTCOracle is
     error RatioInitializedAlready();
     error TooBigRatioChange();
     error WrongToken();
+    error UnexpectedTimestampFormat(uint256 ts);
 
     event Oracle_ConsortiumChanged(
         address indexed prevVal,
@@ -51,6 +54,7 @@ contract StakedLBTCOracle is
         uint256 maxAheadInterval;
         /// @dev diff between current and new ratio in percent, measured to 6 signs (0.000001% ... 100%)
         uint32 ratioThreshold;
+        uint256 prevSwitchTime;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StakedLBTCOracle")) - 1)) & ~bytes32(uint256(0xff))
@@ -155,6 +159,40 @@ contract StakedLBTCOracle is
         return Math.mulDiv(1 ether, 1 ether, _ratio(), Math.Rounding.Ceil);
     }
 
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        )
+    {
+        (uint256 ratio_, uint256 timestamp) = _ratioWithTimestamp();
+        uint256 rate = Math.mulDiv(
+            1 ether,
+            1 ether,
+            ratio_,
+            Math.Rounding.Ceil
+        );
+        if (timestamp >= type(uint80).max) {
+            revert UnexpectedTimestampFormat(timestamp);
+        }
+        return (
+            uint80(timestamp),
+            int256(rate),
+            timestamp,
+            timestamp,
+            uint80(timestamp)
+        );
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
     function _publishNewRatio(
         bytes calldata rawPayload,
         bytes calldata proof
@@ -182,6 +220,7 @@ contract StakedLBTCOracle is
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (block.timestamp >= $.switchTime) {
             $.prevRatio = $.currRatio;
+            $.prevSwitchTime = $.switchTime;
         }
         $.currRatio = ratio_;
         $.switchTime = switchTime_;
@@ -226,6 +265,13 @@ contract StakedLBTCOracle is
         return $.prevRatio;
     }
 
+    function _ratioWithTimestamp() internal view returns (uint256, uint256) {
+        StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
+        if (block.timestamp >= $.switchTime) {
+            return ($.currRatio, $.switchTime);
+        }
+        return ($.prevRatio, $.prevSwitchTime);
+    }
     /// @dev not zero
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);

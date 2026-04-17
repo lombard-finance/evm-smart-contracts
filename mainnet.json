@@ -42,7 +42,9 @@
       "TellerWithMultiAssetSupportDepositor_stakedLBTC_Veda": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
     "veda": {
-      "ERC4626VaultWrapper": "0x3a4baaBf4DC9910596821615e848f0e6545762F3"
+      "ERC4626VaultWrapper_BTCe": "0x3a4baaBf4DC9910596821615e848f0e6545762F3",
+      "ERC4626VaultWrapper_BTCu": "0x8501679bba4cb64aA77b2F3FA9c2C5cfF2659c4e",
+      "ERC4626VaultWrapper_BTCmm": "0x3B5f90bCD336FA239D2b9a8C6E3FFe12a5c54a1e"
     },
     "layerZero": {
       "LBTCOFTAdapter_cornMaizenet": "0x6bc15d7930839ec18a57f6f7df72ae1b439d077f",
@@ -476,6 +478,64 @@
     },
     "cubist": {
       "BasculeV2": "0x8Bbc480999277bCAbF5861C59BCEbFA54956117a"
+    }
+  },
+  "swell": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000000000783",
+    "admin": {
+      "Owner": "0xE6444CD0A7eD89f98634B641faC5a58864F05B60",
+      "TimeLock": "0xD9527ffE58CbEcC9A64511Fc559e0C0825Df940a",
+      "Deployer": ["0x9202b09CC197D09B3B022fD681D90C938246E235", "0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Mailbox_mock": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2_mock": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
+      "StakedLBTCOracle_mock": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "NativeLBTC_mock_mock": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "AssetRouter_mock": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
+    },
+    "community": {
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "stakeAndBake": {
+      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0x7B3784AD646C10A8Ddf42b47a4f4bd9aFD351E54"
+    }
+  },
+  "cornMaizenet": {
+    "chainId": "0x0000000000000000000000000000000000000000000000000000000001406f40",
+    "admin": {
+      "Owner": "0x51E8F1fF7fE71A8f5F403ee09beb99B1694Ea9bf",
+      "TimeLock": "0x45B0116AD9d6710F5628E9453Be87f9f1dA78d2B",
+      "Deployer": ["0xEfD4B4ee208aF17e3a060fC559eb3b9a09A58fAB"]
+    },
+    "lombard": {
+      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
+      "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
+      "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
+      "NativeLBTC_mock": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+      "AssetRouter_mock": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
+    },
+    "community": {
+      "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
+    },
+    "stakeAndBake": {
+      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef"
+    },
+    "chainlink": {
+      "ChainSelector": "9043146809313071210",
+      "Router": "0x183f6069A0D5c2DEC1Dd1eCF3B1581e12dEb4Efe",
+      "RMN": "0x91ca2Aa7429e5F702f1F750b317AB604d5a6a16e",
+      "LombardTokenPoolV2_stakedLBTC": "0x770D1bbdca08e3272233709B27C004F510bfDf86"
+    },
+    "layerZero": {
+      "LBTCBurnMintOFTAdapter": "0xfc7B20D9B59A8A466f4fC3d34aA69a7D98e71d7A"
     }
   }
 }
