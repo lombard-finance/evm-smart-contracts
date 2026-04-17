@@ -4,6 +4,7 @@ import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-t
 import {
   Addressable,
   ASSETS_MODULE_ADDRESS,
+  calculateStorageSlot,
   BITCOIN_CHAIN_ID,
   BITCOIN_NATIVE_COIN,
   CHAIN_ID,
@@ -34,6 +35,7 @@ import { AssetRouter, BasculeV3, Consortium, Mailbox, NativeLBTC, RatioFeedMock 
 
 const DAY = 86400;
 const REDEEM_FOR_BTC_MIN_AMOUNT = randomBigInt(4);
+const DEFAULT_ADMIN_ROLE = ethers.ZeroHash;
 
 describe('NativeLBTC', function () {
   let _: Signer,
@@ -43,6 +45,7 @@ describe('NativeLBTC', function () {
     claimer: Signer,
     operator: Signer,
     pauser: Signer,
+    pauserMintBurn: Signer,
     reporter: Signer,
     notary1: Signer,
     notary2: Signer,
@@ -72,6 +75,7 @@ describe('NativeLBTC', function () {
       claimer,
       operator,
       pauser,
+      pauserMintBurn,
       reporter,
       notary1,
       notary2,
@@ -103,8 +107,8 @@ describe('NativeLBTC', function () {
     // Roles
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
-    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.OPERATOR_ROLE(), operator);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
+    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn.address);
 
     bascule = await deployContract<BasculeV3>(
       'BasculeV3',
@@ -184,6 +188,27 @@ describe('NativeLBTC', function () {
     } as unknown as DefaultData;
   }
 
+  describe('ERC-7201 namespaced storage', function () {
+    before(async function () {
+      await snapshot.restore();
+    });
+
+    it('lombardfinance.storage.BaseLBTC: mintBurnPaused word', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.BaseLBTC');
+      expect(slot).to.equal(ethers.toBigInt('0xb916f9bd559884fff7955a8f87abe9b4ee4ee4202b8eb445cd8f820d3ee19000'));
+      const word = await ethers.provider.getStorage(nativeLbtc.address, slot);
+      const paused = await nativeLbtc.mintBurnPaused();
+      expect(word).to.equal(encode(['uint256'], [paused ? 1n : 0n]));
+    });
+
+    it('lombardfinance.storage.NativeLBTC: consortium word (slot 0)', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.NativeLBTC');
+      expect(slot).to.equal(ethers.toBigInt('0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000'));
+      const word = await ethers.provider.getStorage(nativeLbtc.address, slot);
+      expect(word).to.equal(encode(['uint256'], [BigInt(await nativeLbtc.consortium())]));
+    });
+  });
+
   describe('Setters and getters', function () {
     describe('View functions', function () {
       before(async function () {
@@ -216,48 +241,202 @@ describe('NativeLBTC', function () {
     });
 
     describe('Pause', function () {
-      beforeEach(async function () {
-        await snapshot.restore();
+      describe('Pause all balance changes', function () {
+        beforeEach(async function () {
+          await snapshot.restore();
+        });
+
+        it('BTCb is not paused by default', async function () {
+          expect(await nativeLbtc.paused()).to.be.false;
+        });
+
+        it('grant PAUSER_ROLE: admin can assign', async function () {
+          const newPauser = ethers.Wallet.createRandom().address;
+          const pauserRole = await nativeLbtc.PAUSER_ROLE();
+          await expect(nativeLbtc.connect(owner).grantRole(pauserRole, newPauser))
+            .to.emit(nativeLbtc, 'RoleGranted')
+            .withArgs(pauserRole, newPauser, owner.address);
+
+          expect(await nativeLbtc.hasRole(pauserRole, newPauser)).to.be.true;
+          expect(await nativeLbtc.hasRole(pauserRole, pauser)).to.be.true;
+        });
+
+        it('pauseTransfers() pauser can pause transfers', async function () {
+          await expect(nativeLbtc.connect(pauser).pauseTransfers())
+            .to.emit(nativeLbtc, 'Paused')
+            .withArgs(pauser.address);
+          expect(await nativeLbtc.paused()).to.be.true;
+        });
+
+        it('pauseTransfers() reverts when called by not a pauser', async function () {
+          const pauserRole = await nativeLbtc.PAUSER_ROLE();
+          await expect(nativeLbtc.connect(owner).pauseTransfers())
+            .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
+            .withArgs(owner.address, pauserRole);
+        });
+
+        it('unpauseTransfers() turns off enforced pause', async function () {
+          await nativeLbtc.connect(pauser).pauseTransfers();
+          expect(await nativeLbtc.paused()).to.be.true;
+
+          await expect(nativeLbtc.connect(owner).unpauseTransfers())
+            .to.emit(nativeLbtc, 'Unpaused')
+            .withArgs(owner.address);
+          expect(await nativeLbtc.paused()).to.be.false;
+        });
+
+        it('unpauseTransfers() reverts when called by not an owner', async function () {
+          await nativeLbtc.connect(pauser).pauseTransfers();
+          expect(await nativeLbtc.paused()).to.be.true;
+
+          await expect(nativeLbtc.connect(pauser).unpauseTransfers())
+            .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
+            .withArgs(pauser.address, DEFAULT_ADMIN_ROLE);
+        });
       });
 
-      it('LBTC is not paused by default', async function () {
-        expect(await nativeLbtc.paused()).to.be.false;
-      });
+      describe('Pause mint and burn', function () {
+        before(async function () {
+          await snapshot.restore();
 
-      it('pause() pauser can set on pause', async function () {
-        await expect(nativeLbtc.connect(pauser).pause()).to.emit(nativeLbtc, 'Paused').withArgs(pauser.address);
-        expect(await nativeLbtc.paused()).to.be.true;
-      });
+          await assetRouter
+            .connect(owner)
+            .setRoute(nativeLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
+          await nativeLbtc.connect(minter).mint(signer1, 10n ** 8n);
+        });
 
-      it('changePauser() owner can change pauser', async function () {
-        const newPauser = signer1;
-        await expect(nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), newPauser))
-          .to.emit(nativeLbtc, 'RoleGranted')
-          .withArgs(await nativeLbtc.PAUSER_ROLE(), newPauser.address, owner.address);
-        await nativeLbtc.connect(signer1).pause();
-      });
+        it('mintBurnPaused is false by default', async function () {
+          expect(await nativeLbtc.mintBurnPaused()).to.be.false;
+        });
 
-      it('pause() reverts when called by not an pauser', async function () {
-        await expect(nativeLbtc.connect(owner).pause())
-          .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
-          .withArgs(owner.address, await nativeLbtc.PAUSER_ROLE());
-      });
+        it('grant MINT_BURN_PAUSER_ROLE: admin can assign', async function () {
+          const newPauser = ethers.Wallet.createRandom().address;
+          const role = await nativeLbtc.MINT_BURN_PAUSER_ROLE();
+          await expect(nativeLbtc.connect(owner).grantRole(role, newPauser))
+            .to.emit(nativeLbtc, 'RoleGranted')
+            .withArgs(role, newPauser, owner.address);
 
-      it('unpause() turns off enforced pause', async function () {
-        await nativeLbtc.connect(pauser).pause();
-        expect(await nativeLbtc.paused()).to.be.true;
+          expect(await nativeLbtc.hasRole(role, newPauser)).to.be.true;
+          expect(await nativeLbtc.hasRole(role, pauserMintBurn)).to.be.true;
+        });
 
-        await expect(nativeLbtc.connect(owner).unpause()).to.emit(nativeLbtc, 'Unpaused').withArgs(owner.address);
-        expect(await nativeLbtc.paused()).to.be.false;
-      });
+        it('pauseMintBurn() reverts without MINT_BURN_PAUSER_ROLE', async function () {
+          await expect(nativeLbtc.connect(pauser).pauseMintBurn())
+            .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
+            .withArgs(pauser.address, await nativeLbtc.MINT_BURN_PAUSER_ROLE());
+        });
 
-      it('unpause() reverts when called by not an owner', async function () {
-        await nativeLbtc.connect(pauser).pause();
-        expect(await nativeLbtc.paused()).to.be.true;
+        it('pauseMintBurn() MINT_BURN_PAUSER_ROLE can pause minting and burning', async function () {
+          await expect(nativeLbtc.connect(pauserMintBurn).pauseMintBurn())
+            .to.emit(nativeLbtc, 'MintBurnPauseChanged')
+            .withArgs(true);
+          expect(await nativeLbtc.mintBurnPaused()).to.be.true;
+        });
 
-        await expect(nativeLbtc.connect(pauser).unpause())
-          .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
-          .withArgs(pauser.address, '0x0000000000000000000000000000000000000000000000000000000000000000');
+        it('batchMint(addresses,amounts) reverted', async () => {
+          const amount = randomBigInt(6);
+          await expect(nativeLbtc.connect(minter).batchMint([signer1], [amount])).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
+        });
+
+        it('batchMintV1(payloads,proofs) reverted', async () => {
+          const amount = randomBigInt(6);
+          const { payload, proof } = await defaultData(signer1, amount);
+          await expect(nativeLbtc.connect(minter).batchMintV1([payload], [proof])).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
+        });
+
+        it('batchMintV1WithFee() reverted', async () => {
+          const amount = randomBigInt(6);
+          const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount);
+          await expect(
+            //@ts-ignore
+            nativeLbtc.connect(claimer).batchMintV1WithFee([payload], [proof], [feeApprovalPayload], [userSignature])
+          ).to.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+        });
+
+        it('burn() yourself reverted', async () => {
+          const amount = randomBigInt(6);
+          await expect(nativeLbtc.connect(signer1)['burn(uint256)'](amount)).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
+        });
+
+        it('burn() by minter reverted', async () => {
+          const amount = randomBigInt(6);
+          await expect(nativeLbtc.connect(minter)['burn(address,uint256)'](signer1, amount)).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
+        });
+
+        it('mint() by minter reverted', async () => {
+          const amount = randomBigInt(6);
+          await expect(nativeLbtc.connect(minter).mint(signer1, amount)).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
+        });
+
+        it('mintV1() from payload reverted', async () => {
+          const amount = randomBigInt(6);
+          const { payload, proof } = await defaultData(signer1, amount);
+          await expect(nativeLbtc.connect(minter).mintV1(payload, proof)).to.revertedWithCustomError(
+            nativeLbtc,
+            'MintBurnPaused'
+          );
+        });
+
+        it('mintV1WithFee() reverted', async () => {
+          const amount = randomBigInt(6);
+          const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer2, amount, 100n);
+
+          await expect(
+            //@ts-ignore
+            nativeLbtc.connect(claimer).mintV1WithFee(payload, proof, feeApprovalPayload, userSignature)
+          ).to.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+        });
+
+        it('redeemForBtc() reverted', async () => {
+          const amount = randomBigInt(6);
+          await expect(
+            nativeLbtc.connect(signer1).redeemForBtc('0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03', amount)
+          ).to.revertedWithCustomError(nativeLbtc, 'MintBurnPaused');
+        });
+
+        it('transfer() holders can transfer', async () => {
+          const amount = randomBigInt(6);
+          await expect(nativeLbtc.connect(signer1).transfer(signer2.address, amount)).to.changeTokenBalances(
+            nativeLbtc,
+            [signer1, signer2],
+            [-amount, amount]
+          );
+        });
+
+        it('unpauseMintBurn() reverts when called by not DEFAULT_ADMIN_ROLE', async function () {
+          await expect(nativeLbtc.connect(pauserMintBurn).unpauseMintBurn())
+            .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
+            .withArgs(pauserMintBurn.address, await nativeLbtc.DEFAULT_ADMIN_ROLE());
+        });
+
+        it('unpauseMintBurn() DEFAULT_ADMIN_ROLE can unpause', async function () {
+          await expect(nativeLbtc.connect(owner).unpauseMintBurn())
+            .to.emit(nativeLbtc, 'MintBurnPauseChanged')
+            .withArgs(false);
+          expect(await nativeLbtc.mintBurnPaused()).to.be.false;
+
+          const amount = randomBigInt(6);
+          await expect(nativeLbtc.connect(minter).mint(signer1, amount)).to.changeTokenBalance(
+            nativeLbtc,
+            signer1,
+            amount
+          );
+        });
       });
     });
 
@@ -307,18 +486,13 @@ describe('NativeLBTC', function () {
           name: 'Minter',
           role: async () => await nativeLbtc.MINTER_ROLE(),
           defaultAccount: () => minter
-        },
+        }
         //TODO: move to negative cases
         // {
         //   name: 'Default admin',
         //   role: async () => await nativeLbtc.DEFAULT_ADMIN_ROLE(),
         //   defaultAccount: () => owner,
         // },
-        {
-          name: 'Operator',
-          role: async () => await nativeLbtc.OPERATOR_ROLE(),
-          defaultAccount: () => operator
-        }
       ];
 
       roles.forEach(function (role) {
@@ -686,7 +860,7 @@ describe('NativeLBTC', function () {
       });
 
       it('mintV1() reverts when paused', async function () {
-        await nativeLbtc.connect(pauser).pause();
+        await nativeLbtc.connect(pauser).pauseTransfers();
         const { payload, proof } = await defaultData(signer1, randomBigInt(8));
         // @ts-ignore
         await expect(nativeLbtc.connect(signer1).mintV1(payload, proof)).to.be.revertedWithCustomError(
@@ -938,7 +1112,7 @@ describe('NativeLBTC', function () {
         });
 
         it('batchMint() reverts when paused', async function () {
-          await nativeLbtc.connect(pauser).pause();
+          await nativeLbtc.connect(pauser).pauseTransfers();
           await expect(
             nativeLbtc
               .connect(minter)
@@ -1015,7 +1189,7 @@ describe('NativeLBTC', function () {
         });
 
         it('batchMintV1() reverts when paused', async function () {
-          await nativeLbtc.connect(pauser).pause();
+          await nativeLbtc.connect(pauser).pauseTransfers();
           await expect(
             nativeLbtc.connect(signer1).batchMintV1([data1.payload, data2.payload], [data1.proof, data2.proof])
           ).to.be.revertedWithCustomError(nativeLbtc, 'EnforcedPause');
@@ -1164,7 +1338,7 @@ describe('NativeLBTC', function () {
         });
 
         it('batchMintV1WithFee() reverts when paused', async function () {
-          await nativeLbtc.connect(pauser).pause();
+          await nativeLbtc.connect(pauser).pauseTransfers();
           await expect(
             nativeLbtc.connect(claimer).batchMintV1WithFee(
               //@ts-ignore

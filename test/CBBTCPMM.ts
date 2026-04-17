@@ -154,14 +154,15 @@ describe('CBBTCPMM', function () {
 
     it('should fail to swap if PMM is not whitelisted as minter', async function () {
       await cbbtc.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits('1', 8));
+      const minterRole = await lbtc.MINTER_ROLE();
       await expect(pmm.connect(signer1).swapCBBTCToLBTC(ethers.parseUnits('1', 8)))
-        .to.be.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
-        .withArgs(await pmm.getAddress());
+        .to.be.revertedWithCustomError(lbtc, 'AccessControlUnauthorizedAccount')
+        .withArgs(await pmm.getAddress(), minterRole);
     });
 
     describe('With whitelisted minter', function () {
       beforeEach(async function () {
-        await lbtc.addMinter(await pmm.getAddress());
+        await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await pmm.getAddress());
       });
 
       it('should allow swaps', async function () {

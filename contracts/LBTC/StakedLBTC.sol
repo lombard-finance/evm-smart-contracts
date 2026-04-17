@@ -2,26 +2,20 @@
 pragma solidity 0.8.24;
 
 import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {BitcoinUtils} from "../libs/BitcoinUtils.sol";
-import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
-import {Actions} from "../libs/Actions.sol";
 import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
-import {IBaseLBTC} from "./interfaces/IBaseLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
-import {Validation} from "./libraries/Validation.sol";
-import {Redeem} from "./libraries/Redeem.sol";
 import {BaseLBTC} from "./BaseLBTC.sol";
 
 /**
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact legal@lombard.finance
  */
-contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
+contract StakedLBTC is IStakedLBTC, BaseLBTC {
     using SafeERC20 for IERC20;
 
     /// @dev the storage name differs, because contract was renamed from LBTC
@@ -36,7 +30,9 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         string __removed__symbol;
         /// @custom:oz-renamed-from isWithdrawalsEnabled
         bool __removed__isWithdrawalsEnabled;
-        INotaryConsortium consortium;
+        /// @custom:deprecated Retained for storage layout only; not read or written by this implementation.
+        /// @custom:oz-renamed-from consortium
+        address __removed__consortium;
         /// @custom:oz-renamed-from isWBTCEnabled
         bool __removed_isWBTCEnabled;
         /// @custom:oz-renamed-from wbtc
@@ -63,15 +59,22 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         /// Bascule drawbridge used to confirm deposits before allowing withdrawals
         /// @custom:oz-renamed-from bascule
         address __removed__bascule;
-        address pauser;
-        mapping(address => bool) minters;
-        mapping(address => bool) claimers;
+        /// @custom:deprecated Superseded by `PAUSER_ROLE`; retained for storage layout. Not updated after `migrateToAccessControl`.
+        /// @custom:oz-renamed-from pauser
+        address __removed__pauser;
+        /// @custom:deprecated Superseded by `MINTER_ROLE`; retained for storage layout.
+        /// @custom:oz-renamed-from minters
+        mapping(address => bool) __removed__minters;
+        /// @custom:deprecated Superseded by `CLAIMER_ROLE`; retained for storage layout.
+        /// @custom:oz-renamed-from claimers
+        mapping(address => bool) __removed__claimers;
         /// Maximum fee to apply on mints
         /// @custom:oz-renamed-from maximumFee
         uint256 __removed__maximumFee;
         /// @custom:oz-renamed-from usedPayloads
         mapping(bytes32 => bool) __removed__usedPayloads; // sha256(rawPayload) => used
-        address operator;
+        /// @custom:oz-renamed-from operator
+        address __removed__operator;
         IAssetRouter assetRouter;
     }
 
@@ -79,6 +82,19 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     /// keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.LBTC")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant STAKED_LBTC_STORAGE_LOCATION =
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
+
+    bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    /// @dev Matches OpenZeppelin `OwnableUpgradeable` namespace (pre-migration proxies only).
+    /// @custom:storage-location erc7201:openzeppelin.storage.Ownable
+    struct LegacyOwnableStorage {
+        address _owner;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Ownable")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant LEGACY_OWNABLE_STORAGE_LOCATION =
+        0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300;
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -89,15 +105,15 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     /// INTIALIZERS ///
 
     function initialize(
-        address consortium_,
         address treasury,
-        address owner_
+        address initialOwner,
+        uint48 initialOwnerDelay
     ) external initializer {
+        __AccessControlDefaultAdminRules_init(initialOwnerDelay, initialOwner);
+
         __ERC20_init("", "");
         __ERC20Pausable_init();
 
-        __Ownable_init(owner_);
-        __Ownable2Step_init();
         __ERC20Permit_init("Lombard Staked Bitcoin"); // TODO: set new name
 
         __ReentrancyGuard_init();
@@ -105,101 +121,85 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         __StakedLBTC_init(
             "Lombard Staked Bitcoin", // TODO: set new name
             "LBTC", // TODO: set new symbol
-            consortium_,
             treasury
         );
     }
 
-    function reinitialize() external reinitializer(2) onlyOwner {}
-
-    /// MODIFIER ///
     /**
-     * PAUSE
+     * @notice One-time migration for proxies deployed before AccessControl (reinitializer version 3).
+     * @dev Only current owner elegible to call this function.
+     * @param minters_ Addresses that must have been marked minters in legacy storage; each receives `MINTER_ROLE`.
+     * @param claimers_ Same for claimers / `CLAIMER_ROLE`.
      */
-    modifier onlyPauser() {
-        if (pauser() != _msgSender()) {
-            revert UnauthorizedAccount(_msgSender());
+    function migrateToAccessControl(
+        address[] calldata minters_,
+        address[] calldata claimers_
+    ) external reinitializer(3) {
+        address sender = _msgSender();
+        address legacy = _legacyOwner();
+        if (sender != legacy) {
+            revert UnauthorizedAccount(sender);
         }
-        _;
+
+        __AccessControlDefaultAdminRules_init(0, sender);
+
+        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
+
+        if ($.__removed__pauser != address(0)) {
+            _grantRole(PAUSER_ROLE, $.__removed__pauser);
+        }
+
+        for (uint256 i; i < minters_.length; ++i) {
+            address a = minters_[i];
+            if (!$.__removed__minters[a]) {
+                revert UnauthorizedAccount(a);
+            }
+            _grantRole(MINTER_ROLE, a);
+        }
+        for (uint256 i; i < claimers_.length; ++i) {
+            address a = claimers_[i];
+            if (!$.__removed__claimers[a]) {
+                revert UnauthorizedAccount(a);
+            }
+            _grantRole(CLAIMER_ROLE, a);
+        }
     }
 
-    modifier onlyMinter() {
-        if (!_getStakedLBTCStorage().minters[_msgSender()]) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-        _;
-    }
+    /// ONLY DEFAULT ADMIN FUNCTIONS ///
 
-    modifier onlyClaimer() {
-        if (!_getStakedLBTCStorage().claimers[_msgSender()]) {
-            revert UnauthorizedAccount(_msgSender());
-        }
-        _;
-    }
-
-    /// ONLY OWNER FUNCTIONS ///
-
-    function toggleRedeemsForBtc() external onlyOwner {
+    function toggleRedeemsForBtc() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _getStakedLBTCStorage().assetRouter.toggleRedeem();
     }
 
     function changeNameAndSymbol(
         string calldata name_,
         string calldata symbol_
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeNameAndSymbol(name_, symbol_);
     }
 
-    function changeConsortium(address newVal) external onlyOwner {
-        _changeConsortium(newVal);
-    }
-
-    function changeTreasuryAddress(address newValue) external onlyOwner {
+    function changeTreasuryAddress(
+        address newValue
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeTreasury(newValue);
     }
 
-    function pause() external onlyPauser {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
-    function addMinter(address newMinter) external onlyOwner {
-        _updateMinter(newMinter, true);
-    }
-
-    function removeMinter(address oldMinter) external onlyOwner {
-        _updateMinter(oldMinter, false);
-    }
-
-    function addClaimer(address newClaimer) external onlyOwner {
-        _updateClaimer(newClaimer, true);
-    }
-
-    function removeClaimer(address oldClaimer) external onlyOwner {
-        _updateClaimer(oldClaimer, false);
-    }
-
-    function changeAssetRouter(address newVal) external onlyOwner {
+    function changeAssetRouter(
+        address newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeAssetRouter(newVal);
     }
 
-    function changeRedeemFee(uint256 newVal) external onlyOwner {
+    function changeRedeemFee(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeRedeemFee(newVal);
     }
 
-    function changeRedeemForBtcMinAmount(uint256 newVal) external onlyOwner {
+    function changeRedeemForBtcMinAmount(
+        uint256 newVal
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeRedeemForBtcMinAmount(newVal);
-    }
-
-    function changePauser(address newPauser) external onlyOwner {
-        _changePauser(newPauser);
-    }
-
-    function changeOperator(address newOperator) external onlyOwner {
-        _changeOperator(newOperator);
     }
 
     /// GETTERS ///
@@ -223,20 +223,13 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
             );
     }
 
-    function consortium() external view virtual returns (INotaryConsortium) {
-        return _getStakedLBTCStorage().consortium;
-    }
-
     function getAssetRouter() external view override returns (address) {
         return address(_getStakedLBTCStorage().assetRouter);
     }
 
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     *
-     * Because LBTC repsents BTC we use the same decimals.
-     *
-     */
+    /// @notice Token decimals for user-facing amounts (same as BTC).
+    /// @dev StakedLBTC represents BTC-denominated stake; precision matches 1e8 units.
+    /// @return Always 8 (BTC-style decimals).
     function decimals() public view virtual override returns (uint8) {
         return 8;
     }
@@ -266,27 +259,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         return redeemForBtcMinAmount;
     }
 
-    /**
-     * Get Bascule contract.
-     */
+    /// @notice Bascule contract address as reported by the asset router.
+    /// @return bascule The Bascule address from `IAssetRouter.bascule()`.
     function Bascule() external view returns (address) {
         return address(_getStakedLBTCStorage().assetRouter.bascule());
-    }
-
-    function pauser() public view returns (address) {
-        return _getStakedLBTCStorage().pauser;
-    }
-
-    function operator() external view returns (address) {
-        return _getStakedLBTCStorage().operator;
-    }
-
-    function isMinter(address minter) external view returns (bool) {
-        return _getStakedLBTCStorage().minters[minter];
-    }
-
-    function isClaimer(address claimer) external view returns (bool) {
-        return _getStakedLBTCStorage().claimers[claimer];
     }
 
     function isNative() public pure returns (bool) {
@@ -300,10 +276,14 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         return isRedeemEnabled;
     }
 
+    /// @notice Staking ratio for this token from the asset router's oracle (or router fallback for unset oracle).
+    /// @return value Ratio scaled as reported by `IAssetRouter.ratio` for `address(this)` (typically 1e18-based).
     function ratio() external view override returns (uint256) {
         return _getStakedLBTCStorage().assetRouter.ratio(address(this));
     }
 
+    /// @notice Conversion rate derived from the staking ratio (inverse relationship in the staked oracle implementation).
+    /// @return rate Rate from `IAssetRouter.getRate` for `address(this)`; used for amount conversions alongside `ratio`.
     function getRate() external view override returns (uint256) {
         return _getStakedLBTCStorage().assetRouter.getRate(address(this));
     }
@@ -314,9 +294,12 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
      * @notice Mint LBTC to the specified address
      * @param to The address to mint to
      * @param amount The amount of LBTC to mint
-     * @dev Only callable by whitelisted minters
+     * @dev Only callable by accounts with `MINTER_ROLE`
      */
-    function mint(address to, uint256 amount) external override onlyMinter {
+    function mint(
+        address to,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _mint(to, amount);
     }
 
@@ -324,24 +307,25 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
      * @notice Mint LBTC in batches
      * @param to The addresses to mint to
      * @param amount The amounts of LBTC to mint
-     * @dev Only callable by whitelisted minters
+     * @dev Only callable by accounts with `MINTER_ROLE`
      */
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external onlyMinter {
+    ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _batchMint(to, amount);
     }
 
     /**
-     * @notice Mint StakedLBTC by proving a stake action happened
-     * @param rawPayload The message with the stake data
-     * @param proof Signature of the consortium approving the mint
+     * @notice Mint StakedLBTC by proving a deposit action happened.
+     * @param rawPayload The message with the deposit data.
+     * @param proof Signature of the consortium approving the mint.
+     * @return recipient Address that received the minted tokens (from the asset router).
      */
     function mint(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) external nonReentrant returns (address recipient) {
+    ) external nonReentrant whenMintBurnAllowed returns (address recipient) {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -357,7 +341,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     function batchMint(
         bytes[] calldata payload,
         bytes[] calldata proof
-    ) external nonReentrant {
+    ) external nonReentrant whenMintBurnAllowed {
         if (paused()) {
             revert EnforcedPause();
         }
@@ -381,7 +365,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external onlyClaimer {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -397,7 +381,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external onlyClaimer {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         if (paused()) {
             revert EnforcedPause();
         }
@@ -422,7 +406,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     function redeemForBtc(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external {
+    ) external whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -435,25 +419,26 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         );
     }
 
-    /**
-     * @dev Burns LBTC
-     *
-     * @param amount Amount of LBTC to burn
-     */
-    function burn(uint256 amount) external {
+    /// @notice Burns caller's LBTC balance.
+    /// @param amount Amount of LBTC to burn from `msg.sender`.
+    function burn(uint256 amount) external whenMintBurnAllowed {
         _burn(_msgSender(), amount);
     }
 
-    /**
-     * @dev Allows minters to burn LBTC
-     *
-     * @param amount Amount of LBTC to burn
-     */
-    function burn(address from, uint256 amount) external override onlyMinter {
+    /// @notice Burns LBTC from an arbitrary holder; minter-only.
+    /// @param from Account whose LBTC balance is burned.
+    /// @param amount Amount of LBTC to burn.
+    function burn(
+        address from,
+        uint256 amount
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _burn(from, amount);
     }
 
-    function redeem(uint256 amount) external nonReentrant {
+    /// @notice Redeem StakedLBTC into NativeLBTC on this chain via the asset router (cross-module redeem path).
+    /// @dev Forwards to `IAssetRouter.redeem` with `fromToken` = this contract; burns/redeems per router rules.
+    /// @param amount StakedLBTC amount the caller redeems.
+    function redeem(uint256 amount) external nonReentrant whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -461,7 +446,10 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         $.assetRouter.redeem(_msgSender(), address(this), amount);
     }
 
-    function deposit(uint256 amount) external nonReentrant {
+    /// @notice Start a deposit: burn the caller's NativeLBTC and enqueue a ledger deposit toward this staked token route.
+    /// @dev Forwards to `IAssetRouter.deposit(address,address,uint256)`; enforces router min amount and route type.
+    /// @param amount NativeLBTC amount to burn from `msg.sender` for the deposit intent.
+    function deposit(uint256 amount) external nonReentrant whenMintBurnAllowed {
         StakedLBTCStorage storage $ = _getStakedLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -474,11 +462,9 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
     function __StakedLBTC_init(
         string memory name_,
         string memory symbol_,
-        address consortium_,
         address treasury
     ) internal onlyInitializing {
         _changeNameAndSymbol(name_, symbol_);
-        _changeConsortium(consortium_);
         _changeTreasury(treasury);
     }
 
@@ -500,44 +486,19 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC, Ownable2StepUpgradeable {
         );
     }
 
-    /// @dev not zero
-    function _changeConsortium(address newVal) internal {
-        Assert.zeroAddress(newVal);
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        emit ConsortiumChanged(address($.consortium), newVal);
-        $.consortium = INotaryConsortium(newVal);
+    function _legacyOwner() private view returns (address) {
+        LegacyOwnableStorage storage $ = _getLegacyOwnableStorage();
+        return $._owner;
     }
 
-    /// @dev Not zero
-    function _changePauser(address newPauser) internal {
-        Assert.zeroAddress(newPauser);
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        address oldPauser = $.pauser;
-        $.pauser = newPauser;
-        emit PauserRoleTransferred(oldPauser, newPauser);
-    }
-
-    /// @dev Not zero
-    function _changeOperator(address newOperator) internal {
-        Assert.zeroAddress(newOperator);
-        StakedLBTCStorage storage $ = _getStakedLBTCStorage();
-        address oldOperator = $.operator;
-        $.operator = newOperator;
-        emit OperatorRoleTransferred(oldOperator, newOperator);
-    }
-
-    /// @dev `minter` not zero
-    function _updateMinter(address minter, bool _isMinter) internal {
-        Assert.zeroAddress(minter);
-        _getStakedLBTCStorage().minters[minter] = _isMinter;
-        emit MinterUpdated(minter, _isMinter);
-    }
-
-    /// @dev `claimer` not zero
-    function _updateClaimer(address claimer, bool _isClaimer) internal {
-        Assert.zeroAddress(claimer);
-        _getStakedLBTCStorage().claimers[claimer] = _isClaimer;
-        emit ClaimerUpdated(claimer, _isClaimer);
+    function _getLegacyOwnableStorage()
+        private
+        pure
+        returns (LegacyOwnableStorage storage $)
+    {
+        assembly {
+            $.slot := LEGACY_OWNABLE_STORAGE_LOCATION
+        }
     }
 
     /// @dev `treasury` not zero

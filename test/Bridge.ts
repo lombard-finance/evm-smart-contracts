@@ -56,11 +56,7 @@ describe('Bridge', function () {
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
-    stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [
-      await consortium.getAddress(),
-      treasurySource.address,
-      deployer.address
-    ]);
+    stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [treasurySource.address, deployer.address, 0n]);
     bridgeSource = await deployContract<Bridge>('Bridge', [
       await stakedLbtcSource.getAddress(),
       treasurySource.address,
@@ -74,9 +70,9 @@ describe('Bridge', function () {
 
     // chain 2
     stakedLbtcDestination = await deployContract<StakedLBTC>('StakedLBTC', [
-      await consortium.getAddress(),
       treasuryDestination.address,
-      deployer.address
+      deployer.address,
+      0n
     ]);
     bridgeDestination = await deployContract<Bridge>('Bridge', [
       await stakedLbtcDestination.getAddress(),
@@ -84,14 +80,20 @@ describe('Bridge', function () {
       deployer.address
     ]);
 
-    await stakedLbtcSource.addMinter(await bridgeSource.getAddress());
-    await stakedLbtcDestination.addMinter(await bridgeDestination.getAddress());
+    await stakedLbtcSource
+      .connect(deployer)
+      .grantRole(await stakedLbtcSource.MINTER_ROLE(), await bridgeSource.getAddress());
+    await stakedLbtcDestination
+      .connect(deployer)
+      .grantRole(await stakedLbtcDestination.MINTER_ROLE(), await bridgeDestination.getAddress());
 
     await bridgeSource.changeConsortium(await consortium.getAddress());
     await bridgeDestination.changeConsortium(await consortium.getAddress());
 
-    await stakedLbtcSource.addMinter(deployer);
-    await stakedLbtcDestination.addMinter(deployer);
+    await stakedLbtcSource.connect(deployer).grantRole(await stakedLbtcSource.MINTER_ROLE(), deployer.address);
+    await stakedLbtcDestination
+      .connect(deployer)
+      .grantRole(await stakedLbtcDestination.MINTER_ROLE(), deployer.address);
 
     // set rate limits
     const oo = {

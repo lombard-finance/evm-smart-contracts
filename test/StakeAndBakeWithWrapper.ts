@@ -51,7 +51,8 @@ const ONE_SHARE = 100000000n;
 const CHAIN_ID: string = encode(['uint256'], [1]);
 const DAY = 86400;
 
-describe('StakeandBake_with_ERC4626VaultWrapper', function () {
+const describeFork = config.networks.hardhat.forking ? describe : describe.skip;
+describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
   let _: Signer,
     owner: Signer,
     stakeAndBakeOwner: HardhatEthersSigner,
@@ -82,16 +83,14 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
   let stakeAndBakeFee: bigint;
 
   before(async function () {
+    const forkConfig = config.networks.hardhat.forking;
     await network.provider.send('hardhat_reset', [
       {
-        forking: {
-          jsonRpcUrl: config.networks.hardhat.forking?.url,
-          blockNumber: config.networks.hardhat.forking?.blockNumber
-        }
+        forking: forkConfig ? { jsonRpcUrl: forkConfig.url, blockNumber: forkConfig.blockNumber } : undefined
       }
     ]);
     const block = await ethers.provider.getBlockNumber();
-    expect(block).to.be.gt(23000000, '-------- Please switch to eth fork --------');
+    expect(block).to.be.gt(23000000, 'Run with HARDHAT_FORK=1 yarn test test/StakeAndBakeWithWrapper.ts');
 
     [_, owner, signer1, signer2, signer3, notary1, operator, claimer, pauser, minter] =
       await getSignersWithPrivateKeys();
@@ -113,8 +112,8 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     //   console.log(`LBTC transfer from (${from}) to (${to}) ${amount}`);
     // });
     lbtcOwner = await impersonateWithEth('0x055E84e7FE8955E2781010B866f10Ef6E1E77e59');
-    await stakedLbtc.connect(lbtcOwner).changeOperator(operator.address);
-    await stakedLbtc.connect(lbtcOwner).addMinter(minter);
+    await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
+    await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
 
     stakeAndBake = (await ethers.getContractAt(
       'StakeAndBake',
@@ -1104,9 +1103,9 @@ describe('StakeandBake_with_ERC4626VaultWrapper', function () {
     before(async function () {
       await snapshot.restore();
       const rndAddr = ethers.Wallet.createRandom();
-      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
+      token = await initStakedLBTC(owner.address, rndAddr.address);
       dummy = signer2;
-      await token.connect(owner).addMinter(owner);
+      await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 
