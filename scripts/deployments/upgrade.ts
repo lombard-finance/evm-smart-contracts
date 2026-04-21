@@ -7,6 +7,7 @@ task('upgrade-proxy', 'Upgrades proxy contract')
   .addPositionalParam('contractName', 'The name of the contract')
   .addOptionalParam('timelock', 'The address of timelock contract')
   .addOptionalParam('timelockDelay', 'The timelock delay in seconds')
+  .addOptionalParam('timelockSalt', 'The salt to use for the upgrade')
   .addParam('calldata', 'The calldata to execute during upgrade', '0x')
   .addFlag('populate', 'Show tx data to execute later')
   .setAction(async (taskArgs, hre) => {
@@ -16,7 +17,8 @@ task('upgrade-proxy', 'Upgrades proxy contract')
       calldata,
       populate,
       timelock: timelockArg,
-      timelockDelay: timelockDelayArg
+      timelockDelay: timelockDelayArg,
+      timelockSalt: timelockSaltArg,
     } = taskArgs;
 
     const cre = new CustomRuntimeEnvironment(hre);
@@ -51,7 +53,7 @@ task('upgrade-proxy', 'Upgrades proxy contract')
       return;
     }
 
-    const timelockTx = await schedule(hre, timelock, upgradeTx, timelockDelayArg);
+    const timelockTx = await schedule(hre, timelock, upgradeTx, hre.ethers.ZeroHash, timelockSaltArg || hre.ethers.ZeroHash, timelockDelayArg);
 
     await timelockTx.wait(1);
 
