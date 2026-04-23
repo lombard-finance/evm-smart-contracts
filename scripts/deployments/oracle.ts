@@ -45,7 +45,7 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
       [owner, consortium, token, denom, ratio, switchTime, maxInterval],
       proxyFactoryAddr,
       ledgerNetwork,
-      owner,
+      upgradeOwner,
       hre
     );
   });
