@@ -18,7 +18,7 @@ task('upgrade-proxy', 'Upgrades proxy contract')
       populate,
       timelock: timelockArg,
       timelockDelay: timelockDelayArg,
-      timelockSalt: timelockSaltArg,
+      timelockSalt: timelockSaltArg
     } = taskArgs;
 
     const cre = new CustomRuntimeEnvironment(hre);
@@ -53,7 +53,14 @@ task('upgrade-proxy', 'Upgrades proxy contract')
       return;
     }
 
-    const timelockTx = await schedule(hre, timelock, upgradeTx, hre.ethers.ZeroHash, timelockSaltArg || hre.ethers.ZeroHash, timelockDelayArg);
+    const timelockTx = await schedule(
+      hre,
+      timelock,
+      upgradeTx,
+      hre.ethers.ZeroHash,
+      timelockSaltArg || hre.ethers.ZeroHash,
+      timelockDelayArg
+    );
 
     await timelockTx.wait(1);
 
