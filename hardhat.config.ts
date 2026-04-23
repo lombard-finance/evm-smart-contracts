@@ -373,6 +373,14 @@ const config: HardhatUserConfig = {
       gasMultiplier: 2,
       gas: 8_000_000
     },
+    optimism: {
+      loggingEnabled: true,
+      url: vars.get('OPTIMISM_ETH_RPC', 'https://mainnet.optimism.io'),
+      chainId: 10,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     hardhat: {
       // Fork only when HARDHAT_FORK=1 so `yarn test` runs in-memory and avoids
       // "historical state is not available". Fork tests run on this same (in-process) network
