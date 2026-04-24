@@ -17,12 +17,12 @@ task('deploy-consortium', 'Deploys the Consortium contract via create3')
 
     const [signer] = await hre.ethers.getSigners();
     let owner = await signer.getAddress();
-    let upgradeOwner = owner;
 
     if (hre.ethers.isAddress(admin)) {
       owner = admin;
     }
 
+    let upgradeOwner = owner;
     if (hre.ethers.isAddress(upgradeAdmin)) {
       upgradeOwner = upgradeAdmin;
     }

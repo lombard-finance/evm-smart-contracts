@@ -38,7 +38,7 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
 
     const [signer] = await hre.ethers.getSigners();
     let owner = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
-    let upgradeOwner = hre.ethers.isAddress(upgradeAdminArg) ? upgradeAdminArg : await signer.getAddress();
+    let upgradeOwner = hre.ethers.isAddress(upgradeAdminArg) ? upgradeAdminArg : owner;
 
     await create3(
       'StakedLBTCOracle',
