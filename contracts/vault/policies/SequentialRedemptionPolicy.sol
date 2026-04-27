@@ -40,7 +40,11 @@ contract SequentialRedemptionPolicy is IRedemptionSettlementPolicy {
             if (cap == 0) continue;
             uint256 give = cap <= remaining ? cap : remaining;
             if (give != 0) {
-                slices[k++] = RedemptionSettlementSlice({controller: c, requestId: 0, assets: give});
+                slices[k++] = RedemptionSettlementSlice({
+                    controller: c,
+                    requestId: 0,
+                    assets: give
+                });
                 remaining -= give;
             }
         }

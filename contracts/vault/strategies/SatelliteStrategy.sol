@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-import {IStrategyExecValidator} from "./IStrategyExecValidator.sol";
+import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title SatelliteStrategy

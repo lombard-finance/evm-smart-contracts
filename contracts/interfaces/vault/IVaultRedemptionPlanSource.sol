@@ -17,5 +17,7 @@ interface IVaultRedemptionPlanSource {
     ) external view returns (uint256 shares);
 
     /// @dev Remaining asset budget for pending redemptions for `controller` (set at `requestRedeem` before burn).
-    function pendingRedeemAssetBudget(address controller) external view returns (uint256 assets);
+    function pendingRedeemAssetBudget(
+        address controller
+    ) external view returns (uint256 assets);
 }

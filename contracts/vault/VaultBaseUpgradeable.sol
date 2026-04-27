@@ -32,7 +32,11 @@ abstract contract VaultBaseUpgradeable is
     error ZeroPricePerShare();
 
     /// @notice Emitted when the poster updates `pricePerShare`. `nav` is `NAV()` immediately after the update.
-    event PricePerShareUpdated(uint256 pricePerShare, uint256 nav, uint64 postedAt);
+    event PricePerShareUpdated(
+        uint256 pricePerShare,
+        uint256 nav,
+        uint64 postedAt
+    );
 
     /// @custom:storage-location erc7201:lombardfinance.storage.VaultCore
     struct VaultCoreStorage {
@@ -45,7 +49,11 @@ abstract contract VaultBaseUpgradeable is
     bytes32 private constant VAULT_CORE_STORAGE_LOCATION =
         0x3d42c6a084e8302aaeef6513442802be274fec9053d4232959267788144a3100;
 
-    function _getVaultCoreStorage() internal pure returns (VaultCoreStorage storage $) {
+    function _getVaultCoreStorage()
+        internal
+        pure
+        returns (VaultCoreStorage storage $)
+    {
         assembly {
             $.slot := VAULT_CORE_STORAGE_LOCATION
         }
@@ -57,12 +65,22 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @notice Update `pricePerShare` (`PRICE_PER_SHARE_POSTER_ROLE`). `newPricePerShare` MUST be non-zero.
-    function postPricePerShare(uint256 newPricePerShare) external onlyRole(PRICE_PER_SHARE_POSTER_ROLE) {
+    function postPricePerShare(
+        uint256 newPricePerShare
+    ) external onlyRole(PRICE_PER_SHARE_POSTER_ROLE) {
         if (newPricePerShare == 0) revert ZeroPricePerShare();
         VaultCoreStorage storage $ = _getVaultCoreStorage();
         $.pricePerShare = newPricePerShare;
-        uint256 nav = totalSupply().mulDiv(newPricePerShare, 10 ** decimals(), Math.Rounding.Floor);
-        emit PricePerShareUpdated(newPricePerShare, nav, uint64(block.timestamp));
+        uint256 nav = totalSupply().mulDiv(
+            newPricePerShare,
+            10 ** decimals(),
+            Math.Rounding.Floor
+        );
+        emit PricePerShareUpdated(
+            newPricePerShare,
+            nav,
+            uint64(block.timestamp)
+        );
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -72,14 +90,26 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    function asset() public view virtual override(ERC4626Upgradeable, IVault) returns (address) {
+    function asset()
+        public
+        view
+        virtual
+        override(ERC4626Upgradeable, IVault)
+        returns (address)
+    {
         return super.asset();
     }
 
     /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(AccessControlDefaultAdminRulesUpgradeable) returns (bool) {
+    )
+        public
+        view
+        virtual
+        override(AccessControlDefaultAdminRulesUpgradeable)
+        returns (bool)
+    {
         if (interfaceId == type(IERC4626).interfaceId) {
             return true;
         }
@@ -87,14 +117,18 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @inheritdoc IVault
-    function registerStrategy(address strategy) external override nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
+    function registerStrategy(
+        address strategy
+    ) external override nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
         if (strategy == address(0)) revert ZeroAddress();
         _getVaultCoreStorage().strategies.add(strategy);
         SafeERC20.forceApprove(IERC20(asset()), strategy, type(uint256).max);
     }
 
     /// @inheritdoc IVault
-    function isRegisteredStrategy(address strategy) external view override returns (bool) {
+    function isRegisteredStrategy(
+        address strategy
+    ) external view override returns (bool) {
         return _getVaultCoreStorage().strategies.contains(strategy);
     }
 
@@ -107,12 +141,19 @@ abstract contract VaultBaseUpgradeable is
         address strategyDeployer_,
         address pricePerSharePoster_
     ) internal onlyInitializing {
-        if (defaultAdmin_ == address(0) || strategyDeployer_ == address(0) || pricePerSharePoster_ == address(0)) {
+        if (
+            defaultAdmin_ == address(0) ||
+            strategyDeployer_ == address(0) ||
+            pricePerSharePoster_ == address(0)
+        ) {
             revert ZeroAddress();
         }
 
         __AccessControl_init();
-        __AccessControlDefaultAdminRules_init(initialDefaultAdminDelay_, defaultAdmin_);
+        __AccessControlDefaultAdminRules_init(
+            initialDefaultAdminDelay_,
+            defaultAdmin_
+        );
         __ReentrancyGuard_init();
 
         _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
@@ -130,7 +171,10 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view virtual override returns (uint256) {
+    function _convertToShares(
+        uint256 assets,
+        Math.Rounding rounding
+    ) internal view virtual override returns (uint256) {
         uint256 p = pricePerShare();
         if (p == 0) {
             return 0;
@@ -139,7 +183,10 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view virtual override returns (uint256) {
+    function _convertToAssets(
+        uint256 shares,
+        Math.Rounding rounding
+    ) internal view virtual override returns (uint256) {
         uint256 p = pricePerShare();
         if (p == 0) {
             return 0;

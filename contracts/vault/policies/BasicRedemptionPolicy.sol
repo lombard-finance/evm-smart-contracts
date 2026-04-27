@@ -27,7 +27,11 @@ contract BasicRedemptionPolicy is IRedemptionSettlementPolicy {
 
             uint256 assets = budget <= maxAssets ? budget : maxAssets;
             slices = new RedemptionSettlementSlice[](1);
-            slices[0] = RedemptionSettlementSlice({controller: controller, requestId: 0, assets: assets});
+            slices[0] = RedemptionSettlementSlice({
+                controller: controller,
+                requestId: 0,
+                assets: assets
+            });
             return slices;
         }
 

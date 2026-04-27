@@ -1,5 +1,5 @@
 /**
- * One-off / CI helper: estimate gas for MerkleCallAllowlist.
+ * One-off / CI helper: estimate gas for MerkleAllowlistValidator.
  * Run: HARDHAT_NO_FORK=1 npx hardhat run scripts/estimateMerkleAllowlistGas.ts
  */
 import { ethers } from 'hardhat';
@@ -21,7 +21,7 @@ function encodeMerkleRule(p: {
     p.to,
     p.value,
     p.dataLength >>> 0,
-    p.constraints.length,
+    p.constraints.length
   ];
   for (const c of p.constraints) {
     types.push('uint16', 'bytes32', 'bytes32');
@@ -32,7 +32,7 @@ function encodeMerkleRule(p: {
 
 async function main() {
   const [deployer, user] = await ethers.getSigners();
-  const f = await ethers.getContractFactory('MerkleCallAllowlist');
+  const f = await ethers.getContractFactory('MerkleAllowlistValidator');
   const c = await f.deploy();
   await c.waitForDeployment();
   const target = await user.getAddress();
@@ -46,7 +46,7 @@ async function main() {
     sender: string,
     to: string,
     value: bigint,
-    data: string,
+    data: string
   ) {
     const input = { ruleEncoded: rule, merkleProof: proof };
     const dataLen = ethers.dataLength(data);
@@ -61,7 +61,7 @@ async function main() {
     to: target,
     value: 0n,
     dataLength: 0,
-    constraints: [],
+    constraints: []
   });
   const ds = await c.domainSeparator();
   const row: [number, string, Uint8Array] = [0, ds, ethers.getBytes(simpleRule)];
@@ -75,7 +75,7 @@ async function main() {
     ethers.ZeroAddress,
     target,
     0n,
-    '0xabcd',
+    '0xabcd'
   );
 
   await c.setAllowlistRoot(tree1.root);
@@ -87,16 +87,26 @@ async function main() {
     ethers.ZeroAddress,
     target,
     0n,
-    ethers.hexlify(ethers.randomBytes(100)),
+    ethers.hexlify(ethers.randomBytes(100))
   );
 
   // Multi-leaf tree => longer proof
-  const rules = [simpleRule, encodeMerkleRule({ flags: 0x02, sender: ethers.ZeroAddress, to: deployer.address, value: 0n, dataLength: 0, constraints: [] })];
+  const rules = [
+    simpleRule,
+    encodeMerkleRule({
+      flags: 0x02,
+      sender: ethers.ZeroAddress,
+      to: deployer.address,
+      value: 0n,
+      dataLength: 0,
+      constraints: []
+    })
+  ];
   const values = await Promise.all(
-    rules.map(async (r) => {
+    rules.map(async r => {
       const rr: [number, string, Uint8Array] = [0, ds, ethers.getBytes(r)];
       return rr;
-    }),
+    })
   );
   const tree2 = StandardMerkleTree.of(values, ['uint8', 'bytes32', 'bytes']);
   await c.setAllowlistRoot(tree2.root);
@@ -108,7 +118,7 @@ async function main() {
     ethers.ZeroAddress,
     target,
     0n,
-    '0x',
+    '0x'
   );
 
   // Worst case on-chain: MAX_CONSTRAINTS (64) + all scalar exact bits (0x0F).
@@ -118,7 +128,7 @@ async function main() {
     constraintsMax.push({
       offset: 4 + 32 * i,
       mask: fullMask,
-      expected: ethers.ZeroHash,
+      expected: ethers.ZeroHash
     });
   }
   const dataLenMax = 4 + 32 * nMax;
@@ -129,7 +139,7 @@ async function main() {
     to: target,
     value: 0n,
     dataLength: dataLenMax,
-    constraints: constraintsMax,
+    constraints: constraintsMax
   });
   const treeMax = StandardMerkleTree.of([[0, ds, ethers.getBytes(ruleMax)]], ['uint8', 'bytes32', 'bytes']);
   await c.setAllowlistRoot(treeMax.root);
@@ -141,7 +151,7 @@ async function main() {
     await deployer.getAddress(),
     target,
     0n,
-    dataMax,
+    dataMax
   );
 
   // 64 constraints at highest uint16 offsets (65472..65535) + exact dataLength = 65536 (max span for §5 reads).
@@ -150,7 +160,7 @@ async function main() {
     constraintsHigh.push({
       offset: 65472 + i,
       mask: fullMask,
-      expected: ethers.ZeroHash,
+      expected: ethers.ZeroHash
     });
   }
   const dataLenSpan = 65536;
@@ -161,7 +171,7 @@ async function main() {
     to: target,
     value: 0n,
     dataLength: dataLenSpan,
-    constraints: constraintsHigh,
+    constraints: constraintsHigh
   });
   const treeSpan = StandardMerkleTree.of([[0, ds, ethers.getBytes(ruleSpan)]], ['uint8', 'bytes32', 'bytes']);
   await c.setAllowlistRoot(treeSpan.root);
@@ -173,7 +183,7 @@ async function main() {
     await deployer.getAddress(),
     target,
     0n,
-    dataSpan,
+    dataSpan
   );
 
   // Constraints: 1, 4, 16 (offsets 4, 36, 68, 100 ...)
@@ -183,7 +193,7 @@ async function main() {
       constraints.push({
         offset: 4 + 32 * i,
         mask: fullMask,
-        expected: ethers.ZeroHash,
+        expected: ethers.ZeroHash
       });
     }
     const ruleC = encodeMerkleRule({
@@ -192,7 +202,7 @@ async function main() {
       to: target,
       value: 0n,
       dataLength: 0,
-      constraints,
+      constraints
     });
     const treeC = StandardMerkleTree.of([[0, ds, ethers.getBytes(ruleC)]], ['uint8', 'bytes32', 'bytes']);
     await c.setAllowlistRoot(treeC.root);
@@ -206,7 +216,7 @@ async function main() {
   console.log(`setAllowlistRoot (same root update): ${gasSet.toString()} gas`);
 }
 
-main().catch((e) => {
+main().catch(e => {
   console.error(e);
   process.exit(1);
 });

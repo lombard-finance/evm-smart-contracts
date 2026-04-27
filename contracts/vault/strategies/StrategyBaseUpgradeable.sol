@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IStrategyExecValidator} from "./IStrategyExecValidator.sol";
+import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 
 /// @title StrategyBaseUpgradeable
 /// @notice Shared validator-gated `exec` for Strategy and SatelliteStrategy (`docs/spec/002-strategy.md`).

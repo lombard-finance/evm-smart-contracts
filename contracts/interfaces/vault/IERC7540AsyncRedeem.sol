@@ -16,7 +16,11 @@ interface IERC7540AsyncRedeem {
     );
 
     /// @dev Emitted when `setOperator` updates approval (EIP-7540).
-    event OperatorSet(address indexed controller, address indexed operator, bool approved);
+    event OperatorSet(
+        address indexed controller,
+        address indexed operator,
+        bool approved
+    );
 
     /// @notice Submit a redemption request; moves `shares` out of `owner` custody per implementation (EIP-7540).
     function requestRedeem(
@@ -38,8 +42,14 @@ interface IERC7540AsyncRedeem {
     ) external view returns (uint256 shares);
 
     /// @notice Whether `operator` may act on requests for `controller`.
-    function isOperator(address controller, address operator) external view returns (bool);
+    function isOperator(
+        address controller,
+        address operator
+    ) external view returns (bool);
 
     /// @notice Approve or revoke `operator` for `msg.sender` as controller.
-    function setOperator(address operator, bool approved) external returns (bool);
+    function setOperator(
+        address operator,
+        bool approved
+    ) external returns (bool);
 }

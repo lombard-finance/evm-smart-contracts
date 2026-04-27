@@ -1,6 +1,6 @@
 # Vault: Merkle call allowlist
 
-This folder holds **`MerkleCallAllowlist`**, a read-only validator that answers: *“Is this call allowed under our published policy?”* It does **not** execute calls or move ETH.
+This folder holds **`MerkleAllowlistValidator`**, a read-only validator that answers: _“Is this call allowed under our published policy?”_ It does **not** execute calls or move ETH.
 
 Normative detail lives in [`docs/spec/001-merkle-call-data-allowlist.md`](../../docs/spec/001-merkle-call-data-allowlist.md). This README is a short product-oriented overview plus examples.
 
@@ -19,13 +19,13 @@ The `sender` passed to `isAllowed` is the **logical** caller your product cares 
 
 ## What you can put in a rule
 
-| You can fix or leave open | Notes |
-|---------------------------|--------|
-| **Sender** | Exact address, or any. |
-| **Target contract (`to`)** | Exact address, or any. |
-| **ETH sent with the call (`value`)** | Exact amount, or any. |
-| **Length of `data`** | Exact byte length, or any. |
-| **Inside `data` (calldata)** | Up to **64** checks: at a **byte offset**, read a 32-byte window (zero-padded if the payload ends early) and require `(word & mask) == expected`. |
+| You can fix or leave open            | Notes                                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sender**                           | Exact address, or any.                                                                                                                            |
+| **Target contract (`to`)**           | Exact address, or any.                                                                                                                            |
+| **ETH sent with the call (`value`)** | Exact amount, or any.                                                                                                                             |
+| **Length of `data`**                 | Exact byte length, or any.                                                                                                                        |
+| **Inside `data` (calldata)**         | Up to **64** checks: at a **byte offset**, read a 32-byte window (zero-padded if the payload ends early) and require `(word & mask) == expected`. |
 
 **Payload checks** are how you pin things like **function selector** (usually offset **0**) and **ABI argument words** (often offsets **4**, **36**, … for static types after the 4-byte selector).
 
@@ -42,12 +42,12 @@ The `sender` passed to `isAllowed` is the **logical** caller your product cares 
 
 `flags` is a bitmask; only the low 4 bits are used:
 
-| Bit | Value | Meaning when set |
-|-----|-------|------------------|
-| 0 | `0x01` | `sender` must equal the address in the rule |
-| 1 | `0x02` | `to` must equal the address in the rule |
-| 2 | `0x04` | `value` must equal the value in the rule |
-| 3 | `0x08` | `data.length` must equal `dataLength` in the rule |
+| Bit | Value  | Meaning when set                                  |
+| --- | ------ | ------------------------------------------------- |
+| 0   | `0x01` | `sender` must equal the address in the rule       |
+| 1   | `0x02` | `to` must equal the address in the rule           |
+| 2   | `0x04` | `value` must equal the value in the rule          |
+| 3   | `0x08` | `data.length` must equal `dataLength` in the rule |
 
 If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, or `dataLength == 0`).
 
@@ -86,15 +86,7 @@ function encodeMerkleRule(p: {
   dataLength: number;
   constraints: RuleConstraint[];
 }): string {
-  const types: string[] = [
-    'uint8',
-    'uint8',
-    'address',
-    'address',
-    'uint256',
-    'uint32',
-    'uint16',
-  ];
+  const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
     0x03,
     p.flags,
@@ -102,7 +94,7 @@ function encodeMerkleRule(p: {
     p.to,
     p.value,
     p.dataLength >>> 0,
-    p.constraints.length,
+    p.constraints.length
   ];
   for (const c of p.constraints) {
     types.push('uint16', 'bytes32', 'bytes32');
@@ -121,7 +113,7 @@ const ruleA = encodeMerkleRule({
   to: targetContract,
   value: 0n,
   dataLength: 0,
-  constraints: [],
+  constraints: []
 });
 ```
 
@@ -130,10 +122,8 @@ const ruleA = encodeMerkleRule({
 The 32-byte word at offset `0` has the 4-byte selector in the **top** 4 bytes; the rest must be masked off.
 
 ```typescript
-const SELECTOR_MASK =
-  '0xffffffff00000000000000000000000000000000000000000000000000000000';
-const transferSelectorWord =
-  '0xa9059cbb00000000000000000000000000000000000000000000000000000000';
+const SELECTOR_MASK = '0xffffffff00000000000000000000000000000000000000000000000000000000';
+const transferSelectorWord = '0xa9059cbb00000000000000000000000000000000000000000000000000000000';
 
 const ruleB = encodeMerkleRule({
   flags: 0x02,
@@ -141,9 +131,7 @@ const ruleB = encodeMerkleRule({
   to: tokenAddress,
   value: 0n,
   dataLength: 0,
-  constraints: [
-    { offset: 0, mask: SELECTOR_MASK, expected: transferSelectorWord },
-  ],
+  constraints: [{ offset: 0, mask: SELECTOR_MASK, expected: transferSelectorWord }]
 });
 ```
 
@@ -152,18 +140,12 @@ const ruleB = encodeMerkleRule({
 First static argument usually starts at byte **4** (after the 4-byte selector). Encode the word the same way Solidity ABI places it (32-byte slot).
 
 ```typescript
-const SELECTOR_MASK =
-  '0xffffffff00000000000000000000000000000000000000000000000000000000';
-const transferSelectorWord =
-  '0xa9059cbb00000000000000000000000000000000000000000000000000000000';
+const SELECTOR_MASK = '0xffffffff00000000000000000000000000000000000000000000000000000000';
+const transferSelectorWord = '0xa9059cbb00000000000000000000000000000000000000000000000000000000';
 
-const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(
-  ['address'],
-  [recipient],
-); // 32-byte hex string
+const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [recipient]); // 32-byte hex string
 
-const ALL_ONES =
-  '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+const ALL_ONES = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
 
 const ruleC = encodeMerkleRule({
   flags: 0x02,
@@ -173,8 +155,8 @@ const ruleC = encodeMerkleRule({
   dataLength: 0,
   constraints: [
     { offset: 0, mask: SELECTOR_MASK, expected: transferSelectorWord },
-    { offset: 4, mask: ALL_ONES, expected: firstArgWord },
-  ],
+    { offset: 4, mask: ALL_ONES, expected: firstArgWord }
+  ]
 });
 ```
 
@@ -186,7 +168,7 @@ Use `@openzeppelin/merkle-tree`’s `StandardMerkleTree.of` with type `['uint8',
 
 ## Files
 
-| File | Role |
-|------|------|
-| `IMerkleCallAllowlist.sol` | Interface + `CallVerificationInput` struct |
-| `MerkleCallAllowlist.sol` | Implementation (`isAllowed`, root update, verification) |
+| File                                      | Role                                                    |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `interfaces/IMerkleCallAllowlist.sol`     | Interface + `CallVerificationInput` struct              |
+| `validators/MerkleAllowlistValidator.sol` | Implementation (`isAllowed`, root update, verification) |

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import type { Strategy, SatelliteStrategy } from '../../typechain-types/contracts/vault';
+import type { Strategy, SatelliteStrategy } from '../../typechain-types/contracts/vault/strategies';
 import type {
   MockVaultForStrategy,
   MockStrategyValidator,
@@ -8,10 +8,8 @@ import type {
   MockVaultToken
 } from '../../typechain-types/contracts/mock/StrategyVaultMocks.sol';
 
-const BEACON_PROXY_FQ =
-  '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy';
-const UPGRADEABLE_BEACON_FQ =
-  '@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon';
+const BEACON_PROXY_FQ = '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy';
+const UPGRADEABLE_BEACON_FQ = '@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon';
 
 function encodeCallVerificationInput(ruleEncoded: string, merkleProof: string[]) {
   return ethers.AbiCoder.defaultAbiCoder().encode(
@@ -85,10 +83,7 @@ describe('Strategy / SatelliteStrategy (002)', function () {
     const beacon = await Beacon.deploy(await impl.getAddress(), deployer.address);
     await beacon.waitForDeployment();
 
-    const init = Impl.interface.encodeFunctionData('initialize', [
-      await validator.getAddress(),
-      admin.address
-    ]);
+    const init = Impl.interface.encodeFunctionData('initialize', [await validator.getAddress(), admin.address]);
 
     const BP = await ethers.getContractFactory(BEACON_PROXY_FQ);
     const proxy = await BP.deploy(await beacon.getAddress(), init);
@@ -125,9 +120,7 @@ describe('Strategy / SatelliteStrategy (002)', function () {
 
       expect(await token.balanceOf(await strategy.getAddress())).to.equal(amount);
 
-      await expect(strategy.connect(liquidity).pushToVault(amount))
-        .to.emit(strategy, 'PushedToVault')
-        .withArgs(amount);
+      await expect(strategy.connect(liquidity).pushToVault(amount)).to.emit(strategy, 'PushedToVault').withArgs(amount);
 
       expect(await token.balanceOf(await vault.getAddress())).to.equal(amount);
       expect(await token.balanceOf(await strategy.getAddress())).to.equal(0n);
@@ -137,9 +130,7 @@ describe('Strategy / SatelliteStrategy (002)', function () {
   describe('exec', function () {
     it('reverts when validator denies', async function () {
       const { strategy, validator, user } = await deployStrategyViaBeacon();
-      const target = await (
-        await ethers.getContractFactory('ExecTargetMock')
-      ).deploy();
+      const target = await (await ethers.getContractFactory('ExecTargetMock')).deploy();
       await target.waitForDeployment();
 
       await validator.setGlobalAllow(false);
@@ -153,9 +144,7 @@ describe('Strategy / SatelliteStrategy (002)', function () {
 
     it('succeeds when validator allows; passes msg.sender to isAllowed', async function () {
       const { strategy, validator, user } = await deployStrategyViaBeacon();
-      const target = (await (
-        await ethers.getContractFactory('ExecTargetMock')
-      ).deploy()) as ExecTargetMock;
+      const target = (await (await ethers.getContractFactory('ExecTargetMock')).deploy()) as ExecTargetMock;
       await target.waitForDeployment();
 
       await validator.setGlobalAllow(false);
@@ -173,9 +162,7 @@ describe('Strategy / SatelliteStrategy (002)', function () {
 
     it('funds value via msg.value == value', async function () {
       const { strategy, validator, user } = await deployStrategyViaBeacon();
-      const target = (await (
-        await ethers.getContractFactory('ExecTargetMock')
-      ).deploy()) as ExecTargetMock;
+      const target = (await (await ethers.getContractFactory('ExecTargetMock')).deploy()) as ExecTargetMock;
       await target.waitForDeployment();
 
       await validator.setSenderAllowed(user.address, true);
@@ -192,9 +179,7 @@ describe('Strategy / SatelliteStrategy (002)', function () {
 
     it('funds value from balance left by prior exec msg.value', async function () {
       const { strategy, validator, user } = await deployStrategyViaBeacon();
-      const target = (await (
-        await ethers.getContractFactory('ExecTargetMock')
-      ).deploy()) as ExecTargetMock;
+      const target = (await (await ethers.getContractFactory('ExecTargetMock')).deploy()) as ExecTargetMock;
       await target.waitForDeployment();
 
       await validator.setSenderAllowed(user.address, true);
@@ -204,9 +189,10 @@ describe('Strategy / SatelliteStrategy (002)', function () {
 
       await strategy.connect(user).exec(await target.getAddress(), 0, data, vargs, { value: oneEth });
 
-      await expect(
-        strategy.connect(user).exec(await target.getAddress(), oneEth, data, vargs)
-      ).to.emit(strategy, 'Executed');
+      await expect(strategy.connect(user).exec(await target.getAddress(), oneEth, data, vargs)).to.emit(
+        strategy,
+        'Executed'
+      );
 
       expect(await target.lastValueReceived()).to.equal(oneEth);
     });
@@ -229,16 +215,13 @@ describe('Strategy / SatelliteStrategy (002)', function () {
       expect(satellite.interface.hasFunction('pullFromVault')).to.equal(false);
       expect(satellite.interface.hasFunction('vault')).to.equal(false);
 
-      const target = (await (
-        await ethers.getContractFactory('ExecTargetMock')
-      ).deploy()) as ExecTargetMock;
+      const target = (await (await ethers.getContractFactory('ExecTargetMock')).deploy()) as ExecTargetMock;
       await target.waitForDeployment();
       await validator.setSenderAllowed(user.address, true);
       const data = target.interface.encodeFunctionData('ping', []);
       const vargs = encodeCallVerificationInput('0x', []);
 
-      await expect(satellite.connect(user).exec(await target.getAddress(), 0, data, vargs)).to.not.be
-        .reverted;
+      await expect(satellite.connect(user).exec(await target.getAddress(), 0, data, vargs)).to.not.be.reverted;
     });
   });
 });

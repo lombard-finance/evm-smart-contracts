@@ -17,16 +17,22 @@ import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
 /// @notice ERC-7540 asynchronous **redemption** leg: `requestRedeem` burns shares into pending state; **permissionless**
 ///         {fulfillRedemptions} applies `IRedemptionSettlementPolicy`; claim via ERC-4626 `withdraw` / `redeem` (no second burn).
 /// @dev `requestId` support: only `requestId == 0` (controller-aggregated) is implemented. `previewRedeem` / `previewWithdraw` revert.
-contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRedeem, IVaultRedemptionPlanSource {
+contract Vault7540RedemptionUpgradeable is
+    VaultBaseUpgradeable,
+    IERC7540AsyncRedeem,
+    IVaultRedemptionPlanSource
+{
     using EnumerableSet for EnumerableSet.AddressSet;
     using Math for uint256;
     using SafeERC20 for IERC20;
 
     /// @notice Marks an account that may be used as ERC-7540 `controller` on `requestRedeem` (grant via {grantRole}, revoke via {revokeRole}).
-    bytes32 public constant REDEEM_CONTROLLER_ROLE = keccak256("REDEEM_CONTROLLER_ROLE");
+    bytes32 public constant REDEEM_CONTROLLER_ROLE =
+        keccak256("REDEEM_CONTROLLER_ROLE");
 
     /// @notice Role admin for {REDEEM_CONTROLLER_ROLE}; may grant/revoke redeem-controller membership.
-    bytes32 public constant CONTROLLER_WHITELIST_ADMIN_ROLE = keccak256("CONTROLLER_WHITELIST_ADMIN_ROLE");
+    bytes32 public constant CONTROLLER_WHITELIST_ADMIN_ROLE =
+        keccak256("CONTROLLER_WHITELIST_ADMIN_ROLE");
 
     /// @dev ERC-7540: asynchronous redemption Vault (EIP-7540 ERC-165).
     bytes4 private constant _ERC7540_ASYNC_REDEEM_INTERFACE_ID = 0x620ee8e4;
@@ -86,38 +92,68 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
     ) internal onlyInitializing {
         _setRoleAdmin(REDEEM_CONTROLLER_ROLE, CONTROLLER_WHITELIST_ADMIN_ROLE);
         if (controllerWhitelistAdmin_ != address(0)) {
-            _grantRole(CONTROLLER_WHITELIST_ADMIN_ROLE, controllerWhitelistAdmin_);
+            _grantRole(
+                CONTROLLER_WHITELIST_ADMIN_ROLE,
+                controllerWhitelistAdmin_
+            );
         }
-        if (settlementPolicy_ == address(0)) revert ERC7540ZeroSettlementPolicy();
-        _getVault7540AsyncRedemptionStorage().settlementPolicy = settlementPolicy_;
+        if (settlementPolicy_ == address(0))
+            revert ERC7540ZeroSettlementPolicy();
+        _getVault7540AsyncRedemptionStorage()
+            .settlementPolicy = settlementPolicy_;
     }
 
     /// @notice Replace the settlement policy (`DEFAULT_ADMIN_ROLE`).
-    function setSettlementPolicy(address settlementPolicy_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (settlementPolicy_ == address(0)) revert ERC7540ZeroSettlementPolicy();
-        _getVault7540AsyncRedemptionStorage().settlementPolicy = settlementPolicy_;
+    function setSettlementPolicy(
+        address settlementPolicy_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (settlementPolicy_ == address(0))
+            revert ERC7540ZeroSettlementPolicy();
+        _getVault7540AsyncRedemptionStorage()
+            .settlementPolicy = settlementPolicy_;
     }
 
     /// @inheritdoc IERC7540AsyncRedeem
-    function setOperator(address operator, bool approved) external returns (bool) {
-        _getVault7540AsyncRedemptionStorage().operator_[msg.sender][operator] = approved;
+    function setOperator(
+        address operator,
+        bool approved
+    ) external returns (bool) {
+        _getVault7540AsyncRedemptionStorage().operator_[msg.sender][
+            operator
+        ] = approved;
         emit OperatorSet(msg.sender, operator, approved);
         return true;
     }
 
     /// @inheritdoc IERC7540AsyncRedeem
-    function isOperator(address controller, address operator) external view returns (bool) {
-        return _getVault7540AsyncRedemptionStorage().operator_[controller][operator];
+    function isOperator(
+        address controller,
+        address operator
+    ) external view returns (bool) {
+        return
+            _getVault7540AsyncRedemptionStorage().operator_[controller][
+                operator
+            ];
     }
 
     /// @notice Whether `spender` is `owner` or an ERC-7540 operator for `owner` (for `requestRedeem` authorization).
-    function _isRedeemRequestOperator(address owner, address spender) internal view returns (bool) {
-        return owner == spender || _getVault7540AsyncRedemptionStorage().operator_[owner][spender];
+    function _isRedeemRequestOperator(
+        address owner,
+        address spender
+    ) internal view returns (bool) {
+        return
+            owner == spender ||
+            _getVault7540AsyncRedemptionStorage().operator_[owner][spender];
     }
 
     /// @notice Reverts unless `msg.sender` is `controller` or an operator approved by `controller` (claim path).
     function _requireControllerOrOperator(address controller) internal view {
-        if (msg.sender != controller && !_getVault7540AsyncRedemptionStorage().operator_[controller][msg.sender]) {
+        if (
+            msg.sender != controller &&
+            !_getVault7540AsyncRedemptionStorage().operator_[controller][
+                msg.sender
+            ]
+        ) {
             revert ERC7540UnauthorizedClaimCaller(msg.sender, controller);
         }
     }
@@ -126,7 +162,10 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
     function supportsInterface(
         bytes4 interfaceId
     ) public view virtual override(VaultBaseUpgradeable) returns (bool) {
-        if (interfaceId == _ERC7540_ASYNC_REDEEM_INTERFACE_ID || interfaceId == _ERC7540_OPERATORS_INTERFACE_ID) {
+        if (
+            interfaceId == _ERC7540_ASYNC_REDEEM_INTERFACE_ID ||
+            interfaceId == _ERC7540_OPERATORS_INTERFACE_ID
+        ) {
             return true;
         }
         return super.supportsInterface(interfaceId);
@@ -134,27 +173,37 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev EIP-7540: `previewRedeem` MUST revert for asynchronous redemption vaults.
-    function previewRedeem(uint256 shares) public view virtual override(ERC4626Upgradeable) returns (uint256) {
+    function previewRedeem(
+        uint256 shares
+    ) public view virtual override(ERC4626Upgradeable) returns (uint256) {
         shares;
         revert ERC7540PreviewDisabled();
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev EIP-7540: `previewWithdraw` MUST revert for asynchronous redemption vaults.
-    function previewWithdraw(uint256 assets) public view virtual override(ERC4626Upgradeable) returns (uint256) {
+    function previewWithdraw(
+        uint256 assets
+    ) public view virtual override(ERC4626Upgradeable) returns (uint256) {
         assets;
         revert ERC7540PreviewDisabled();
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Third argument is the ERC-7540 `controller`; claimable balance is keyed by `controller`, not live `balanceOf`.
-    function maxWithdraw(address controller) public view virtual override returns (uint256) {
-        return _getVault7540AsyncRedemptionStorage().claimableAssets[controller];
+    function maxWithdraw(
+        address controller
+    ) public view virtual override returns (uint256) {
+        return
+            _getVault7540AsyncRedemptionStorage().claimableAssets[controller];
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    function maxRedeem(address controller) public view virtual override returns (uint256) {
-        return _getVault7540AsyncRedemptionStorage().claimableShares[controller];
+    function maxRedeem(
+        address controller
+    ) public view virtual override returns (uint256) {
+        return
+            _getVault7540AsyncRedemptionStorage().claimableShares[controller];
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -164,7 +213,8 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
         address receiver,
         address controller
     ) public virtual override nonReentrant returns (uint256) {
-        Vault7540AsyncRedemptionStorage storage $ = _getVault7540AsyncRedemptionStorage();
+        Vault7540AsyncRedemptionStorage
+            storage $ = _getVault7540AsyncRedemptionStorage();
         _requireControllerOrOperator(controller);
 
         uint256 maxAssets = $.claimableAssets[controller];
@@ -174,7 +224,9 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
 
         uint256 cShares = $.claimableShares[controller];
         uint256 cAssets = maxAssets;
-        uint256 sharesPortion = assets == cAssets ? cShares : assets.mulDiv(cShares, cAssets, Math.Rounding.Floor);
+        uint256 sharesPortion = assets == cAssets
+            ? cShares
+            : assets.mulDiv(cShares, cAssets, Math.Rounding.Floor);
 
         $.claimableAssets[controller] = maxAssets - assets;
         $.claimableShares[controller] = cShares - sharesPortion;
@@ -191,7 +243,8 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
         address receiver,
         address controller
     ) public virtual override nonReentrant returns (uint256 assets) {
-        Vault7540AsyncRedemptionStorage storage $ = _getVault7540AsyncRedemptionStorage();
+        Vault7540AsyncRedemptionStorage
+            storage $ = _getVault7540AsyncRedemptionStorage();
         _requireControllerOrOperator(controller);
 
         uint256 maxShares = $.claimableShares[controller];
@@ -201,7 +254,9 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
 
         uint256 cAssets = $.claimableAssets[controller];
         uint256 cShareBal = maxShares;
-        assets = shares == cShareBal ? cAssets : shares.mulDiv(cAssets, cShareBal, Math.Rounding.Floor);
+        assets = shares == cShareBal
+            ? cAssets
+            : shares.mulDiv(cAssets, cShareBal, Math.Rounding.Floor);
 
         $.claimableShares[controller] = maxShares - shares;
         $.claimableAssets[controller] = cAssets - assets;
@@ -221,16 +276,20 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
         address controller,
         address owner
     ) external override nonReentrant returns (uint256 requestId) {
-        if (!hasRole(REDEEM_CONTROLLER_ROLE, controller)) revert ControllerNotWhitelisted(controller);
+        if (!hasRole(REDEEM_CONTROLLER_ROLE, controller))
+            revert ControllerNotWhitelisted(controller);
         if (shares == 0) revert ERC7540ZeroRedeemRequestShares();
 
-        if (msg.sender != owner && !_isRedeemRequestOperator(owner, msg.sender)) {
+        if (
+            msg.sender != owner && !_isRedeemRequestOperator(owner, msg.sender)
+        ) {
             _spendAllowance(owner, msg.sender, shares);
         }
 
         uint256 assetsAtRequest = _convertToAssets(shares, Math.Rounding.Floor);
 
-        Vault7540AsyncRedemptionStorage storage $ = _getVault7540AsyncRedemptionStorage();
+        Vault7540AsyncRedemptionStorage
+            storage $ = _getVault7540AsyncRedemptionStorage();
         bool wasPending = $.pendingAssets[controller] != 0;
         $.pendingShares[controller] += shares;
         $.pendingAssets[controller] += assetsAtRequest;
@@ -249,17 +308,27 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
         address controller
     ) external view override returns (uint256 shares) {
         _requireRequestIdZero(requestId_);
-        return _getVault7540AsyncRedemptionStorage().claimableShares[controller];
+        return
+            _getVault7540AsyncRedemptionStorage().claimableShares[controller];
     }
 
     /// @inheritdoc IVaultRedemptionPlanSource
-    function pendingRedeemControllerCount() external view override returns (uint256) {
-        return _getVault7540AsyncRedemptionStorage().pendingControllers.length();
+    function pendingRedeemControllerCount()
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return
+            _getVault7540AsyncRedemptionStorage().pendingControllers.length();
     }
 
     /// @inheritdoc IVaultRedemptionPlanSource
-    function pendingRedeemControllerAt(uint256 index) external view override returns (address) {
-        return _getVault7540AsyncRedemptionStorage().pendingControllers.at(index);
+    function pendingRedeemControllerAt(
+        uint256 index
+    ) external view override returns (address) {
+        return
+            _getVault7540AsyncRedemptionStorage().pendingControllers.at(index);
     }
 
     /// @inheritdoc IERC7540AsyncRedeem
@@ -267,20 +336,28 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
     function pendingRedeemRequest(
         uint256 requestId_,
         address controller
-    ) external view override(IERC7540AsyncRedeem, IVaultRedemptionPlanSource) returns (uint256 shares) {
+    )
+        external
+        view
+        override(IERC7540AsyncRedeem, IVaultRedemptionPlanSource)
+        returns (uint256 shares)
+    {
         _requireRequestIdZero(requestId_);
         return _getVault7540AsyncRedemptionStorage().pendingShares[controller];
     }
 
     /// @inheritdoc IVaultRedemptionPlanSource
-    function pendingRedeemAssetBudget(address controller) external view override returns (uint256 assets) {
+    function pendingRedeemAssetBudget(
+        address controller
+    ) external view override returns (uint256 assets) {
         return _getVault7540AsyncRedemptionStorage().pendingAssets[controller];
     }
 
     /// @notice Move pending redemption to claimable using the configured `IRedemptionSettlementPolicy.settlementPlan`.
     /// @dev Permissionless (no fulfiller role). Budget is this contract’s `asset` balance at call time.
     function fulfillRedemptions() external nonReentrant {
-        Vault7540AsyncRedemptionStorage storage $ = _getVault7540AsyncRedemptionStorage();
+        Vault7540AsyncRedemptionStorage
+            storage $ = _getVault7540AsyncRedemptionStorage();
         address policyAddr = $.settlementPolicy;
         if (policyAddr == address(0)) revert ERC7540ZeroSettlementPolicy();
 
@@ -289,10 +366,9 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
             return;
         }
 
-        RedemptionSettlementSlice[] memory slices = IRedemptionSettlementPolicy(policyAddr).settlementPlan(
-            address(this),
-            maxAssets
-        );
+        RedemptionSettlementSlice[] memory slices = IRedemptionSettlementPolicy(
+            policyAddr
+        ).settlementPlan(address(this), maxAssets);
 
         uint256 sum;
         uint256 n = slices.length;
@@ -305,7 +381,8 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
 
         for (uint256 j; j < n; ++j) {
             RedemptionSettlementSlice memory s = slices[j];
-            if (s.requestId != 0) revert ERC7540UnsupportedRequestId(s.requestId);
+            if (s.requestId != 0)
+                revert ERC7540UnsupportedRequestId(s.requestId);
             if (s.controller == address(0)) revert ZeroAddress();
             uint256 give = s.assets;
             if (give == 0) continue;
@@ -314,7 +391,9 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
             uint256 pS = $.pendingShares[s.controller];
             if (give > pA) revert ERC7540FulfillmentInvariant();
 
-            uint256 moveShares = give == pA ? pS : give.mulDiv(pS, pA, Math.Rounding.Floor);
+            uint256 moveShares = give == pA
+                ? pS
+                : give.mulDiv(pS, pA, Math.Rounding.Floor);
 
             $.pendingAssets[s.controller] = pA - give;
             $.pendingShares[s.controller] = pS - moveShares;
@@ -323,7 +402,9 @@ contract Vault7540RedemptionUpgradeable is VaultBaseUpgradeable, IERC7540AsyncRe
 
             if ($.pendingAssets[s.controller] == 0) {
                 if ($.pendingShares[s.controller] != 0) {
-                    $.claimableShares[s.controller] += $.pendingShares[s.controller];
+                    $.claimableShares[s.controller] += $.pendingShares[
+                        s.controller
+                    ];
                     $.pendingShares[s.controller] = 0;
                 }
                 $.pendingControllers.remove(s.controller);
