@@ -100,5 +100,4 @@ interface IERC7540Redemption {
     error ERC7540ZeroRedeemRequestShares();
 
     error ERC7540NothingToFulfill(uint256 requestId);
-
 }
