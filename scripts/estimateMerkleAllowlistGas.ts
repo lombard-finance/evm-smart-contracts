@@ -1,6 +1,6 @@
 /**
  * One-off / CI helper: estimate gas for MerkleAllowlistValidator.
- * Run: HARDHAT_NO_FORK=1 npx hardhat run scripts/estimateMerkleAllowlistGas.ts
+ * Run: yarn hardhat run scripts/estimateMerkleAllowlistGas.ts
  */
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';

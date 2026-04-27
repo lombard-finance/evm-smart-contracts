@@ -3,6 +3,21 @@ import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import type { MerkleAllowlistValidator } from '../typechain-types';
 
+/** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
+async function merkleIsAllowed(
+  contract: MerkleAllowlistValidator,
+  sender: string,
+  to: string,
+  value: bigint,
+  data: string,
+  input: { ruleEncoded: string; merkleProof: string[] }
+): Promise<boolean> {
+  const fn = contract.getFunction(
+    'isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'
+  );
+  return fn.staticCall(sender, to, value, data, input) as Promise<boolean>;
+}
+
 export interface RuleConstraint {
   offset: number;
   mask: string;
@@ -76,7 +91,7 @@ describe('MerkleAllowlistValidator', function () {
     const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
     expect(await c.allowlistRoot()).to.equal(ethers.ZeroHash);
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0xabcd', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0xabcd', {
         ruleEncoded: rule,
         merkleProof: proof
       })
@@ -104,7 +119,7 @@ describe('MerkleAllowlistValidator', function () {
 
     const calldata = ethers.hexlify(ethers.randomBytes(100));
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, target, 0, calldata, {
+      await merkleIsAllowed(c, ethers.ZeroAddress, target, 0n, calldata, {
         ruleEncoded: rule,
         merkleProof: proof
       })
@@ -128,7 +143,7 @@ describe('MerkleAllowlistValidator', function () {
     const badProof = [ethers.hexlify(ethers.randomBytes(32))];
 
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, target, 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, target, 0n, '0x', {
         ruleEncoded: rule,
         merkleProof: badProof
       })
@@ -152,14 +167,14 @@ describe('MerkleAllowlistValidator', function () {
     const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
 
     expect(
-      await c.isAllowed.staticCall(await other.getAddress(), target, 2n, '0x', {
+      await merkleIsAllowed(c, await other.getAddress(), target, 2n, '0x', {
         ruleEncoded: rule,
         merkleProof: proof
       })
     ).to.equal(false);
 
     expect(
-      await c.isAllowed.staticCall(await other.getAddress(), await c.getAddress(), 1n, '0x', {
+      await merkleIsAllowed(c, await other.getAddress(), await c.getAddress(), 1n, '0x', {
         ruleEncoded: rule,
         merkleProof: proof
       })
@@ -181,14 +196,14 @@ describe('MerkleAllowlistValidator', function () {
     const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
 
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x010203', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x010203', {
         ruleEncoded: rule,
         merkleProof: proof
       })
     ).to.equal(false);
 
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x01020304', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x01020304', {
         ruleEncoded: rule,
         merkleProof: proof
       })
@@ -208,7 +223,7 @@ describe('MerkleAllowlistValidator', function () {
       constraints: []
     });
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x', {
         ruleEncoded: badVersion,
         merkleProof: []
       })
@@ -223,7 +238,7 @@ describe('MerkleAllowlistValidator', function () {
       constraints: []
     });
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x', {
         ruleEncoded: reservedFlags,
         merkleProof: []
       })
@@ -238,7 +253,7 @@ describe('MerkleAllowlistValidator', function () {
       constraints: []
     });
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x', {
         ruleEncoded: wildcardSenderBroken,
         merkleProof: []
       })
@@ -253,7 +268,7 @@ describe('MerkleAllowlistValidator', function () {
       constraints: [{ offset: 0, mask: ethers.ZeroHash, expected: ethers.ZeroHash }]
     });
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x', {
         ruleEncoded: maskZero,
         merkleProof: []
       })
@@ -272,7 +287,7 @@ describe('MerkleAllowlistValidator', function () {
       ]
     });
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x', {
         ruleEncoded: unsorted,
         merkleProof: []
       })
@@ -290,7 +305,7 @@ describe('MerkleAllowlistValidator', function () {
     }
     const tooMany = ethers.solidityPacked(types, values);
     expect(
-      await c.isAllowed.staticCall(ethers.ZeroAddress, await c.getAddress(), 0, '0x', {
+      await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x', {
         ruleEncoded: tooMany,
         merkleProof: []
       })
