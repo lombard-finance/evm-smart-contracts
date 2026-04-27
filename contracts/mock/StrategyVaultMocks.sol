@@ -29,17 +29,19 @@ contract MockVaultForStrategy is IVault {
         return address(_token);
     }
 
-    /// @inheritdoc IVault
     function registerStrategy(address strategy) external {
         _registered[strategy] = true;
         _token.approve(strategy, type(uint256).max);
     }
 
-    /// @inheritdoc IVault
     function isRegisteredStrategy(
         address strategy
     ) external view returns (bool) {
         return _registered[strategy];
+    }
+
+    function version() external pure override returns (string memory) {
+        return "Mock";
     }
 }
 

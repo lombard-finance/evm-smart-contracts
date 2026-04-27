@@ -28,57 +28,41 @@ abstract contract VaultBaseUpgradeable is
     bytes32 public constant PRICE_PER_SHARE_POSTER_ROLE =
         keccak256("PRICE_PER_SHARE_POSTER_ROLE");
 
-    error ZeroAddress();
-    error ZeroPricePerShare();
-
-    /// @notice Emitted when the poster updates `pricePerShare`. `nav` is `NAV()` immediately after the update.
-    event PricePerShareUpdated(
-        uint256 pricePerShare,
-        uint256 nav,
-        uint64 postedAt
-    );
-
-    /// @custom:storage-location erc7201:lombardfinance.storage.VaultCore
-    struct VaultCoreStorage {
+    /// @custom:storage-location erc7201:lombardfinance.storage.VaultBaseUpgradeable
+    struct VaultBaseUpgradeableStorage {
         EnumerableSet.AddressSet strategies;
         /// @dev Underlying asset base units per `10 ** decimals()` share units (vault share token decimals).
         uint256 pricePerShare;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultCore")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant VAULT_CORE_STORAGE_LOCATION =
-        0x3d42c6a084e8302aaeef6513442802be274fec9053d4232959267788144a3100;
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant VAULT_BASE_UPGRADEABLE_STORAGE_LOCATION =
+        0xeadb3838d9eaf85055390f4c9c11e3d0e5a14b16d76298126869759876742000;
 
-    function _getVaultCoreStorage()
+    function _getVaultBaseUpgradeableStorage()
         internal
         pure
-        returns (VaultCoreStorage storage $)
+        returns (VaultBaseUpgradeableStorage storage $)
     {
         assembly {
-            $.slot := VAULT_CORE_STORAGE_LOCATION
+            $.slot := VAULT_BASE_UPGRADEABLE_STORAGE_LOCATION
         }
     }
 
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.
     function pricePerShare() public view returns (uint256) {
-        return _getVaultCoreStorage().pricePerShare;
+        return _getVaultBaseUpgradeableStorage().pricePerShare;
     }
 
     /// @notice Update `pricePerShare` (`PRICE_PER_SHARE_POSTER_ROLE`). `newPricePerShare` MUST be non-zero.
     function postPricePerShare(
         uint256 newPricePerShare
     ) external onlyRole(PRICE_PER_SHARE_POSTER_ROLE) {
-        if (newPricePerShare == 0) revert ZeroPricePerShare();
-        VaultCoreStorage storage $ = _getVaultCoreStorage();
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
         $.pricePerShare = newPricePerShare;
-        uint256 nav = totalSupply().mulDiv(
-            newPricePerShare,
-            10 ** decimals(),
-            Math.Rounding.Floor
-        );
         emit PricePerShareUpdated(
             newPricePerShare,
-            nav,
+            totalAssets(),
             uint64(block.timestamp)
         );
     }
@@ -116,36 +100,30 @@ abstract contract VaultBaseUpgradeable is
         return super.supportsInterface(interfaceId);
     }
 
-    /// @inheritdoc IVault
+    /// @notice Register `strategy` for the §B pipe (`docs/spec/002-strategy.md` §B): grants allowance on `asset()`.
     function registerStrategy(
         address strategy
-    ) external override nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
+    ) external nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
         if (strategy == address(0)) revert ZeroAddress();
-        _getVaultCoreStorage().strategies.add(strategy);
+        _getVaultBaseUpgradeableStorage().strategies.add(strategy);
         SafeERC20.forceApprove(IERC20(asset()), strategy, type(uint256).max);
     }
 
-    /// @inheritdoc IVault
+    /// @notice Whether `strategy` was registered via {registerStrategy}.
     function isRegisteredStrategy(
         address strategy
-    ) external view override returns (bool) {
-        return _getVaultCoreStorage().strategies.contains(strategy);
+    ) external view returns (bool) {
+        return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
     }
 
     /// @dev Roles: `DEFAULT_ADMIN_ROLE` (via rules), `STRATEGY_DEPLOYER_ROLE`, `PRICE_PER_SHARE_POSTER_ROLE`.
     /// @param initialDefaultAdminDelay_ Delay for default-admin transfer / delay changes (OpenZeppelin `AccessControlDefaultAdminRules`).
-    /// @param pricePerSharePoster_ Receives `PRICE_PER_SHARE_POSTER_ROLE`.
     function __VaultBase_init(
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_,
-        address strategyDeployer_,
-        address pricePerSharePoster_
+        address strategyDeployer_
     ) internal onlyInitializing {
-        if (
-            defaultAdmin_ == address(0) ||
-            strategyDeployer_ == address(0) ||
-            pricePerSharePoster_ == address(0)
-        ) {
+        if (strategyDeployer_ == address(0)) {
             revert ZeroAddress();
         }
 
@@ -157,7 +135,12 @@ abstract contract VaultBaseUpgradeable is
         __ReentrancyGuard_init();
 
         _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
-        _grantRole(PRICE_PER_SHARE_POSTER_ROLE, pricePerSharePoster_);
+
+
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        
+        // Initial price per share is 1 asset per share.
+        $.pricePerShare = 10 ** decimals();
     }
 
     function __ERC4626Vault_init(
@@ -175,11 +158,7 @@ abstract contract VaultBaseUpgradeable is
         uint256 assets,
         Math.Rounding rounding
     ) internal view virtual override returns (uint256) {
-        uint256 p = pricePerShare();
-        if (p == 0) {
-            return 0;
-        }
-        return assets.mulDiv(10 ** decimals(), p, rounding);
+        return assets.mulDiv(10 ** decimals(), pricePerShare(), rounding);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -187,10 +166,6 @@ abstract contract VaultBaseUpgradeable is
         uint256 shares,
         Math.Rounding rounding
     ) internal view virtual override returns (uint256) {
-        uint256 p = pricePerShare();
-        if (p == 0) {
-            return 0;
-        }
-        return shares.mulDiv(p, 10 ** decimals(), rounding);
+        return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
     }
 }

@@ -11,7 +11,7 @@ import {IERC7540Redemption} from "./interfaces/IERC7540Redemption.sol";
 import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
 
 /// @title ERC7540RedemptionUpgradeable
-contract ERC7540RedemptionUpgradeable is
+abstract contract ERC7540RedemptionUpgradeable is
     VaultBaseUpgradeable,
     IERC7540Redemption
 {
@@ -323,7 +323,7 @@ contract ERC7540RedemptionUpgradeable is
     function claimableRedeemRequest(
         uint256,
         address
-    ) external view override returns (uint256 shares) {
+    ) external pure override returns (uint256 shares) {
         return 0;
     }
 
