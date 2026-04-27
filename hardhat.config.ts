@@ -10,7 +10,7 @@ import './tasks';
 
 const config: HardhatUserConfig = {
   gasReporter: {
-    enabled: true,
+    enabled: process.env.HARDHAT_DISABLE_GAS_REPORTER !== '1',
     currency: 'USD',
     L1: 'ethereum',
     coinmarketcap: vars.get('CMC_API_KEY', ''),
@@ -373,14 +373,20 @@ const config: HardhatUserConfig = {
       gasMultiplier: 2,
       gas: 8_000_000
     },
-    hardhat: {
-      forking: {
-        url: 'https://ethereum-rpc.publicnode.com',
-        blockNumber: 23983296
-      },
-      chainId: 1,
-      initialBaseFeePerGas: 0
-    }
+    hardhat:
+      process.env.HARDHAT_NO_FORK === '1'
+        ? {
+            chainId: 31337,
+            initialBaseFeePerGas: 0
+          }
+        : {
+            forking: {
+              url: 'https://ethereum-rpc.publicnode.com',
+              blockNumber: 23983296
+            },
+            chainId: 1,
+            initialBaseFeePerGas: 0
+          }
   },
   etherscan: {
     customChains: [

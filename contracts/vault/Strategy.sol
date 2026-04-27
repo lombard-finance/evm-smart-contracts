@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IStrategyExecValidator} from "./IStrategyExecValidator.sol";
-import {IVault} from "./IVault.sol";
+import {IVault} from "../interfaces/vault/IVault.sol";
 import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title Strategy
@@ -58,21 +58,21 @@ contract Strategy is StrategyBaseUpgradeable {
         _grantRole(VAULT_TOKEN_LIQUIDITY_ROLE, liquidityRoleHolder);
     }
 
-    /// @notice Pull `vault.token()` from the vault via allowance from `registerStrategy` (`docs/spec/002-strategy.md` §B).
+    /// @notice Pull `IERC20(vault.asset())` from the vault via allowance from `registerStrategy` (`docs/spec/002-strategy.md` §B).
     function pullFromVault(
         uint256 amount
     ) external onlyRole(VAULT_TOKEN_LIQUIDITY_ROLE) {
         IVault v = _getStrategyStorage().vault;
-        v.token().safeTransferFrom(address(v), address(this), amount);
+        IERC20(v.asset()).safeTransferFrom(address(v), address(this), amount);
         emit PulledFromVault(amount);
     }
 
-    /// @notice Push `vault.token()` to the vault (`docs/spec/002-strategy.md` §B).
+    /// @notice Push `IERC20(vault.asset())` to the vault (`docs/spec/002-strategy.md` §B).
     function pushToVault(
         uint256 amount
     ) external onlyRole(VAULT_TOKEN_LIQUIDITY_ROLE) {
         IVault v = _getStrategyStorage().vault;
-        v.token().safeTransfer(address(v), amount);
+        IERC20(v.asset()).safeTransfer(address(v), amount);
         emit PushedToVault(amount);
     }
 
