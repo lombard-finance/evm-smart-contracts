@@ -70,11 +70,10 @@ hardhat setup-initial-valset --target ${CONSORTIUM} --populate --network ${NETWO
 ```
 
 ## StakedLBTC (deterministic)
-> Because of `Consortium` address is deterministic it can be set using generated address without deployment.
 
 Deploy `StakedLBTC` contract
 ```bash
-yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --consortium ${CONSORTIUM} --network ${NETWORK} --treasury ${OWNER}
+yarn hardhat deploy-lbtc --ledger-network ${ENV} --admin ${OWNER} --network ${NETWORK} --treasury ${OWNER}
 ```
 Write proxy address to json file.
 

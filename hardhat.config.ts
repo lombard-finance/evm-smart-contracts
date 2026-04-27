@@ -373,20 +373,28 @@ const config: HardhatUserConfig = {
       gasMultiplier: 2,
       gas: 8_000_000
     },
-    hardhat:
-      process.env.HARDHAT_NO_FORK === '1'
-        ? {
-            chainId: 31337,
-            initialBaseFeePerGas: 0
-          }
-        : {
-            forking: {
-              url: 'https://ethereum-rpc.publicnode.com',
-              blockNumber: 23983296
-            },
-            chainId: 1,
-            initialBaseFeePerGas: 0
-          }
+    optimism: {
+      loggingEnabled: true,
+      url: vars.get('OPTIMISM_ETH_RPC', 'https://mainnet.optimism.io'),
+      chainId: 10,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
+    hardhat: {
+      // Fork only when HARDHAT_FORK=1 so `yarn test` runs in-memory and avoids
+      // "historical state is not available". Fork tests run on this same (in-process) network
+      // so hardhat_reset and other Hardhat methods are available.
+      ...(process.env.HARDHAT_FORK === '1' && {
+        forking: {
+          url: vars.get('MAINNET_RPC', 'https://eth-mainnet.public.blastapi.io'),
+          blockNumber: 23983296
+        }
+      }),
+      chainId: 1,
+      initialBaseFeePerGas: 0,
+      blockGasLimit: 60_000_000
+    }
   },
   etherscan: {
     customChains: [

@@ -51,11 +51,14 @@ contract ERC4626VaultWrapper is
     event StakeAndBakeAdded(address stakeAndBake, address token);
     event StakeAndBakeRemoved(address stakeAndBake);
     event TellerChanged(ITeller indexed prevVal, ITeller indexed newVal);
+    event TellerDepositConfigChanged(bool useReferral, address referral);
 
     /// @custom:storage-location erc7201:lombardfinance.storage.ERC4626VaultWrapper
     struct ERC4626VaultWrapperStorage {
         ITeller teller;
         mapping(address => IERC20) sabAsset;
+        address tellerReferralAddress;
+        bool tellerDepositWithReferral;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC4626VaultWrapper")) - 1)) & ~bytes32(uint256(0xff))
@@ -182,6 +185,21 @@ contract ERC4626VaultWrapper is
     }
 
     /**
+     * @notice Configure whether the wrapper calls the teller's 4-arg deposit (with referral) or the 3-arg deposit.
+     * @param useReferral When true, uses `deposit(asset, amount, min, referral)`; referral may be `address(0)`.
+     * @param referral Referral address passed to the teller when `useReferral` is true; ignored otherwise.
+     */
+    function setTellerDepositConfig(
+        bool useReferral,
+        address referral
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+        $.tellerDepositWithReferral = useReferral;
+        $.tellerReferralAddress = referral;
+        emit TellerDepositConfigChanged(useReferral, referral);
+    }
+
+    /**
      * @notice Whitelist StakeAndBake contract.
      * @param stakeAndBake The address of StakeAndBake contract
      * @param token The address of the token controlled by StakeAndBake
@@ -208,6 +226,20 @@ contract ERC4626VaultWrapper is
 
     function teller() public view returns (ITeller) {
         return _getERC4626VaultWrapperStorage().teller;
+    }
+
+    /**
+     * @notice Returns teller deposit configuration set by admin.
+     * @return useReferral True if the 4-arg teller deposit is used.
+     * @return referral Referral address used when `useReferral` is true.
+     */
+    function getTellerDepositConfig()
+        external
+        view
+        returns (bool useReferral, address referral)
+    {
+        ERC4626VaultWrapperStorage storage $ = _getERC4626VaultWrapperStorage();
+        return ($.tellerDepositWithReferral, $.tellerReferralAddress);
     }
 
     /**
@@ -270,7 +302,17 @@ contract ERC4626VaultWrapper is
         token.safeIncreaseAllowance($.teller.vault(), depositAmount);
 
         // Deposit and obtain vault shares.
-        uint256 shares = $.teller.deposit(token, depositAmount, minimumMint);
+        uint256 shares;
+        if ($.tellerDepositWithReferral) {
+            shares = $.teller.deposit(
+                token,
+                depositAmount,
+                minimumMint,
+                $.tellerReferralAddress
+            );
+        } else {
+            shares = $.teller.deposit(token, depositAmount, minimumMint);
+        }
 
         _mint(receiver, shares);
 

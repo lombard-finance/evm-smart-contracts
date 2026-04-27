@@ -16,10 +16,11 @@ task('deploy-defi-vault-token-wrapper', 'Deploys the ERC4626VaultWrapper contrac
   .addParam('pauser', 'The address of account with pauser role')
   .addParam('teller', 'The address of the Veda Teller contract')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
+  .addParam('nonce', 'The nonce of the deployment', '0')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
-    const { ledgerNetwork, owner, name, symbol, ownerDelay, pauser, teller, proxyFactoryAddr } = taskArgs;
+    const { ledgerNetwork, owner, name, symbol, ownerDelay, pauser, teller, proxyFactoryAddr, nonce } = taskArgs;
 
     await create3(
       'ERC4626VaultWrapper',
@@ -27,6 +28,8 @@ task('deploy-defi-vault-token-wrapper', 'Deploys the ERC4626VaultWrapper contrac
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
-      hre
+      hre,
+      'ERC4626VaultWrapper',
+      nonce
     );
   });

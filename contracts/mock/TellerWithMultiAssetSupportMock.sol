@@ -2,11 +2,13 @@
 pragma solidity 0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Mock implementation of TellerWithMultiAssetSupport
  * @author Lombard.Finance
- * @notice Use only for testing
+ * @notice Use only for testing. Models tellers that only expose the legacy 3-arg `deposit`.
+ *         For tests that need `deposit(..., referral)`, use `TellerWithReferralAwareMock`.
  */
 contract TellerWithMultiAssetSupportMock is ERC20 {
     using FixedPointMathLib for uint256;
@@ -74,6 +76,42 @@ contract TellerWithMultiAssetSupportMock is ERC20 {
         depositAsset.transferFrom(_msgSender(), address(this), depositAmount);
 
         _mint(to, shares);
+        return shares;
+    }
+}
+
+/**
+ * @title Teller mock with 4-arg `deposit` (referral) for tests
+ * @author Lombard.Finance
+ * @notice Same behavior as `TellerWithMultiAssetSupportMock` plus the referral overload some
+ *         production tellers expose. Use when testing `ERC4626VaultWrapper` referral mode.
+ */
+contract TellerWithReferralAwareMock is TellerWithMultiAssetSupportMock {
+    using FixedPointMathLib for uint256;
+
+    event MockDepositWithReferral(address referral);
+
+    constructor(address lbtc) TellerWithMultiAssetSupportMock(lbtc) {}
+
+    function deposit(
+        IERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address referralAddress
+    ) external returns (uint256) {
+        emit MockDepositWithReferral(referralAddress);
+        ERC20 asset = ERC20(address(depositAsset));
+        uint256 shares = depositAmount.mulDivDown(
+            1e4 - assetData[asset].sharePremium,
+            1e4
+        );
+        if (shares < minimumMint) {
+            revert AmountBelowMinimumMint(minimumMint, shares);
+        }
+
+        depositAsset.transferFrom(_msgSender(), address(this), depositAmount);
+
+        _mint(msg.sender, shares);
         return shares;
     }
 }

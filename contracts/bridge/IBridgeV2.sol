@@ -19,7 +19,11 @@ interface IBridgeV2 {
     error BridgeV2_MailboxExpected();
     error BridgeV2_BadMsgSender();
     error BridgeV2_SenderNotWhitelisted(address);
-    error BridgeV2_VersionMismatch(uint8 expected, uint8 actual);
+    error BridgeV2_VersionMismatch(
+        uint8 expectedMin,
+        uint8 expectedMax,
+        uint8 actual
+    );
     error BridgeV2_InvalidMsgBodyLength(uint256 expected, uint256 actual);
     error BridgeV2_PayloadSpent();
     error BridgeV2_NotEnoughFee(uint256 expected, uint256 actual);
@@ -70,6 +74,7 @@ interface IBridgeV2 {
     function mailbox() external view returns (address);
 
     function MSG_VERSION() external view returns (uint8);
+    function MSG_VERSION_MIN() external view returns (uint8);
 
     function deposit(
         bytes32 destinationChain,
@@ -83,9 +88,28 @@ interface IBridgeV2 {
     function deposit(
         bytes32 destinationChain,
         address token,
+        address sender,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
+    ) external payable returns (uint256, bytes32);
+
+    function deposit(
+        bytes32 destinationChain,
+        address token,
         bytes32 recipient,
         uint256 amount,
         bytes32 destinationCaller
+    ) external payable returns (uint256, bytes32);
+
+    function deposit(
+        bytes32 destinationChain,
+        address token,
+        bytes32 recipient,
+        uint256 amount,
+        bytes32 destinationCaller,
+        bytes memory optionalMessage
     ) external payable returns (uint256, bytes32);
 
     function getAllowedDestinationToken(

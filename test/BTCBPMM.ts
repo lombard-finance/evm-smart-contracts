@@ -152,9 +152,10 @@ describe('BTCBPMM', function () {
 
     it('should fail to swap if PMM is not whitelisted as minter', async function () {
       await btcb.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits('1000', 10));
+      const minterRole = await lbtc.MINTER_ROLE();
       await expect(pmm.connect(signer1).swapBTCBToLBTC(ethers.parseUnits('1000', 10)))
-        .to.be.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
-        .withArgs(await pmm.getAddress());
+        .to.be.revertedWithCustomError(lbtc, 'AccessControlUnauthorizedAccount')
+        .withArgs(await pmm.getAddress(), minterRole);
     });
 
     it('should fail to swap if amount is to low and will result in 0 StakedLBTC', async function () {
@@ -164,7 +165,7 @@ describe('BTCBPMM', function () {
 
     describe('With whitelisted minter', function () {
       beforeEach(async function () {
-        await lbtc.addMinter(await pmm.getAddress());
+        await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await pmm.getAddress());
       });
 
       it('should allow swaps', async function () {

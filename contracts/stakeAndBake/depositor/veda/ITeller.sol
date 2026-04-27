@@ -9,10 +9,19 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @notice This contract is part of the Lombard.Finance protocol
  */
 interface ITeller {
+    /// @dev TellerWithMultiAssetSupport without version
     function deposit(
         IERC20 depositAsset,
         uint256 depositAmount,
         uint256 minimumMint
+    ) external returns (uint256 shares);
+
+    /// @dev TellerWithMultiAssetSupport Base V0.1
+    function deposit(
+        IERC20 depositAsset,
+        uint256 depositAmount,
+        uint256 minimumMint,
+        address referralAddress
     ) external returns (uint256 shares);
 
     function bulkDeposit(
