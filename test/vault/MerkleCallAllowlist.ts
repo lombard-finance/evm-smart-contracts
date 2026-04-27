@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import type { MerkleAllowlistValidator } from '../typechain-types';
+import type { MerkleAllowlistValidator } from '../../typechain-types';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
 async function merkleIsAllowed(
@@ -12,9 +12,7 @@ async function merkleIsAllowed(
   data: string,
   input: { ruleEncoded: string; merkleProof: string[] }
 ): Promise<boolean> {
-  const fn = contract.getFunction(
-    'isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'
-  );
+  const fn = contract.getFunction('isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))');
   return fn.staticCall(sender, to, value, data, input) as Promise<boolean>;
 }
 
