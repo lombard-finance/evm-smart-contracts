@@ -28,12 +28,12 @@ abstract contract VaultBaseUpgradeable is
     bytes32 public constant STRATEGY_DEPLOYER_ROLE =
         keccak256("STRATEGY_DEPLOYER_ROLE");
 
-    bytes32 public constant OPERATOR_ROLE =
-        keccak256("OPERATOR_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
-    bytes32 public constant PRICE_PER_SHARE_GUARDIAN_ROLE = keccak256("PRICE_PER_SHARE_GUARDIAN_ROLE");
+    bytes32 public constant PRICE_PER_SHARE_GUARDIAN_ROLE =
+        keccak256("PRICE_PER_SHARE_GUARDIAN_ROLE");
 
     modifier whenVaultNotPaused() {
         _requireVaultNotPaused();
@@ -89,8 +89,8 @@ abstract contract VaultBaseUpgradeable is
 
         _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
 
-
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(asset_);
         $.underlyingDecimals = success ? assetDecimals : 18;
         $.asset = asset_;
@@ -107,17 +107,24 @@ abstract contract VaultBaseUpgradeable is
         uint256 newPricePerShare
     ) external onlyRole(OPERATOR_ROLE) whenVaultNotPaused {
         // TODO: check threshold
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         _setPricePerShare($, newPricePerShare);
     }
 
-    function forcePostPricePerShare(uint256 newPricePerShare) external onlyRole(PRICE_PER_SHARE_GUARDIAN_ROLE) {
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+    function forcePostPricePerShare(
+        uint256 newPricePerShare
+    ) external onlyRole(PRICE_PER_SHARE_GUARDIAN_ROLE) {
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         _setPricePerShare($, newPricePerShare);
         _pauseVault();
     }
 
-    function _setPricePerShare(VaultBaseUpgradeableStorage storage $, uint256 newPricePerShare) internal {
+    function _setPricePerShare(
+        VaultBaseUpgradeableStorage storage $,
+        uint256 newPricePerShare
+    ) internal {
         $.pricePerShare = newPricePerShare;
         emit PricePerShareUpdated(
             newPricePerShare,
@@ -152,10 +159,11 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
     }
 
-    function _tryGetAssetDecimals(IERC20 asset_) private view returns (bool, uint8) {
-        (bool success, bytes memory encodedDecimals) = address(asset_).staticcall(
-            abi.encodeCall(IERC20Metadata.decimals, ())
-        );
+    function _tryGetAssetDecimals(
+        IERC20 asset_
+    ) private view returns (bool, uint8) {
+        (bool success, bytes memory encodedDecimals) = address(asset_)
+            .staticcall(abi.encodeCall(IERC20Metadata.decimals, ()));
         if (success && encodedDecimals.length >= 32) {
             uint256 returnedDecimals = abi.decode(encodedDecimals, (uint256));
             if (returnedDecimals <= type(uint8).max) {
@@ -165,8 +173,15 @@ abstract contract VaultBaseUpgradeable is
         return (false, 0);
     }
 
-    function decimals() public view virtual override(IERC20Metadata, ERC20Upgradeable) returns (uint8) {
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+    function decimals()
+        public
+        view
+        virtual
+        override(IERC20Metadata, ERC20Upgradeable)
+        returns (uint8)
+    {
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         return $.underlyingDecimals + _decimalsOffset();
     }
 
@@ -187,7 +202,6 @@ abstract contract VaultBaseUpgradeable is
     ) internal view virtual returns (uint256) {
         return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
     }
-
 
     function pauseVaultOperations() external onlyRole(PAUSER_ROLE) {
         _getVaultBaseUpgradeableStorage().vaultPaused = true;
@@ -214,13 +228,15 @@ abstract contract VaultBaseUpgradeable is
     }
 
     function _pauseVault() internal virtual whenVaultNotPaused {
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         $.vaultPaused = true;
         emit VaultOperationsPaused(_msgSender());
     }
 
     function _unpauseVault() internal virtual whenVaultPaused {
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         $.vaultPaused = false;
         emit VaultOperationsUnpaused(_msgSender());
     }

@@ -107,7 +107,10 @@ abstract contract ERC7540RedemptionUpgradeable is
     }
 
     /// @dev use to limit max redeem amount and stop new redeem requests
-    function setMaxControllerRedeem(address ctrl, uint256 maxShares) external onlyRole(CONTROLLER_MANAGER_ROLE) {
+    function setMaxControllerRedeem(
+        address ctrl,
+        uint256 maxShares
+    ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if (!$.controllers.contains(ctrl)) {
             revert ERC7540RedeemControllerNotTracked(ctrl);
@@ -116,7 +119,9 @@ abstract contract ERC7540RedemptionUpgradeable is
         emit MaxRedeemSet(ctrl, maxShares);
     }
 
-    function maxControllerRedeem(address controller) external view returns (uint256) {
+    function maxControllerRedeem(
+        address controller
+    ) external view returns (uint256) {
         return _getERC7540RedemptionStorage().maxRedeemShares[controller];
     }
 
@@ -170,7 +175,13 @@ abstract contract ERC7540RedemptionUpgradeable is
         uint256 shares,
         address controller,
         address owner
-    ) external override nonReentrant whenVaultNotPaused returns (uint256 requestId) {
+    )
+        external
+        override
+        nonReentrant
+        whenVaultNotPaused
+        returns (uint256 requestId)
+    {
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if (shares == 0) revert ERC7540ZeroRedeemRequestShares();
 

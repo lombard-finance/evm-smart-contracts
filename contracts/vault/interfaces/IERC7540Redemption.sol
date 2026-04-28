@@ -76,7 +76,11 @@ interface IERC7540Redemption {
     /// @notice ERC-4626 `withdraw` / `redeem` are disabled; claim settled via a separate payment entrypoint.
     error ERC7540ERC4626ClaimDisabled();
 
-    error ERC7540UnauthorizedClaimCaller(address caller, address controller, uint256 requestId);
+    error ERC7540UnauthorizedClaimCaller(
+        address caller,
+        address controller,
+        uint256 requestId
+    );
 
     error ERC7540RedeemRequestsAlreadyAllowed(address controller);
 
@@ -94,5 +98,9 @@ interface IERC7540Redemption {
 
     error ERC7540NothingToFulfill(uint256 requestId);
 
-    error ERC7540ExceededMaxRedeem(address ctrl, uint256 shares, uint256 maxShares);
+    error ERC7540ExceededMaxRedeem(
+        address ctrl,
+        uint256 shares,
+        uint256 maxShares
+    );
 }

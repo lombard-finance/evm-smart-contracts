@@ -12,7 +12,12 @@ interface IVault {
         uint64 postedAt
     );
 
-    event Withdraw(address indexed caller, address indexed receiver, uint256 assets, uint256 shares);
+    event Withdraw(
+        address indexed caller,
+        address indexed receiver,
+        uint256 assets,
+        uint256 shares
+    );
 
     error ZeroAddress();
 

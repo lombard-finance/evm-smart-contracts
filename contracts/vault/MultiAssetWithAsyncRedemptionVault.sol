@@ -14,12 +14,14 @@ import {IVault} from "./interfaces/IVault.sol";
 import {ERC7540RedemptionUpgradeable} from "./ERC7540RedemptionUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
 
-contract MultiAssetWithAsyncRedemptionVault is MultiAssetDepositUpgradeable, ERC7540RedemptionUpgradeable {
-
+contract MultiAssetWithAsyncRedemptionVault is
+    MultiAssetDepositUpgradeable,
+    ERC7540RedemptionUpgradeable
+{
     constructor() {
         _disableInitializers();
     }
-    
+
     function initialize(
         string memory name_,
         string memory symbol_,
@@ -30,7 +32,12 @@ contract MultiAssetWithAsyncRedemptionVault is MultiAssetDepositUpgradeable, ERC
         address strategyDeployer_
     ) external initializer {
         __ERC20_init(name_, symbol_);
-        __VaultBase_init(initialDefaultAdminDelay_, defaultAdmin_, strategyDeployer_, asset_);
+        __VaultBase_init(
+            initialDefaultAdminDelay_,
+            defaultAdmin_,
+            strategyDeployer_,
+            asset_
+        );
         __MultiAssetDeposit_init();
         __ERC7540Redemption_init(controllerManager_);
     }
@@ -42,11 +49,17 @@ contract MultiAssetWithAsyncRedemptionVault is MultiAssetDepositUpgradeable, ERC
     /// @inheritdoc ERC7540RedemptionUpgradeable
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(
-        AccessControlDefaultAdminRulesUpgradeable,
-        ERC7540RedemptionUpgradeable,
-        IERC165
-    ) returns (bool) {
+    )
+        public
+        view
+        virtual
+        override(
+            AccessControlDefaultAdminRulesUpgradeable,
+            ERC7540RedemptionUpgradeable,
+            IERC165
+        )
+        returns (bool)
+    {
         return super.supportsInterface(interfaceId);
     }
 }
