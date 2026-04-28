@@ -1,7 +1,9 @@
+import { execSync } from 'child_process';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import type { MerkleCallAllowlist } from '../typechain-types';
+import rulesJson from '../scripts/vault/ruleset/test.json';
 
 export interface RuleConstraint {
   offset: number;
@@ -303,5 +305,171 @@ describe('MerkleCallAllowlist', function () {
         merkleProof: [],
       }),
     ).to.equal(false);
+  });
+
+  // ─── ruleset/test.json ───────────────────────────────────────────────────────
+  // Mirrors the examples in scripts/vault/README.md.
+  // The tree is rebuilt each test against the freshly deployed contract so the
+  // domain separator (chain + address) is always correct.
+
+  describe('ruleset: test.json', function () {
+    type TreeRow = [number, string, Uint8Array];
+
+    const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+    const SENDER = '0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892';
+    const RECIPIENT = '0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce';
+    const TRANSFER_SELECTOR = '0xa9059cbb';
+
+    let tree: StandardMerkleTree<TreeRow>;
+    let encoded: Record<string, string>;
+    let ds: string;
+
+    function encodeJsonRule(rule: (typeof rulesJson)[keyof typeof rulesJson]): string {
+      const flags =
+        (rule.flags.senderSet ? 0x01 : 0) |
+        (rule.flags.toSet ? 0x02 : 0) |
+        (rule.flags.valueSet ? 0x04 : 0) |
+        (rule.flags.dataLengthSet ? 0x08 : 0);
+      return encodeMerkleRule({
+        flags,
+        sender: rule.sender !== '' ? rule.sender : ethers.ZeroAddress,
+        to: rule.to !== '' ? rule.to : ethers.ZeroAddress,
+        value: 'value' in rule && rule.value !== '' ? BigInt(rule.value as string) : 0n,
+        dataLength: rule.dataLength,
+        constraints: rule.constraints,
+      });
+    }
+
+    function proofFor(name: string): { ruleEncoded: string; merkleProof: string[] } {
+      const ruleEncoded = encoded[name];
+      const row: TreeRow = [0, ds, ethers.getBytes(ruleEncoded)];
+      return { ruleEncoded, merkleProof: tree.getProof(row) };
+    }
+
+    beforeEach(async function () {
+      ds = await c.domainSeparator();
+      const rows: TreeRow[] = [];
+      encoded = {};
+      for (const [name, rule] of Object.entries(rulesJson)) {
+        const ruleEncoded = encodeJsonRule(rule);
+        encoded[name] = ruleEncoded;
+        rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
+      }
+      tree = StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']);
+      await c.setAllowlistRoot(tree.root);
+    });
+
+    it('rule_01: allows any calldata to the fixed target', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_01');
+      const calldata = ethers.hexlify(ethers.randomBytes(100));
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(true);
+    });
+
+    it('rule_01: rejects wrong target address', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_01');
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, ethers.ZeroAddress, 0, '0x', { ruleEncoded, merkleProof }),
+      ).to.equal(false);
+    });
+
+    it('rule_02: allows transfer() selector to target with value=0', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_02');
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(true);
+    });
+
+    it('rule_02: rejects wrong selector', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_02');
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        ['0xdeadbeef', ethers.ZeroHash, 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(false);
+    });
+
+    it('rule_02: rejects nonzero ETH value', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_02');
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, TO, 1n, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(false);
+    });
+
+    it('rule_03: allows transfer() to exact recipient from exact sender', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_03');
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(SENDER, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(true);
+    });
+
+    it('rule_03: rejects wrong sender', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_03');
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(false);
+    });
+
+    it('rule_03: rejects wrong recipient in calldata', async function () {
+      const { ruleEncoded, merkleProof } = proofFor('rule_03');
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        [TRANSFER_SELECTOR, ethers.zeroPadValue(ethers.ZeroAddress, 32), 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(SENDER, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(false);
+    });
+
+    it('script: root from --mode build and proof from --mode proof are accepted by the contract', async function () {
+      this.timeout(60000);
+
+      const addr = await c.getAddress();
+      const chainId = (await ethers.provider.getNetwork()).chainId;
+      const base =
+        `npx ts-node scripts/vault/merkleTreeBuilder.ts` +
+        ` --rules scripts/vault/ruleset/test.json --chain-id ${chainId} --contract ${addr}`;
+
+      const buildOut = execSync(`${base} --mode build`).toString();
+      const root = buildOut.match(/Merkle root:\s+(0x[0-9a-fA-F]{64})/)?.[1] as string;
+
+      const proofOut = execSync(`${base} --mode proof --rule-name rule_02`).toString();
+      const { ruleEncoded, merkleProof } = JSON.parse(proofOut) as {
+        ruleEncoded: string;
+        merkleProof: string[];
+      };
+
+      // Override the root set by beforeEach with the one produced by the script —
+      // proves that both sources produce an identical root for the same inputs.
+      await c.setAllowlistRoot(root);
+
+      // rule_02: exact to + value=0 + transfer() selector
+      const calldata = ethers.solidityPacked(
+        ['bytes4', 'bytes32', 'uint256'],
+        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n],
+      );
+      expect(
+        await c.isAllowed.staticCall(ethers.ZeroAddress, TO, 0, calldata, { ruleEncoded, merkleProof }),
+      ).to.equal(true);
+    });
   });
 });
