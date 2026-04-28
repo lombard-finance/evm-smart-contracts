@@ -112,6 +112,7 @@ abstract contract VaultBaseUpgradeable is
         _setPricePerShare($, newPricePerShare);
     }
 
+    /// @dev allows to post any price, but pause vault operations
     function forcePostPricePerShare(
         uint256 newPricePerShare
     ) external onlyRole(PRICE_PER_SHARE_GUARDIAN_ROLE) {

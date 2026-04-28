@@ -95,7 +95,7 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             revert DepositAssetNotListed(depositAsset);
         }
-        if (depositFeeBps_ > _BPS_DENOMINATOR) {
+        if (depositFeeBps_ >= _BPS_DENOMINATOR) {
             revert DepositFeeBpsTooHigh();
         }
         $.depositFeeBps[depositAsset] = depositFeeBps_;

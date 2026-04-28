@@ -46,7 +46,7 @@ abstract contract ERC7540RedemptionUpgradeable is
         /// @dev Last issued request id (ids are `1 .. nextRequestId`).
         uint256 nextRequestId;
         mapping(uint256 requestId => RedeemRequest) redeemRequestById;
-        /// @dev Max redeem shares per controller
+        /// @dev Max redeem shares per redeem request for controller
         mapping(address controller => uint256) maxRedeemShares;
     }
 
@@ -183,6 +183,10 @@ abstract contract ERC7540RedemptionUpgradeable is
     {
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if (shares == 0) revert ERC7540ZeroRedeemRequestShares();
+
+        if (!$.controllers.contains(controller)) {
+            revert ERC7540RedeemControllerNotTracked(controller);
+        }
 
         uint256 maxCtrlShares = $.maxRedeemShares[controller];
         if (shares > maxCtrlShares) {
