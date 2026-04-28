@@ -153,10 +153,9 @@ abstract contract ERC7540RedemptionUpgradeable is
             );
     }
 
-    /// @inheritdoc VaultBaseUpgradeable
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(VaultBaseUpgradeable) returns (bool) {
+    ) public view virtual override returns (bool) {
         if (
             interfaceId == _ERC7540_ASYNC_REDEEM_INTERFACE_ID ||
             interfaceId == _ERC7540_OPERATORS_INTERFACE_ID
@@ -164,46 +163,6 @@ abstract contract ERC7540RedemptionUpgradeable is
             return true;
         }
         return super.supportsInterface(interfaceId);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    /// @dev EIP-7540: `previewRedeem` MUST revert for asynchronous redemption vaults.
-    function previewRedeem(
-        uint256
-    ) public view virtual override(ERC4626Upgradeable) returns (uint256) {
-        revert ERC7540PreviewDisabled();
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    /// @dev EIP-7540: `previewWithdraw` MUST revert for asynchronous redemption vaults.
-    function previewWithdraw(
-        uint256
-    ) public view virtual override(ERC4626Upgradeable) returns (uint256) {
-        revert ERC7540PreviewDisabled();
-    }
-
-    function maxWithdraw(
-        address
-    ) public view virtual override returns (uint256) {
-        revert ERC7540ERC4626ClaimDisabled();
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function withdraw(
-        uint256,
-        address,
-        address
-    ) public virtual override returns (uint256) {
-        revert ERC7540ERC4626ClaimDisabled();
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function redeem(
-        uint256,
-        address,
-        address
-    ) public virtual override returns (uint256) {
-        revert ERC7540ERC4626ClaimDisabled();
     }
 
     /// @inheritdoc IERC7540Redemption
@@ -215,14 +174,9 @@ abstract contract ERC7540RedemptionUpgradeable is
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if (shares == 0) revert ERC7540ZeroRedeemRequestShares();
 
-        // check max redeem of both ctrl and owner
         uint256 maxCtrlShares = $.maxRedeemShares[controller];
         if (shares > maxCtrlShares) {
             revert ERC7540ExceededMaxRedeem(owner, shares, maxCtrlShares);
-        }
-        uint256 maxOwnerShares = maxRedeem(owner);
-        if (shares > maxOwnerShares) {
-            revert ERC4626ExceededMaxRedeem(owner, shares, maxOwnerShares);
         }
 
         address caller = _msgSender();
@@ -275,7 +229,7 @@ abstract contract ERC7540RedemptionUpgradeable is
             delete $.redeemRequestById[rid];
 
             asset_.safeTransfer(owner, assets);
-            emit Withdraw(msgSender, owner, owner, assets, shares);
+            emit Withdraw(msgSender, owner, assets, shares);
         }
 
         // TODO: maybe add more summary

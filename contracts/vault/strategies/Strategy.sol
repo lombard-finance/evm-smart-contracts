@@ -63,7 +63,8 @@ contract Strategy is StrategyBaseUpgradeable {
         uint256 amount
     ) external onlyRole(VAULT_TOKEN_LIQUIDITY_ROLE) {
         IVault v = _getStrategyStorage().vault;
-        IERC20(v.asset()).safeTransferFrom(address(v), address(this), amount);
+        // TODO: fix after vault update
+        // IERC20(v.asset()).safeTransferFrom(address(v), address(this), amount);
         emit PulledFromVault(amount);
     }
 
@@ -72,7 +73,8 @@ contract Strategy is StrategyBaseUpgradeable {
         uint256 amount
     ) external onlyRole(VAULT_TOKEN_LIQUIDITY_ROLE) {
         IVault v = _getStrategyStorage().vault;
-        IERC20(v.asset()).safeTransfer(address(v), amount);
+        // TODO: fix after vault update
+        // IERC20(v.asset()).safeTransfer(address(v), amount);
         emit PushedToVault(amount);
     }
 

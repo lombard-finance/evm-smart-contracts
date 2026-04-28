@@ -2,24 +2,24 @@
 pragma solidity 0.8.24;
 
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
-import {ERC4626Upgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {IVault} from "./interfaces/IVault.sol";
 
 /// @title VaultBaseUpgradeable
 abstract contract VaultBaseUpgradeable is
+    IERC20Metadata,
+    IVault,
     AccessControlDefaultAdminRulesUpgradeable,
     ReentrancyGuardUpgradeable,
-    ERC4626Upgradeable,
-    PausableUpgradeable,
-    IVault
+    ERC20PausableUpgradeable
 {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Math for uint256;
@@ -52,6 +52,8 @@ abstract contract VaultBaseUpgradeable is
         uint256 pricePerShare;
         /// @dev pause vault ops
         bool vaultPaused;
+        IERC20 asset;
+        uint8 underlyingDecimals;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -66,6 +68,34 @@ abstract contract VaultBaseUpgradeable is
         assembly {
             $.slot := VAULT_BASE_UPGRADEABLE_STORAGE_LOCATION
         }
+    }
+
+    function __VaultBase_init(
+        uint48 initialDefaultAdminDelay_,
+        address defaultAdmin_,
+        address strategyDeployer_,
+        IERC20 asset_
+    ) internal onlyInitializing {
+        if (strategyDeployer_ == address(0)) {
+            revert ZeroAddress();
+        }
+
+        __AccessControl_init();
+        __AccessControlDefaultAdminRules_init(
+            initialDefaultAdminDelay_,
+            defaultAdmin_
+        );
+        __ReentrancyGuard_init();
+
+        _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
+
+
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(asset_);
+        $.underlyingDecimals = success ? assetDecimals : 18;
+        $.asset = asset_;
+        // Initial price per share is 1 asset per share.
+        _setPricePerShare($, 10 ** decimals());
     }
 
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.
@@ -96,40 +126,16 @@ abstract contract VaultBaseUpgradeable is
         );
     }
 
-    /// @inheritdoc ERC4626Upgradeable
-    /// @dev NAV in asset units: `totalSupply() * pricePerShare / 10**decimals()` (floor), not raw `asset` balance.
-    function totalAssets() public view virtual override returns (uint256) {
+    function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }
 
-    /// @inheritdoc ERC4626Upgradeable
-    function asset()
-        public
-        view
-        virtual
-        override(ERC4626Upgradeable, IVault)
-        returns (address)
-    {
-        return super.asset();
-    }
-
-    /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(AccessControlDefaultAdminRulesUpgradeable)
-        returns (bool)
-    {
-        if (interfaceId == type(IERC4626).interfaceId) {
-            return true;
-        }
-        return super.supportsInterface(interfaceId);
+    function asset() public view returns (IERC20) {
+        return _getVaultBaseUpgradeableStorage().asset;
     }
 
     /// @notice Register `strategy` for the §B pipe (`docs/spec/002-strategy.md` §B): grants allowance on `asset()`.
+    /// TODO: update
     function registerStrategy(
         address strategy
     ) external nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
@@ -139,11 +145,49 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @notice Whether `strategy` was registered via {registerStrategy}.
+    /// TODO: update
     function isRegisteredStrategy(
         address strategy
     ) external view returns (bool) {
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
     }
+
+    function _tryGetAssetDecimals(IERC20 asset_) private view returns (bool, uint8) {
+        (bool success, bytes memory encodedDecimals) = address(asset_).staticcall(
+            abi.encodeCall(IERC20Metadata.decimals, ())
+        );
+        if (success && encodedDecimals.length >= 32) {
+            uint256 returnedDecimals = abi.decode(encodedDecimals, (uint256));
+            if (returnedDecimals <= type(uint8).max) {
+                return (true, uint8(returnedDecimals));
+            }
+        }
+        return (false, 0);
+    }
+
+    function decimals() public view virtual override(IERC20Metadata, ERC20Upgradeable) returns (uint8) {
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        return $.underlyingDecimals + _decimalsOffset();
+    }
+
+    function _decimalsOffset() internal view virtual returns (uint8) {
+        return 0;
+    }
+
+    function _convertToShares(
+        uint256 assets,
+        Math.Rounding rounding
+    ) internal view virtual returns (uint256) {
+        return assets.mulDiv(10 ** decimals(), pricePerShare(), rounding);
+    }
+
+    function _convertToAssets(
+        uint256 shares,
+        Math.Rounding rounding
+    ) internal view virtual returns (uint256) {
+        return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
+    }
+
 
     function pauseVaultOperations() external onlyRole(PAUSER_ROLE) {
         _getVaultBaseUpgradeableStorage().vaultPaused = true;
@@ -151,49 +195,6 @@ abstract contract VaultBaseUpgradeable is
 
     function unpauseVaultOperations() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _getVaultBaseUpgradeableStorage().vaultPaused = false;
-    }
-
-    /// @dev Roles: `DEFAULT_ADMIN_ROLE` (via rules), `STRATEGY_DEPLOYER_ROLE`, `PRICE_PER_SHARE_POSTER_ROLE`.
-    /// @param initialDefaultAdminDelay_ Delay for default-admin transfer / delay changes (OpenZeppelin `AccessControlDefaultAdminRules`).
-    function __VaultBase_init(
-        uint48 initialDefaultAdminDelay_,
-        address defaultAdmin_,
-        address strategyDeployer_
-    ) internal onlyInitializing {
-        if (strategyDeployer_ == address(0)) {
-            revert ZeroAddress();
-        }
-
-        __AccessControl_init();
-        __AccessControlDefaultAdminRules_init(
-            initialDefaultAdminDelay_,
-            defaultAdmin_
-        );
-        __ReentrancyGuard_init();
-
-        _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
-
-
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
-        
-        // Initial price per share is 1 asset per share.
-        $.pricePerShare = 10 ** decimals();
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function _convertToShares(
-        uint256 assets,
-        Math.Rounding rounding
-    ) internal view virtual override returns (uint256) {
-        return assets.mulDiv(10 ** decimals(), pricePerShare(), rounding);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function _convertToAssets(
-        uint256 shares,
-        Math.Rounding rounding
-    ) internal view virtual override returns (uint256) {
-        return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
     }
 
     function vaultOperationsPaused() public view virtual returns (bool) {
@@ -223,27 +224,4 @@ abstract contract VaultBaseUpgradeable is
         $.vaultPaused = false;
         emit VaultOperationsUnpaused(_msgSender());
     }
-
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal virtual override whenNotPaused {
-        super._update(from, to, value);
-    }
-
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual override whenVaultNotPaused {
-        super._deposit(caller, receiver, assets, shares);
-    }
-
-    function _withdraw(
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets,
-        uint256 shares
-    ) internal virtual override whenVaultNotPaused {
-        super._withdraw(caller, receiver, owner, assets, shares);
-    }
-
 }

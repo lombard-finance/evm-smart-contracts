@@ -24,7 +24,7 @@ contract MockVaultForStrategy is IVault {
         _token = token_;
     }
 
-    /// @inheritdoc IVault
+    /// @notice Underlying token for strategy tests (mirrors ERC-4626 `asset()`).
     function asset() external view returns (address) {
         return address(_token);
     }

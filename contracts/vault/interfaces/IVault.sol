@@ -12,6 +12,8 @@ interface IVault {
         uint64 postedAt
     );
 
+    event Withdraw(address indexed caller, address indexed receiver, uint256 assets, uint256 shares);
+
     error ZeroAddress();
 
     event VaultOperationsPaused(address account);
@@ -21,9 +23,6 @@ interface IVault {
     error EnforcedVaultOperationsPause();
 
     error ExpectedVaultOperationsPause();
-
-    /// @notice §B pipe asset; MUST be standard ERC-20 (no fee-on-transfer, no rebasing). Same identifier as ERC-4626 `asset()`.
-    function asset() external view returns (address);
 
     function version() external view returns (string memory);
 }
