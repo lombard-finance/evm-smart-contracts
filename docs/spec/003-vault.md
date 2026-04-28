@@ -1,12 +1,12 @@
 # Feature: Vault (ERC-4626 + ERC-7540, Strategy integration)
 
-Normative spec for **one** deployable vault (**`ERC7540AsyncRedeemVault`**): depositor entry and accounting for a single ERC-20 **`asset`**, with **Strategies** moving liquidity via **`pullFromVault` / `pushToVault`** per **`docs/spec/002-strategy.md`**. The vault **MUST** implement **[ERC-4626](https://eips.ethereum.org/EIPS/eip-4626)** (sync **`deposit` / `mint`**) and **[ERC-7540](https://eips.ethereum.org/EIPS/eip-7540)** (async redemption). The **`IVault`** interface for Strategies **MUST** match **`contracts/interfaces/vault/IVault.sol`**; ERC-4626 / ERC-7540 entrypoints are **in addition** to that interface.
+Normative spec for **one** deployable vault (**`AsyncRedemptionVault`**): depositor entry and accounting for a single ERC-20 **`asset`**, with **Strategies** moving liquidity via **`pullFromVault` / `pushToVault`** per **`docs/spec/002-strategy.md`**. The vault **MUST** implement **[ERC-4626](https://eips.ethereum.org/EIPS/eip-4626)** (sync **`deposit` / `mint`**) and **[ERC-7540](https://eips.ethereum.org/EIPS/eip-7540)** (async redemption). The **`IVault`** interface for Strategies **MUST** match **`contracts/interfaces/vault/IVault.sol`**; ERC-4626 / ERC-7540 entrypoints are **in addition** to that interface.
 
 ---
 
 ## Goal
 
-Deliver a **`VaultBase`** core (strategy registry + `pricePerShare` ratio field + **`IVault`**, **not** the beacon implementation), ERC-4626 / ERC-7540 behavior in layered abstract contracts, and a concrete **`ERC7540AsyncRedeemVault`** behind **`BeaconProxy`** (**sync** deposits, **async** withdrawals only—no other vault variant in scope).
+Deliver a **`VaultBase`** core (strategy registry + `pricePerShare` ratio field + **`IVault`**, **not** the beacon implementation), ERC-4626 / ERC-7540 behavior in layered abstract contracts, and a concrete **`AsyncRedemptionVault`** behind **`BeaconProxy`** (**sync** deposits, **async** withdrawals only—no other vault variant in scope).
 
 1. **Deposits** — Atomic **`deposit` / `mint`**; async **`requestDeposit`** not supported (**MUST** **`revert`** if present in ABI).
 2. **Exits** — **`requestRedeem`** → pending → **`fulfillRedeemRequests`** (operator-authorized, direct settlement) per ERC-7540.
@@ -67,7 +67,7 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 
 - **`VaultBase`** — **MUST** hold **`IVault`** (**002**), strategy registry + **`registerStrategy`**, **`pricePerShare`** + **`postPricePerShare`**, **`totalAssets()`** derivation from the price rate, and **`AccessControl`** / **`ReentrancyGuard`** for those concerns. It **MUST NOT** be the **`UpgradeableBeacon`** implementation pointer; it **MAY** be **`abstract`**. Storage **MUST** use ERC-7201-style namespaced slots (no requirement for legacy **`__gap`** arrays on new layouts).
 - **Layered modules** — Sync **`deposit` / `mint`**, ERC-4626 wiring, and async redemption (**`fulfillRedeemRequests`** with operator auth, direct settlement, **ERC-165** for **4626**) **MUST** compose into the single in-scope concrete vault; exact inheritance split is **implementation freedom** if external behavior matches this spec.
-- **`ERC7540AsyncRedeemVault`** — **MUST** be the **concrete** contract set on the Vault **`UpgradeableBeacon`**: **sync** deposits and **async** redemptions as specified, and the **ERC-165** rules under **ERC-165, operators**. **No** other concrete vault **variant** for deposit modality is **in scope**.
+- **`AsyncRedemptionVault`** — **MUST** be the **concrete** contract set on the Vault **`UpgradeableBeacon`**: **sync** deposits and **async** redemptions as specified, and the **ERC-165** rules under **ERC-165, operators**. **No** other concrete vault **variant** for deposit modality is **in scope**.
 - **Beacon** — Live vault **MUST** be **`BeaconProxy`** with **`UpgradeableBeacon`** (Vault-dedicated beacon, **not** shared with Strategy). Updating the beacon's implementation pointer **MUST** be **restricted** to protocol admin (or equivalent) on the beacon. **`constructor`** empty of mutable state; **`initializer`** per **002** §A.1.
 
 ### Accounting and `totalAssets`
@@ -116,7 +116,7 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 9. **`pricePerShare`** field, **`PRICE_PER_SHARE_POSTER_ROLE`**, **`postPricePerShare`** setter, **`PricePerShareUpdated`** event per **Cross-chain ratio**.
 10. **ERC-165** — **`0x620ee8e4`** (async redeem) and **`0xe3bc4e65`** (operators) **MUST** be **true**; ERC-4626 interface ID **MUST** be **true**; **ERC-7575 MUST NOT**.
 11. **ERC-7540 operators** — **`setOperator` / `isOperator`** per **ERC-7540 operators**; **`setOperator`** only callable by registered controllers.
-12. **`VaultBase` + `ERC7540AsyncRedeemVault`** — **`VaultBase`** (core) exists and is **not** the implementation pointer on the Vault **`UpgradeableBeacon`**; **`ERC7540AsyncRedeemVault`** is the **only** in-scope concrete vault (**sync** deposits, **async** withdrawals).
+12. **`VaultBase` + `AsyncRedemptionVault`** — **`VaultBase`** (core) exists and is **not** the implementation pointer on the Vault **`UpgradeableBeacon`**; **`AsyncRedemptionVault`** is the **only** in-scope concrete vault (**sync** deposits, **async** withdrawals).
 
 ---
 
@@ -129,7 +129,7 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 - Rounding follows ERC-4626 / ERC-7540 where applicable; extreme **`totalSupply()`** / **`pricePerShare`** ratios can still produce **0** shares or assets in edge inputs—callers **SHOULD** use **`preview*`** and **`max*`** as defined by the EIPs.
 - **Unsupported `asset`** types (fee-on-transfer, rebasing) per **002** unless separately documented for a deployment.
 - **`pricePerShare`** carries **no** mandatory on-chain staleness guard; consumers **MUST** treat freshness as a deployment / operational concern.
-- **Explicit non-goals (unless added later):** bridge vendor / message format; Strategy **`exec`** / Merkle allowlist (**001**) beyond **002**; async deposits; normative pause/circuit-breaker; normative fee design; **ERC-7575**; Vault **`restoreStrategyAllowance`**; **`IRedemptionPolicy`**; any concrete vault other than **`ERC7540AsyncRedeemVault`** (**sync** deposits, **async** withdrawals).
+- **Explicit non-goals (unless added later):** bridge vendor / message format; Strategy **`exec`** / Merkle allowlist (**001**) beyond **002**; async deposits; normative pause/circuit-breaker; normative fee design; **ERC-7575**; Vault **`restoreStrategyAllowance`**; **`IRedemptionPolicy`**; any concrete vault other than **`AsyncRedemptionVault`** (**sync** deposits, **async** withdrawals).
 
 ### References
 

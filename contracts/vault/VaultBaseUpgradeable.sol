@@ -2,13 +2,15 @@
 pragma solidity 0.8.24;
 
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
-import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {ERC4626Upgradeable, ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+
 import {IVault} from "./interfaces/IVault.sol";
 
 /// @title VaultBaseUpgradeable
@@ -16,6 +18,7 @@ abstract contract VaultBaseUpgradeable is
     AccessControlDefaultAdminRulesUpgradeable,
     ReentrancyGuardUpgradeable,
     ERC4626Upgradeable,
+    PausableUpgradeable,
     IVault
 {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -25,14 +28,30 @@ abstract contract VaultBaseUpgradeable is
     bytes32 public constant STRATEGY_DEPLOYER_ROLE =
         keccak256("STRATEGY_DEPLOYER_ROLE");
 
-    bytes32 public constant PRICE_PER_SHARE_POSTER_ROLE =
-        keccak256("PRICE_PER_SHARE_POSTER_ROLE");
+    bytes32 public constant OPERATOR_ROLE =
+        keccak256("OPERATOR_ROLE");
+
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+
+    bytes32 public constant PRICE_PER_SHARE_GUARDIAN_ROLE = keccak256("PRICE_PER_SHARE_GUARDIAN_ROLE");
+
+    modifier whenVaultNotPaused() {
+        _requireVaultNotPaused();
+        _;
+    }
+
+    modifier whenVaultPaused() {
+        _requireVaultPaused();
+        _;
+    }
 
     /// @custom:storage-location erc7201:lombardfinance.storage.VaultBaseUpgradeable
     struct VaultBaseUpgradeableStorage {
         EnumerableSet.AddressSet strategies;
         /// @dev Underlying asset base units per `10 ** decimals()` share units (vault share token decimals).
         uint256 pricePerShare;
+        /// @dev pause vault ops
+        bool vaultPaused;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -54,11 +73,21 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().pricePerShare;
     }
 
-    /// @notice Update `pricePerShare` (`PRICE_PER_SHARE_POSTER_ROLE`). `newPricePerShare` MUST be non-zero.
     function postPricePerShare(
         uint256 newPricePerShare
-    ) external onlyRole(PRICE_PER_SHARE_POSTER_ROLE) {
+    ) external onlyRole(OPERATOR_ROLE) whenVaultNotPaused {
+        // TODO: check threshold
         VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        _setPricePerShare($, newPricePerShare);
+    }
+
+    function forcePostPricePerShare(uint256 newPricePerShare) external onlyRole(PRICE_PER_SHARE_GUARDIAN_ROLE) {
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        _setPricePerShare($, newPricePerShare);
+        _pauseVault();
+    }
+
+    function _setPricePerShare(VaultBaseUpgradeableStorage storage $, uint256 newPricePerShare) internal {
         $.pricePerShare = newPricePerShare;
         emit PricePerShareUpdated(
             newPricePerShare,
@@ -116,6 +145,14 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
     }
 
+    function pauseVaultOperations() external onlyRole(PAUSER_ROLE) {
+        _getVaultBaseUpgradeableStorage().vaultPaused = true;
+    }
+
+    function unpauseVaultOperations() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getVaultBaseUpgradeableStorage().vaultPaused = false;
+    }
+
     /// @dev Roles: `DEFAULT_ADMIN_ROLE` (via rules), `STRATEGY_DEPLOYER_ROLE`, `PRICE_PER_SHARE_POSTER_ROLE`.
     /// @param initialDefaultAdminDelay_ Delay for default-admin transfer / delay changes (OpenZeppelin `AccessControlDefaultAdminRules`).
     function __VaultBase_init(
@@ -143,16 +180,6 @@ abstract contract VaultBaseUpgradeable is
         $.pricePerShare = 10 ** decimals();
     }
 
-    function __ERC4626Vault_init(
-        IERC20 asset_,
-        string memory name_,
-        string memory symbol_
-    ) internal onlyInitializing {
-        if (address(asset_) == address(0)) revert ZeroAddress();
-        __ERC20_init(name_, symbol_);
-        __ERC4626_init(asset_);
-    }
-
     /// @inheritdoc ERC4626Upgradeable
     function _convertToShares(
         uint256 assets,
@@ -168,4 +195,55 @@ abstract contract VaultBaseUpgradeable is
     ) internal view virtual override returns (uint256) {
         return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
     }
+
+    function vaultOperationsPaused() public view virtual returns (bool) {
+        return _getVaultBaseUpgradeableStorage().vaultPaused;
+    }
+
+    function _requireVaultNotPaused() internal view virtual {
+        if (vaultOperationsPaused()) {
+            revert EnforcedVaultOperationsPause();
+        }
+    }
+
+    function _requireVaultPaused() internal view virtual {
+        if (!vaultOperationsPaused()) {
+            revert ExpectedVaultOperationsPause();
+        }
+    }
+
+    function _pauseVault() internal virtual whenVaultNotPaused {
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        $.vaultPaused = true;
+        emit VaultOperationsPaused(_msgSender());
+    }
+
+    function _unpauseVault() internal virtual whenVaultPaused {
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        $.vaultPaused = false;
+        emit VaultOperationsUnpaused(_msgSender());
+    }
+
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal virtual override whenNotPaused {
+        super._update(from, to, value);
+    }
+
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual override whenVaultNotPaused {
+        super._deposit(caller, receiver, assets, shares);
+    }
+
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override whenVaultNotPaused {
+        super._withdraw(caller, receiver, owner, assets, shares);
+    }
+
 }

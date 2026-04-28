@@ -41,15 +41,13 @@ abstract contract ERC7540RedemptionUpgradeable is
     struct ERC7540RedemptionStorage {
         mapping(address controller => uint256) pendingShares;
         mapping(address controller => uint256) pendingAssets;
-        /// @dev When true, `controller` may receive new `requestRedeem` calls.
-        mapping(address controller => bool) acceptsRedeemRequests;
         /// @dev Registered controllers for tracking and enumeration; {stopRedeemRequests} does not remove entries.
         EnumerableSet.AddressSet controllers;
         mapping(address controller => EnumerableSet.AddressSet) operators;
         /// @dev Last issued request id (ids are `1 .. nextRequestId`).
         uint256 nextRequestId;
         mapping(uint256 requestId => RedeemRequest) redeemRequestById;
-        /// @dev ERC-4626 `maxRedeem(controller)`; set via {setMaxRedeem}.
+        /// @dev Max redeem shares per controller
         mapping(address controller => uint256) maxRedeemShares;
     }
 
@@ -75,7 +73,8 @@ abstract contract ERC7540RedemptionUpgradeable is
     }
 
     function registerRedeemController(
-        address controller
+        address controller,
+        uint256 maxRedeemShares
     ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
         if (controller == address(0)) revert ZeroAddress();
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
@@ -83,37 +82,9 @@ abstract contract ERC7540RedemptionUpgradeable is
             revert ERC7540RedeemControllerAlreadyTracked(controller);
         }
         $.controllers.add(controller);
+        $.maxRedeemShares[controller] = maxRedeemShares;
         emit RedeemControllerRegistered(controller);
-    }
-
-    function allowRedeemRequests(
-        address controller
-    ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
-        if (controller == address(0)) revert ZeroAddress();
-        ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        if (!$.controllers.contains(controller)) {
-            revert ERC7540RedeemControllerNotTracked(controller);
-        }
-        if ($.acceptsRedeemRequests[controller]) {
-            revert ERC7540RedeemRequestsAlreadyAllowed(controller);
-        }
-        $.acceptsRedeemRequests[controller] = true;
-        emit RedeemRequestsAllowed(controller);
-    }
-
-    function stopRedeemRequests(
-        address controller
-    ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
-        if (controller == address(0)) revert ZeroAddress();
-        ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        if (!$.controllers.contains(controller)) {
-            revert ERC7540RedeemControllerNotTracked(controller);
-        }
-        if (!$.acceptsRedeemRequests[controller]) {
-            revert ERC7540RedeemRequestsAlreadyStopped(controller);
-        }
-        $.acceptsRedeemRequests[controller] = false;
-        emit RedeemRequestsStopped(controller);
+        emit MaxRedeemSet(controller, maxRedeemShares);
     }
 
     function removeRedeemController(
@@ -130,17 +101,23 @@ abstract contract ERC7540RedemptionUpgradeable is
             revert ERC7540RemoveControllerHasPending(controller);
         }
         $.controllers.remove(controller);
-        delete $.acceptsRedeemRequests[controller];
         delete $.operators[controller];
         delete $.maxRedeemShares[controller];
         emit RedeemControllerRemoved(controller);
     }
 
-    /// @inheritdoc IERC7540Redemption
-    function acceptsRedeemRequests(
-        address controller
-    ) external view returns (bool) {
-        return _getERC7540RedemptionStorage().acceptsRedeemRequests[controller];
+    /// @dev use to limit max redeem amount and stop new redeem requests
+    function setMaxControllerRedeem(address ctrl, uint256 maxShares) external onlyRole(CONTROLLER_MANAGER_ROLE) {
+        ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
+        if (!$.controllers.contains(ctrl)) {
+            revert ERC7540RedeemControllerNotTracked(ctrl);
+        }
+        $.maxRedeemShares[ctrl] = maxShares;
+        emit MaxRedeemSet(ctrl, maxShares);
+    }
+
+    function maxControllerRedeem(address controller) external view returns (uint256) {
+        return _getERC7540RedemptionStorage().maxRedeemShares[controller];
     }
 
     /// @inheritdoc IERC7540Redemption
@@ -192,18 +169,16 @@ abstract contract ERC7540RedemptionUpgradeable is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev EIP-7540: `previewRedeem` MUST revert for asynchronous redemption vaults.
     function previewRedeem(
-        uint256 shares
+        uint256
     ) public view virtual override(ERC4626Upgradeable) returns (uint256) {
-        shares;
         revert ERC7540PreviewDisabled();
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev EIP-7540: `previewWithdraw` MUST revert for asynchronous redemption vaults.
     function previewWithdraw(
-        uint256 assets
+        uint256
     ) public view virtual override(ERC4626Upgradeable) returns (uint256) {
-        assets;
         revert ERC7540PreviewDisabled();
     }
 
@@ -211,22 +186,6 @@ abstract contract ERC7540RedemptionUpgradeable is
         address
     ) public view virtual override returns (uint256) {
         revert ERC7540ERC4626ClaimDisabled();
-    }
-
-    function maxRedeem(
-        address controller
-    ) public view virtual override returns (uint256) {
-        return _getERC7540RedemptionStorage().maxRedeemShares[controller];
-    }
-
-    function setMaxRedeem(uint256 maxShares) external {
-        address controller = _msgSender();
-        ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        if (!$.controllers.contains(controller)) {
-            revert ERC7540RedeemControllerNotTracked(controller);
-        }
-        $.maxRedeemShares[controller] = maxShares;
-        emit MaxRedeemSet(controller, maxShares);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -252,21 +211,24 @@ abstract contract ERC7540RedemptionUpgradeable is
         uint256 shares,
         address controller,
         address owner
-    ) external override nonReentrant returns (uint256 requestId) {
+    ) external override nonReentrant whenVaultNotPaused returns (uint256 requestId) {
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        if (!$.acceptsRedeemRequests[controller])
-            revert RedeemRequestsNotAccepted(controller);
         if (shares == 0) revert ERC7540ZeroRedeemRequestShares();
 
-        uint256 maxShares = $.maxRedeemShares[controller];
-        if (shares > maxShares) {
-            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+        // check max redeem of both ctrl and owner
+        uint256 maxCtrlShares = $.maxRedeemShares[controller];
+        if (shares > maxCtrlShares) {
+            revert ERC7540ExceededMaxRedeem(owner, shares, maxCtrlShares);
+        }
+        uint256 maxOwnerShares = maxRedeem(owner);
+        if (shares > maxOwnerShares) {
+            revert ERC4626ExceededMaxRedeem(owner, shares, maxOwnerShares);
         }
 
-        address sender = _msgSender();
+        address caller = _msgSender();
         // Allow request redeeem by allowance
-        if (sender != owner) {
-            _spendAllowance(owner, sender, shares);
+        if (caller != owner) {
+            _spendAllowance(owner, caller, shares);
         }
 
         uint256 assets = _convertToAssets(shares, Math.Rounding.Floor);
@@ -281,7 +243,7 @@ abstract contract ERC7540RedemptionUpgradeable is
         $.pendingAssets[controller] += assets;
 
         _burn(owner, shares);
-        emit RedeemRequested(requestId, owner, controller, sender, shares);
+        emit RedeemRequested(requestId, owner, controller, caller, shares);
     }
 
     function fulfillRedeemRequests(
@@ -295,23 +257,25 @@ abstract contract ERC7540RedemptionUpgradeable is
             uint256 rid = requestIds[i];
             RedeemRequest storage e = $.redeemRequestById[rid];
             address ctrl = e.controller;
-            uint256 pendingA = e.pendingAssets;
+            uint256 assets = e.pendingAssets;
+            uint256 shares = e.pendingShares;
+            address owner = e.owner;
 
-            if (e.pendingAssets == 0) {
+            if (assets == 0) {
                 revert ERC7540NothingToFulfill(rid);
             }
 
             // only operator can fulfill redeem requests
             if (!$.operators[ctrl].contains(msgSender)) {
-                revert ERC7540UnauthorizedClaimCaller(msgSender, ctrl);
+                revert ERC7540UnauthorizedClaimCaller(msgSender, ctrl, rid);
             }
 
-            $.pendingShares[ctrl] -= e.pendingShares;
-            $.pendingAssets[ctrl] -= pendingA;
+            $.pendingShares[ctrl] -= shares;
+            $.pendingAssets[ctrl] -= assets;
             delete $.redeemRequestById[rid];
 
-            asset_.safeTransfer(e.owner, pendingA);
-            // TODO: maybe emit event for each request
+            asset_.safeTransfer(owner, assets);
+            emit Withdraw(msgSender, owner, owner, assets, shares);
         }
 
         // TODO: maybe add more summary

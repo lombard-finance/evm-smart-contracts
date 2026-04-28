@@ -14,6 +14,14 @@ interface IVault {
 
     error ZeroAddress();
 
+    event VaultOperationsPaused(address account);
+
+    event VaultOperationsUnpaused(address account);
+
+    error EnforcedVaultOperationsPause();
+
+    error ExpectedVaultOperationsPause();
+
     /// @notice §B pipe asset; MUST be standard ERC-20 (no fee-on-transfer, no rebasing). Same identifier as ERC-4626 `asset()`.
     function asset() external view returns (address);
 
