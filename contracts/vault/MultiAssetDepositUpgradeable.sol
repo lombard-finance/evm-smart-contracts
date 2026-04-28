@@ -5,11 +5,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {IAssetConverter} from "./interfaces/IAssetConverter.sol";
 import {IMultiAssetDeposit} from "./interfaces/IMultiAssetDeposit.sol";
-import {IVault} from "./interfaces/IVault.sol";
 import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
 
 /// @title MultiAssetDepositUpgradeable
@@ -26,8 +24,7 @@ abstract contract MultiAssetDepositUpgradeable is
 
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
 
-    /// @custom:storage-location erc7201:lombardfinance.storage.ERC7575Upgradeable
-    // TODO: update
+    /// @custom:storage-location erc7201:lombardfinance.storage.MultiAssetDepositUpgradeable
     struct MultiAssetDepositStorage {
         EnumerableSet.AddressSet depositAssets;
         mapping(address token => uint16) depositFeeBps;
@@ -35,9 +32,9 @@ abstract contract MultiAssetDepositUpgradeable is
         mapping(address token => uint256) accruedDepositFees;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC7575Upgradeable")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ERC7575_STORAGE_LOCATION =
-        0xe2ca298840e5f5edd8f7f0a2dc55de8e2cd1670a1b48c0b96fdfcd3feb254f00;
+    // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.MultiAssetDepositUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant MULTI_ASSET_DEPOSIT_STORAGE_LOCATION =
+        0x205ebf402180340af1992a5cf7a005100053ec859585a3da270f4e9a29e85400;
 
     function _getMultiAssetDepositStorage()
         private
@@ -45,7 +42,7 @@ abstract contract MultiAssetDepositUpgradeable is
         returns (MultiAssetDepositStorage storage $)
     {
         assembly {
-            $.slot := ERC7575_STORAGE_LOCATION
+            $.slot := MULTI_ASSET_DEPOSIT_STORAGE_LOCATION
         }
     }
 
@@ -201,9 +198,6 @@ abstract contract MultiAssetDepositUpgradeable is
         return assets;
     }
 
-    /**
-     * @dev Deposit/mint common workflow.
-     */
     function _deposit(
         address caller,
         address receiver,
@@ -212,8 +206,16 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 shares
     ) internal virtual {
         IERC20(depositAsset).safeTransferFrom(caller, address(this), assets);
-        _mint(receiver, shares);
 
+        // account fee
+        (uint256 fee, ) = _splitDepositFeeView(depositAsset, assets);
+        if (fee > 0) {
+            MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
+            $.accruedDepositFees[depositAsset] += fee;
+            emit DepositFeeAccrued(depositAsset, fee);
+        }
+
+        _mint(receiver, shares);
         emit Deposit(caller, receiver, depositAsset, assets, shares);
     }
 
@@ -240,10 +242,9 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
-        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if (!$.depositAssets.contains(depositAsset)) {
-            return 0;
-        }
+        if (
+            !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
+        ) return 0;
         return type(uint256).max;
     }
 
@@ -251,10 +252,9 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
-        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if (!$.depositAssets.contains(depositAsset)) {
-            return 0;
-        }
+        if (
+            !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
+        ) return 0;
         return type(uint256).max;
     }
 
