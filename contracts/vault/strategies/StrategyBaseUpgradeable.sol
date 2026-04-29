@@ -25,7 +25,8 @@ abstract contract StrategyBaseUpgradeable is
     bytes32 private constant STRATEGY_BASE_STORAGE_LOCATION =
         0xfed51ddfcaefd85c8bb60b3d58b2af0fe77f5875ff8dd3a36da477495c45c700;
 
-    bytes32 public constant PRIVILEGED_EXECUTOR_ROLE = keccak256("PRIVILEGED_EXECUTOR_ROLE");
+    bytes32 public constant PRIVILEGED_EXECUTOR_ROLE =
+        keccak256("PRIVILEGED_EXECUTOR_ROLE");
 
     /// @return The configured policy validator.
     function validator() external view returns (IStrategyExecValidator) {

@@ -51,7 +51,7 @@ contract Strategy is StrategyBaseUpgradeable {
         if (
             address(vault_) == address(0) || liquidityRoleHolder == address(0)
         ) {
-            revert ZeroAddress();
+            revert Strategy_ZeroAddress();
         }
         __StrategyBase_init(validator_, defaultAdmin_);
         _getStrategyStorage().vault = vault_;
