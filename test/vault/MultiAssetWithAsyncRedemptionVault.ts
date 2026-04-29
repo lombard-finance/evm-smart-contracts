@@ -4,6 +4,8 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
 import { getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
+  ChainlinkConverter,
+  ChainlinkFeedMock,
   DirectConverter,
   MockVaultToken,
   WBTCMock,
@@ -478,6 +480,170 @@ describe('StakedLBTC as deposit token', function () {
       const back = await stakedVault.convertToAssets(sAddr, shares);
 
       // back may differ from assets by at most 1 satoshi due to rounding
+      expect(back).to.be.gte(assets);
+      expect(back - assets).to.be.lte(1n);
+    });
+  });
+});
+
+describe('Chainlink as deposit token', function () {
+  // All amounts in 8-decimal satoshi units (1 BTC = 1e8).
+  const ONE_BTC = 10n ** 8n;
+  const HEARTBEAT = 3600n; // 1 hour
+
+  let admin: Signer;
+  let strategyDeployer: Signer;
+  let controllerManager: Signer;
+  let operator: Signer;
+  let user: Signer;
+
+  let depositToken: WBTCMock;
+  let clFeed: ChainlinkFeedMock;
+  let clConverter: ChainlinkConverter;
+  let clVault: MultiAssetWithAsyncRedemptionVault;
+
+  let snap: SnapshotRestorer;
+
+  before(async function () {
+    [admin, strategyDeployer, controllerManager, , , user, , operator] = await getSignersWithPrivateKeys();
+
+    const wbtcFactory = await ethers.getContractFactory('WBTCMock');
+    const wbtcProxy = await upgrades.deployProxy(wbtcFactory, [], {
+      initializer: 'initialize',
+      unsafeAllow: ['constructor']
+    });
+    await wbtcProxy.waitForDeployment();
+    depositToken = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
+
+    // 8-decimal feed, answer = 1e8 (peg: 1 token = 1 BTC)
+    const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+    clFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+    await clFeed.waitForDeployment();
+
+    const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+    clConverter = (await convFactory.deploy(await clFeed.getAddress(), 8, HEARTBEAT)) as ChainlinkConverter;
+    await clConverter.waitForDeployment();
+
+    const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
+    const proxy = await upgrades.deployProxy(
+      vaultFactory,
+      [
+        'Chainlink BTC Vault',
+        'clVAULT',
+        await depositToken.getAddress(),
+        admin.address,
+        0,
+        controllerManager.address,
+        strategyDeployer.address
+      ],
+      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+    );
+    await proxy.waitForDeployment();
+    clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
+
+    await clVault.connect(admin).grantRole(await clVault.OPERATOR_ROLE(), operator.address);
+    await clVault.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
+
+    snap = await takeSnapshot();
+  });
+
+  beforeEach(async function () {
+    await snap.restore();
+  });
+
+  describe('ChainlinkConverter', function () {
+    it('peg (answer=1e8, 8-dec feed): toBtcUnits and toTokenAmount are 1:1', async function () {
+      expect(await clConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+      expect(await clConverter.toTokenAmount(ONE_BTC)).to.equal(ONE_BTC);
+    });
+
+    it('non-peg (answer=1.111…e18, 18-dec feed): converts correctly', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // 18-dec feed, answer = 111_111_111 * 1e10 so that 1e8 token → 111_111_111 BTC units
+      const feed18 = (await feedFactory.deploy(18, 111_111_111n * 10n ** 10n)) as ChainlinkFeedMock;
+      await feed18.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const conv18 = (await convFactory.deploy(await feed18.getAddress(), 8, HEARTBEAT)) as ChainlinkConverter;
+      await conv18.waitForDeployment();
+
+      // scalingFactor = 10^(18+8-8) = 1e18
+      // btcOut = 1e8 * 111_111_111e10 / 1e18 = 111_111_111
+      expect(await conv18.toBtcUnits(ONE_BTC)).to.equal(111_111_111n);
+      // tokenOut = 111_111_111 * 1e18 / 111_111_111e10 = 1e8 (exact)
+      expect(await conv18.toTokenAmount(111_111_111n)).to.equal(ONE_BTC);
+    });
+
+    it('round-trip: toTokenAmount(toBtcUnits(x)) differs from x by at most 1 satoshi', async function () {
+      const answers = [ONE_BTC, ONE_BTC + ONE_BTC / 10n, (ONE_BTC * 95n) / 100n];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+
+      for (const answer of answers) {
+        await clFeed.setAnswer(answer);
+        for (const amt of amounts) {
+          const btcOut = await clConverter.toBtcUnits(amt);
+          const tokenOut = await clConverter.toTokenAmount(btcOut);
+          expect(tokenOut).to.be.gte(amt);
+          expect(tokenOut - amt).to.be.lte(1n);
+        }
+      }
+    });
+
+    it('stale answer reverts with StaleAnswer', async function () {
+      const block = await ethers.provider.getBlock('latest');
+      await clFeed.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
+      await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(clConverter, 'ChainlinkConverter_StaleAnswer');
+      await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(clConverter, 'ChainlinkConverter_StaleAnswer');
+    });
+
+    it('zero answer reverts with InvalidAnswer', async function () {
+      await clFeed.setAnswer(0);
+      await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(clConverter, 'ChainlinkConverter_InvalidAnswer');
+      await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(clConverter, 'ChainlinkConverter_InvalidAnswer');
+    });
+  });
+
+  describe('vault deposit / mint integration', function () {
+    it('at-par: deposit 1 depositToken mints 1 share', async function () {
+      const tAddr = await depositToken.getAddress();
+      const vAddr = await clVault.getAddress();
+
+      await depositToken.mint(user.address, ONE_BTC);
+      await depositToken.connect(user).approve(vAddr, ONE_BTC);
+
+      const preview = await clVault.previewDeposit(tAddr, ONE_BTC);
+      await expect(clVault.connect(user).deposit(tAddr, ONE_BTC, user.address))
+        .to.emit(clVault, 'Deposit')
+        .withArgs(user.address, user.address, tAddr, ONE_BTC, preview);
+
+      expect(preview).to.equal(ONE_BTC);
+      expect(await clVault.balanceOf(user.address)).to.equal(ONE_BTC);
+    });
+
+    it('mint path: previewMint at non-peg answer returns correct token amount', async function () {
+      // answer = 0.9e8 → 1 token = 0.9 BTC → toTokenAmount(1e8) = mulDiv(1e8, 1e8, 0.9e8, Ceil) = 111_111_112
+      await clFeed.setAnswer((ONE_BTC * 9n) / 10n);
+
+      const tAddr = await depositToken.getAddress();
+      const vAddr = await clVault.getAddress();
+      const targetShares = ONE_BTC;
+      const assetsNeeded = await clVault.previewMint(tAddr, targetShares);
+      expect(assetsNeeded).to.equal(111_111_112n);
+
+      await depositToken.mint(user.address, assetsNeeded);
+      await depositToken.connect(user).approve(vAddr, assetsNeeded);
+
+      await clVault.connect(user).mint(tAddr, targetShares, user.address);
+      expect(await clVault.balanceOf(user.address)).to.equal(targetShares);
+    });
+
+    it('convertToShares / convertToAssets round-trip at non-peg answer', async function () {
+      await clFeed.setAnswer((ONE_BTC * 95n) / 100n); // 0.95e8
+
+      const tAddr = await depositToken.getAddress();
+      const assets = 5n * ONE_BTC;
+      const shares = await clVault.convertToShares(tAddr, assets);
+      const back = await clVault.convertToAssets(tAddr, shares);
+
       expect(back).to.be.gte(assets);
       expect(back - assets).to.be.lte(1n);
     });
