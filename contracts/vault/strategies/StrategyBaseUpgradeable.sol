@@ -5,18 +5,19 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
+import {IStrategy} from "../interfaces/IStrategy.sol";
 
 /// @title StrategyBaseUpgradeable
-/// @notice Shared validator-gated `exec` for Strategy and SatelliteStrategy (`docs/spec/002-strategy.md`).
+/// @notice Shared validator-gated `exec` for Strategy and SatelliteStrategy.
 /// @dev Validator lives in ERC-7201 namespaced storage (`StrategyBaseStorage`); one implementation
 /// can serve many BeaconProxy instances. Values are set once in `initializer` and never changed.
 abstract contract StrategyBaseUpgradeable is
+    IStrategy,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable
 {
     /// @custom:storage-location erc7201:lombardfinance.storage.StrategyBaseUpgradeable
     struct StrategyBaseStorage {
-        /// @notice Policy validator (`docs/spec/002-strategy.md` §A.2).
         IStrategyExecValidator validator;
     }
 
@@ -24,27 +25,14 @@ abstract contract StrategyBaseUpgradeable is
     bytes32 private constant STRATEGY_BASE_STORAGE_LOCATION =
         0xfed51ddfcaefd85c8bb60b3d58b2af0fe77f5875ff8dd3a36da477495c45c700;
 
-    /// @dev Validator rejected `exec` for `(msg.sender, to, value, data, input)`.
-    error CallNotAllowed();
-
-    /// @dev Contract ETH balance (including `msg.value` on this call) is less than `value`.
-    error InvalidEthFunding();
-
-    error ZeroAddress();
-
-    event Executed(
-        address indexed caller,
-        address indexed to,
-        uint256 value,
-        bytes data
-    );
+    bytes32 public constant PRIVILEGED_EXECUTOR_ROLE = keccak256("PRIVILEGED_EXECUTOR_ROLE");
 
     /// @return The configured policy validator.
     function validator() external view returns (IStrategyExecValidator) {
         return _getStrategyBaseStorage().validator;
     }
 
-    /// @notice Validator-governed external call (`docs/spec/002-strategy.md` §A.2).
+    /// @notice Validator-governed external call.
     /// @param validatorArgs Encoding is defined by the configured `IStrategyExecValidator` (e.g. Merkle `CallVerificationInput`).
     /// @dev ETH: requires `address(this).balance >= value` after receiving `msg.value`.
     function exec(
@@ -53,26 +41,44 @@ abstract contract StrategyBaseUpgradeable is
         bytes calldata data,
         bytes calldata validatorArgs
     ) external payable nonReentrant {
+        address sender = _msgSender();
         if (
             !_getStrategyBaseStorage().validator.isAllowed(
-                msg.sender,
+                sender,
                 to,
                 value,
                 data,
                 validatorArgs
             )
         ) {
-            revert CallNotAllowed();
+            revert Strategy_CallNotAllowed();
         }
 
-        if (address(this).balance < value) revert InvalidEthFunding();
+        if (address(this).balance < value) revert Strategy_InvalidEthFunding();
 
         (bool success, bytes memory returndata) = payable(to).call{
             value: value
         }(data);
         Address.verifyCallResult(success, returndata);
 
-        emit Executed(msg.sender, to, value, data);
+        emit Executed(sender, to, value, data);
+    }
+
+    /// @notice Validator-bypassing external call for privileged executors (`PRIVILEGED_EXECUTOR_ROLE`).
+    /// @dev Skips `IStrategyExecValidator`; all other safety checks (reentrancy, ETH balance) still apply.
+    function exec(
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) external payable nonReentrant onlyRole(PRIVILEGED_EXECUTOR_ROLE) {
+        if (address(this).balance < value) revert Strategy_InvalidEthFunding();
+
+        (bool success, bytes memory returndata) = payable(to).call{
+            value: value
+        }(data);
+        Address.verifyCallResult(success, returndata);
+
+        emit Executed(_msgSender(), to, value, data);
     }
 
     /// @dev Shared initializer fragment; call from concrete `initialize`.
@@ -81,7 +87,7 @@ abstract contract StrategyBaseUpgradeable is
         address defaultAdmin_
     ) internal onlyInitializing {
         if (address(validator_) == address(0) || defaultAdmin_ == address(0)) {
-            revert ZeroAddress();
+            revert Strategy_ZeroAddress();
         }
         __ReentrancyGuard_init();
         __AccessControl_init();
