@@ -521,7 +521,7 @@ describe('Chainlink as deposit token', function () {
     await clFeed.waitForDeployment();
 
     const convFactory = await ethers.getContractFactory('ChainlinkConverter');
-    clConverter = (await convFactory.deploy(await clFeed.getAddress(), 8, HEARTBEAT)) as ChainlinkConverter;
+    clConverter = (await convFactory.deploy(await clFeed.getAddress(), 8, HEARTBEAT, ethers.ZeroAddress, 0)) as ChainlinkConverter;
     await clConverter.waitForDeployment();
 
     const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
@@ -563,7 +563,7 @@ describe('Chainlink as deposit token', function () {
       const feed18 = (await feedFactory.deploy(18, 111_111_111n * 10n ** 10n)) as ChainlinkFeedMock;
       await feed18.waitForDeployment();
       const convFactory = await ethers.getContractFactory('ChainlinkConverter');
-      const conv18 = (await convFactory.deploy(await feed18.getAddress(), 8, HEARTBEAT)) as ChainlinkConverter;
+      const conv18 = (await convFactory.deploy(await feed18.getAddress(), 8, HEARTBEAT, ethers.ZeroAddress, 0)) as ChainlinkConverter;
       await conv18.waitForDeployment();
 
       // scalingFactor = 10^(18+8-8) = 1e18
@@ -599,6 +599,50 @@ describe('Chainlink as deposit token', function () {
       await clFeed.setAnswer(0);
       await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(clConverter, 'ChainlinkConverter_InvalidAnswer');
       await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(clConverter, 'ChainlinkConverter_InvalidAnswer');
+    });
+
+    describe('sequencer uptime check', function () {
+      const GRACE_PERIOD = 3600n;
+      let seqFeed: ChainlinkFeedMock;
+      let seqConverter: ChainlinkConverter;
+
+      beforeEach(async function () {
+        const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+        // answer=0 → sequencer up; startedAt = far in the past so grace period has elapsed
+        seqFeed = (await feedFactory.deploy(8, 0)) as ChainlinkFeedMock;
+        await seqFeed.waitForDeployment();
+        const block = await ethers.provider.getBlock('latest');
+        await seqFeed.setStartedAt(BigInt(block!.timestamp) - GRACE_PERIOD - 1n);
+
+        const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+        seqConverter = (await convFactory.deploy(
+          await clFeed.getAddress(), 8, HEARTBEAT,
+          await seqFeed.getAddress(), GRACE_PERIOD
+        )) as ChainlinkConverter;
+        await seqConverter.waitForDeployment();
+      });
+
+      it('sequencer up and past grace period: converts normally', async function () {
+        expect(await seqConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+      });
+
+      it('sequencer down (answer=1): reverts with SequencerDown', async function () {
+        await seqFeed.setAnswer(1);
+        await expect(seqConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(seqConverter, 'ChainlinkConverter_SequencerDown');
+        await expect(seqConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(seqConverter, 'ChainlinkConverter_SequencerDown');
+      });
+
+      it('sequencer just recovered (within grace period): reverts with GracePeriodNotOver', async function () {
+        const block = await ethers.provider.getBlock('latest');
+        await seqFeed.setStartedAt(BigInt(block!.timestamp)); // just came back up
+        await expect(seqConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(seqConverter, 'ChainlinkConverter_GracePeriodNotOver');
+        await expect(seqConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(seqConverter, 'ChainlinkConverter_GracePeriodNotOver');
+      });
+
+      it('no sequencer feed (address(0)): skips check and converts normally', async function () {
+        // clConverter has sequencerUptimeFeed = address(0); should still work regardless
+        expect(await clConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+      });
     });
   });
 
