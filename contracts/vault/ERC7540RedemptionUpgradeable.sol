@@ -100,7 +100,9 @@ abstract contract ERC7540RedemptionUpgradeable is
             revert ERC7540RemoveControllerHasPending(controller);
         }
         $.controllers.remove(controller);
-        delete $.operators[controller];
+        while ($.operators[controller].length() > 0) {
+            $.operators[controller].remove($.operators[controller].at(0));
+        }
         delete $.maxRedeemShares[controller];
         emit RedeemControllerRemoved(controller);
     }

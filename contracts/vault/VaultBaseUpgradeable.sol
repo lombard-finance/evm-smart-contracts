@@ -258,11 +258,11 @@ abstract contract VaultBaseUpgradeable is
     }
 
     function pauseVaultOperations() external onlyRole(PAUSER_ROLE) {
-        _getVaultBaseUpgradeableStorage().vaultPaused = true;
+        _pauseVault();
     }
 
     function unpauseVaultOperations() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _getVaultBaseUpgradeableStorage().vaultPaused = false;
+        _unpauseVault();
     }
 
     function vaultOperationsPaused() public view virtual returns (bool) {

@@ -4,7 +4,13 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import type { Strategy, SatelliteStrategy, MerkleAllowlistValidator, MockVaultToken, MockVaultForStrategy } from '../../typechain-types';
+import type {
+  Strategy,
+  SatelliteStrategy,
+  MerkleAllowlistValidator,
+  MockVaultToken,
+  MockVaultForStrategy
+} from '../../typechain-types';
 import { encodeMerkleRule } from './MerkleCallAllowlist';
 
 /** ABI-encode a CallVerificationInput for the IStrategyExecValidator.isAllowed(bytes) overload.
