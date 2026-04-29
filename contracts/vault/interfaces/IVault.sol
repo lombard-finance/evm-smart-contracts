@@ -21,6 +21,21 @@ interface IVault {
 
     error ZeroAddress();
 
+    /// @dev `postPricePerShare` / `forcePostPricePerShare` with `newPricePerShare == 0`
+    error ZeroPricePerShare();
+
+    /// @dev `postPricePerShare` would exceed the rate limit bucket
+    error PricePerShareRateLimitExceeded();
+
+    /// @dev `setPricePerShareRateLimit` arguments out of range
+    error InvalidPricePerShareRateLimit();
+
+    /// @dev Emitted when the default admin updates the PPS rate limit bucket config
+    event PricePerShareRateLimitUpdated(
+        uint32 maxBucketBps,
+        uint64 refillRate
+    );
+
     event VaultOperationsPaused(address account);
 
     event VaultOperationsUnpaused(address account);

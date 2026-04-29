@@ -20,6 +20,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let redeemOperator: Signer;
   let user: Signer;
   let treasury: Signer;
+  let operator: Signer;
 
   let underlying: MockVaultToken;
   let altDeposit: MockVaultToken;
@@ -29,7 +30,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [admin, strategyDeployer, controllerManager, redeemController, redeemOperator, user, treasury] =
+    [admin, strategyDeployer, controllerManager, redeemController, redeemOperator, user, treasury, operator] =
       await getSignersWithPrivateKeys();
 
     const tokenFactory = await ethers.getContractFactory('MockVaultToken');
@@ -58,6 +59,8 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     );
     await proxy.waitForDeployment();
     vault = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
+
+    await vault.connect(admin).grantRole(await vault.OPERATOR_ROLE(), operator.address);
 
     snapshot = await takeSnapshot();
   });
@@ -211,5 +214,62 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       .to.emit(vault, 'DepositAssetConverterSet')
       .withArgs(alt, nextAddr);
     expect(await vault.converterOf(alt)).to.equal(nextAddr);
+  });
+
+  describe('price-per-share rate limit', function () {
+    it('2.5% yearly allowed change with weekly bucket', async function () {
+      // 2.5%/yr = 2_5000 bps/yr ÷ 52 weeks ≈ 500 bps/week
+      const maxBps = 500;
+      const weekSeconds = 604800n;
+      // refillRate fills the full bucket in exactly one week: ceil(maxBps * 2^32 / weekSeconds)
+      const refillRate = (BigInt(maxBps) * 2n ** 32n + weekSeconds - 1n) / weekSeconds;
+
+      await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
+
+      const p0 = await vault.pricePerShare();
+      // +0.05% (5 bps) — consumes the entire weekly budget
+      const p1 = (p0 * 10005n) / 10000n;
+      await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
+      expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
+
+      // Any further move is blocked until the bucket refills
+      await expect(vault.connect(operator).postPricePerShare(p1 + 1n))
+        .to.be.revertedWithCustomError(vault, 'PricePerShareRateLimitExceeded');
+
+      // After one week the bucket is full again
+      await ethers.provider.send('evm_increaseTime', [604800]);
+      await ethers.provider.send('evm_mine', []);
+
+      const p2 = (p1 * 10005n) / 10000n;
+      await expect(vault.connect(operator).postPricePerShare(p2)).to.emit(vault, 'PricePerShareUpdated');
+    });
+
+    it('50% yearly allowed change with daily bucket', async function () {
+      // 50%/yr = 500000 bps/yr ÷ 365 days ≈ 1400 bps/day
+      const maxBps = 1400;
+      const daySeconds = 86400n;
+      // refillRate fills the full bucket in exactly one day: ceil(maxBps * 2^32 / daySeconds)
+      const refillRate = (BigInt(maxBps) * 2n ** 32n + daySeconds - 1n) / daySeconds;
+
+      await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
+
+      const p0 = await vault.pricePerShare();
+      // +0.13% (13 bps) — within daily budget, leaving 1 bps
+      const p1 = (p0 * 10013n) / 10000n;
+      await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
+      expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);
+
+      // 2 bps exceeds the 1 bps remaining in the bucket
+      const p2 = (p1 * 10002n) / 10000n;
+      await expect(vault.connect(operator).postPricePerShare(p2))
+        .to.be.revertedWithCustomError(vault, 'PricePerShareRateLimitExceeded');
+
+      // After one day the bucket is full again
+      await ethers.provider.send('evm_increaseTime', [86400]);
+      await ethers.provider.send('evm_mine', []);
+
+      const p3 = (p1 * 10013n) / 10000n;
+      await expect(vault.connect(operator).postPricePerShare(p3)).to.emit(vault, 'PricePerShareUpdated');
+    });
   });
 });

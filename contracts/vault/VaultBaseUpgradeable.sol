@@ -12,6 +12,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {IVault} from "./interfaces/IVault.sol";
+import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 
 /// @title VaultBaseUpgradeable
 abstract contract VaultBaseUpgradeable is
@@ -24,6 +25,7 @@ abstract contract VaultBaseUpgradeable is
     using EnumerableSet for EnumerableSet.AddressSet;
     using Math for uint256;
     using SafeERC20 for IERC20;
+    using PriceRateLimiter for PriceRateLimiter.Bucket;
 
     bytes32 public constant STRATEGY_DEPLOYER_ROLE =
         keccak256("STRATEGY_DEPLOYER_ROLE");
@@ -54,6 +56,7 @@ abstract contract VaultBaseUpgradeable is
         bool vaultPaused;
         IERC20 asset;
         uint8 underlyingDecimals;
+        PriceRateLimiter.Bucket ppsRateLimiter;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -96,6 +99,12 @@ abstract contract VaultBaseUpgradeable is
         $.asset = asset_;
         // Initial price per share is 1 asset per share.
         _setPricePerShare($, 10 ** decimals());
+        $.ppsRateLimiter = PriceRateLimiter.Bucket({
+            lastRefill: uint48(block.timestamp),
+            capacityBps: 0,
+            maxBps: 0,
+            refillRate: 0
+        });
     }
 
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.
@@ -106,10 +115,28 @@ abstract contract VaultBaseUpgradeable is
     function postPricePerShare(
         uint256 newPricePerShare
     ) external onlyRole(OPERATOR_ROLE) whenVaultNotPaused {
-        // TODO: check threshold
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
+        uint256 changeBps = PriceRateLimiter._relativeChangeBps($.pricePerShare, newPricePerShare);
+        $.ppsRateLimiter._consume(changeBps);
         _setPricePerShare($, newPricePerShare);
+    }
+
+    function setPricePerShareRateLimit(
+        uint32 maxBucketBps_,
+        uint64 refillRate_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        PriceRateLimiter.Config memory config = PriceRateLimiter.Config({
+            maxBps: maxBucketBps_,
+            refillRate: refillRate_
+        });
+        PriceRateLimiter._validateConfig(config);
+        _getVaultBaseUpgradeableStorage().ppsRateLimiter._setConfig(config);
+    }
+
+    /// @notice Returns the bucket state with refill virtually applied to `block.timestamp`.
+    function pricePerShareRateLimiterState() external view returns (PriceRateLimiter.Bucket memory) {
+        return _getVaultBaseUpgradeableStorage().ppsRateLimiter._currentBucketState();
     }
 
     /// @dev allows to post any price, but pause vault operations
@@ -126,6 +153,9 @@ abstract contract VaultBaseUpgradeable is
         VaultBaseUpgradeableStorage storage $,
         uint256 newPricePerShare
     ) internal {
+        if (newPricePerShare == 0) {
+            revert ZeroPricePerShare();
+        }
         $.pricePerShare = newPricePerShare;
         emit PricePerShareUpdated(
             newPricePerShare,
