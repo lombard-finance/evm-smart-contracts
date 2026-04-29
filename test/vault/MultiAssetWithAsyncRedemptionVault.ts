@@ -6,7 +6,11 @@ import { getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
   MockIdentityAssetConverter,
   MockVaultToken,
-  MultiAssetWithAsyncRedemptionVault
+  MockVaultToken8Dec,
+  MultiAssetWithAsyncRedemptionVault,
+  RatioFeedMock,
+  StakedLBTCConverter,
+  StakedLBTCMock
 } from '../../typechain-types';
 
 const ERC7540_ASYNC_REDEEM = '0x620ee8e4';
@@ -144,7 +148,6 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   it('full async redeem: request then operator fulfills with underlying paid out', async function () {
     const alt = await altDeposit.getAddress();
     const v = await vault.getAddress();
-    const u = await underlying.getAddress();
 
     await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
 
@@ -274,6 +277,207 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
       const p3 = (p1 * 10013n) / 10000n;
       await expect(vault.connect(operator).postPricePerShare(p3)).to.emit(vault, 'PricePerShareUpdated');
+    });
+  });
+});
+
+describe('StakedLBTC as deposit token', function () {
+  // All amounts in 8-decimal satoshi units (1 LBTC = 1e8).
+  const ONE_LBTC = 10n ** 8n;
+  const ONE_ETHER = 10n ** 18n; // oracle ratio scale
+
+  let admin: Signer;
+  let strategyDeployer: Signer;
+  let controllerManager: Signer;
+  let treasury: Signer;
+  let operator: Signer;
+  let user: Signer;
+
+  let lbtcUnderlying: MockVaultToken8Dec;
+  let stakedToken: StakedLBTCMock;
+  let oracle: RatioFeedMock;
+  let stakedConverter: StakedLBTCConverter;
+  let stakedVault: MultiAssetWithAsyncRedemptionVault;
+
+  let snap: SnapshotRestorer;
+
+  before(async function () {
+    [admin, strategyDeployer, controllerManager, , , user, treasury, operator] =
+      await getSignersWithPrivateKeys();
+
+    const tok8Factory = await ethers.getContractFactory('MockVaultToken8Dec');
+    lbtcUnderlying = (await tok8Factory.deploy()) as MockVaultToken8Dec;
+    await lbtcUnderlying.waitForDeployment();
+
+    const stakedFactory = await ethers.getContractFactory('StakedLBTCMock');
+    const stakedProxy = await upgrades.deployProxy(
+      stakedFactory,
+      [treasury.address, admin.address, 0],
+      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+    );
+    await stakedProxy.waitForDeployment();
+    stakedToken = stakedFactory.attach(await stakedProxy.getAddress()) as StakedLBTCMock;
+
+    const oracleFactory = await ethers.getContractFactory('RatioFeedMock');
+    oracle = (await oracleFactory.deploy()) as RatioFeedMock;
+    await oracle.waitForDeployment();
+
+    const convFactory = await ethers.getContractFactory('StakedLBTCConverter');
+    stakedConverter = (await convFactory.deploy(await oracle.getAddress())) as StakedLBTCConverter;
+    await stakedConverter.waitForDeployment();
+
+    const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
+    const proxy = await upgrades.deployProxy(
+      vaultFactory,
+      [
+        'Lombard BTC Vault',
+        'LBTCV',
+        await lbtcUnderlying.getAddress(),
+        admin.address,
+        0,
+        controllerManager.address,
+        strategyDeployer.address
+      ],
+      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+    );
+    await proxy.waitForDeployment();
+    stakedVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
+
+    await stakedVault.connect(admin).grantRole(await stakedVault.OPERATOR_ROLE(), operator.address);
+    await stakedVault
+      .connect(admin)
+      .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
+
+    snap = await takeSnapshot();
+  });
+
+  beforeEach(async function () {
+    await snap.restore();
+  });
+
+  describe('StakedLBTCConverter', function () {
+    it('at-par ratio (1e18): toBtcUnits and toTokenAmount are 1:1', async function () {
+      expect(await stakedConverter.toBtcUnits(ONE_LBTC)).to.equal(ONE_LBTC);
+      expect(await stakedConverter.toTokenAmount(ONE_LBTC)).to.equal(ONE_LBTC);
+    });
+
+    it('yield-accrued ratio (0.9e18): 1 stakedLBTC converts to more BTC units', async function () {
+      // Each stakedLBTC is worth 1/0.9 ≈ 1.1111 LBTC when ratio = 0.9e18.
+      await oracle.setRatio((ONE_ETHER * 9n) / 10n);
+
+      // 1e8 * 1e18 / 0.9e18 = 111_111_111.111… → floor → 111_111_111
+      expect(await stakedConverter.toBtcUnits(ONE_LBTC)).to.equal(111_111_111n);
+
+      // Inverse: 111_111_111 * 0.9e18 / 1e18 = 99_999_999.9 → ceil → 100_000_000
+      expect(await stakedConverter.toTokenAmount(111_111_111n)).to.equal(ONE_LBTC);
+    });
+
+    it('round-trip: toTokenAmount(toBtcUnits(x)) differs from x by at most 1 satoshi', async function () {
+      const amounts = [ONE_LBTC / 2n, ONE_LBTC, ONE_LBTC * 100n];
+      const ratios = [ONE_ETHER, (ONE_ETHER * 9n) / 10n, (ONE_ETHER * 95n) / 100n];
+
+      for (const ratio of ratios) {
+        await oracle.setRatio(ratio);
+        for (const amt of amounts) {
+          const btcOut = await stakedConverter.toBtcUnits(amt);
+          const tokenOut = await stakedConverter.toTokenAmount(btcOut);
+          // Ceil in toTokenAmount means tokenOut >= amt, but by at most 1 satoshi.
+          expect(tokenOut).to.be.gte(amt);
+          expect(tokenOut - amt).to.be.lte(1n);
+        }
+      }
+    });
+  });
+
+  describe('vault deposit / mint integration', function () {
+    it('at-par: deposit 1 stakedLBTC mints 1 share', async function () {
+      const sAddr = await stakedToken.getAddress();
+      const vAddr = await stakedVault.getAddress();
+
+      await stakedToken.mintTo(user.address, ONE_LBTC);
+      await stakedToken.connect(user).approve(vAddr, ONE_LBTC);
+
+      const preview = await stakedVault.previewDeposit(sAddr, ONE_LBTC);
+      await expect(stakedVault.connect(user).deposit(sAddr, ONE_LBTC, user.address))
+        .to.emit(stakedVault, 'Deposit')
+        .withArgs(user.address, user.address, sAddr, ONE_LBTC, preview);
+
+      expect(await stakedVault.balanceOf(user.address)).to.equal(ONE_LBTC);
+      expect(preview).to.equal(ONE_LBTC);
+    });
+
+    it('yield-accrued: 0.9 stakedLBTC deposits as 1 share at ratio 0.9e18', async function () {
+      await oracle.setRatio((ONE_ETHER * 9n) / 10n);
+
+      const depositAmt = (ONE_LBTC * 9n) / 10n; // 0.9 stakedLBTC = 90_000_000 satoshi
+      const sAddr = await stakedToken.getAddress();
+      const vAddr = await stakedVault.getAddress();
+
+      await stakedToken.mintTo(user.address, depositAmt);
+      await stakedToken.connect(user).approve(vAddr, depositAmt);
+
+      const preview = await stakedVault.previewDeposit(sAddr, depositAmt);
+      await stakedVault.connect(user).deposit(sAddr, depositAmt, user.address);
+
+      // 0.9 stakedLBTC * (1e18 / 0.9e18) = 1 LBTC worth → 1 share at pps=1e8
+      expect(preview).to.equal(ONE_LBTC);
+      expect(await stakedVault.balanceOf(user.address)).to.equal(ONE_LBTC);
+    });
+
+    it('mint path: previewMint returns fewer stakedLBTC needed when yield-accrued', async function () {
+      await oracle.setRatio((ONE_ETHER * 9n) / 10n);
+
+      const sAddr = await stakedToken.getAddress();
+      const vAddr = await stakedVault.getAddress();
+      const targetShares = ONE_LBTC;
+      const assetsNeeded = await stakedVault.previewMint(sAddr, targetShares);
+
+      // 1 share requires 1 LBTC BTC unit → toTokenAmount(1e8) = 1e8 * 0.9e18 / 1e18 = 90_000_000
+      expect(assetsNeeded).to.equal(90_000_000n);
+
+      await stakedToken.mintTo(user.address, assetsNeeded);
+      await stakedToken.connect(user).approve(vAddr, assetsNeeded);
+
+      const pulled = await stakedVault.connect(user).mint.staticCall(sAddr, targetShares, user.address);
+      expect(pulled).to.equal(assetsNeeded);
+
+      await stakedVault.connect(user).mint(sAddr, targetShares, user.address);
+      expect(await stakedVault.balanceOf(user.address)).to.equal(targetShares);
+    });
+
+    it('deposit fee accrues in stakedLBTC; net amount drives share calculation', async function () {
+      const sAddr = await stakedToken.getAddress();
+      const vAddr = await stakedVault.getAddress();
+
+      const treasuryRole = await stakedVault.TREASURY_ROLE();
+      await stakedVault.connect(admin).grantRole(treasuryRole, treasury.address);
+      await stakedVault.connect(treasury).setDepositFeeBps(sAddr, 100); // 1%
+
+      const depositAmt = ONE_LBTC;
+      const expectedFee = (depositAmt * 100n) / 10_000n; // floor: 1_000_000
+      const net = depositAmt - expectedFee; // 99_000_000
+
+      await stakedToken.mintTo(user.address, depositAmt);
+      await stakedToken.connect(user).approve(vAddr, depositAmt);
+
+      await stakedVault.connect(user).deposit(sAddr, depositAmt, user.address);
+
+      expect(await stakedVault.accruedDepositFees(sAddr)).to.equal(expectedFee);
+      // Net amount converts to BTC units at 1:1 (at-par ratio) → net shares minted
+      expect(await stakedVault.balanceOf(user.address)).to.equal(net);
+    });
+
+    it('convertToShares / convertToAssets round-trip at yield-accrued ratio', async function () {
+      await oracle.setRatio((ONE_ETHER * 95n) / 100n); // 0.95e18
+
+      const sAddr = await stakedToken.getAddress();
+      const assets = 5n * ONE_LBTC;
+      const shares = await stakedVault.convertToShares(sAddr, assets);
+      const back = await stakedVault.convertToAssets(sAddr, shares);
+
+      // back may differ from assets by at most 1 satoshi due to rounding
+      expect(back).to.be.gte(assets);
+      expect(back - assets).to.be.lte(1n);
     });
   });
 });
