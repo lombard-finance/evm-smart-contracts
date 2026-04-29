@@ -4,9 +4,9 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
 import { getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
-  MockIdentityAssetConverter,
+  DirectConverter,
   MockVaultToken,
-  MockVaultToken8Dec,
+  WBTCMock,
   MultiAssetWithAsyncRedemptionVault,
   RatioFeedMock,
   StakedLBTCConverter,
@@ -28,7 +28,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
   let underlying: MockVaultToken;
   let altDeposit: MockVaultToken;
-  let converter: MockIdentityAssetConverter;
+  let converter: DirectConverter;
   let vault: MultiAssetWithAsyncRedemptionVault;
 
   let snapshot: SnapshotRestorer;
@@ -43,8 +43,8 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await underlying.waitForDeployment();
     await altDeposit.waitForDeployment();
 
-    const convFactory = await ethers.getContractFactory('MockIdentityAssetConverter');
-    converter = (await convFactory.deploy()) as MockIdentityAssetConverter;
+    const convFactory = await ethers.getContractFactory('DirectConverter');
+    converter = (await convFactory.deploy()) as DirectConverter;
     await converter.waitForDeployment();
 
     const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
@@ -208,8 +208,8 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const alt = await altDeposit.getAddress();
     await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
 
-    const convFactory = await ethers.getContractFactory('MockIdentityAssetConverter');
-    const next = (await convFactory.deploy()) as MockIdentityAssetConverter;
+    const convFactory = await ethers.getContractFactory('DirectConverter');
+    const next = (await convFactory.deploy()) as DirectConverter;
     await next.waitForDeployment();
     const nextAddr = await next.getAddress();
 
@@ -293,7 +293,7 @@ describe('StakedLBTC as deposit token', function () {
   let operator: Signer;
   let user: Signer;
 
-  let lbtcUnderlying: MockVaultToken8Dec;
+  let lbtcUnderlying: WBTCMock;
   let stakedToken: StakedLBTCMock;
   let oracle: RatioFeedMock;
   let stakedConverter: StakedLBTCConverter;
@@ -302,19 +302,21 @@ describe('StakedLBTC as deposit token', function () {
   let snap: SnapshotRestorer;
 
   before(async function () {
-    [admin, strategyDeployer, controllerManager, , , user, treasury, operator] =
-      await getSignersWithPrivateKeys();
+    [admin, strategyDeployer, controllerManager, , , user, treasury, operator] = await getSignersWithPrivateKeys();
 
-    const tok8Factory = await ethers.getContractFactory('MockVaultToken8Dec');
-    lbtcUnderlying = (await tok8Factory.deploy()) as MockVaultToken8Dec;
-    await lbtcUnderlying.waitForDeployment();
+    const wbtcFactory = await ethers.getContractFactory('WBTCMock');
+    const wbtcProxy = await upgrades.deployProxy(wbtcFactory, [], {
+      initializer: 'initialize',
+      unsafeAllow: ['constructor']
+    });
+    await wbtcProxy.waitForDeployment();
+    lbtcUnderlying = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
 
     const stakedFactory = await ethers.getContractFactory('StakedLBTCMock');
-    const stakedProxy = await upgrades.deployProxy(
-      stakedFactory,
-      [treasury.address, admin.address, 0],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
+    const stakedProxy = await upgrades.deployProxy(stakedFactory, [treasury.address, admin.address, 0], {
+      initializer: 'initialize',
+      unsafeAllow: ['constructor']
+    });
     await stakedProxy.waitForDeployment();
     stakedToken = stakedFactory.attach(await stakedProxy.getAddress()) as StakedLBTCMock;
 

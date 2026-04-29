@@ -29,7 +29,8 @@ contract StakedLBTCConverter is IAssetConverter {
     function toBtcUnits(
         uint256 tokenAmount
     ) external view override returns (uint256 btcOut) {
-        return Math.mulDiv(tokenAmount, 1e18, oracle.ratio(), Math.Rounding.Floor);
+        return
+            Math.mulDiv(tokenAmount, 1e18, oracle.ratio(), Math.Rounding.Floor);
     }
 
     /// @inheritdoc IAssetConverter
