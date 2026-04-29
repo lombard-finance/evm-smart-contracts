@@ -77,7 +77,8 @@ contract ChainlinkConverter is IAssetConverter {
         _checkSequencer();
         (, int256 answer, , uint256 updatedAt, ) = feed.latestRoundData();
         if (answer <= 0) revert ChainlinkConverter_InvalidAnswer();
-        if (block.timestamp - updatedAt > heartbeat) revert ChainlinkConverter_StaleAnswer();
+        if (block.timestamp - updatedAt > heartbeat)
+            revert ChainlinkConverter_StaleAnswer();
         return uint256(answer);
     }
 
@@ -86,8 +87,10 @@ contract ChainlinkConverter is IAssetConverter {
     function _checkSequencer() private view {
         if (address(sequencerUptimeFeed) == address(0)) return;
         // answer == 0: sequencer up; answer == 1: sequencer down
-        (, int256 answer, uint256 startedAt, ,) = sequencerUptimeFeed.latestRoundData();
+        (, int256 answer, uint256 startedAt, , ) = sequencerUptimeFeed
+            .latestRoundData();
         if (answer == 1) revert ChainlinkConverter_SequencerDown();
-        if (block.timestamp - startedAt < gracePeriod) revert ChainlinkConverter_GracePeriodNotOver();
+        if (block.timestamp - startedAt < gracePeriod)
+            revert ChainlinkConverter_GracePeriodNotOver();
     }
 }
