@@ -4,7 +4,7 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import type { Strategy, SatelliteStrategy, MerkleAllowlistValidator } from '../../typechain-types';
+import type { Strategy, SatelliteStrategy, MerkleAllowlistValidator, MockVaultToken, MockVaultForStrategy } from '../../typechain-types';
 import { encodeMerkleRule } from './MerkleCallAllowlist';
 
 /** ABI-encode a CallVerificationInput for the IStrategyExecValidator.isAllowed(bytes) overload.
@@ -35,6 +35,9 @@ describe('Strategy & SatelliteStrategy', function () {
   let validator: MerkleAllowlistValidator;
   let strategy: Strategy;
   let satellite: SatelliteStrategy;
+  let mockVault: MockVaultForStrategy;
+  let vaultToken: MockVaultToken;
+  let fundingStrategy: Strategy;
   let snapshot: SnapshotRestorer;
 
   before(async function () {
@@ -65,6 +68,23 @@ describe('Strategy & SatelliteStrategy', function () {
     satellite = satFactory.attach(await satProxy.getAddress()) as unknown as SatelliteStrategy;
     await satellite.connect(admin).grantRole(await satellite.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
 
+    // Mock vault + token for pullFromVault / pushToVault happy-path tests
+    const tokenFactory = await ethers.getContractFactory('MockVaultToken');
+    vaultToken = (await tokenFactory.deploy()) as unknown as MockVaultToken;
+    await vaultToken.waitForDeployment();
+
+    const mockVaultFactory = await ethers.getContractFactory('MockVaultForStrategy');
+    mockVault = (await mockVaultFactory.deploy()) as unknown as MockVaultForStrategy;
+    await mockVault.waitForDeployment();
+
+    const fundingStratProxy = await upgrades.deployProxy(
+      stratFactory,
+      [await mockVault.getAddress(), await validator.getAddress(), admin.address, liquidityRole.address],
+      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+    );
+    await fundingStratProxy.waitForDeployment();
+    fundingStrategy = stratFactory.attach(await fundingStratProxy.getAddress()) as unknown as Strategy;
+
     snapshot = await takeSnapshot();
   });
 
@@ -83,14 +103,36 @@ describe('Strategy & SatelliteStrategy', function () {
       expect(await strategy.hasRole(await strategy.PRIVILEGED_EXECUTOR_ROLE(), executor.address)).to.be.true;
     });
 
-    it('pullFromVault emits PulledFromVault', async function () {
-      await expect(strategy.connect(liquidityRole).pullFromVault(1_000n))
-        .to.emit(strategy, 'PulledFromVault')
-        .withArgs(1_000n);
+    it('pullFromVault: transfers token from vault to strategy and emits PulledFromVault', async function () {
+      const amount = 1_000n;
+      const tokenAddr = await vaultToken.getAddress();
+      const stratAddr = await fundingStrategy.getAddress();
+      const vaultAddr = await mockVault.getAddress();
+
+      await vaultToken.mint(vaultAddr, amount);
+
+      await expect(fundingStrategy.connect(liquidityRole).pullFromVault(tokenAddr, amount))
+        .to.emit(fundingStrategy, 'PulledFromVault')
+        .withArgs(liquidityRole.address, tokenAddr, amount);
+
+      expect(await vaultToken.balanceOf(stratAddr)).to.equal(amount);
+      expect(await vaultToken.balanceOf(vaultAddr)).to.equal(0n);
     });
 
-    it('pushToVault emits PushedToVault', async function () {
-      await expect(strategy.connect(liquidityRole).pushToVault(500n)).to.emit(strategy, 'PushedToVault').withArgs(500n);
+    it('pushToVault: transfers token from strategy to vault and emits PushedToVault', async function () {
+      const amount = 500n;
+      const tokenAddr = await vaultToken.getAddress();
+      const stratAddr = await fundingStrategy.getAddress();
+      const vaultAddr = await mockVault.getAddress();
+
+      await vaultToken.mint(stratAddr, amount);
+
+      await expect(fundingStrategy.connect(liquidityRole).pushToVault(tokenAddr, amount))
+        .to.emit(fundingStrategy, 'PushedToVault')
+        .withArgs(liquidityRole.address, tokenAddr, amount);
+
+      expect(await vaultToken.balanceOf(vaultAddr)).to.equal(amount);
+      expect(await vaultToken.balanceOf(stratAddr)).to.equal(0n);
     });
 
     it('exec (validator-governed): allowed call emits Executed', async function () {

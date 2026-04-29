@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /// @title IVault
 /// @notice Vault interface for §B Strategy pipe (`docs/spec/002-strategy.md` §B).
 /// @dev Underlying token is the same as ERC-4626 `asset()`; implementations MUST keep `asset()` consistent with the pipe.
@@ -17,6 +19,12 @@ interface IVault {
         address indexed receiver,
         uint256 assets,
         uint256 shares
+    );
+
+    event FundingRequested(
+        address indexed strategy,
+        address indexed token,
+        uint256 amount
     );
 
     error ZeroAddress();
@@ -41,5 +49,12 @@ interface IVault {
 
     error ExpectedVaultOperationsPause();
 
+    error NotRegisteredStrategy();
+
+    error ShareTransferNotAllowed();
+
     function version() external view returns (string memory);
+
+    /// @notice Transfer `amount` of `token` to the calling strategy. Only callable by a registered strategy.
+    function requestFunding(IERC20 token, uint256 amount) external;
 }

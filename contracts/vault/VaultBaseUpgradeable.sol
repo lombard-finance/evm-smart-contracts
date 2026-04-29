@@ -189,7 +189,6 @@ abstract contract VaultBaseUpgradeable is
     ) external nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
         if (strategy == address(0)) revert ZeroAddress();
         _getVaultBaseUpgradeableStorage().strategies.add(strategy);
-        SafeERC20.forceApprove(IERC20(asset()), strategy, type(uint256).max);
     }
 
     /// @notice Whether `strategy` was registered via {registerStrategy}.
@@ -198,6 +197,20 @@ abstract contract VaultBaseUpgradeable is
         address strategy
     ) external view returns (bool) {
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
+    }
+
+    /// @notice Transfer `amount` of `token` to the calling strategy.
+    /// @dev Only callable by a registered strategy; uses nonReentrant to guard against re-entrancy via token callbacks.
+    function requestFunding(
+        IERC20 token,
+        uint256 amount
+    ) external virtual override nonReentrant {
+        if (address(token) == address(this)) revert ShareTransferNotAllowed();
+        address caller = _msgSender();
+        if (!_getVaultBaseUpgradeableStorage().strategies.contains(caller))
+            revert NotRegisteredStrategy();
+        token.safeTransfer(caller, amount);
+        emit FundingRequested(caller, address(token), amount);
     }
 
     function _tryGetAssetDecimals(

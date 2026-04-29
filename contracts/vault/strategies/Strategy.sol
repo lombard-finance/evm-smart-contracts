@@ -25,8 +25,16 @@ contract Strategy is StrategyBaseUpgradeable {
     bytes32 private constant STRATEGY_STORAGE_LOCATION =
         0x90ec6e70d08ce3f865147ce41c466c2b0486ac747f5e826cd1470c21d9390900;
 
-    event PulledFromVault(uint256 amount);
-    event PushedToVault(uint256 amount);
+    event PulledFromVault(
+        address indexed caller,
+        address indexed token,
+        uint256 amount
+    );
+    event PushedToVault(
+        address indexed caller,
+        address indexed token,
+        uint256 amount
+    );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -58,24 +66,22 @@ contract Strategy is StrategyBaseUpgradeable {
         _grantRole(VAULT_TOKEN_LIQUIDITY_ROLE, liquidityRoleHolder);
     }
 
-    /// @notice Pull `IERC20(vault.asset())` from the vault via allowance from `registerStrategy` (`docs/spec/002-strategy.md` §B).
+    /// @notice Pull `token` from the vault via `requestFunding`.
     function pullFromVault(
+        IERC20 token,
         uint256 amount
     ) external onlyRole(VAULT_TOKEN_LIQUIDITY_ROLE) {
-        IVault v = _getStrategyStorage().vault;
-        // TODO: fix after vault update
-        // IERC20(v.asset()).safeTransferFrom(address(v), address(this), amount);
-        emit PulledFromVault(amount);
+        _getStrategyStorage().vault.requestFunding(token, amount);
+        emit PulledFromVault(_msgSender(), address(token), amount);
     }
 
-    /// @notice Push `IERC20(vault.asset())` to the vault (`docs/spec/002-strategy.md` §B).
+    /// @notice Push `IERC20(vault.asset())` to the vault.
     function pushToVault(
+        IERC20 token,
         uint256 amount
     ) external onlyRole(VAULT_TOKEN_LIQUIDITY_ROLE) {
-        IVault v = _getStrategyStorage().vault;
-        // TODO: fix after vault update
-        // IERC20(v.asset()).safeTransfer(address(v), amount);
-        emit PushedToVault(amount);
+        token.safeTransfer(address(_getStrategyStorage().vault), amount);
+        emit PushedToVault(_msgSender(), address(token), amount);
     }
 
     function _getStrategyStorage()
