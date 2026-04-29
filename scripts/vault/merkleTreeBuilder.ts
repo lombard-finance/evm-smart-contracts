@@ -71,7 +71,7 @@ function encodeRule(rule: RuleJson): string {
     to,
     value,
     rule.dataLength >>> 0,
-    rule.constraints.length,
+    rule.constraints.length
   ];
   for (const c of rule.constraints) {
     types.push('uint16', 'bytes32', 'bytes32');
@@ -85,7 +85,7 @@ function encodeRule(rule: RuleJson): string {
 function computeDomainSeparator(chainId: bigint, contractAddress: string): string {
   const packed = ethers.solidityPacked(
     ['bytes4', 'uint8', 'uint256', 'address'],
-    ['0x414c4c57', 1, chainId, contractAddress],
+    ['0x414c4c57', 1, chainId, contractAddress]
   );
   return ethers.keccak256(packed);
 }
@@ -96,7 +96,7 @@ type TreeRow = [number, string, Uint8Array];
 
 function buildTree(
   rules: RulesFile,
-  domainSeparator: string,
+  domainSeparator: string
 ): {
   tree: StandardMerkleTree<TreeRow>;
   encoded: Record<string, string>;
@@ -191,11 +191,11 @@ function main() {
         ruleName,
         root: tree.root,
         ruleEncoded,
-        merkleProof,
+        merkleProof
       },
       null,
-      2,
-    ),
+      2
+    )
   );
 }
 

@@ -31,10 +31,7 @@ interface IVault {
     error InvalidPricePerShareRateLimit();
 
     /// @dev Emitted when the default admin updates the PPS rate limit bucket config
-    event PricePerShareRateLimitUpdated(
-        uint32 maxBucketBps,
-        uint64 refillRate
-    );
+    event PricePerShareRateLimitUpdated(uint32 maxBucketBps, uint64 refillRate);
 
     event VaultOperationsPaused(address account);
 

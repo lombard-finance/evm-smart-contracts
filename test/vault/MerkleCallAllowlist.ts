@@ -5,7 +5,6 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import type { MerkleAllowlistValidator } from '../../typechain-types';
 import rulesJson from '../../scripts/vault/ruleset/test.json';
 
-
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
 async function merkleIsAllowed(
   contract: MerkleAllowlistValidator,
@@ -18,7 +17,6 @@ async function merkleIsAllowed(
   const fn = contract.getFunction('isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))');
   return fn.staticCall(sender, to, value, data, input) as Promise<boolean>;
 }
-
 
 export interface RuleConstraint {
   offset: number;
@@ -343,7 +341,7 @@ describe('MerkleAllowlistValidator', function () {
         to: rule.to !== '' ? rule.to : ethers.ZeroAddress,
         value: 'value' in rule && rule.value !== '' ? BigInt(rule.value as string) : 0n,
         dataLength: rule.dataLength,
-        constraints: rule.constraints,
+        constraints: rule.constraints
       });
     }
 
@@ -369,15 +367,15 @@ describe('MerkleAllowlistValidator', function () {
     it('rule_01: allows any calldata to the fixed target', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_01');
       const calldata = ethers.hexlify(ethers.randomBytes(100));
-      expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(true);
-    }); 
+      expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(
+        true
+      );
+    });
 
     it('rule_01: rejects wrong target address', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_01');
       expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, ethers.ZeroAddress, 0n, '0x', { ruleEncoded, merkleProof }),
+        await merkleIsAllowed(c, ethers.ZeroAddress, ethers.ZeroAddress, 0n, '0x', { ruleEncoded, merkleProof })
       ).to.equal(false);
     });
 
@@ -385,66 +383,59 @@ describe('MerkleAllowlistValidator', function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_02');
       const calldata = ethers.solidityPacked(
         ['bytes4', 'bytes32', 'uint256'],
-        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n],
+        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n]
       );
-      expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(true);
+      expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(
+        true
+      );
     });
 
     it('rule_02: rejects wrong selector', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_02');
-      const calldata = ethers.solidityPacked(
-        ['bytes4', 'bytes32', 'uint256'],
-        ['0xdeadbeef', ethers.ZeroHash, 1n],
+      const calldata = ethers.solidityPacked(['bytes4', 'bytes32', 'uint256'], ['0xdeadbeef', ethers.ZeroHash, 1n]);
+      expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(
+        false
       );
-      expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(false);
     });
 
     it('rule_02: rejects nonzero ETH value', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_02');
       const calldata = ethers.solidityPacked(
         ['bytes4', 'bytes32', 'uint256'],
-        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n],
+        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n]
       );
-      expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, TO, 1n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(false);
+      expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 1n, calldata, { ruleEncoded, merkleProof })).to.equal(
+        false
+      );
     });
 
     it('rule_03: allows transfer() to exact recipient from exact sender', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_03');
       const calldata = ethers.solidityPacked(
         ['bytes4', 'bytes32', 'uint256'],
-        [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n],
+        [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n]
       );
-      expect(
-        await merkleIsAllowed(c, SENDER, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(true);
+      expect(await merkleIsAllowed(c, SENDER, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(true);
     });
 
     it('rule_03: rejects wrong sender', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_03');
       const calldata = ethers.solidityPacked(
         ['bytes4', 'bytes32', 'uint256'],
-        [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n],
+        [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n]
       );
-      expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(false);
+      expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(
+        false
+      );
     });
 
     it('rule_03: rejects wrong recipient in calldata', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_03');
       const calldata = ethers.solidityPacked(
         ['bytes4', 'bytes32', 'uint256'],
-        [TRANSFER_SELECTOR, ethers.zeroPadValue(ethers.ZeroAddress, 32), 1n],
+        [TRANSFER_SELECTOR, ethers.zeroPadValue(ethers.ZeroAddress, 32), 1n]
       );
-      expect(
-        await merkleIsAllowed(c, SENDER, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(false);
+      expect(await merkleIsAllowed(c, SENDER, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(false);
     });
 
     it('script: root from --mode build and proof from --mode proof are accepted by the contract', async function () {
@@ -472,11 +463,11 @@ describe('MerkleAllowlistValidator', function () {
       // rule_02: exact to + value=0 + transfer() selector
       const calldata = ethers.solidityPacked(
         ['bytes4', 'bytes32', 'uint256'],
-        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n],
+        [TRANSFER_SELECTOR, ethers.ZeroHash, 1n]
       );
-      expect(
-        await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof }),
-      ).to.equal(true);
+      expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(
+        true
+      );
     });
   });
 });

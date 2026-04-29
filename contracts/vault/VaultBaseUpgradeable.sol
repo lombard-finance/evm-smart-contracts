@@ -117,7 +117,10 @@ abstract contract VaultBaseUpgradeable is
     ) external onlyRole(OPERATOR_ROLE) whenVaultNotPaused {
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
-        uint256 changeBps = PriceRateLimiter._relativeChangeBps($.pricePerShare, newPricePerShare);
+        uint256 changeBps = PriceRateLimiter._relativeChangeBps(
+            $.pricePerShare,
+            newPricePerShare
+        );
         $.ppsRateLimiter._consume(changeBps);
         _setPricePerShare($, newPricePerShare);
     }
@@ -135,8 +138,15 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @notice Returns the bucket state with refill virtually applied to `block.timestamp`.
-    function pricePerShareRateLimiterState() external view returns (PriceRateLimiter.Bucket memory) {
-        return _getVaultBaseUpgradeableStorage().ppsRateLimiter._currentBucketState();
+    function pricePerShareRateLimiterState()
+        external
+        view
+        returns (PriceRateLimiter.Bucket memory)
+    {
+        return
+            _getVaultBaseUpgradeableStorage()
+                .ppsRateLimiter
+                ._currentBucketState();
     }
 
     /// @dev allows to post any price, but pause vault operations

@@ -233,8 +233,10 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
 
       // Any further move is blocked until the bucket refills
-      await expect(vault.connect(operator).postPricePerShare(p1 + 1n))
-        .to.be.revertedWithCustomError(vault, 'PricePerShareRateLimitExceeded');
+      await expect(vault.connect(operator).postPricePerShare(p1 + 1n)).to.be.revertedWithCustomError(
+        vault,
+        'PricePerShareRateLimitExceeded'
+      );
 
       // After one week the bucket is full again
       await ethers.provider.send('evm_increaseTime', [604800]);
@@ -261,8 +263,10 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
       // 2 bps exceeds the 1 bps remaining in the bucket
       const p2 = (p1 * 10002n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p2))
-        .to.be.revertedWithCustomError(vault, 'PricePerShareRateLimitExceeded');
+      await expect(vault.connect(operator).postPricePerShare(p2)).to.be.revertedWithCustomError(
+        vault,
+        'PricePerShareRateLimitExceeded'
+      );
 
       // After one day the bucket is full again
       await ethers.provider.send('evm_increaseTime', [86400]);

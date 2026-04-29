@@ -19,10 +19,10 @@ library PriceRateLimiter {
 
     /// @dev Packed into one 32-byte storage slot: 6+4+4+8 = 22 bytes.
     struct Bucket {
-        uint48 lastRefill;             // ─╮ timestamp of last checkpoint
-        uint32 capacityBps;            //  │ available capacity (bps)
-        uint32 maxBps;                 //  │ bucket ceiling
-        uint64 refillRate;             // ─╯ refill rate: bps/sec × 2^32
+        uint48 lastRefill; // ─╮ timestamp of last checkpoint
+        uint32 capacityBps; //  │ available capacity (bps)
+        uint32 maxBps; //  │ bucket ceiling
+        uint64 refillRate; // ─╯ refill rate: bps/sec × 2^32
     }
 
     struct Config {
@@ -34,7 +34,9 @@ library PriceRateLimiter {
     /// @param changeBps Basis-point change to consume; use `_relativeChangeBps` to compute.
     function _consume(Bucket storage s, uint256 changeBps) internal {
         _checkpoint(s);
-        if (changeBps > type(uint32).max || uint256(s.capacityBps) < changeBps) {
+        if (
+            changeBps > type(uint32).max || uint256(s.capacityBps) < changeBps
+        ) {
             revert PricePerShareRateLimitExceeded();
         }
         unchecked {
@@ -43,13 +45,17 @@ library PriceRateLimiter {
     }
 
     /// @notice Returns a memory copy of the bucket with the refill virtually applied to `block.timestamp`.
-    function _currentBucketState(Bucket memory b) internal view returns (Bucket memory) {
+    function _currentBucketState(
+        Bucket memory b
+    ) internal view returns (Bucket memory) {
         uint48 ts = uint48(block.timestamp);
         if (ts > b.lastRefill) {
             uint256 elapsed = uint256(ts) - uint256(b.lastRefill);
             uint256 added = (elapsed * uint256(b.refillRate)) >> 32;
             uint256 newLevel = uint256(b.capacityBps) + added;
-            b.capacityBps = newLevel > uint256(b.maxBps) ? b.maxBps : uint32(newLevel);
+            b.capacityBps = newLevel > uint256(b.maxBps)
+                ? b.maxBps
+                : uint32(newLevel);
             b.lastRefill = ts;
         }
         return b;
@@ -94,6 +100,8 @@ library PriceRateLimiter {
         uint256 elapsed = uint256(ts) - uint256(last);
         uint256 added = (elapsed * uint256(s.refillRate)) >> 32;
         uint256 newLevel = uint256(s.capacityBps) + added;
-        s.capacityBps = newLevel > uint256(s.maxBps) ? s.maxBps : uint32(newLevel);
+        s.capacityBps = newLevel > uint256(s.maxBps)
+            ? s.maxBps
+            : uint32(newLevel);
     }
 }
