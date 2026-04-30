@@ -253,7 +253,7 @@ Total encoded length:
 
 Types MUST match Solidity ABI packing: `uint8`, `uint8`, `address`, `address`, `uint256`, `uint32`, `uint16`, then per constraint `uint16`, `bytes32`, `bytes32`. The contract and off-chain builder MUST produce the same bytes as a Solidity implementation using that sequence.
 
-`version` for this rule encoding MUST be **`0x03`**. Earlier layouts (**`0x01`** with `saltOrNonce`, **`0x02`** with `wordIndex` instead of byte `offset`) MUST fail canonical validation.
+`version` for this rule encoding MUST be **`0x01`**.
 
 Any rule not matching this exact structure is invalid; `isAllowed` MUST return `false` (see §10).
 
@@ -387,7 +387,7 @@ The **`leaf` MUST NOT be taken as an unconstrained input**: implementations MUST
 `isAllowed` returns **`true`** if and only if **all** of the following hold:
 
 1. **Active root** — `allowlistRoot != bytes32(0)` (§2).
-2. **`input.ruleEncoded` valid** — parses per §7, passes canonical validation (§4–§6), and `version == 0x03`. The `sender` argument is compared to the rule per §11; it is **not** `msg.sender` (see §1).
+2. **`input.ruleEncoded` valid** — parses per §7, passes canonical validation (§4–§6), and `version == 0x01`. The `sender` argument is compared to the rule per §11; it is **not** `msg.sender` (see §1).
 3. **Merkle inclusion** — with `leaf = leafFromRule(input.ruleEncoded)` (§8), `MerkleProof.verifyCalldata(input.merkleProof, allowlistRoot, leaf)` per §9.
 4. **Call matches rule** — `(sender, to, value, data)` satisfies the matching algorithm (§11) against **`input.ruleEncoded`**.
 
@@ -504,7 +504,7 @@ The implementation MUST have on-chain verification cost proportional to:
 
 The implementation MUST NOT have cost proportional to total allowlist size.
 
-**`MAX_CONSTRAINTS` (normative for `version == 0x03`):** implementations MUST define a constant upper bound. For this rule version:
+**`MAX_CONSTRAINTS` (normative for `version == 0x01`):** implementations MUST define a constant upper bound. For this rule version:
 
 ```text
 MAX_CONSTRAINTS = 64

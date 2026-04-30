@@ -36,7 +36,7 @@ export function encodeMerkleRule(p: {
 }): string {
   const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
-    p.version ?? 0x03,
+    p.version ?? 0x01,
     p.flags,
     p.sender,
     p.to,

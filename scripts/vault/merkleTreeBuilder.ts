@@ -65,7 +65,7 @@ function encodeRule(rule: RuleJson): string {
 
   const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
-    0x03,
+    0x01,
     flags,
     sender,
     to,

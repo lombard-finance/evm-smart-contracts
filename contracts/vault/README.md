@@ -65,7 +65,7 @@ The `sender` passed to `isAllowed` is the **logical** caller your product cares 
 
 **Payload checks** are how you pin things like **function selector** (usually offset **0**) and **ABI argument words** (often offsets **4**, **36**, … for static types after the 4-byte selector).
 
-**Limits (version `0x03`):**
+**Limits (version `0x01`):**
 
 - At most **64** payload checks per rule.
 - Each offset is **0…65535**.
@@ -95,7 +95,7 @@ where `domainSeparator` is fixed per **chain** and **validator contract address*
 
 ### Examples (TypeScript / ethers)
 
-Below, `encodeMerkleRule` matches the packed layout used in tests (version `0x03`, big-endian `dataLength` and constraint counts as in spec).
+Below, `encodeMerkleRule` matches the packed layout used in tests (version `0x01`, big-endian `dataLength` and constraint counts as in spec).
 
 #### Helper (same idea as `test/MerkleCallAllowlist.ts`)
 
@@ -118,7 +118,7 @@ function encodeMerkleRule(p: {
 }): string {
   const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
-    0x03,
+    0x01,
     p.flags,
     p.sender,
     p.to,
