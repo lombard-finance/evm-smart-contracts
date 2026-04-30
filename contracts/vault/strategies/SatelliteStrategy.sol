@@ -5,7 +5,7 @@ import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title SatelliteStrategy
-/// @notice Intermediary strategy without §B vault pipe (`docs/spec/002-strategy.md` §C).
+/// @notice Intermediary strategy without a vault funding pipe.
 contract SatelliteStrategy is StrategyBaseUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

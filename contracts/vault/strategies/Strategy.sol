@@ -8,11 +8,11 @@ import {IVault} from "./../interfaces/IVault.sol";
 import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title Strategy
-/// @notice Vault-linked strategy: §B pipe + validator-governed `exec` (`docs/spec/002-strategy.md` §B).
+/// @notice Vault-linked strategy with funding pipe and validator-governed `exec`.
 contract Strategy is StrategyBaseUpgradeable {
     using SafeERC20 for IERC20;
 
-    /// @notice Role required for `pullFromVault` / `pushToVault` (`docs/spec/002-strategy.md` §B).
+    /// @notice Role required for `pullFromVault` / `pushToVault`.
     bytes32 public constant VAULT_TOKEN_LIQUIDITY_ROLE =
         keccak256("VAULT_TOKEN_LIQUIDITY_ROLE");
 
@@ -46,7 +46,7 @@ contract Strategy is StrategyBaseUpgradeable {
         return _getStrategyStorage().vault;
     }
 
-    /// @param vault_ §B vault; stored once in ERC-7201 `StrategyStorage` (beacon-safe).
+    /// @param vault_ Vault address; stored once in ERC-7201 `StrategyStorage` (beacon-safe).
     /// @param validator_ Policy validator (`IStrategyExecValidator`).
     /// @param defaultAdmin_ Receives `DEFAULT_ADMIN_ROLE`.
     /// @param liquidityRoleHolder Receives `VAULT_TOKEN_LIQUIDITY_ROLE` for `pullFromVault` / `pushToVault`.

@@ -196,7 +196,7 @@ abstract contract ERC7540RedemptionUpgradeable is
         }
 
         address caller = _msgSender();
-        // Allow request redeeem by allowance
+        // Allow request redeem by allowance
         if (caller != owner) {
             _spendAllowance(owner, caller, shares);
         }

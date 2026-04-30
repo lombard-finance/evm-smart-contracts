@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 /// @title IStrategyExecValidator
-/// @notice Minimal policy hook for Strategy / SatelliteStrategy `exec` (`docs/spec/002-strategy.md` §A.2).
+/// @notice Minimal policy hook for Strategy / SatelliteStrategy `exec`.
 /// @dev Encoding of `validatorArgs` is implementation-defined (e.g. ABI-encoded `CallVerificationInput` for `MerkleAllowlistValidator`).
 interface IStrategyExecValidator {
     /// @notice Whether `(sender, to, value, data)` is allowed under `validatorArgs` for this validator.

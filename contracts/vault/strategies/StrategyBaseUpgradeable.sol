@@ -41,7 +41,7 @@ abstract contract StrategyBaseUpgradeable is
         uint256 value,
         bytes calldata data,
         bytes calldata validatorArgs
-    ) external payable nonReentrant {
+    ) external payable nonReentrant returns (bytes memory) {
         address sender = _msgSender();
         if (
             !_getStrategyBaseStorage().validator.isAllowed(
@@ -63,6 +63,7 @@ abstract contract StrategyBaseUpgradeable is
         Address.verifyCallResult(success, returndata);
 
         emit Executed(sender, to, value, data);
+        return returndata;
     }
 
     /// @notice Validator-bypassing external call for privileged executors (`PRIVILEGED_EXECUTOR_ROLE`).
@@ -71,7 +72,13 @@ abstract contract StrategyBaseUpgradeable is
         address to,
         uint256 value,
         bytes calldata data
-    ) external payable nonReentrant onlyRole(PRIVILEGED_EXECUTOR_ROLE) {
+    )
+        external
+        payable
+        nonReentrant
+        onlyRole(PRIVILEGED_EXECUTOR_ROLE)
+        returns (bytes memory)
+    {
         if (address(this).balance < value) revert Strategy_InvalidEthFunding();
 
         (bool success, bytes memory returndata) = payable(to).call{
@@ -80,6 +87,7 @@ abstract contract StrategyBaseUpgradeable is
         Address.verifyCallResult(success, returndata);
 
         emit Executed(_msgSender(), to, value, data);
+        return returndata;
     }
 
     /// @dev Shared initializer fragment; call from concrete `initialize`.

@@ -6,12 +6,12 @@ import {CallVerificationInput, IMerkleCallAllowlist} from "../interfaces/IMerkle
 import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 
 /// @title MerkleAllowlistValidator
-/// @notice On-chain verification per `docs/spec/001-merkle-call-data-allowlist.md`.
+/// @notice On-chain Merkle-based call-data allowlist validator.
 contract MerkleAllowlistValidator is
     IMerkleCallAllowlist,
     IStrategyExecValidator
 {
-    /// @dev Upper bound on `constraintCount` for rule version `0x03` (`docs/spec/001-merkle-call-data-allowlist.md` §14).
+    /// @dev Upper bound on `constraintCount` for rule version `0x03`.
     uint256 public constant MAX_CONSTRAINTS = 64;
 
     bytes32 private _allowlistRoot;
@@ -98,7 +98,7 @@ contract MerkleAllowlistValidator is
             );
     }
 
-    /// @dev §5: left-align up to 32 bytes from `data[offset:]`, right-pad with zero.
+    /// @dev Left-align up to 32 bytes from `data[offset:]`, right-pad with zero.
     function _wordAt(
         bytes calldata data,
         uint256 offset
@@ -123,7 +123,7 @@ contract MerkleAllowlistValidator is
         }
     }
 
-    /// @dev §4, §6, §7, §14: structural and canonical checks only.
+    /// @dev Structural and canonical checks only.
     function _isCanonicallyValidRule(
         bytes calldata r
     ) private pure returns (bool) {
@@ -202,7 +202,7 @@ contract MerkleAllowlistValidator is
         return true;
     }
 
-    /// @dev §11 matching (caller must ensure `_isCanonicallyValidRule(r)` already passed).
+    /// @dev Rule matching (caller must ensure `_isCanonicallyValidRule(r)` already passed).
     function _matchesRule(
         bytes calldata r,
         address sender,

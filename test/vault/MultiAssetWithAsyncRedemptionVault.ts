@@ -240,7 +240,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       // Any further move is blocked until the bucket refills
       await expect(vault.connect(operator).postPricePerShare(p1 + 1n)).to.be.revertedWithCustomError(
         vault,
-        'PricePerShareRateLimitExceeded'
+        'PriceRateLimiter_RateLimitExceeded'
       );
 
       // After one week the bucket is full again
@@ -270,7 +270,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       const p2 = (p1 * 10002n) / 10000n;
       await expect(vault.connect(operator).postPricePerShare(p2)).to.be.revertedWithCustomError(
         vault,
-        'PricePerShareRateLimitExceeded'
+        'PriceRateLimiter_RateLimitExceeded'
       );
 
       // After one day the bucket is full again
@@ -524,6 +524,7 @@ describe('Chainlink as deposit token', function () {
     clConverter = (await convFactory.deploy(
       await clFeed.getAddress(),
       8,
+      8,
       HEARTBEAT,
       ethers.ZeroAddress,
       0
@@ -571,6 +572,7 @@ describe('Chainlink as deposit token', function () {
       const convFactory = await ethers.getContractFactory('ChainlinkConverter');
       const conv18 = (await convFactory.deploy(
         await feed18.getAddress(),
+        8,
         8,
         HEARTBEAT,
         ethers.ZeroAddress,
@@ -641,6 +643,7 @@ describe('Chainlink as deposit token', function () {
         const convFactory = await ethers.getContractFactory('ChainlinkConverter');
         seqConverter = (await convFactory.deploy(
           await clFeed.getAddress(),
+          8,
           8,
           HEARTBEAT,
           await seqFeed.getAddress(),

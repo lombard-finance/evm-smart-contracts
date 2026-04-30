@@ -205,9 +205,7 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 assets,
         uint256 shares
     ) internal virtual {
-        IERC20(depositAsset).safeTransferFrom(caller, address(this), assets);
-
-        // account fee
+        // State changes before external call (CEI)
         (uint256 fee, ) = _splitDepositFeeView(depositAsset, assets);
         if (fee > 0) {
             MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
@@ -217,6 +215,8 @@ abstract contract MultiAssetDepositUpgradeable is
 
         _mint(receiver, shares);
         emit Deposit(caller, receiver, depositAsset, assets, shares);
+
+        IERC20(depositAsset).safeTransferFrom(caller, address(this), assets);
     }
 
     /// @notice Treasury pulls accrued deposit fees for `token` (same ERC-20 units as deposits).

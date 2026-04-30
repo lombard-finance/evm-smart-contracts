@@ -69,7 +69,7 @@ describe('BeaconHub', function () {
       await expect(hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, beaconAddr))
         .to.emit(hub, 'BeaconSet')
         .withArgs(STRATEGY_ID, beaconAddr);
-      expect(await hub.beacons(STRATEGY_ID)).to.equal(beaconAddr);
+      expect(await hub.beacon(STRATEGY_ID)).to.equal(beaconAddr);
     });
 
     it('reverts for non-BEACON_ADMIN_ROLE caller', async function () {
@@ -90,7 +90,7 @@ describe('BeaconHub', function () {
       await expect(hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, ethers.ZeroAddress))
         .to.emit(hub, 'BeaconSet')
         .withArgs(STRATEGY_ID, ethers.ZeroAddress);
-      expect(await hub.beacons(STRATEGY_ID)).to.equal(ethers.ZeroAddress);
+      expect(await hub.beacon(STRATEGY_ID)).to.equal(ethers.ZeroAddress);
     });
   });
 
@@ -104,7 +104,7 @@ describe('BeaconHub', function () {
     it('deploys proxy with empty initData, tracks it, emits Deployed', async function () {
       const tx = hub.connect(deployer).deploy(STRATEGY_ID, '0x');
       const proxyAddr = await hub.connect(deployer).deploy.staticCall(STRATEGY_ID, '0x');
-      await expect(tx).to.emit(hub, 'Deployed').withArgs(STRATEGY_ID, proxyAddr);
+      await expect(tx).to.emit(hub, 'Deployed').withArgs(STRATEGY_ID, proxyAddr, deployer.address);
 
       expect(await hub.isDeployed(proxyAddr)).to.be.true;
       const code = await ethers.provider.getCode(proxyAddr);
@@ -113,7 +113,6 @@ describe('BeaconHub', function () {
 
     it('deploys proxy with initData and initializes correctly', async function () {
       const stratFactory = await ethers.getContractFactory('Strategy');
-      const hubAddr = await hub.getAddress();
       const initData = stratFactory.interface.encodeFunctionData('initialize', [
         admin.address, // vault placeholder
         await validator.getAddress(),

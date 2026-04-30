@@ -4,8 +4,8 @@ pragma solidity 0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title IVault
-/// @notice Vault interface for §B Strategy pipe (`docs/spec/002-strategy.md` §B).
-/// @dev Underlying token is the same as ERC-4626 `asset()`; implementations MUST keep `asset()` consistent with the pipe.
+/// @notice Vault interface for strategy funding requests.
+/// @dev Underlying token is the same as ERC-4626 `asset()`.
 interface IVault {
     /// @notice Emitted when the poster updates `pricePerShare`
     event PricePerShareUpdated(
@@ -33,10 +33,10 @@ interface IVault {
     error ZeroPricePerShare();
 
     /// @dev `postPricePerShare` would exceed the rate limit bucket
-    error PricePerShareRateLimitExceeded();
+    error PriceRateLimiter_RateLimitExceeded();
 
     /// @dev `setPricePerShareRateLimit` arguments out of range
-    error InvalidPricePerShareRateLimit();
+    error PriceRateLimiter_InvalidConfig();
 
     /// @dev Emitted when the default admin updates the PPS rate limit bucket config
     event PricePerShareRateLimitUpdated(uint32 maxBucketBps, uint64 refillRate);

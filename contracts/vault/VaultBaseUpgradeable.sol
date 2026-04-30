@@ -176,6 +176,8 @@ abstract contract VaultBaseUpgradeable is
         );
     }
 
+    /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the vault's actual token balance.
+    ///         Integrators that need real holdings must sum strategy balances off-chain.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }
@@ -198,7 +200,7 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().beaconHub;
     }
 
-    /// @notice Deploy a strategy proxy via the BeaconHub and register it for the §B pipe.
+    /// @notice Deploy a strategy proxy via the BeaconHub and register it.
     /// @param id       Hub key identifying which UpgradeableBeacon to use.
     /// @param initData ABI-encoded initializer calldata forwarded to the new proxy. Pass "" to skip.
     function deployStrategy(
@@ -226,7 +228,7 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
     }
 
-    /// @dev used to regiter early deployed strategies or arbitrary strategies (not beacon-deployed)
+    /// @dev used to register early deployed strategies or arbitrary strategies (not beacon-deployed)
     function registerStrategy(
         address strategy
     ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
