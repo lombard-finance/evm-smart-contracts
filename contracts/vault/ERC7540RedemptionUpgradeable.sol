@@ -22,6 +22,12 @@ abstract contract ERC7540RedemptionUpgradeable is
     bytes32 public constant CONTROLLER_MANAGER_ROLE =
         keccak256("CONTROLLER_MANAGER_ROLE");
 
+    /// @notice May {setWithdrawalFeeBps} and {setWithdrawalTreasury}.
+    bytes32 public constant WITHDRAWAL_FEE_MANAGER_ROLE =
+        keccak256("WITHDRAWAL_FEE_MANAGER_ROLE");
+
+    uint256 private constant _BPS_DENOMINATOR = 10_000;
+
     /// @dev EIP-7540 ERC-165: asynchronous **redemption** (`requestRedeem`, pending/claimable views). Not the same interface id as operators below.
     bytes4 private constant _ERC7540_ASYNC_REDEEM_INTERFACE_ID = 0x620ee8e4;
 
@@ -48,6 +54,8 @@ abstract contract ERC7540RedemptionUpgradeable is
         mapping(uint256 requestId => RedeemRequest) redeemRequestById;
         /// @dev Max redeem shares per redeem request for controller
         mapping(address controller => uint256) maxRedeemShares;
+        uint16 withdrawalFeeBps;
+        address withdrawalTreasury;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC7540RedemptionUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -100,6 +108,7 @@ abstract contract ERC7540RedemptionUpgradeable is
             revert ERC7540RemoveControllerHasPending(controller);
         }
         $.controllers.remove(controller);
+        // it's expected that there only few operators for each controller, so we can use a simple loop to remove all operators
         while ($.operators[controller].length() > 0) {
             $.operators[controller].remove($.operators[controller].at(0));
         }
@@ -124,6 +133,30 @@ abstract contract ERC7540RedemptionUpgradeable is
         address controller
     ) external view returns (uint256) {
         return _getERC7540RedemptionStorage().maxRedeemShares[controller];
+    }
+
+    function setWithdrawalFeeBps(
+        uint16 bps
+    ) external onlyRole(WITHDRAWAL_FEE_MANAGER_ROLE) {
+        if (bps >= _BPS_DENOMINATOR) revert WithdrawalFeeBpsTooHigh();
+        _getERC7540RedemptionStorage().withdrawalFeeBps = bps;
+        emit WithdrawalFeeBpsSet(bps);
+    }
+
+    function setWithdrawalTreasury(
+        address treasury_
+    ) external onlyRole(WITHDRAWAL_FEE_MANAGER_ROLE) {
+        if (treasury_ == address(0)) revert ZeroAddress();
+        _getERC7540RedemptionStorage().withdrawalTreasury = treasury_;
+        emit WithdrawalTreasurySet(treasury_);
+    }
+
+    function getWithdrawalFeeBps() external view returns (uint16) {
+        return _getERC7540RedemptionStorage().withdrawalFeeBps;
+    }
+
+    function getWithdrawalTreasury() external view returns (address) {
+        return _getERC7540RedemptionStorage().withdrawalTreasury;
     }
 
     /// @inheritdoc IERC7540Redemption
@@ -201,18 +234,32 @@ abstract contract ERC7540RedemptionUpgradeable is
             _spendAllowance(owner, caller, shares);
         }
 
-        uint256 assets = _convertToAssets(shares, Math.Rounding.Floor);
+        uint256 feeShares;
+        {
+            uint16 feeBps = $.withdrawalFeeBps;
+            address treasury_ = $.withdrawalTreasury;
+            if (feeBps > 0 && treasury_ != address(0)) {
+                feeShares = shares.mulDiv(feeBps, _BPS_DENOMINATOR, Math.Rounding.Floor);
+            }
+        }
+        uint256 netShares = shares - feeShares;
+        uint256 assets = _convertToAssets(netShares, Math.Rounding.Floor);
         requestId = ++$.nextRequestId;
         RedeemRequest storage rq = $.redeemRequestById[requestId];
         rq.controller = controller;
-        rq.pendingShares = shares;
+        rq.pendingShares = netShares;
         rq.pendingAssets = assets;
         rq.owner = owner;
 
-        $.pendingShares[controller] += shares;
+        $.pendingShares[controller] += netShares;
         $.pendingAssets[controller] += assets;
 
-        _burn(owner, shares);
+        _burn(owner, netShares);
+        if (feeShares > 0) {
+            address treasury_ = $.withdrawalTreasury;
+            _transfer(owner, treasury_, feeShares);
+            emit WithdrawalFeeCharged(treasury_, feeShares);
+        }
         emit RedeemRequested(requestId, owner, controller, caller, shares);
     }
 

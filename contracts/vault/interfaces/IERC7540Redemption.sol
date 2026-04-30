@@ -71,6 +71,17 @@ interface IERC7540Redemption {
         bool approved
     ) external returns (bool);
 
+    /// @notice Withdrawal fee rate (basis points) updated.
+    event WithdrawalFeeBpsSet(uint16 bps);
+
+    /// @notice Treasury address for withdrawal fee shares updated.
+    event WithdrawalTreasurySet(address indexed treasury);
+
+    /// @notice Fee shares sent to treasury on a redemption request.
+    event WithdrawalFeeCharged(address indexed treasury, uint256 feeShares);
+
+    error WithdrawalFeeBpsTooHigh();
+
     error ERC7540PreviewDisabled();
 
     /// @notice ERC-4626 `withdraw` / `redeem` are disabled; claim settled via a separate payment entrypoint.
