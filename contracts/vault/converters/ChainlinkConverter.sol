@@ -105,6 +105,8 @@ contract ChainlinkConverter is IAssetConverter {
         (, int256 answer, uint256 startedAt, , ) = sequencerUptimeFeed
             .latestRoundData();
         if (answer == 1) revert ChainlinkConverter_SequencerDown();
+        // startedAt == 0 would make block.timestamp - 0 silently pass any grace period.
+        if (startedAt == 0) revert ChainlinkConverter_SequencerDown();
         if (block.timestamp - startedAt < gracePeriod)
             revert ChainlinkConverter_GracePeriodNotOver();
     }
