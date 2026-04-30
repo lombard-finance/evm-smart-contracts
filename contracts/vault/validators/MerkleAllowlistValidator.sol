@@ -2,12 +2,14 @@
 pragma solidity 0.8.24;
 
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {CallVerificationInput, IMerkleCallAllowlist} from "../interfaces/IMerkleCallAllowlist.sol";
 import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 
 /// @title MerkleAllowlistValidator
 /// @notice On-chain Merkle-based call-data allowlist validator.
 contract MerkleAllowlistValidator is
+    Ownable2Step,
     IMerkleCallAllowlist,
     IStrategyExecValidator
 {
@@ -16,13 +18,15 @@ contract MerkleAllowlistValidator is
 
     bytes32 private _allowlistRoot;
 
+    constructor(address initialOwner) Ownable(initialOwner) {}
+
     /// @inheritdoc IMerkleCallAllowlist
     function allowlistRoot() external view override returns (bytes32) {
         return _allowlistRoot;
     }
 
     /// @inheritdoc IMerkleCallAllowlist
-    function setAllowlistRoot(bytes32 newRoot) external override {
+    function setAllowlistRoot(bytes32 newRoot) external override onlyOwner {
         bytes32 oldRoot = _allowlistRoot;
         _allowlistRoot = newRoot;
         emit AllowlistRootUpdated(oldRoot, newRoot);

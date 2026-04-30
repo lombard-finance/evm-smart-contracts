@@ -63,8 +63,9 @@ describe('MerkleAllowlistValidator', function () {
   let c: MerkleAllowlistValidator;
 
   beforeEach(async function () {
+    const [owner] = await ethers.getSigners();
     const f = await ethers.getContractFactory('MerkleAllowlistValidator');
-    c = (await f.deploy()) as MerkleAllowlistValidator;
+    c = (await f.deploy(owner.address)) as MerkleAllowlistValidator;
     await c.waitForDeployment();
   });
 
