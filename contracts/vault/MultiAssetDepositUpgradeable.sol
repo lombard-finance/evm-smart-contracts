@@ -173,6 +173,38 @@ abstract contract MultiAssetDepositUpgradeable is
         return shares;
     }
 
+    function deposit(
+        address depositAsset,
+        uint256 assets,
+        address receiver,
+        uint256 minSharesOut
+    )
+        public
+        virtual
+        override
+        nonReentrant
+        whenVaultNotPaused
+        returns (uint256)
+    {
+        uint256 maxAssets = maxDeposit(depositAsset, receiver);
+        if (assets > maxAssets) {
+            revert ExceededMaxDeposit(
+                receiver,
+                depositAsset,
+                assets,
+                maxAssets
+            );
+        }
+
+        uint256 shares = previewDeposit(depositAsset, assets);
+        if (shares < minSharesOut) {
+            revert InsufficientSharesOut(shares, minSharesOut);
+        }
+        _deposit(_msgSender(), receiver, depositAsset, assets, shares);
+
+        return shares;
+    }
+
     function mint(
         address depositAsset,
         uint256 shares,
@@ -191,6 +223,33 @@ abstract contract MultiAssetDepositUpgradeable is
         }
 
         uint256 assets = previewMint(depositAsset, shares);
+        _deposit(_msgSender(), receiver, depositAsset, assets, shares);
+
+        return assets;
+    }
+
+    function mint(
+        address depositAsset,
+        uint256 shares,
+        address receiver,
+        uint256 maxAssetsIn
+    )
+        public
+        virtual
+        override
+        nonReentrant
+        whenVaultNotPaused
+        returns (uint256)
+    {
+        uint256 maxShares = maxMint(depositAsset, receiver);
+        if (shares > maxShares) {
+            revert ExceededMaxMint(receiver, depositAsset, shares, maxShares);
+        }
+
+        uint256 assets = previewMint(depositAsset, shares);
+        if (assets > maxAssetsIn) {
+            revert ExcessiveAssetsIn(assets, maxAssetsIn);
+        }
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
         return assets;

@@ -59,16 +59,34 @@ interface IMultiAssetDeposit is IERC165 {
     );
     error DepositAssetAlreadyAdded(address depositAsset);
 
+    error InsufficientSharesOut(uint256 sharesOut, uint256 minSharesOut);
+
+    error ExcessiveAssetsIn(uint256 assetsIn, uint256 maxAssetsIn);
+
     function deposit(
         address depositAsset,
         uint256 assets,
         address receiver
     ) external returns (uint256);
 
+    function deposit(
+        address depositAsset,
+        uint256 assets,
+        address receiver,
+        uint256 minSharesOut
+    ) external returns (uint256);
+
     function mint(
         address depositAsset,
         uint256 shares,
         address receiver
+    ) external returns (uint256);
+
+    function mint(
+        address depositAsset,
+        uint256 shares,
+        address receiver,
+        uint256 maxAssetsIn
     ) external returns (uint256);
 
     function previewDeposit(
