@@ -51,7 +51,7 @@ describe('BeaconHub', function () {
 
     // Deploy validator for initData tests
     const valFactory = await ethers.getContractFactory('MerkleAllowlistValidator');
-    validator = (await valFactory.deploy()) as unknown as MerkleAllowlistValidator;
+    validator = (await valFactory.deploy(admin.address)) as unknown as MerkleAllowlistValidator;
     await validator.waitForDeployment();
 
     snapshot = await takeSnapshot();

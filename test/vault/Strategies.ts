@@ -50,7 +50,7 @@ describe('Strategy & SatelliteStrategy', function () {
     [admin, executor, liquidityRole, user, target, vaultPlaceholder] = await ethers.getSigners();
 
     const valFactory = await ethers.getContractFactory('MerkleAllowlistValidator');
-    validator = (await valFactory.deploy()) as unknown as MerkleAllowlistValidator;
+    validator = (await valFactory.deploy(admin.address)) as unknown as MerkleAllowlistValidator;
     await validator.waitForDeployment();
 
     // Strategy (vault-linked)
