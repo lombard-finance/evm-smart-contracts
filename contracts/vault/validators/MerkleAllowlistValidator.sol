@@ -163,6 +163,8 @@ contract MerkleAllowlistValidator is
                 n = 32;
             }
             uint256 loaded;
+            // data.offset + offset: overflow impossible — calldata is bounded by block gas
+            // limit (< 2^32 bytes), and offset < len ensures offset < data.length.
             assembly {
                 loaded := calldataload(add(data.offset, offset))
             }
