@@ -29,20 +29,20 @@ contract MerkleAllowlistValidator is
     /// Use this to validate the total length of an encoded rule:
     /// `ruleEncoded.length == _RULE_HEADER_SIZE + CONSTRAINT_SIZE * constraintCount`
     uint256 public constant CONSTRAINT_SIZE = 66;
-    uint256 private constant _CONSTRAINT_OFFSET_MASK     = 2;
+    uint256 private constant _CONSTRAINT_OFFSET_MASK = 2;
     uint256 private constant _CONSTRAINT_OFFSET_EXPECTED = 34;
 
     // Rule header field byte offsets
-    uint256 private constant _RULE_OFFSET_SENDER           = 2;
-    uint256 private constant _RULE_OFFSET_TO               = 22;
-    uint256 private constant _RULE_OFFSET_VALUE            = 42;
-    uint256 private constant _RULE_OFFSET_DATA_LENGTH      = 74;
+    uint256 private constant _RULE_OFFSET_SENDER = 2;
+    uint256 private constant _RULE_OFFSET_TO = 22;
+    uint256 private constant _RULE_OFFSET_VALUE = 42;
+    uint256 private constant _RULE_OFFSET_DATA_LENGTH = 74;
     uint256 private constant _RULE_OFFSET_CONSTRAINT_COUNT = 78;
 
     // Flag bits (r[1]) — set the corresponding bit to pin that field to the value in the rule.
-    uint8 public constant FLAG_SENDER      = 0x01;
-    uint8 public constant FLAG_TO          = 0x02;
-    uint8 public constant FLAG_VALUE       = 0x04;
+    uint8 public constant FLAG_SENDER = 0x01;
+    uint8 public constant FLAG_TO = 0x02;
+    uint8 public constant FLAG_VALUE = 0x04;
     uint8 public constant FLAG_DATA_LENGTH = 0x08;
     uint8 private constant _FLAGS_RESERVED = 0xF0;
 
@@ -55,8 +55,8 @@ contract MerkleAllowlistValidator is
     // - block.chainid: prevents cross-chain replay of proofs.
     // - address(this): binds every leaf to this specific deployment; the Merkle tree
     //   must be built after deploy (or against a known CREATE2 address).
-    bytes4 public constant DOMAIN_MAGIC          = 0x414c4c57; // "ALLW"
-    uint8  public constant DOMAIN_LAYOUT_VERSION = 1;
+    bytes4 public constant DOMAIN_MAGIC = 0x414c4c57; // "ALLW"
+    uint8 public constant DOMAIN_LAYOUT_VERSION = 1;
 
     /// @notice Leaf type prefix used in `abi.encode` when hashing rule leaves.
     /// Leaf = keccak256(bytes.concat(keccak256(abi.encode(LEAF_TYPE, domainSeparator(), ruleEncoded))))
@@ -196,7 +196,9 @@ contract MerkleAllowlistValidator is
         address ruleTo = _readAddress(r, _RULE_OFFSET_TO);
         uint256 ruleValue = _readUint256(r, _RULE_OFFSET_VALUE);
         uint32 ruleDataLength = _readUint32BE(r, _RULE_OFFSET_DATA_LENGTH);
-        uint256 cCount = uint256(_readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT));
+        uint256 cCount = uint256(
+            _readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT)
+        );
 
         if (cCount > MAX_CONSTRAINTS) {
             return false;
@@ -232,7 +234,10 @@ contract MerkleAllowlistValidator is
         for (uint256 i = 0; i < cCount; ) {
             uint16 cOff = _readUint16BE(r, base);
             bytes32 mask = _readBytes32(r, base + _CONSTRAINT_OFFSET_MASK);
-            bytes32 expected = _readBytes32(r, base + _CONSTRAINT_OFFSET_EXPECTED);
+            bytes32 expected = _readBytes32(
+                r,
+                base + _CONSTRAINT_OFFSET_EXPECTED
+            );
 
             if (mask == bytes32(0)) {
                 return false;
@@ -267,7 +272,9 @@ contract MerkleAllowlistValidator is
         address ruleTo = _readAddress(r, _RULE_OFFSET_TO);
         uint256 ruleValue = _readUint256(r, _RULE_OFFSET_VALUE);
         uint32 ruleDataLength = _readUint32BE(r, _RULE_OFFSET_DATA_LENGTH);
-        uint256 cCount = uint256(_readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT));
+        uint256 cCount = uint256(
+            _readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT)
+        );
 
         if ((flags & FLAG_SENDER) != 0 && sender != ruleSender) {
             return false;
@@ -278,7 +285,10 @@ contract MerkleAllowlistValidator is
         if ((flags & FLAG_VALUE) != 0 && value != ruleValue) {
             return false;
         }
-        if ((flags & FLAG_DATA_LENGTH) != 0 && data.length != uint256(ruleDataLength)) {
+        if (
+            (flags & FLAG_DATA_LENGTH) != 0 &&
+            data.length != uint256(ruleDataLength)
+        ) {
             return false;
         }
 
@@ -294,7 +304,10 @@ contract MerkleAllowlistValidator is
         for (uint256 i; i < cCount; ) {
             uint16 cOff = _readUint16BE(r, base);
             bytes32 mask = _readBytes32(r, base + _CONSTRAINT_OFFSET_MASK);
-            bytes32 expected = _readBytes32(r, base + _CONSTRAINT_OFFSET_EXPECTED);
+            bytes32 expected = _readBytes32(
+                r,
+                base + _CONSTRAINT_OFFSET_EXPECTED
+            );
             if ((_wordAt(data, uint256(cOff)) & mask) != expected) {
                 return false;
             }
