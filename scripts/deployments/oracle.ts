@@ -37,7 +37,7 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
       maxInterval
     } = taskArgs;
 
-    const {owner, upgradeAdmin: upgradeOwner} = await getOwnersOrDefault(hre, adminArg, upgradeAdminArg);
+    const { owner, upgradeAdmin: upgradeOwner } = await getOwnersOrDefault(hre, adminArg, upgradeAdminArg);
 
     await create3(
       'StakedLBTCOracle',

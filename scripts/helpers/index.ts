@@ -136,12 +136,11 @@ export function checkEIP165InterfaceId(
 export async function getOwnersOrDefault(
   hre: HardhatRuntimeEnvironment,
   adminCandidate: string,
-  upgradeAdminCandidate: string,
-): Promise<{owner: string, upgradeAdmin: string}> {
+  upgradeAdminCandidate: string
+): Promise<{ owner: string; upgradeAdmin: string }> {
+  const [signer] = await hre.ethers.getSigners();
+  let owner = hre.ethers.isAddress(adminCandidate) ? adminCandidate : await signer.getAddress();
+  let upgradeAdmin = hre.ethers.isAddress(upgradeAdminCandidate) ? upgradeAdminCandidate : owner;
 
-    const [signer] = await hre.ethers.getSigners();
-    let owner = hre.ethers.isAddress(adminCandidate) ? adminCandidate : await signer.getAddress();
-    let upgradeAdmin = hre.ethers.isAddress(upgradeAdminCandidate) ? upgradeAdminCandidate : owner;
-
-    return {owner, upgradeAdmin}
+  return { owner, upgradeAdmin };
 }

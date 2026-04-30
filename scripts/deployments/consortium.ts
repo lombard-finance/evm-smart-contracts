@@ -16,7 +16,7 @@ task('deploy-consortium', 'Deploys the Consortium contract via create3')
   .setAction(async (taskArgs, hre) => {
     const { ledgerNetwork, admin, upgradeAdmin, proxyFactoryAddr } = taskArgs;
 
-    const {owner, upgradeAdmin: upgradeOwner} = await getOwnersOrDefault(hre, admin, upgradeAdmin);
+    const { owner, upgradeAdmin: upgradeOwner } = await getOwnersOrDefault(hre, admin, upgradeAdmin);
 
     await create3('Consortium', [owner], proxyFactoryAddr, ledgerNetwork, upgradeOwner, hre);
   });
