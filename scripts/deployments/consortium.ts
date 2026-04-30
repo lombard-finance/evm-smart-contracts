@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
 import { create3 } from '../helpers/create3Deployment';
+import { getOwnersOrDefault } from '../helpers';
 
 /*
  * After deployment:
@@ -15,17 +16,7 @@ task('deploy-consortium', 'Deploys the Consortium contract via create3')
   .setAction(async (taskArgs, hre) => {
     const { ledgerNetwork, admin, upgradeAdmin, proxyFactoryAddr } = taskArgs;
 
-    const [signer] = await hre.ethers.getSigners();
-    let owner = await signer.getAddress();
-
-    if (hre.ethers.isAddress(admin)) {
-      owner = admin;
-    }
-
-    let upgradeOwner = owner;
-    if (hre.ethers.isAddress(upgradeAdmin)) {
-      upgradeOwner = upgradeAdmin;
-    }
+    const {owner, upgradeAdmin: upgradeOwner} = await getOwnersOrDefault(hre, admin, upgradeAdmin);
 
     await create3('Consortium', [owner], proxyFactoryAddr, ledgerNetwork, upgradeOwner, hre);
   });

@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
 import { create3 } from '../helpers/create3Deployment';
+import { getOwnersOrDefault } from '../helpers';
 
 /*
  * After deployment:
@@ -36,9 +37,7 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
       maxInterval
     } = taskArgs;
 
-    const [signer] = await hre.ethers.getSigners();
-    let owner = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
-    let upgradeOwner = hre.ethers.isAddress(upgradeAdminArg) ? upgradeAdminArg : owner;
+    const {owner, upgradeAdmin: upgradeOwner} = await getOwnersOrDefault(hre, adminArg, upgradeAdminArg);
 
     await create3(
       'StakedLBTCOracle',
