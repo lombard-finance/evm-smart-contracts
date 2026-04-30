@@ -112,7 +112,7 @@ abstract contract MultiAssetDepositUpgradeable is
         ) {
             revert ZeroAddress();
         }
-        if (depositFeeBps_ > _BPS_DENOMINATOR) {
+        if (depositFeeBps_ >= _BPS_DENOMINATOR) {
             revert DepositFeeBpsTooHigh();
         }
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
