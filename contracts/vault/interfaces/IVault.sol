@@ -53,6 +53,10 @@ interface IVault {
 
     error ShareTransferNotAllowed();
 
+    event BeaconHubChanged(address indexed oldHub, address indexed newHub, address indexed caller);
+
+    event StrategyDeployed(address indexed proxy, bytes32 indexed beaconId, address indexed hub, address caller);
+
     function version() external view returns (string memory);
 
     /// @notice Transfer `amount` of `token` to the calling strategy. Only callable by a registered strategy.

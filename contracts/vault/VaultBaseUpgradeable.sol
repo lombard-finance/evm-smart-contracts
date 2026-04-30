@@ -12,6 +12,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {IVault} from "./interfaces/IVault.sol";
+import {IBeaconHub} from "./interfaces/IBeaconHub.sol";
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 
 /// @title VaultBaseUpgradeable
@@ -57,6 +58,7 @@ abstract contract VaultBaseUpgradeable is
         IERC20 asset;
         uint8 underlyingDecimals;
         PriceRateLimiter.Bucket ppsRateLimiter;
+        IBeaconHub beaconHub;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -182,17 +184,32 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().asset;
     }
 
-    /// @notice Register `strategy` for the §B pipe (`docs/spec/002-strategy.md` §B): grants allowance on `asset()`.
-    /// TODO: update
-    function registerStrategy(
-        address strategy
-    ) external nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) {
-        if (strategy == address(0)) revert ZeroAddress();
-        _getVaultBaseUpgradeableStorage().strategies.add(strategy);
+    function setBeaconHub(IBeaconHub hub) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (address(hub) == address(0)) revert ZeroAddress();
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        emit BeaconHubChanged(address($.beaconHub), address(hub), _msgSender());
+        $.beaconHub = hub;
     }
 
-    /// @notice Whether `strategy` was registered via {registerStrategy}.
-    /// TODO: update
+    function beaconHub() external view returns (IBeaconHub) {
+        return _getVaultBaseUpgradeableStorage().beaconHub;
+    }
+
+    /// @notice Deploy a strategy proxy via the BeaconHub and register it for the §B pipe.
+    /// @param id       Hub key identifying which UpgradeableBeacon to use.
+    /// @param initData ABI-encoded initializer calldata forwarded to the new proxy. Pass "" to skip.
+    function deployStrategy(
+        bytes32 id,
+        bytes calldata initData
+    ) external nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) returns (address proxy) {
+        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        IBeaconHub hub = $.beaconHub;
+        proxy = hub.deploy(id, initData);
+        $.strategies.add(proxy);
+        emit StrategyDeployed(proxy, id, address(hub), _msgSender());
+    }
+
+    /// @notice Whether `strategy` was deployed and registered via {deployStrategy}.
     function isRegisteredStrategy(
         address strategy
     ) external view returns (bool) {
