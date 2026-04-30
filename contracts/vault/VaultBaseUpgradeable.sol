@@ -207,6 +207,7 @@ abstract contract VaultBaseUpgradeable is
         proxy = hub.deploy(id, initData);
         $.strategies.add(proxy);
         emit StrategyDeployed(proxy, id, address(hub), _msgSender());
+        emit StrategyRegistered(proxy, _msgSender());
     }
 
     /// @notice Whether `strategy` was deployed and registered via {deployStrategy}.
@@ -214,6 +215,23 @@ abstract contract VaultBaseUpgradeable is
         address strategy
     ) external view returns (bool) {
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
+    }
+
+    /// @dev used to regiter early deployed strategies or arbitrary strategies (not beacon-deployed)
+    function registerStrategy(
+        address strategy
+    ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
+        if (!_getVaultBaseUpgradeableStorage().strategies.add(strategy))
+            revert AlreadyRegisteredStrategy();
+        emit StrategyRegistered(strategy, _msgSender());
+    }
+
+    function deregisterStrategy(
+        address strategy
+    ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
+        if (!_getVaultBaseUpgradeableStorage().strategies.remove(strategy))
+            revert NotRegisteredStrategy();
+        emit StrategyDeregistered(strategy, _msgSender());
     }
 
     /// @notice Transfer `amount` of `token` to the calling strategy.

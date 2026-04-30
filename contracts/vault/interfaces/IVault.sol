@@ -51,7 +51,13 @@ interface IVault {
 
     error NotRegisteredStrategy();
 
+    error AlreadyRegisteredStrategy();
+
     error ShareTransferNotAllowed();
+
+    event StrategyRegistered(address indexed strategy, address indexed caller);
+
+    event StrategyDeregistered(address indexed strategy, address indexed caller);
 
     event BeaconHubChanged(address indexed oldHub, address indexed newHub, address indexed caller);
 
