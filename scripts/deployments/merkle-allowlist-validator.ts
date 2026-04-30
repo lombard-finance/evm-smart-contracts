@@ -11,9 +11,7 @@ task('deploy-merkle-allowlist-validator', 'Deploys the MerkleAllowlistValidator 
   .addParam('owner', 'Initial owner address (Ownable2Step)', 'self')
   .setAction(async (taskArgs, hre) => {
     const [signer] = await hre.ethers.getSigners();
-    const owner = hre.ethers.isAddress(taskArgs.owner)
-      ? taskArgs.owner
-      : await signer.getAddress();
+    const owner = hre.ethers.isAddress(taskArgs.owner) ? taskArgs.owner : await signer.getAddress();
 
     const validator = await hre.ethers.deployContract('MerkleAllowlistValidator', [owner]);
     await validator.waitForDeployment();

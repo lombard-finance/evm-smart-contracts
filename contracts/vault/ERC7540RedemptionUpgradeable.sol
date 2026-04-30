@@ -239,7 +239,11 @@ abstract contract ERC7540RedemptionUpgradeable is
             uint16 feeBps = $.withdrawalFeeBps;
             address treasury_ = $.withdrawalTreasury;
             if (feeBps > 0 && treasury_ != address(0)) {
-                feeShares = shares.mulDiv(feeBps, _BPS_DENOMINATOR, Math.Rounding.Floor);
+                feeShares = shares.mulDiv(
+                    feeBps,
+                    _BPS_DENOMINATOR,
+                    Math.Rounding.Floor
+                );
             }
         }
         uint256 netShares = shares - feeShares;

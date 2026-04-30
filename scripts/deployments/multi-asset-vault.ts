@@ -12,10 +12,7 @@ import { getOwnersOrDefault, verify } from '../helpers';
  * 2. Configure redemption controller via the controllerManager
  */
 
-task(
-  'deploy-multi-asset-vault',
-  'Deploys a MultiAssetWithAsyncRedemptionVault BeaconProxy via BeaconHub',
-)
+task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault BeaconProxy via BeaconHub')
   .addParam('beaconHub', 'BeaconHub address')
   .addParam('name', 'ERC20 token name for the vault share')
   .addParam('symbol', 'ERC20 token symbol for the vault share')
@@ -31,23 +28,20 @@ task(
       symbol,
       asset,
       adminDelay,
-      controllerManager: controllerManagerArg,
+      controllerManager: controllerManagerArg
     } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     const signerAddr = await signer.getAddress();
 
-    const { owner: defaultAdmin, owner: strategyDeployer } =
-      await getOwnersOrDefault(
-        hre,
-        taskArgs.defaultAdmin,
-        taskArgs.strategyDeployer,
-      );
+    const { owner: defaultAdmin, owner: strategyDeployer } = await getOwnersOrDefault(
+      hre,
+      taskArgs.defaultAdmin,
+      taskArgs.strategyDeployer
+    );
     const controllerManager = hre.ethers.isAddress(controllerManagerArg) ? controllerManagerArg : signerAddr;
 
-    const vault = await hre.ethers.getContractFactory(
-      'MultiAssetWithAsyncRedemptionVault',
-    );
+    const vault = await hre.ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
     const initData = vault.interface.encodeFunctionData('initialize', [
       name,
       symbol,
@@ -55,7 +49,7 @@ task(
       defaultAdmin,
       Number(adminDelay),
       controllerManager,
-      strategyDeployer,
+      strategyDeployer
     ]);
 
     const beaconId = hre.ethers.id('MultiAssetWithAsyncRedemptionVault');
@@ -83,10 +77,9 @@ task(
       hre.run,
       proxyAddr,
       {
-        contract:
-          '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy',
-        constructorArguments: [beaconAddr, initData],
+        contract: '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy',
+        constructorArguments: [beaconAddr, initData]
       },
-      60_000,
+      60_000
     );
   });

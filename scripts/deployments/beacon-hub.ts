@@ -18,18 +18,7 @@ task('deploy-beacon-hub', 'Deploys the BeaconHub contract via create3')
   .setAction(async (taskArgs, hre) => {
     const { ledgerNetwork, adminDelay, proxyFactoryAddr } = taskArgs;
 
-    const { owner, upgradeAdmin: upgradeOwner } = await getOwnersOrDefault(
-      hre,
-      taskArgs.admin,
-      taskArgs.upgradeAdmin,
-    );
+    const { owner, upgradeAdmin: upgradeOwner } = await getOwnersOrDefault(hre, taskArgs.admin, taskArgs.upgradeAdmin);
 
-    await create3(
-      'BeaconHub',
-      [Number(adminDelay), owner],
-      proxyFactoryAddr,
-      ledgerNetwork,
-      upgradeOwner,
-      hre,
-    );
+    await create3('BeaconHub', [Number(adminDelay), owner], proxyFactoryAddr, ledgerNetwork, upgradeOwner, hre);
   });
