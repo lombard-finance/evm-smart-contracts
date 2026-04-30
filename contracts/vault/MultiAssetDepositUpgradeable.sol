@@ -8,11 +8,11 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IAssetConverter} from "./interfaces/IAssetConverter.sol";
 import {IMultiAssetDeposit} from "./interfaces/IMultiAssetDeposit.sol";
-import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
+import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title MultiAssetDepositUpgradeable
 abstract contract MultiAssetDepositUpgradeable is
-    VaultBaseUpgradeable,
+    FeeManagerUpgradeable,
     IMultiAssetDeposit
 {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -21,8 +21,6 @@ abstract contract MultiAssetDepositUpgradeable is
 
     /// @dev Upper bound for fee denominator (100%).
     uint256 private constant _BPS_DENOMINATOR = 10_000;
-
-    bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
 
     /// @custom:storage-location erc7201:lombardfinance.storage.MultiAssetDepositUpgradeable
     struct MultiAssetDepositStorage {

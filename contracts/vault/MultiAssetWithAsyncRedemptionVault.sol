@@ -25,12 +25,14 @@ contract MultiAssetWithAsyncRedemptionVault is
         address strategyDeployer_
     ) external initializer {
         __ERC20_init(name_, symbol_);
+        __ERC20Pausable_init();
         __VaultBase_init(
             initialDefaultAdminDelay_,
             defaultAdmin_,
             strategyDeployer_,
             asset_
         );
+        __FeeManager_init();
         __MultiAssetDeposit_init();
         __ERC7540Redemption_init(controllerManager_);
     }
