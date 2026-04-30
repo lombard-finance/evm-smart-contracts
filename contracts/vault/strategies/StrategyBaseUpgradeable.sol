@@ -33,6 +33,16 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseStorage().validator;
     }
 
+    /// @notice Replace the exec validator. Only `DEFAULT_ADMIN_ROLE`.
+    function setValidator(
+        IStrategyExecValidator newValidator
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (address(newValidator) == address(0)) revert Strategy_ZeroAddress();
+        IStrategyExecValidator old = _getStrategyBaseStorage().validator;
+        _getStrategyBaseStorage().validator = newValidator;
+        emit ValidatorUpdated(old, newValidator);
+    }
+
     /// @notice Validator-governed external call.
     /// @param validatorArgs Encoding is defined by the configured `IStrategyExecValidator` (e.g. Merkle `CallVerificationInput`).
     /// @dev ETH: requires `address(this).balance >= value` after receiving `msg.value`.

@@ -18,4 +18,13 @@ interface IBeaconHub {
         bytes32 id,
         bytes calldata initData
     ) external returns (address proxy);
+
+    /// @notice Deploy a BeaconProxy at a deterministic CREATE2 address.
+    /// @param salt Caller-chosen salt for CREATE2.
+    /// @return proxy Deterministic address of the newly deployed BeaconProxy.
+    function deployCreate2(
+        bytes32 id,
+        bytes32 salt,
+        bytes calldata initData
+    ) external returns (address proxy);
 }

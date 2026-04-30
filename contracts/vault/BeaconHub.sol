@@ -23,7 +23,7 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BeaconHub")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BEACON_HUB_STORAGE_LOCATION =
-        0x8848268cb0a9760555c426c1cb606566800a4fcee255ebce7ed6d56858cfeb00;
+        0xc5cb0e80d3ce166f5f2bffbedaeee7a3f7cd5fbd5fb80257895467ba1df8b000;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -72,6 +72,22 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
         address beacon_ = $.beacons[id];
         if (beacon_ == address(0)) revert BeaconNotSet(id);
         proxy = address(new BeaconProxy(beacon_, initData));
+        $.isDeployed[proxy] = true;
+        emit Deployed(id, proxy, _msgSender());
+    }
+
+    /// @notice Deploy a BeaconProxy at a deterministic CREATE2 address.
+    /// @param salt Caller-chosen salt; controls the deployed address.
+    /// @dev Use `keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(creationCode)))` off-chain to predict the proxy address.
+    function deployCreate2(
+        bytes32 id,
+        bytes32 salt,
+        bytes calldata initData
+    ) external onlyRole(DEPLOYER_ROLE) returns (address proxy) {
+        BeaconHubStorage storage $ = _getBeaconHubStorage();
+        address beacon_ = $.beacons[id];
+        if (beacon_ == address(0)) revert BeaconNotSet(id);
+        proxy = address(new BeaconProxy{salt: salt}(beacon_, initData));
         $.isDeployed[proxy] = true;
         emit Deployed(id, proxy, _msgSender());
     }

@@ -55,6 +55,8 @@ interface IVault {
 
     error ShareTransferNotAllowed();
 
+    error ZeroAmount();
+
     event StrategyRegistered(address indexed strategy, address indexed caller);
 
     event StrategyDeregistered(

@@ -118,11 +118,39 @@ contract MerkleAllowlistValidator is
         bytes calldata data,
         bytes calldata validatorArgs
     ) external view override returns (bool) {
-        CallVerificationInput memory input = abi.decode(
-            validatorArgs,
-            (CallVerificationInput)
-        );
-        return this.isAllowed(sender, to, value, data, input);
+        // validatorArgs = abi.encode(CallVerificationInput), a struct with two dynamic fields.
+        // abi.encode of a dynamic struct prepends an outer offset word (= 0x20) that points
+        // to the tuple body; offsets within the tuple are relative to the tuple start.
+        // Layout (all positions relative to validatorArgs.offset = base):
+        //   [base+0x00]: 0x20            ← outer struct offset → tupleStart = base+0x20
+        //   [tupleStart+0x00]: ruleOff   ← offset to ruleEncoded from tupleStart (= 0x40)
+        //   [tupleStart+0x20]: proofOff  ← offset to merkleProof from tupleStart
+        //   [tupleStart+ruleOff]:        ← ruleEncoded byte length
+        //   [tupleStart+ruleOff+0x20]:   ← ruleEncoded data
+        //   [tupleStart+proofOff]:       ← merkleProof element count
+        //   [tupleStart+proofOff+0x20]:  ← merkleProof elements
+        // Decode into calldata slices to reuse the calldata-optimised helpers
+        // without an external self-call round-trip.
+        bytes calldata ruleEncoded;
+        bytes32[] calldata merkleProof;
+        assembly {
+            let base := validatorArgs.offset
+            let tupleStart := add(base, calldataload(base))
+            let ruleOff := calldataload(tupleStart)
+            let rulePtr := add(tupleStart, ruleOff)
+            ruleEncoded.length := calldataload(rulePtr)
+            ruleEncoded.offset := add(rulePtr, 0x20)
+            let proofOff := calldataload(add(tupleStart, 0x20))
+            let proofPtr := add(tupleStart, proofOff)
+            merkleProof.length := calldataload(proofPtr)
+            merkleProof.offset := add(proofPtr, 0x20)
+        }
+        if (_allowlistRoot == bytes32(0)) return false;
+        if (!_isCanonicallyValidRule(ruleEncoded)) return false;
+        bytes32 leaf = _leaf(ruleEncoded);
+        if (!MerkleProof.verifyCalldata(merkleProof, _allowlistRoot, leaf))
+            return false;
+        return _matchesRule(ruleEncoded, sender, to, value, data);
     }
 
     function _domainSeparator() private view returns (bytes32) {
@@ -165,6 +193,8 @@ contract MerkleAllowlistValidator is
             uint256 loaded;
             // data.offset + offset: overflow impossible — calldata is bounded by block gas
             // limit (< 2^32 bytes), and offset < len ensures offset < data.length.
+            // The load reads 32 bytes starting at data[offset], which may extend past
+            // data.length into adjacent calldata; the mask below discards those extra bytes.
             assembly {
                 loaded := calldataload(add(data.offset, offset))
             }
@@ -173,6 +203,27 @@ contract MerkleAllowlistValidator is
             }
             return bytes32(loaded & (type(uint256).max << (256 - 8 * n)));
         }
+    }
+
+    /// @dev Parsed rule header fields, shared between canonical and match checks.
+    struct RuleHeader {
+        uint8 flags;
+        address sender;
+        address to;
+        uint256 value;
+        uint32 dataLength;
+        uint256 cCount;
+    }
+
+    function _readHeader(
+        bytes calldata r
+    ) private pure returns (RuleHeader memory h) {
+        h.flags = uint8(r[1]);
+        h.sender = _readAddress(r, _RULE_OFFSET_SENDER);
+        h.to = _readAddress(r, _RULE_OFFSET_TO);
+        h.value = _readUint256(r, _RULE_OFFSET_VALUE);
+        h.dataLength = _readUint32BE(r, _RULE_OFFSET_DATA_LENGTH);
+        h.cCount = uint256(_readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT));
     }
 
     /// @dev Structural and canonical checks only.
@@ -187,40 +238,33 @@ contract MerkleAllowlistValidator is
             return false;
         }
 
-        uint8 flags = uint8(r[1]);
-        if (flags & _FLAGS_RESERVED != 0) {
+        RuleHeader memory h = _readHeader(r);
+
+        if (h.flags & _FLAGS_RESERVED != 0) {
             return false;
         }
 
-        address ruleSender = _readAddress(r, _RULE_OFFSET_SENDER);
-        address ruleTo = _readAddress(r, _RULE_OFFSET_TO);
-        uint256 ruleValue = _readUint256(r, _RULE_OFFSET_VALUE);
-        uint32 ruleDataLength = _readUint32BE(r, _RULE_OFFSET_DATA_LENGTH);
-        uint256 cCount = uint256(
-            _readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT)
-        );
-
-        if (cCount > MAX_CONSTRAINTS) {
+        if (h.cCount > MAX_CONSTRAINTS) {
             return false;
         }
-        if (r.length != _RULE_HEADER_SIZE + CONSTRAINT_SIZE * cCount) {
+        if (r.length != _RULE_HEADER_SIZE + CONSTRAINT_SIZE * h.cCount) {
             return false;
         }
 
-        if ((flags & FLAG_SENDER) == 0 && ruleSender != address(0)) {
+        if ((h.flags & FLAG_SENDER) == 0 && h.sender != address(0)) {
             return false;
         }
-        if ((flags & FLAG_TO) == 0 && ruleTo != address(0)) {
+        if ((h.flags & FLAG_TO) == 0 && h.to != address(0)) {
             return false;
         }
-        if ((flags & FLAG_VALUE) == 0 && ruleValue != 0) {
+        if ((h.flags & FLAG_VALUE) == 0 && h.value != 0) {
             return false;
         }
-        if ((flags & FLAG_DATA_LENGTH) == 0 && ruleDataLength != 0) {
+        if ((h.flags & FLAG_DATA_LENGTH) == 0 && h.dataLength != 0) {
             return false;
         }
 
-        return _constraintsCanonicallyValid(r, cCount);
+        return _constraintsCanonicallyValid(r, h.cCount);
     }
 
     function _constraintsCanonicallyValid(
@@ -267,32 +311,25 @@ contract MerkleAllowlistValidator is
         uint256 value,
         bytes calldata data
     ) private pure returns (bool) {
-        uint8 flags = uint8(r[1]);
-        address ruleSender = _readAddress(r, _RULE_OFFSET_SENDER);
-        address ruleTo = _readAddress(r, _RULE_OFFSET_TO);
-        uint256 ruleValue = _readUint256(r, _RULE_OFFSET_VALUE);
-        uint32 ruleDataLength = _readUint32BE(r, _RULE_OFFSET_DATA_LENGTH);
-        uint256 cCount = uint256(
-            _readUint16BE(r, _RULE_OFFSET_CONSTRAINT_COUNT)
-        );
+        RuleHeader memory h = _readHeader(r);
 
-        if ((flags & FLAG_SENDER) != 0 && sender != ruleSender) {
+        if ((h.flags & FLAG_SENDER) != 0 && sender != h.sender) {
             return false;
         }
-        if ((flags & FLAG_TO) != 0 && to != ruleTo) {
+        if ((h.flags & FLAG_TO) != 0 && to != h.to) {
             return false;
         }
-        if ((flags & FLAG_VALUE) != 0 && value != ruleValue) {
+        if ((h.flags & FLAG_VALUE) != 0 && value != h.value) {
             return false;
         }
         if (
-            (flags & FLAG_DATA_LENGTH) != 0 &&
-            data.length != uint256(ruleDataLength)
+            (h.flags & FLAG_DATA_LENGTH) != 0 &&
+            data.length != uint256(h.dataLength)
         ) {
             return false;
         }
 
-        return _constraintsMatchCalldata(r, cCount, data);
+        return _constraintsMatchCalldata(r, h.cCount, data);
     }
 
     function _constraintsMatchCalldata(

@@ -252,6 +252,7 @@ abstract contract VaultBaseUpgradeable is
         uint256 amount
     ) external virtual override nonReentrant {
         if (address(token) == address(this)) revert ShareTransferNotAllowed();
+        if (amount == 0) revert ZeroAmount();
         address caller = _msgSender();
         if (!_getVaultBaseUpgradeableStorage().strategies.contains(caller))
             revert NotRegisteredStrategy();

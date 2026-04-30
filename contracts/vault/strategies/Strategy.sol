@@ -75,7 +75,7 @@ contract Strategy is StrategyBaseUpgradeable {
         emit PulledFromVault(_msgSender(), address(token), amount);
     }
 
-    /// @notice Push `IERC20(vault.asset())` to the vault.
+    /// @notice Push `token` to the vault. Any ERC-20 token is accepted; callers are expected to pass `vault.asset()` in normal operation.
     function pushToVault(
         IERC20 token,
         uint256 amount

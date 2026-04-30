@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+import {IStrategyExecValidator} from "./IStrategyExecValidator.sol";
+
 /// @title IStrategy
 /// @notice Errors and events shared by Strategy and SatelliteStrategy.
 interface IStrategy {
@@ -17,5 +19,10 @@ interface IStrategy {
         address indexed to,
         uint256 value,
         bytes data
+    );
+
+    event ValidatorUpdated(
+        IStrategyExecValidator indexed oldValidator,
+        IStrategyExecValidator indexed newValidator
     );
 }

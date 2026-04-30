@@ -261,7 +261,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
 
       const p0 = await vault.pricePerShare();
-      // +0.13% (13 bps) — within daily budget, leaving 1 bps
+      // +0.13% (13 bps) — within daily budget, leaving 100 bps
       const p1 = (p0 * 10013n) / 10000n;
       await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);

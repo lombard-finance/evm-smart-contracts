@@ -192,7 +192,7 @@ abstract contract ERC7540RedemptionUpgradeable is
 
         uint256 maxCtrlShares = $.maxRedeemShares[controller];
         if (shares > maxCtrlShares) {
-            revert ERC7540ExceededMaxRedeem(owner, shares, maxCtrlShares);
+            revert ERC7540ExceededMaxRedeem(controller, shares, maxCtrlShares);
         }
 
         address caller = _msgSender();
