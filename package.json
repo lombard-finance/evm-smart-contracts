@@ -10,8 +10,8 @@
     "test": "hardhat test"
   },
   "devDependencies": {
-    "@chainlink/contracts-ccip": "1.6.1",
     "@chainlink/contracts": "1.4.0",
+    "@chainlink/contracts-ccip": "1.6.1",
     "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.9",
     "@layerzerolabs/lz-evm-oapp-v2": "^3.0.7",
     "@layerzerolabs/lz-evm-protocol-v2": "^3.0.7",
@@ -28,7 +28,7 @@
     "@nomicfoundation/hardhat-verify": "^2.1.3",
     "@openzeppelin/contracts": "5.0.2",
     "@openzeppelin/contracts-upgradeable": "5.0.2",
-    "@openzeppelin/hardhat-upgrades": "^3.1.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@openzeppelin/merkle-tree": "^1.0.8",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",

@@ -35,7 +35,11 @@
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
       "AssetRouter": "0x76329dd2d888424fD203C354498E6d3d4bdEac22",
       "StakedLBTCOracle": "0x62F10cE5b727edf787ea45776bD050308A611508",
-      "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1"
+      "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1",
+      "BeaconHub": "0x80E706B4ddD8CF5A053fA0137172005c15688102"
+    },
+    "vaults": {
+      "MultiAssetWithAsyncRedemptionVault_1": ""
     },
     "chainlink": {
       "ChainSelector": "16015286601757825753",
