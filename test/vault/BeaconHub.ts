@@ -3,12 +3,7 @@ import { ethers, upgrades } from 'hardhat';
 import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import type {
-  BeaconHub,
-  Strategy,
-  MerkleAllowlistValidator,
-  UpgradeableBeacon
-} from '../../typechain-types';
+import type { BeaconHub, Strategy, MerkleAllowlistValidator, UpgradeableBeacon } from '../../typechain-types';
 
 const STRATEGY_ID = ethers.id('Strategy'); // keccak256("Strategy")
 
@@ -78,15 +73,14 @@ describe('BeaconHub', function () {
     });
 
     it('reverts for non-BEACON_ADMIN_ROLE caller', async function () {
-      await expect(
-        hub.connect(other).setBeacon(STRATEGY_ID, await beacon.getAddress())
-      ).to.be.revertedWithCustomError(hub, 'AccessControlUnauthorizedAccount');
+      await expect(hub.connect(other).setBeacon(STRATEGY_ID, await beacon.getAddress())).to.be.revertedWithCustomError(
+        hub,
+        'AccessControlUnauthorizedAccount'
+      );
     });
 
     it('reverts with NotAContract for EOA address', async function () {
-      await expect(
-        hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, other.address)
-      )
+      await expect(hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, other.address))
         .to.be.revertedWithCustomError(hub, 'NotAContract')
         .withArgs(other.address);
     });
@@ -110,9 +104,7 @@ describe('BeaconHub', function () {
     it('deploys proxy with empty initData, tracks it, emits Deployed', async function () {
       const tx = hub.connect(deployer).deploy(STRATEGY_ID, '0x');
       const proxyAddr = await hub.connect(deployer).deploy.staticCall(STRATEGY_ID, '0x');
-      await expect(tx)
-        .to.emit(hub, 'Deployed')
-        .withArgs(STRATEGY_ID, proxyAddr);
+      await expect(tx).to.emit(hub, 'Deployed').withArgs(STRATEGY_ID, proxyAddr);
 
       expect(await hub.isDeployed(proxyAddr)).to.be.true;
       const code = await ethers.provider.getCode(proxyAddr);
@@ -137,9 +129,10 @@ describe('BeaconHub', function () {
     });
 
     it('reverts for non-DEPLOYER_ROLE caller', async function () {
-      await expect(
-        hub.connect(other).deploy(STRATEGY_ID, '0x')
-      ).to.be.revertedWithCustomError(hub, 'AccessControlUnauthorizedAccount');
+      await expect(hub.connect(other).deploy(STRATEGY_ID, '0x')).to.be.revertedWithCustomError(
+        hub,
+        'AccessControlUnauthorizedAccount'
+      );
     });
 
     it('reverts with BeaconNotSet for unknown id', async function () {

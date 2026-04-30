@@ -57,11 +57,23 @@ interface IVault {
 
     event StrategyRegistered(address indexed strategy, address indexed caller);
 
-    event StrategyDeregistered(address indexed strategy, address indexed caller);
+    event StrategyDeregistered(
+        address indexed strategy,
+        address indexed caller
+    );
 
-    event BeaconHubChanged(address indexed oldHub, address indexed newHub, address indexed caller);
+    event BeaconHubChanged(
+        address indexed oldHub,
+        address indexed newHub,
+        address indexed caller
+    );
 
-    event StrategyDeployed(address indexed proxy, bytes32 indexed beaconId, address indexed hub, address caller);
+    event StrategyDeployed(
+        address indexed proxy,
+        bytes32 indexed beaconId,
+        address indexed hub,
+        address caller
+    );
 
     function version() external view returns (string memory);
 

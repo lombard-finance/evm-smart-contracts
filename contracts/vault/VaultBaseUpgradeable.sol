@@ -184,9 +184,12 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().asset;
     }
 
-    function setBeaconHub(IBeaconHub hub) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setBeaconHub(
+        IBeaconHub hub
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (address(hub) == address(0)) revert ZeroAddress();
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         emit BeaconHubChanged(address($.beaconHub), address(hub), _msgSender());
         $.beaconHub = hub;
     }
@@ -201,8 +204,14 @@ abstract contract VaultBaseUpgradeable is
     function deployStrategy(
         bytes32 id,
         bytes calldata initData
-    ) external nonReentrant onlyRole(STRATEGY_DEPLOYER_ROLE) returns (address proxy) {
-        VaultBaseUpgradeableStorage storage $ = _getVaultBaseUpgradeableStorage();
+    )
+        external
+        nonReentrant
+        onlyRole(STRATEGY_DEPLOYER_ROLE)
+        returns (address proxy)
+    {
+        VaultBaseUpgradeableStorage
+            storage $ = _getVaultBaseUpgradeableStorage();
         IBeaconHub hub = $.beaconHub;
         proxy = hub.deploy(id, initData);
         $.strategies.add(proxy);

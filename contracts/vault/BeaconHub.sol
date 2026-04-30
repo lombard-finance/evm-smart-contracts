@@ -53,8 +53,12 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
 
     /// @notice Register or update the UpgradeableBeacon for `id`.
     /// @dev Pass address(0) to clear an id (disables deploy for that id).
-    function setBeacon(bytes32 id, address beacon_) external onlyRole(BEACON_ADMIN_ROLE) {
-        if (beacon_ != address(0) && beacon_.code.length == 0) revert NotAContract(beacon_);
+    function setBeacon(
+        bytes32 id,
+        address beacon_
+    ) external onlyRole(BEACON_ADMIN_ROLE) {
+        if (beacon_ != address(0) && beacon_.code.length == 0)
+            revert NotAContract(beacon_);
         _getBeaconHubStorage().beacons[id] = beacon_;
         emit BeaconSet(id, beacon_);
     }

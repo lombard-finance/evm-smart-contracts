@@ -14,5 +14,8 @@ interface IBeaconHub {
     /// @notice Deploy a BeaconProxy backed by the beacon registered for `id`.
     /// @param initData ABI-encoded initializer calldata forwarded to the proxy. Pass "" to skip.
     /// @return proxy  Address of the newly deployed BeaconProxy.
-    function deploy(bytes32 id, bytes calldata initData) external returns (address proxy);
+    function deploy(
+        bytes32 id,
+        bytes calldata initData
+    ) external returns (address proxy);
 }
