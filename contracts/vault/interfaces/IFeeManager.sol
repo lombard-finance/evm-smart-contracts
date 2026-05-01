@@ -47,21 +47,23 @@ interface IFeeManager {
     /// @param to Recipient of minted shares (must not be zero).
     function harvestPerformanceFee(address to) external;
 
-    /// @return Current management fee in basis points.
-    function managementFeeBps() external view returns (uint16);
+    /// @return feeBps Configured management fee in basis points.
+    /// @return previewShares Shares that would be minted if `harvestManagementFee` were called now.
+    /// @return lastHarvestAt Last management fee harvest timestamp (unix seconds); accrual clock starts here.
+    function managementFee()
+        external
+        view
+        returns (uint16 feeBps, uint256 previewShares, uint48 lastHarvestAt);
 
-    /// @return Current performance fee in basis points.
-    function performanceFeeBps() external view returns (uint16);
-
-    /// @return Timestamp of the last management fee harvest (unix seconds).
-    function lastFeeHarvestAt() external view returns (uint48);
-
-    /// @return Performance fee high-water mark in `pricePerShare` units.
-    function highWaterMark() external view returns (uint256);
-
-    /// @return shares Management fee shares that would be minted if harvested now (preview only).
-    function previewManagementFee() external view returns (uint256 shares);
-
-    /// @return shares Performance fee shares that would be minted if harvested now (preview only).
-    function previewPerformanceFee() external view returns (uint256 shares);
+    /// @return feeBps Configured performance fee in basis points.
+    /// @return previewShares Shares that would be minted if `harvestPerformanceFee` succeeded now (0 if at/below HWM).
+    /// @return performanceHighWaterMark Stored high-water mark for performance fee (`pricePerShare` units).
+    function performanceFee()
+        external
+        view
+        returns (
+            uint16 feeBps,
+            uint256 previewShares,
+            uint256 performanceHighWaterMark
+        );
 }

@@ -69,8 +69,13 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
     function harvestManagementFee(
         address to
     ) external onlyRole(TREASURY_ROLE) nonReentrant {
+        FeeManagerStorage storage $ = _getFeeManagerStorage();
         if (to == address(0)) revert Vault_ZeroAddress();
-        (uint256 shares, uint256 elapsed) = _computeManagementFeeShares();
+        (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
+            $.lastFeeHarvestAt,
+            $.managementFeeBps,
+            totalSupply()
+        );
         if (shares == 0) revert FeeManager_NothingToHarvest();
         _getFeeManagerStorage().lastFeeHarvestAt = uint48(block.timestamp);
         _mint(to, shares);
@@ -86,7 +91,12 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
         uint256 pps = pricePerShare();
         uint256 hwm = $.highWaterMark;
         if (pps <= hwm) revert FeeManager_PriceAtOrBelowHighWaterMark();
-        (uint256 shares, , ) = _computePerformanceFeeShares();
+        uint256 shares = _computePerformanceFeeShares(
+            pps,
+            hwm,
+            $.performanceFeeBps,
+            totalSupply()
+        );
         if (shares == 0) revert FeeManager_NothingToHarvest();
         $.highWaterMark = pps;
         _mint(to, shares);
@@ -94,66 +104,70 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
     }
 
     /// @inheritdoc IFeeManager
-    function managementFeeBps() external view returns (uint16) {
-        return _getFeeManagerStorage().managementFeeBps;
-    }
-
-    /// @inheritdoc IFeeManager
-    function performanceFeeBps() external view returns (uint16) {
-        return _getFeeManagerStorage().performanceFeeBps;
-    }
-
-    /// @inheritdoc IFeeManager
-    function lastFeeHarvestAt() external view returns (uint48) {
-        return _getFeeManagerStorage().lastFeeHarvestAt;
-    }
-
-    /// @inheritdoc IFeeManager
-    function highWaterMark() external view returns (uint256) {
-        return _getFeeManagerStorage().highWaterMark;
-    }
-
-    /// @inheritdoc IFeeManager
-    function previewManagementFee() external view returns (uint256 shares) {
-        (shares, ) = _computeManagementFeeShares();
-    }
-
-    /// @inheritdoc IFeeManager
-    function previewPerformanceFee() external view returns (uint256 shares) {
-        (shares, , ) = _computePerformanceFeeShares();
-    }
-
-    function _computeManagementFeeShares()
-        internal
+    function managementFee()
+        external
         view
-        returns (uint256 shares, uint256 elapsed)
+        returns (uint16 feeBps, uint256 previewShares, uint48 lastHarvestAt)
     {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
-        elapsed = block.timestamp - uint256($.lastFeeHarvestAt);
-        uint256 supply = totalSupply();
-        uint16 bps = $.managementFeeBps;
-        if (bps == 0 || supply == 0 || elapsed == 0) return (0, elapsed);
+        feeBps = $.managementFeeBps;
+        lastHarvestAt = $.lastFeeHarvestAt;
+        (previewShares, ) = _computeManagementFeeShares(
+            lastHarvestAt,
+            feeBps,
+            totalSupply()
+        );
+    }
+
+    /// @inheritdoc IFeeManager
+    function performanceFee()
+        external
+        view
+        returns (
+            uint16 feeBps,
+            uint256 previewShares,
+            uint256 performanceHighWaterMark
+        )
+    {
+        FeeManagerStorage storage $ = _getFeeManagerStorage();
+        feeBps = $.performanceFeeBps;
+        performanceHighWaterMark = $.highWaterMark;
+        previewShares = _computePerformanceFeeShares(
+            pricePerShare(),
+            performanceHighWaterMark,
+            feeBps,
+            totalSupply()
+        );
+    }
+
+    function _computeManagementFeeShares(
+        uint48 lastFeeHarvestAt,
+        uint16 bps,
+        uint256 totalSupply
+    ) internal view returns (uint256 shares, uint256 elapsed) {
+        elapsed = block.timestamp - uint256(lastFeeHarvestAt);
+        if (bps == 0 || totalSupply == 0 || elapsed == 0) return (0, elapsed);
         // bps <= 9_999 < 2^14, elapsed <= ~3.15e7 < 2^25 → product < 2^39, no overflow
-        shares = supply.mulDiv(
+        shares = totalSupply.mulDiv(
             uint256(bps) * elapsed,
             _BPS_DENOMINATOR * _SECONDS_PER_YEAR,
             Math.Rounding.Floor
         );
     }
 
-    function _computePerformanceFeeShares()
-        internal
-        view
-        returns (uint256 shares, uint256 pps, uint256 hwm)
-    {
-        FeeManagerStorage storage $ = _getFeeManagerStorage();
-        pps = pricePerShare();
-        hwm = $.highWaterMark;
-        uint256 supply = totalSupply();
-        uint16 bps = $.performanceFeeBps;
-        if (pps <= hwm || bps == 0 || supply == 0) return (0, pps, hwm);
+    function _computePerformanceFeeShares(
+        uint256 pps,
+        uint256 hwm,
+        uint16 bps,
+        uint256 totalSupply
+    ) internal pure returns (uint256 shares) {
+        if (pps <= hwm || bps == 0 || totalSupply == 0) return (0);
         // Two-step mulDiv: avoids overflow for large pps values
-        uint256 gainShares = supply.mulDiv(pps - hwm, hwm, Math.Rounding.Floor);
+        uint256 gainShares = totalSupply.mulDiv(
+            pps - hwm,
+            hwm,
+            Math.Rounding.Floor
+        );
         shares = gainShares.mulDiv(bps, _BPS_DENOMINATOR, Math.Rounding.Floor);
     }
 }

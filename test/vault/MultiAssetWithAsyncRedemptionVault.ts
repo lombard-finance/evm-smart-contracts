@@ -109,7 +109,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const slot = calculateStorageSlot('lombardfinance.storage.FeeManagerUpgradeable');
     const storage = await ethers.provider.getStorage(await vault.getAddress(), slot);
     // Slot packs managementFeeBps (uint16, 0) | performanceFeeBps (uint16, 0) | lastFeeHarvestAt (uint48, block.timestamp at init)
-    const lastHarvest = await vault.lastFeeHarvestAt();
+    const [, , lastHarvest] = await vault.managementFee();
     const expected = ethers.toBeHex(BigInt(lastHarvest) << 32n, 32);
     expect(storage).to.equal(expected);
   });
