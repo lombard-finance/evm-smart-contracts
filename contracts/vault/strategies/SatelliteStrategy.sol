@@ -5,7 +5,8 @@ import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title SatelliteStrategy
-/// @notice Intermediary strategy without a vault funding pipe.
+/// @notice Strategy deployment using only validator-gated `exec` (no `pullFromVault` / `pushToVault` vault wiring).
+/// @dev Use when outbound liquidity is handled purely via approved external calls rather than `IVault.requestFunding`.
 contract SatelliteStrategy is StrategyBaseUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

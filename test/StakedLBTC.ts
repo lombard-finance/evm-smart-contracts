@@ -87,7 +87,10 @@ describe('StakedLBTC', function () {
       signer3
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -95,18 +98,28 @@ describe('StakedLBTC', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+      'StakedLBTC',
+      [treasury.address, owner.address, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
-    nativeLBTC = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      'Native LBTC name',
-      'nativeLbtcSymbol',
-      owner.address,
-      0n //owner delay
-    ]);
+    nativeLBTC = await deployContract<NativeLBTC & Addressable>(
+      'NativeLBTC',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        'Native LBTC name',
+        'nativeLbtcSymbol',
+        owner.address,
+        0n //owner delay
+      ],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     nativeLBTC.address = await nativeLBTC.getAddress();
     nativeLbtcBytes = encode(['address'], [nativeLBTC.address]);
 
@@ -129,7 +142,12 @@ describe('StakedLBTC', function () {
     );
 
     // Mailbox
-    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, 0n, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
     await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
@@ -140,14 +158,12 @@ describe('StakedLBTC', function () {
     ratioFeed.address = await ratioFeed.getAddress();
 
     // AssetRouter
-    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [
-      owner.address,
-      0n,
-      LEDGER_CHAIN_ID,
-      BITCOIN_CHAIN_ID,
-      mailbox.address,
-      ethers.ZeroAddress
-    ]);
+    assetRouter = await deployContract<AssetRouter & Addressable>(
+      'AssetRouter',
+      [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
     await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);
@@ -2081,11 +2097,12 @@ describe('StakedLBTC', function () {
     });
 
     it('redeem() reverts when assetRouter is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ]);
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       const sender = signer1;
@@ -2190,11 +2207,12 @@ describe('StakedLBTC', function () {
     });
 
     it('deposit() reverts when assetRouter is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ]);
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       const sender = signer1;
@@ -2203,11 +2221,12 @@ describe('StakedLBTC', function () {
     });
 
     it('deposit() reverts when deposit route is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ]);
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       const stakedLbtcBytes = encode(['address'], [await stakedLbtc.getAddress()]);
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       await assetRouter.connect(owner).setRoute(BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, stakedLbtcBytes, CHAIN_ID, 1);

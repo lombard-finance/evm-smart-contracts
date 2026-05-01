@@ -1,22 +1,26 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IAssetConverter} from "../interfaces/IAssetConverter.sol";
 
 /// @title DirectConverter
-/// @notice IAssetConverter for assets whose units are identical to the vault's BTC accounting units (e.g. LBTC).
+/// @notice `IAssetConverter` identity mapping: deposit token units equal vault base accounting units (no oracle).
+/// @dev Use when the deposit asset **is** the underlying NAV denomination (e.g. native LBTC into an LBTC-accounted vault).
 contract DirectConverter is IAssetConverter {
     /// @inheritdoc IAssetConverter
-    function toBtcUnits(
-        uint256 tokenAmount
+    function toBaseUnits(
+        uint256 tokenAmount,
+        Math.Rounding
     ) external pure override returns (uint256) {
         return tokenAmount;
     }
 
     /// @inheritdoc IAssetConverter
-    function toTokenAmount(
-        uint256 btcUnits
+    function fromBaseUnits(
+        uint256 baseUnits,
+        Math.Rounding
     ) external pure override returns (uint256) {
-        return btcUnits;
+        return baseUnits;
     }
 }

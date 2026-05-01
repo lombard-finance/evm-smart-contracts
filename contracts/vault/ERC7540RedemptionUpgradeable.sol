@@ -10,6 +10,8 @@ import {IERC7540Redemption} from "./interfaces/IERC7540Redemption.sol";
 import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
 
 /// @title ERC7540RedemptionUpgradeable
+/// @notice EIP-7540-style asynchronous redemption: burns shares on `requestRedeem`, routes underlying on `fulfillRedeemRequests` by controller operators, optional withdrawal fee in shares.
+/// @dev ERC-4626 `withdraw`/`redeem` settlement is not used; payout follows `fulfillRedeemRequests`. Controllers must be registered by `CONTROLLER_MANAGER_ROLE`.
 abstract contract ERC7540RedemptionUpgradeable is
     VaultBaseUpgradeable,
     IERC7540Redemption
@@ -21,12 +23,6 @@ abstract contract ERC7540RedemptionUpgradeable is
     /// @notice May {registerRedeemController}, {allowRedeemRequests}, {stopRedeemRequests}, or {removeRedeemController} for ERC-7540 redeem controllers.
     bytes32 public constant CONTROLLER_MANAGER_ROLE =
         keccak256("CONTROLLER_MANAGER_ROLE");
-
-    /// @notice May {setWithdrawalFeeBps} and {setWithdrawalTreasury}.
-    bytes32 public constant WITHDRAWAL_FEE_MANAGER_ROLE =
-        keccak256("WITHDRAWAL_FEE_MANAGER_ROLE");
-
-    uint256 private constant _BPS_DENOMINATOR = 10_000;
 
     /// @dev EIP-7540 ERC-165: asynchronous **redemption** (`requestRedeem`, pending/claimable views). Not the same interface id as operators below.
     bytes4 private constant _ERC7540_ASYNC_REDEEM_INTERFACE_ID = 0x620ee8e4;
@@ -55,7 +51,6 @@ abstract contract ERC7540RedemptionUpgradeable is
         /// @dev Max redeem shares per redeem request for controller
         mapping(address controller => uint256) maxRedeemShares;
         uint16 withdrawalFeeBps;
-        address withdrawalTreasury;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC7540RedemptionUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -72,21 +67,25 @@ abstract contract ERC7540RedemptionUpgradeable is
         }
     }
 
+    /// @dev Grants `CONTROLLER_MANAGER_ROLE` to `controllerManager_`.
+    /// @param controllerManager_ Address receiving controller-admin role (must not be zero).
     function __ERC7540Redemption_init(
         address controllerManager_
     ) internal onlyInitializing {
-        if (controllerManager_ == address(0)) revert ZeroAddress();
+        if (controllerManager_ == address(0)) revert Vault_ZeroAddress();
         _grantRole(CONTROLLER_MANAGER_ROLE, controllerManager_);
     }
 
+    /// @notice Adds `controller` to the redeem-controller set and sets its per-request share cap.
+    /// @param maxRedeemShares Upper bound enforced on each `requestRedeem` for this controller.
     function registerRedeemController(
         address controller,
         uint256 maxRedeemShares
     ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
-        if (controller == address(0)) revert ZeroAddress();
+        if (controller == address(0)) revert Vault_ZeroAddress();
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if ($.controllers.contains(controller)) {
-            revert ERC7540RedeemControllerAlreadyTracked(controller);
+            revert ERC7540_RedeemControllerAlreadyTracked(controller);
         }
         $.controllers.add(controller);
         $.maxRedeemShares[controller] = maxRedeemShares;
@@ -94,18 +93,19 @@ abstract contract ERC7540RedemptionUpgradeable is
         emit MaxRedeemSet(controller, maxRedeemShares);
     }
 
+    /// @notice Removes `controller` if it has no pending redemption liability.
     function removeRedeemController(
         address controller
     ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
-        if (controller == address(0)) revert ZeroAddress();
+        if (controller == address(0)) revert Vault_ZeroAddress();
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if (!$.controllers.contains(controller)) {
-            revert ERC7540RemoveControllerNotTracked(controller);
+            revert ERC7540_RemoveControllerNotTracked(controller);
         }
         if (
             $.pendingAssets[controller] != 0 || $.pendingShares[controller] != 0
         ) {
-            revert ERC7540RemoveControllerHasPending(controller);
+            revert ERC7540_RemoveControllerHasPending(controller);
         }
         $.controllers.remove(controller);
         // it's expected that there only few operators for each controller, so we can use a simple loop to remove all operators
@@ -116,47 +116,36 @@ abstract contract ERC7540RedemptionUpgradeable is
         emit RedeemControllerRemoved(controller);
     }
 
-    /// @dev use to limit max redeem amount and stop new redeem requests
+    /// @notice Updates the per-request maximum shares for an existing controller.
     function setMaxControllerRedeem(
-        address ctrl,
+        address controller,
         uint256 maxShares
     ) external onlyRole(CONTROLLER_MANAGER_ROLE) {
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        if (!$.controllers.contains(ctrl)) {
-            revert ERC7540RedeemControllerNotTracked(ctrl);
+        if (!$.controllers.contains(controller)) {
+            revert ERC7540_RedeemControllerNotTracked(controller);
         }
-        $.maxRedeemShares[ctrl] = maxShares;
-        emit MaxRedeemSet(ctrl, maxShares);
+        $.maxRedeemShares[controller] = maxShares;
+        emit MaxRedeemSet(controller, maxShares);
     }
 
+    /// @return Maximum shares allowed for a single `requestRedeem` targeting `controller`.
     function maxControllerRedeem(
         address controller
     ) external view returns (uint256) {
         return _getERC7540RedemptionStorage().maxRedeemShares[controller];
     }
 
-    function setWithdrawalFeeBps(
-        uint16 bps
-    ) external onlyRole(WITHDRAWAL_FEE_MANAGER_ROLE) {
-        if (bps >= _BPS_DENOMINATOR) revert WithdrawalFeeBpsTooHigh();
+    /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
+    function setWithdrawalFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
+        if (bps >= _BPS_DENOMINATOR) revert ERC7540_WithdrawalFeeBpsTooHigh();
         _getERC7540RedemptionStorage().withdrawalFeeBps = bps;
         emit WithdrawalFeeBpsSet(bps);
     }
 
-    function setWithdrawalTreasury(
-        address treasury_
-    ) external onlyRole(WITHDRAWAL_FEE_MANAGER_ROLE) {
-        if (treasury_ == address(0)) revert ZeroAddress();
-        _getERC7540RedemptionStorage().withdrawalTreasury = treasury_;
-        emit WithdrawalTreasurySet(treasury_);
-    }
-
-    function getWithdrawalFeeBps() external view returns (uint16) {
+    /// @return Withdrawal fee in basis points (same units as {setWithdrawalFeeBps}).
+    function withdrawalFee() external view returns (uint16) {
         return _getERC7540RedemptionStorage().withdrawalFeeBps;
-    }
-
-    function getWithdrawalTreasury() external view returns (address) {
-        return _getERC7540RedemptionStorage().withdrawalTreasury;
     }
 
     /// @inheritdoc IERC7540Redemption
@@ -165,12 +154,12 @@ abstract contract ERC7540RedemptionUpgradeable is
         address operator,
         bool approved
     ) external returns (bool) {
-        if (operator == address(0)) revert ZeroAddress();
+        if (operator == address(0)) revert Vault_ZeroAddress();
 
         address controllerCaller = _msgSender();
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
         if (!$.controllers.contains(controllerCaller)) {
-            revert ERC7540RedeemControllerNotTracked(controllerCaller);
+            revert ERC7540_RedeemControllerNotTracked(controllerCaller);
         }
         if (approved) {
             $.operators[controllerCaller].add(operator);
@@ -192,6 +181,8 @@ abstract contract ERC7540RedemptionUpgradeable is
             );
     }
 
+    /// @notice ERC-165 introspection including EIP-7540 async redeem (`0x620ee8e4`) and operator (`0xe3bc4e65`) ids.
+    /// @dev Delegates other ids to parent (`AccessControl` / `ERC20` stack).
     function supportsInterface(
         bytes4 interfaceId
     ) public view virtual override returns (bool) {
@@ -217,15 +208,15 @@ abstract contract ERC7540RedemptionUpgradeable is
         returns (uint256 requestId)
     {
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        if (shares == 0) revert ERC7540ZeroRedeemRequestShares();
+        if (shares == 0) revert ERC7540_ZeroRedeemRequestShares();
 
         if (!$.controllers.contains(controller)) {
-            revert ERC7540RedeemControllerNotTracked(controller);
+            revert ERC7540_RedeemControllerNotTracked(controller);
         }
 
         uint256 maxCtrlShares = $.maxRedeemShares[controller];
         if (shares > maxCtrlShares) {
-            revert ERC7540ExceededMaxRedeem(controller, shares, maxCtrlShares);
+            revert ERC7540_ExceededMaxRedeem(controller, shares, maxCtrlShares);
         }
 
         address caller = _msgSender();
@@ -237,7 +228,7 @@ abstract contract ERC7540RedemptionUpgradeable is
         uint256 feeShares;
         {
             uint16 feeBps = $.withdrawalFeeBps;
-            address treasury_ = $.withdrawalTreasury;
+            address treasury_ = feeTreasury();
             if (feeBps > 0 && treasury_ != address(0)) {
                 feeShares = shares.mulDiv(
                     feeBps,
@@ -260,46 +251,51 @@ abstract contract ERC7540RedemptionUpgradeable is
 
         _burn(owner, netShares);
         if (feeShares > 0) {
-            address treasury_ = $.withdrawalTreasury;
+            address treasury_ = feeTreasury();
             _transfer(owner, treasury_, feeShares);
             emit WithdrawalFeeCharged(treasury_, feeShares);
         }
         emit RedeemRequested(requestId, owner, controller, caller, shares);
     }
 
+    /// @notice Pays underlying against queued requests; caller must be an approved operator for each request’s controller.
+    /// @param requestIds Redemption ticket ids to settle in one batch.
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
     ) external nonReentrant {
         address msgSender = _msgSender();
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        IERC20 asset_ = IERC20(asset());
+        IERC20 asset_ = asset();
         uint256 n = requestIds.length;
         for (uint256 i; i < n; ++i) {
             uint256 rid = requestIds[i];
             RedeemRequest storage e = $.redeemRequestById[rid];
-            address ctrl = e.controller;
+            address controller = e.controller;
             uint256 assets = e.pendingAssets;
             uint256 shares = e.pendingShares;
             address owner = e.owner;
 
             if (assets == 0) {
-                revert ERC7540NothingToFulfill(rid);
+                revert ERC7540_NothingToFulfill(rid);
             }
 
             // only operator can fulfill redeem requests
-            if (!$.operators[ctrl].contains(msgSender)) {
-                revert ERC7540UnauthorizedClaimCaller(msgSender, ctrl, rid);
+            if (!$.operators[controller].contains(msgSender)) {
+                revert ERC7540_UnauthorizedClaimCaller(
+                    msgSender,
+                    controller,
+                    rid
+                );
             }
 
-            $.pendingShares[ctrl] -= shares;
-            $.pendingAssets[ctrl] -= assets;
+            $.pendingShares[controller] -= shares;
+            $.pendingAssets[controller] -= assets;
             delete $.redeemRequestById[rid];
 
             asset_.safeTransfer(owner, assets);
             emit Withdraw(msgSender, owner, assets, shares);
         }
 
-        // TODO: maybe add more summary
         emit RedeemRequestsFulfilled(requestIds);
     }
 
@@ -322,5 +318,12 @@ abstract contract ERC7540RedemptionUpgradeable is
             _getERC7540RedemptionStorage()
                 .redeemRequestById[requestId_]
                 .pendingShares;
+    }
+
+    /// @dev Passthrough for diamond inheritance with `MultiAssetDepositUpgradeable`.
+    function _afterStrategyDeregistered(
+        address strategy
+    ) internal virtual override {
+        super._afterStrategyDeregistered(strategy);
     }
 }

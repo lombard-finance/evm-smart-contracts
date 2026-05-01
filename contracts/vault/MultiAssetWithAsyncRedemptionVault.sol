@@ -7,14 +7,26 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC7540RedemptionUpgradeable} from "./ERC7540RedemptionUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
 
+/// @title MultiAssetWithAsyncRedemptionVault
+/// @notice Concrete vault combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and EIP-7540 async redemption (`ERC7540RedemptionUpgradeable`).
+/// @dev Linearization: `ERC7540RedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__VaultBase_init` + module inits in C3 order.
 contract MultiAssetWithAsyncRedemptionVault is
     MultiAssetDepositUpgradeable,
     ERC7540RedemptionUpgradeable
 {
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
+    /// @notice Full initializer for ERC-20 metadata, vault base, fees, deposits, and redemption controller admin.
+    /// @param name_ ERC-20 name for vault shares.
+    /// @param symbol_ ERC-20 symbol for vault shares.
+    /// @param asset_ Underlying asset (`asset()`).
+    /// @param defaultAdmin_ Default admin for access control.
+    /// @param initialDefaultAdminDelay_ Admin delay for default admin rules.
+    /// @param controllerManager_ Receives `CONTROLLER_MANAGER_ROLE` for redeem controllers.
+    /// @param strategyDeployer_ Receives `STRATEGY_DEPLOYER_ROLE`.
     function initialize(
         string memory name_,
         string memory symbol_,
@@ -24,9 +36,9 @@ contract MultiAssetWithAsyncRedemptionVault is
         address controllerManager_,
         address strategyDeployer_
     ) external initializer {
-        __ERC20_init(name_, symbol_);
-        __ERC20Pausable_init();
         __VaultBase_init(
+            name_,
+            symbol_,
             initialDefaultAdminDelay_,
             defaultAdmin_,
             strategyDeployer_,
@@ -37,6 +49,7 @@ contract MultiAssetWithAsyncRedemptionVault is
         __ERC7540Redemption_init(controllerManager_);
     }
 
+    /// @notice Human-readable build label for off-chain integrations.
     function version() external pure override returns (string memory) {
         return "MultiAssetWithAsyncRedemptionVault-0.0.1";
     }
@@ -56,5 +69,15 @@ contract MultiAssetWithAsyncRedemptionVault is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    /// @dev Resolves `VaultBaseUpgradeable._afterStrategyDeregistered` for the diamond base layout.
+    function _afterStrategyDeregistered(
+        address strategy
+    )
+        internal
+        override(MultiAssetDepositUpgradeable, ERC7540RedemptionUpgradeable)
+    {
+        MultiAssetDepositUpgradeable._afterStrategyDeregistered(strategy);
     }
 }

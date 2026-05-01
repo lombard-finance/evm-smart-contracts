@@ -12,7 +12,7 @@ import type {
   MockVaultForStrategy
 } from '../../typechain-types';
 import { encodeMerkleRule } from './MerkleCallAllowlist';
-import { calculateStorageSlot, encode } from '../helpers';
+import { calculateStorageSlot, encode, deployContract } from '../helpers';
 
 /** ABI-encode a CallVerificationInput for the IStrategyExecValidator.isAllowed(bytes) overload.
  *  Must match abi.decode(validatorArgs, (CallVerificationInput)) in MerkleAllowlistValidator. */
@@ -56,21 +56,19 @@ describe('Strategy & SatelliteStrategy', function () {
 
     // Strategy (vault-linked)
     const stratFactory = await ethers.getContractFactory('Strategy');
-    const stratProxy = await upgrades.deployProxy(
-      stratFactory,
-      [vaultPlaceholder.address, await validator.getAddress(), admin.address, liquidityRole.address],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
+    const stratProxy = await deployContract('Strategy', [
+      vaultPlaceholder.address,
+      await validator.getAddress(),
+      admin.address,
+      liquidityRole.address
+    ]);
     await stratProxy.waitForDeployment();
     strategy = stratFactory.attach(await stratProxy.getAddress()) as unknown as Strategy;
     await strategy.connect(admin).grantRole(await strategy.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
 
     // SatelliteStrategy (no vault pipe)
     const satFactory = await ethers.getContractFactory('SatelliteStrategy');
-    const satProxy = await upgrades.deployProxy(satFactory, [await validator.getAddress(), admin.address], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
+    const satProxy = await deployContract('SatelliteStrategy', [await validator.getAddress(), admin.address]);
     await satProxy.waitForDeployment();
     satellite = satFactory.attach(await satProxy.getAddress()) as unknown as SatelliteStrategy;
     await satellite.connect(admin).grantRole(await satellite.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
@@ -84,11 +82,12 @@ describe('Strategy & SatelliteStrategy', function () {
     mockVault = (await mockVaultFactory.deploy()) as unknown as MockVaultForStrategy;
     await mockVault.waitForDeployment();
 
-    const fundingStratProxy = await upgrades.deployProxy(
-      stratFactory,
-      [await mockVault.getAddress(), await validator.getAddress(), admin.address, liquidityRole.address],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
+    const fundingStratProxy = await deployContract('Strategy', [
+      await mockVault.getAddress(),
+      await validator.getAddress(),
+      admin.address,
+      liquidityRole.address
+    ]);
     await fundingStratProxy.waitForDeployment();
     fundingStrategy = stratFactory.attach(await fundingStratProxy.getAddress()) as unknown as Strategy;
 
@@ -171,6 +170,72 @@ describe('Strategy & SatelliteStrategy', function () {
       await expect(execFn(to, 0n, '0x', encodeValidatorArgs(rule, proof)))
         .to.emit(strategy, 'Executed')
         .withArgs(user.address, to, 0n, '0x');
+    });
+
+    it('exec (validator-governed): wrong Merkle proof reverts with Strategy_CallNotAllowed', async function () {
+      const to = target.address;
+      const rule = encodeMerkleRule({
+        flags: 0x02,
+        sender: ethers.ZeroAddress,
+        to,
+        value: 0n,
+        dataLength: 0,
+        constraints: []
+      });
+      const { tree } = await buildTree(validator, rule);
+      await validator.setAllowlistRoot(tree.root);
+
+      // A non-empty but incorrect proof forces MerkleProof.verify to return false
+      // even for a single-leaf tree (where the valid proof is the empty array).
+      const badProof = [ethers.hexlify(ethers.randomBytes(32))];
+      const execFn = strategy.connect(user).getFunction('exec(address,uint256,bytes,bytes)');
+      await expect(execFn(to, 0n, '0x', encodeValidatorArgs(rule, badProof))).to.be.revertedWithCustomError(
+        strategy,
+        'Strategy_CallNotAllowed'
+      );
+    });
+
+    it('exec (validator-governed): sender mismatch reverts with Strategy_CallNotAllowed', async function () {
+      const to = target.address;
+      // FLAG_SENDER (0x01) | FLAG_TO (0x02) — rule is pinned to executor as sender.
+      const rule = encodeMerkleRule({
+        flags: 0x03,
+        sender: executor.address,
+        to,
+        value: 0n,
+        dataLength: 0,
+        constraints: []
+      });
+      const { tree, proof } = await buildTree(validator, rule);
+      await validator.setAllowlistRoot(tree.root);
+
+      // 'user' is not executor — sender check fails.
+      const execFn = strategy.connect(user).getFunction('exec(address,uint256,bytes,bytes)');
+      await expect(execFn(to, 0n, '0x', encodeValidatorArgs(rule, proof))).to.be.revertedWithCustomError(
+        strategy,
+        'Strategy_CallNotAllowed'
+      );
+    });
+
+    it('exec (validator-governed): zero allowlist root reverts with Strategy_CallNotAllowed', async function () {
+      const to = target.address;
+      const rule = encodeMerkleRule({
+        flags: 0x02,
+        sender: ethers.ZeroAddress,
+        to,
+        value: 0n,
+        dataLength: 0,
+        constraints: []
+      });
+      const { proof } = await buildTree(validator, rule);
+      // Explicitly clear the root so isAllowed returns false regardless of proof.
+      await validator.setAllowlistRoot(ethers.ZeroHash);
+
+      const execFn = strategy.connect(user).getFunction('exec(address,uint256,bytes,bytes)');
+      await expect(execFn(to, 0n, '0x', encodeValidatorArgs(rule, proof))).to.be.revertedWithCustomError(
+        strategy,
+        'Strategy_CallNotAllowed'
+      );
     });
 
     it('exec (privileged): bypasses validator and emits Executed', async function () {

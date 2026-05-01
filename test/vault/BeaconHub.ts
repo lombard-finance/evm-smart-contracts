@@ -4,7 +4,7 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import type { BeaconHub, Strategy, MerkleAllowlistValidator, UpgradeableBeacon } from '../../typechain-types';
-import { calculateStorageSlot, encode } from '../helpers';
+import { calculateStorageSlot, encode, deployContract } from '../helpers';
 
 const STRATEGY_ID = ethers.id('Strategy'); // keccak256("Strategy")
 
@@ -26,10 +26,7 @@ describe('BeaconHub', function () {
 
     // Deploy BeaconHub as upgradeable proxy
     const hubFactory = await ethers.getContractFactory('BeaconHub');
-    const hubProxy = await upgrades.deployProxy(hubFactory, [0, admin.address], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
+    const hubProxy = await deployContract('BeaconHub', [0, admin.address], true);
     await hubProxy.waitForDeployment();
     hub = hubFactory.attach(await hubProxy.getAddress()) as unknown as BeaconHub;
 
@@ -92,9 +89,9 @@ describe('BeaconHub', function () {
       );
     });
 
-    it('reverts with NotAContract for EOA address', async function () {
+    it('reverts with BeaconHub_NotAContract for EOA address', async function () {
       await expect(hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, other.address))
-        .to.be.revertedWithCustomError(hub, 'NotAContract')
+        .to.be.revertedWithCustomError(hub, 'BeaconHub_NotAContract')
         .withArgs(other.address);
     });
 
@@ -147,10 +144,10 @@ describe('BeaconHub', function () {
       );
     });
 
-    it('reverts with BeaconNotSet for unknown id', async function () {
+    it('reverts with BeaconHub_BeaconNotSet for unknown id', async function () {
       const unknownId = ethers.id('Unknown');
       await expect(hub.connect(deployer).deploy(unknownId, '0x'))
-        .to.be.revertedWithCustomError(hub, 'BeaconNotSet')
+        .to.be.revertedWithCustomError(hub, 'BeaconHub_BeaconNotSet')
         .withArgs(unknownId);
     });
 

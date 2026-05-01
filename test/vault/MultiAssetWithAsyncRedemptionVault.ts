@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
-import { calculateStorageSlot, getSignersWithPrivateKeys, Signer } from '../helpers';
+import { calculateStorageSlot, deployContract, getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
   ChainlinkConverter,
   ChainlinkFeedMock,
@@ -50,23 +50,19 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await converter.waitForDeployment();
 
     const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
-    const proxy = await upgrades.deployProxy(
-      factory,
-      [
-        'Multi Vault Shares',
-        'mVAULT',
-        await underlying.getAddress(),
-        admin.address,
-        0,
-        controllerManager.address,
-        strategyDeployer.address
-      ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
+    const proxy = await deployContract('MultiAssetWithAsyncRedemptionVault', [
+      'Multi Vault Shares',
+      'mVAULT',
+      await underlying.getAddress(),
+      admin.address,
+      0,
+      controllerManager.address,
+      strategyDeployer.address
+    ]);
     await proxy.waitForDeployment();
     vault = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
-    await vault.connect(admin).grantRole(await vault.OPERATOR_ROLE(), operator.address);
+    await vault.connect(admin).grantRole(await vault.PRICE_MANAGER_ROLE(), operator.address);
 
     snapshot = await takeSnapshot();
   });
@@ -109,7 +105,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const slot = calculateStorageSlot('lombardfinance.storage.FeeManagerUpgradeable');
     const storage = await ethers.provider.getStorage(await vault.getAddress(), slot);
     // Slot packs managementFeeBps (uint16, 0) | performanceFeeBps (uint16, 0) | lastFeeHarvestAt (uint48, block.timestamp at init)
-    const lastHarvest = await vault.lastFeeHarvestAt();
+    const [, , lastHarvest] = await vault.managementFee();
     const expected = ethers.toBeHex(BigInt(lastHarvest) << 32n, 32);
     expect(storage).to.equal(expected);
   });
@@ -129,7 +125,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
     expect(await vault.isDepositAsset(alt)).to.be.true;
     expect(await vault.converterOf(alt)).to.equal(conv);
-    expect(await vault.depositFeeBps(alt)).to.equal(0);
+    expect(await vault.depositFee(alt)).to.equal(0);
     expect(await vault.maxDeposit(alt, user.address)).to.equal(ethers.MaxUint256);
     expect(await vault.maxMint(alt, user.address)).to.equal(ethers.MaxUint256);
   });
@@ -150,6 +146,92 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
     expect(await vault.balanceOf(user.address)).to.equal(preview);
     expect(await altDeposit.balanceOf(v)).to.equal(assets);
+  });
+
+  it('optional defaultStrategy forwards net deposit tokens to a registered address', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    const sink = ethers.Wallet.createRandom().address;
+
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await expect(vault.connect(admin).setDefaultStrategy(sink)).to.emit(vault, 'DefaultStrategySet').withArgs(sink);
+
+    expect(await vault.defaultStrategy()).to.equal(sink);
+
+    const assets = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    await expect(vault.connect(user).deposit(alt, assets, user.address))
+      .to.emit(vault, 'DepositRoutedToDefaultStrategy')
+      .withArgs(sink, alt, assets);
+
+    expect(await altDeposit.balanceOf(sink)).to.equal(assets);
+    expect(await altDeposit.balanceOf(v)).to.equal(0n);
+  });
+
+  it('setDefaultStrategy reverts if strategy is not registered', async function () {
+    const rogue = ethers.Wallet.createRandom().address;
+    await expect(vault.connect(admin).setDefaultStrategy(rogue)).to.be.revertedWithCustomError(
+      vault,
+      'Vault_StrategyNotRegistered'
+    );
+  });
+
+  it('defaultStrategy forwards net only; deposit fee transfers immediately to treasury', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    const sink = ethers.Wallet.createRandom().address;
+
+    const treasuryRole = await vault.TREASURY_ROLE();
+    await vault.connect(admin).grantRole(treasuryRole, treasury.address);
+    await vault.connect(treasury).setFeeTreasury(treasury.address);
+
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100); // 1%
+    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).setDefaultStrategy(sink);
+
+    const assets = 10_000n * 10n ** 18n;
+    const fee = (assets * 100n) / 10_000n;
+    const net = assets - fee;
+
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    await expect(vault.connect(user).deposit(alt, assets, user.address))
+      .to.emit(vault, 'DepositRoutedToDefaultStrategy')
+      .withArgs(sink, alt, net);
+
+    expect(await altDeposit.balanceOf(sink)).to.equal(net);
+    expect(await altDeposit.balanceOf(treasury.address)).to.equal(fee);
+    expect(await altDeposit.balanceOf(v)).to.equal(0n);
+  });
+
+  it('deposit with non-zero fee reverts if deposit treasury is unset', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100);
+
+    const assets = 1_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    await expect(vault.connect(user).deposit(alt, assets, user.address)).to.be.revertedWithCustomError(
+      vault,
+      'VaultDeposit_DepositTreasuryNotSet'
+    );
+  });
+
+  it('deregisterStrategy clears defaultStrategy when it matches', async function () {
+    const sink = ethers.Wallet.createRandom().address;
+    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).setDefaultStrategy(sink);
+    await expect(vault.connect(strategyDeployer).deregisterStrategy(sink))
+      .to.emit(vault, 'DefaultStrategySet')
+      .withArgs(ethers.ZeroAddress);
+    expect(await vault.defaultStrategy()).to.equal(ethers.ZeroAddress);
   });
 
   it('mints via mint() using previewMint assets', async function () {
@@ -217,6 +299,61 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(afterU - beforeU).to.equal(assetsOut);
   });
 
+  it('fulfillRedeemRequests: reverts when vault holds no underlying for the redeemed shares', async function () {
+    // Deposit alt token — vault holds altDeposit, NOT underlying.
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+
+    const depositAmt = 1_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, depositAmt);
+    await altDeposit.connect(user).approve(v, depositAmt);
+    await vault.connect(user).deposit(alt, depositAmt, user.address);
+
+    const shares = await vault.balanceOf(user.address);
+    await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
+    await vault.connect(redeemController).setOperator(redeemOperator.address, true);
+
+    const rid = await vault.connect(user).requestRedeem.staticCall(shares, redeemController.address, user.address);
+    await vault.connect(user).requestRedeem(shares, redeemController.address, user.address);
+    expect(await vault.balanceOf(user.address)).to.equal(0n); // shares already burned
+
+    // Vault holds no underlying — fulfillment must revert (transfer fails).
+    await expect(vault.connect(redeemOperator).fulfillRedeemRequests([rid])).to.be.reverted;
+  });
+
+  it('harvestPerformanceFee: mints fee shares without automatically adjusting pricePerShare', async function () {
+    const treasuryRole = await vault.TREASURY_ROLE();
+    await vault.connect(admin).grantRole(treasuryRole, treasury.address);
+
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+
+    const depositAmt = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, depositAmt);
+    await altDeposit.connect(user).approve(v, depositAmt);
+    await vault.connect(user).deposit(alt, depositAmt, user.address);
+
+    await vault.connect(treasury).setPerformanceFeeBps(1000); // 10%
+
+    // Raise pps +10% via soft post (default bucket has no capacity — drains, applies NAV, pauses).
+    const priceManagerRole = await vault.PRICE_MANAGER_ROLE();
+    await vault.connect(admin).grantRole(priceManagerRole, admin.address);
+    const pps0 = await vault.pricePerShare();
+    await vault.connect(admin).postPricePerShare((pps0 * 11n) / 10n, false);
+    await vault.connect(admin).unpauseVaultOperations();
+
+    const supplyBefore = await vault.totalSupply();
+    const ppsBefore = await vault.pricePerShare();
+
+    await vault.connect(treasury).harvestPerformanceFee(treasury.address);
+
+    expect(await vault.totalSupply()).to.be.gt(supplyBefore); // fee shares minted
+    // pricePerShare is unchanged — operator must post a lower value to correct NAV.
+    expect(await vault.pricePerShare()).to.equal(ppsBefore);
+  });
+
   it('controller manager can set max redeem per controller', async function () {
     await vault.connect(controllerManager).registerRedeemController(redeemController.address, 1000n);
     expect(await vault.maxControllerRedeem(redeemController.address)).to.equal(1000n);
@@ -232,10 +369,15 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const treasuryRole = await vault.TREASURY_ROLE();
     await vault.connect(admin).grantRole(treasuryRole, treasury.address);
 
+    await expect(vault.connect(treasury).setFeeTreasury(treasury.address))
+      .to.emit(vault, 'FeeTreasurySet')
+      .withArgs(treasury.address);
+
     await expect(vault.connect(treasury).setDepositFeeBps(alt, 10))
       .to.emit(vault, 'DepositFeeBpsSet')
       .withArgs(alt, 10);
-    expect(await vault.depositFeeBps(alt)).to.equal(10);
+    expect(await vault.depositFee(alt)).to.equal(10);
+    expect(await vault.feeTreasury()).to.equal(treasury.address);
   });
 
   it('admin can swap asset converter for a listed deposit asset', async function () {
@@ -264,13 +406,13 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
 
       const p0 = await vault.pricePerShare();
-      // +0.05% (5 bps) — consumes the entire weekly budget
+      // +0.05% (500 bps) — consumes the entire weekly budget
       const p1 = (p0 * 10005n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p1, true)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
 
       // Any further move is blocked until the bucket refills
-      await expect(vault.connect(operator).postPricePerShare(p1 + 1n)).to.be.revertedWithCustomError(
+      await expect(vault.connect(operator).postPricePerShare(p1 + 1n, true)).to.be.revertedWithCustomError(
         vault,
         'PriceRateLimiter_RateLimitExceeded'
       );
@@ -280,7 +422,25 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p2 = (p1 * 10005n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p2)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p2, true)).to.emit(vault, 'PricePerShareUpdated');
+    });
+
+    it('soft overflow: applies price, drains bucket, and pauses vault', async function () {
+      const maxBps = 500;
+      const weekSeconds = 604800n;
+      const refillRate = (BigInt(maxBps) * 2n ** 32n + weekSeconds - 1n) / weekSeconds;
+
+      await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
+
+      const p0 = await vault.pricePerShare();
+      const p1 = (p0 * 10005n) / 10000n;
+      await vault.connect(operator).postPricePerShare(p1, true);
+
+      const tinyBump = p1 + 1n;
+      await expect(vault.connect(operator).postPricePerShare(tinyBump, false)).to.emit(vault, 'PricePerShareUpdated');
+      expect(await vault.vaultOperationsPaused()).to.be.true;
+      expect(await vault.pricePerShare()).to.equal(tinyBump);
+      expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
     });
 
     it('50% yearly allowed change with daily bucket', async function () {
@@ -293,14 +453,14 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
 
       const p0 = await vault.pricePerShare();
-      // +0.13% (13 bps) — within daily budget, leaving 100 bps
+      // +0.13% (1300 bps) — within daily budget, leaving 100 bps
       const p1 = (p0 * 10013n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p1, true)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);
 
       // 2 bps exceeds the 1 bps remaining in the bucket
       const p2 = (p1 * 10002n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p2)).to.be.revertedWithCustomError(
+      await expect(vault.connect(operator).postPricePerShare(p2, true)).to.be.revertedWithCustomError(
         vault,
         'PriceRateLimiter_RateLimitExceeded'
       );
@@ -310,7 +470,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p3 = (p1 * 10013n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p3)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p3, true)).to.emit(vault, 'PricePerShareUpdated');
     });
   });
 });
@@ -339,20 +499,13 @@ describe('StakedLBTC as deposit token', function () {
     [admin, strategyDeployer, controllerManager, , , user, treasury, operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
-    const wbtcProxy = await upgrades.deployProxy(wbtcFactory, [], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
-    await wbtcProxy.waitForDeployment();
+    const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
     lbtcUnderlying = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
 
-    const stakedFactory = await ethers.getContractFactory('StakedLBTCMock');
-    const stakedProxy = await upgrades.deployProxy(stakedFactory, [treasury.address, admin.address, 0], {
+    stakedToken = await deployContract<StakedLBTCMock>('StakedLBTCMock', [treasury.address, admin.address, 0], true, {
       initializer: 'initialize',
-      unsafeAllow: ['constructor']
+      unsafeAllow: ['missing-initializer', 'missing-initializer-call']
     });
-    await stakedProxy.waitForDeployment();
-    stakedToken = stakedFactory.attach(await stakedProxy.getAddress()) as StakedLBTCMock;
 
     const oracleFactory = await ethers.getContractFactory('RatioFeedMock');
     oracle = (await oracleFactory.deploy()) as RatioFeedMock;
@@ -362,24 +515,17 @@ describe('StakedLBTC as deposit token', function () {
     stakedConverter = (await convFactory.deploy(await oracle.getAddress())) as StakedLBTCConverter;
     await stakedConverter.waitForDeployment();
 
-    const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
-    const proxy = await upgrades.deployProxy(
-      vaultFactory,
-      [
-        'Lombard BTC Vault',
-        'LBTCV',
-        await lbtcUnderlying.getAddress(),
-        admin.address,
-        0,
-        controllerManager.address,
-        strategyDeployer.address
-      ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
-    await proxy.waitForDeployment();
-    stakedVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
+    stakedVault = await deployContract<MultiAssetWithAsyncRedemptionVault>('MultiAssetWithAsyncRedemptionVault', [
+      'Lombard BTC Vault',
+      'LBTCV',
+      await lbtcUnderlying.getAddress(),
+      admin.address,
+      0,
+      controllerManager.address,
+      strategyDeployer.address
+    ]);
 
-    await stakedVault.connect(admin).grantRole(await stakedVault.OPERATOR_ROLE(), operator.address);
+    await stakedVault.connect(admin).grantRole(await stakedVault.PRICE_MANAGER_ROLE(), operator.address);
     await stakedVault
       .connect(admin)
       .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
@@ -392,32 +538,32 @@ describe('StakedLBTC as deposit token', function () {
   });
 
   describe('StakedLBTCConverter', function () {
-    it('at-par ratio (1e18): toBtcUnits and toTokenAmount are 1:1', async function () {
-      expect(await stakedConverter.toBtcUnits(ONE_LBTC)).to.equal(ONE_LBTC);
-      expect(await stakedConverter.toTokenAmount(ONE_LBTC)).to.equal(ONE_LBTC);
+    it('at-par ratio (1e18): toBaseUnits and fromBaseUnits are 1:1', async function () {
+      expect(await stakedConverter.toBaseUnits(ONE_LBTC, 0)).to.equal(ONE_LBTC);
+      expect(await stakedConverter.fromBaseUnits(ONE_LBTC, 1)).to.equal(ONE_LBTC);
     });
 
-    it('yield-accrued ratio (0.9e18): 1 stakedLBTC converts to more BTC units', async function () {
+    it('yield-accrued ratio (0.9e18): 1 stakedLBTC converts to more base units', async function () {
       // Each stakedLBTC is worth 1/0.9 ≈ 1.1111 LBTC when ratio = 0.9e18.
       await oracle.setRatio((ONE_ETHER * 9n) / 10n);
 
       // 1e8 * 1e18 / 0.9e18 = 111_111_111.111… → floor → 111_111_111
-      expect(await stakedConverter.toBtcUnits(ONE_LBTC)).to.equal(111_111_111n);
+      expect(await stakedConverter.toBaseUnits(ONE_LBTC, 0)).to.equal(111_111_111n);
 
       // Inverse: 111_111_111 * 0.9e18 / 1e18 = 99_999_999.9 → ceil → 100_000_000
-      expect(await stakedConverter.toTokenAmount(111_111_111n)).to.equal(ONE_LBTC);
+      expect(await stakedConverter.fromBaseUnits(111_111_111n, 1)).to.equal(ONE_LBTC);
     });
 
-    it('round-trip: toTokenAmount(toBtcUnits(x)) differs from x by at most 1 satoshi', async function () {
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) differs from x by at most 1 satoshi', async function () {
       const amounts = [ONE_LBTC / 2n, ONE_LBTC, ONE_LBTC * 100n];
       const ratios = [ONE_ETHER, (ONE_ETHER * 9n) / 10n, (ONE_ETHER * 95n) / 100n];
 
       for (const ratio of ratios) {
         await oracle.setRatio(ratio);
         for (const amt of amounts) {
-          const btcOut = await stakedConverter.toBtcUnits(amt);
-          const tokenOut = await stakedConverter.toTokenAmount(btcOut);
-          // Ceil in toTokenAmount means tokenOut >= amt, but by at most 1 satoshi.
+          const btcOut = await stakedConverter.toBaseUnits(amt, 0);
+          const tokenOut = await stakedConverter.fromBaseUnits(btcOut, 1);
+          // Ceil in fromBaseUnits means tokenOut >= amt, but by at most 1 satoshi.
           expect(tokenOut).to.be.gte(amt);
           expect(tokenOut - amt).to.be.lte(1n);
         }
@@ -481,12 +627,13 @@ describe('StakedLBTC as deposit token', function () {
       expect(await stakedVault.balanceOf(user.address)).to.equal(targetShares);
     });
 
-    it('deposit fee accrues in stakedLBTC; net amount drives share calculation', async function () {
+    it('deposit fee transfers to treasury in stakedLBTC; net amount drives share calculation', async function () {
       const sAddr = await stakedToken.getAddress();
       const vAddr = await stakedVault.getAddress();
 
       const treasuryRole = await stakedVault.TREASURY_ROLE();
       await stakedVault.connect(admin).grantRole(treasuryRole, treasury.address);
+      await stakedVault.connect(treasury).setFeeTreasury(treasury.address);
       await stakedVault.connect(treasury).setDepositFeeBps(sAddr, 100); // 1%
 
       const depositAmt = ONE_LBTC;
@@ -498,7 +645,7 @@ describe('StakedLBTC as deposit token', function () {
 
       await stakedVault.connect(user).deposit(sAddr, depositAmt, user.address);
 
-      expect(await stakedVault.accruedDepositFees(sAddr)).to.equal(expectedFee);
+      expect(await stakedToken.balanceOf(treasury.address)).to.equal(expectedFee);
       // Net amount converts to BTC units at 1:1 (at-par ratio) → net shares minted
       expect(await stakedVault.balanceOf(user.address)).to.equal(net);
     });
@@ -540,11 +687,7 @@ describe('Chainlink as deposit token', function () {
     [admin, strategyDeployer, controllerManager, , , user, , operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
-    const wbtcProxy = await upgrades.deployProxy(wbtcFactory, [], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
-    await wbtcProxy.waitForDeployment();
+    const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
     depositToken = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
 
     // 8-decimal feed, answer = 1e8 (peg: 1 token = 1 BTC)
@@ -564,8 +707,8 @@ describe('Chainlink as deposit token', function () {
     await clConverter.waitForDeployment();
 
     const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
-    const proxy = await upgrades.deployProxy(
-      vaultFactory,
+    const proxy = await deployContract(
+      'MultiAssetWithAsyncRedemptionVault',
       [
         'Chainlink BTC Vault',
         'clVAULT',
@@ -575,12 +718,12 @@ describe('Chainlink as deposit token', function () {
         controllerManager.address,
         strategyDeployer.address
       ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+      true
     );
     await proxy.waitForDeployment();
     clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
-    await clVault.connect(admin).grantRole(await clVault.OPERATOR_ROLE(), operator.address);
+    await clVault.connect(admin).grantRole(await clVault.PRICE_MANAGER_ROLE(), operator.address);
     await clVault.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
 
     snap = await takeSnapshot();
@@ -591,9 +734,9 @@ describe('Chainlink as deposit token', function () {
   });
 
   describe('ChainlinkConverter', function () {
-    it('peg (answer=1e8, 8-dec feed): toBtcUnits and toTokenAmount are 1:1', async function () {
-      expect(await clConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
-      expect(await clConverter.toTokenAmount(ONE_BTC)).to.equal(ONE_BTC);
+    it('peg (answer=1e8, 8-dec feed): toBaseUnits and fromBaseUnits are 1:1', async function () {
+      expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+      expect(await clConverter.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
     });
 
     it('non-peg (answer=1.111…e18, 18-dec feed): converts correctly', async function () {
@@ -614,20 +757,20 @@ describe('Chainlink as deposit token', function () {
 
       // scalingFactor = 10^(18+8-8) = 1e18
       // btcOut = 1e8 * 111_111_111e10 / 1e18 = 111_111_111
-      expect(await conv18.toBtcUnits(ONE_BTC)).to.equal(111_111_111n);
+      expect(await conv18.toBaseUnits(ONE_BTC, 0)).to.equal(111_111_111n);
       // tokenOut = 111_111_111 * 1e18 / 111_111_111e10 = 1e8 (exact)
-      expect(await conv18.toTokenAmount(111_111_111n)).to.equal(ONE_BTC);
+      expect(await conv18.fromBaseUnits(111_111_111n, 1)).to.equal(ONE_BTC);
     });
 
-    it('round-trip: toTokenAmount(toBtcUnits(x)) differs from x by at most 1 satoshi', async function () {
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) differs from x by at most 1 satoshi', async function () {
       const answers = [ONE_BTC, ONE_BTC + ONE_BTC / 10n, (ONE_BTC * 95n) / 100n];
       const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
 
       for (const answer of answers) {
         await clFeed.setAnswer(answer);
         for (const amt of amounts) {
-          const btcOut = await clConverter.toBtcUnits(amt);
-          const tokenOut = await clConverter.toTokenAmount(btcOut);
+          const btcOut = await clConverter.toBaseUnits(amt, 0);
+          const tokenOut = await clConverter.fromBaseUnits(btcOut, 1);
           expect(tokenOut).to.be.gte(amt);
           expect(tokenOut - amt).to.be.lte(1n);
         }
@@ -637,11 +780,11 @@ describe('Chainlink as deposit token', function () {
     it('stale answer reverts with StaleAnswer', async function () {
       const block = await ethers.provider.getBlock('latest');
       await clFeed.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
-      await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_StaleAnswer'
       );
-      await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_StaleAnswer'
       );
@@ -649,11 +792,11 @@ describe('Chainlink as deposit token', function () {
 
     it('zero answer reverts with InvalidAnswer', async function () {
       await clFeed.setAnswer(0);
-      await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_InvalidAnswer'
       );
-      await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_InvalidAnswer'
       );
@@ -685,16 +828,16 @@ describe('Chainlink as deposit token', function () {
       });
 
       it('sequencer up and past grace period: converts normally', async function () {
-        expect(await seqConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+        expect(await seqConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
 
       it('sequencer down (answer=1): reverts with SequencerDown', async function () {
         await seqFeed.setAnswer(1);
-        await expect(seqConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_SequencerDown'
         );
-        await expect(seqConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_SequencerDown'
         );
@@ -703,11 +846,11 @@ describe('Chainlink as deposit token', function () {
       it('sequencer just recovered (within grace period): reverts with GracePeriodNotOver', async function () {
         const block = await ethers.provider.getBlock('latest');
         await seqFeed.setStartedAt(BigInt(block!.timestamp)); // just came back up
-        await expect(seqConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_GracePeriodNotOver'
         );
-        await expect(seqConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_GracePeriodNotOver'
         );
@@ -715,7 +858,7 @@ describe('Chainlink as deposit token', function () {
 
       it('no sequencer feed (address(0)): skips check and converts normally', async function () {
         // clConverter has sequencerUptimeFeed = address(0); should still work regardless
-        expect(await clConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+        expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
     });
   });

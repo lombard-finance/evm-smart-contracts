@@ -25,11 +25,14 @@ contract Strategy is StrategyBaseUpgradeable {
     bytes32 private constant STRATEGY_STORAGE_LOCATION =
         0x90ec6e70d08ce3f865147ce41c466c2b0486ac747f5e826cd1470c21d9390900;
 
+    /// @notice Liquidity role pulled `amount` of `token` from the vault via `requestFunding`.
     event PulledFromVault(
         address indexed caller,
         address indexed token,
         uint256 amount
     );
+
+    /// @notice Liquidity role pushed `amount` of `token` into the vault balance.
     event PushedToVault(
         address indexed caller,
         address indexed token,

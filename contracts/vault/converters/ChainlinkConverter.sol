@@ -13,8 +13,8 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 ///        scalingFactor = 10^(feedDecimals + tokenDecimals - baseDecimals)
 ///
 ///      Conversions:
-///        toBtcUnits:   baseOut   = mulDiv(tokenAmount, answer, scalingFactor, Floor)
-///        toTokenAmount: tokenOut = mulDiv(baseUnits, scalingFactor, answer, Ceil)
+///        toBaseUnits:   baseOut   = mulDiv(tokenAmount, answer, scalingFactor, rounding)
+///        fromBaseUnits: tokenOut  = mulDiv(baseUnits, scalingFactor, answer, rounding)
 ///
 ///      `baseDecimals` must equal the vault underlying asset's decimal count
 ///      (e.g. 8 for BTC/LBTC, 18 for WETH).
@@ -38,6 +38,12 @@ contract ChainlinkConverter is IAssetConverter {
     /// @dev Decimal count of the vault's underlying base asset (e.g. 8 for BTC, 18 for ETH).
     uint8 public immutable baseDecimals;
 
+    /// @param feed_ Chainlink AggregatorV3Interface for the deposit asset price.
+    /// @param tokenDecimals_ Deposit token decimals (metadata scale).
+    /// @param baseDecimals_ Vault underlying decimals (must match vault asset decimals).
+    /// @param heartbeat_ Maximum allowed staleness of `latestRoundData.updatedAt` (seconds).
+    /// @param sequencerUptimeFeed_ L2 sequencer feed; zero disables sequencer checks.
+    /// @param gracePeriod_ Seconds after sequencer recovery during which `_checkSequencer` still reverts.
     constructor(
         address feed_,
         uint8 tokenDecimals_,
@@ -61,29 +67,19 @@ contract ChainlinkConverter is IAssetConverter {
     }
 
     /// @inheritdoc IAssetConverter
-    function toBtcUnits(
-        uint256 tokenAmount
+    function toBaseUnits(
+        uint256 tokenAmount,
+        Math.Rounding rounding
     ) external view override returns (uint256) {
-        return
-            Math.mulDiv(
-                tokenAmount,
-                _getAnswer(),
-                scalingFactor,
-                Math.Rounding.Floor
-            );
+        return Math.mulDiv(tokenAmount, _getAnswer(), scalingFactor, rounding);
     }
 
     /// @inheritdoc IAssetConverter
-    function toTokenAmount(
-        uint256 btcUnits
+    function fromBaseUnits(
+        uint256 baseUnits,
+        Math.Rounding rounding
     ) external view override returns (uint256) {
-        return
-            Math.mulDiv(
-                btcUnits,
-                scalingFactor,
-                _getAnswer(),
-                Math.Rounding.Ceil
-            );
+        return Math.mulDiv(baseUnits, scalingFactor, _getAnswer(), rounding);
     }
 
     function _getAnswer() private view returns (uint256) {

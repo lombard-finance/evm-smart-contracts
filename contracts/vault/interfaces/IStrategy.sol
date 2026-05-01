@@ -12,8 +12,10 @@ interface IStrategy {
     /// @dev Contract ETH balance (including `msg.value` on this call) is less than `value`.
     error Strategy_InvalidEthFunding();
 
+    /// @dev Thrown when a zero address is supplied for a strategy parameter or configuration.
     error Strategy_ZeroAddress();
 
+    /// @notice An `exec` call completed successfully (validator-gated or privileged overload).
     event Executed(
         address indexed caller,
         address indexed to,
@@ -21,6 +23,7 @@ interface IStrategy {
         bytes data
     );
 
+    /// @notice The Merkle or other policy validator contract was replaced by admin.
     event ValidatorUpdated(
         IStrategyExecValidator indexed oldValidator,
         IStrategyExecValidator indexed newValidator
