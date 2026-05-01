@@ -1,19 +1,21 @@
 /**
- * findRule.ts — given a call's calldata, find the matching rule and return
- * ruleEncoded + merkleProof ready to pass to the validator's isAllowed().
+ * findRule.ts — given a call's calldata (and optionally value), find the matching
+ * rule and return ruleEncoded + merkleProof ready to pass to the validator's isAllowed().
  *
  * Usage (derive ruleset from validator address):
  *   npx ts-node scripts/vault/findRule.ts \
  *     --chain-id <chainId>          chain ID (decimal or hex)
  *     --contract <validatorAddress> deployed MerkleAllowlistValidator address
- *     --calldata <hex>              calldata to match against rule constraints
+ *     --calldata <hex>              calldata (omit or pass 0x for native coin transfers)
+ *     --value    <decimal>          msg.value in wei (optional, default 0)
  *
  * Usage (explicit rules file):
  *   npx ts-node scripts/vault/findRule.ts \
  *     --rules    <path/to/rules.[json|yaml]> \
  *     --chain-id <chainId> \
  *     --contract <validatorAddress> \
- *     --calldata <hex>
+ *     --calldata <hex> \
+ *     --value    <decimal>
  *
  * Ruleset file resolution (in order of priority):
  *   1. --rules <path>          — use this file directly
@@ -33,7 +35,7 @@ import {
   resolveRulesetFromArgs
 } from './merkleUtils';
 
-// ─── Calldata matching ────────────────────────────────────────────────────────
+// ─── Calldata + value matching ────────────────────────────────────────────────
 
 function readWord(data: Uint8Array, offset: number): bigint {
   const bytes = new Uint8Array(32);
@@ -44,10 +46,13 @@ function readWord(data: Uint8Array, offset: number): bigint {
   return BigInt('0x' + Buffer.from(bytes).toString('hex'));
 }
 
-function calldataMatchesRule(rule: RuleJson, calldataHex: string): boolean {
+function txMatchesRule(rule: RuleJson, calldataHex: string, value: bigint): boolean {
   const data = ethers.getBytes(calldataHex);
 
   if (rule.dataLength !== undefined && data.length !== Number(rule.dataLength)) return false;
+
+  // Check value only when the rule explicitly constrains it.
+  if (rule.value !== undefined && rule.value !== '' && BigInt(rule.value) !== value) return false;
 
   for (const c of rule.constraints ?? []) {
     if ((readWord(data, c.offset) & BigInt(c.mask)) !== BigInt(c.expected)) return false;
@@ -63,16 +68,17 @@ function main() {
 
   const chainId = BigInt(require_arg(args, 'chain-id'));
   const contractAddress = require_arg(args, 'contract');
-  const calldataHex = require_arg(args, 'calldata');
+  const calldataHex = args['calldata'] ?? '0x';
+  const value = BigInt(args['value'] ?? '0');
 
   const rulesetPath = resolveRulesetFromArgs(args);
   const rules = loadRulesFile(rulesetPath);
   const ds = computeDomainSeparator(chainId, contractAddress);
   const { tree, encoded } = buildTree(rules, ds);
 
-  const match = Object.entries(rules).find(([, rule]) => calldataMatchesRule(rule, calldataHex));
+  const match = Object.entries(rules).find(([, rule]) => txMatchesRule(rule, calldataHex, value));
   if (!match) {
-    console.error('Error: no rule in the ruleset matches the given calldata');
+    console.error('Error: no rule in the ruleset matches the given calldata/value');
     console.error('Rules checked:', Object.keys(rules).join(', '));
     process.exit(1);
   }

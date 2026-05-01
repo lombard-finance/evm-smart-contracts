@@ -541,4 +541,38 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
       })
     ).to.equal(true, 'findRule proof rejected');
   });
+
+  it('findRule matches native coin transfer by value with empty calldata', async function () {
+    this.timeout(60000);
+
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${RULES_FILE} --chain-id ${chainId} --contract ${addr}`;
+    const value = 1000000000000000000n; // 1 ETH
+
+    const builderOut = JSON.parse(
+      execSync(
+        `npx ts-node scripts/vault/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_native_transfer`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+
+    // No --calldata, --value only — should resolve to allow_native_transfer
+    const finderOut = JSON.parse(
+      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --value ${value}`).toString()
+    ) as { ruleName: string; root: string; ruleEncoded: string; merkleProof: string[] };
+
+    expect(finderOut.ruleName).to.equal('allow_native_transfer');
+    expect(finderOut.root).to.equal(builderOut.root);
+    expect(finderOut.ruleEncoded).to.equal(builderOut.ruleEncoded);
+
+    await c.setAllowlistRoot(builderOut.root);
+
+    const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, value, '0x', {
+        ruleEncoded: finderOut.ruleEncoded,
+        merkleProof: finderOut.merkleProof
+      })
+    ).to.equal(true, 'findRule native transfer proof rejected');
+  });
 });
