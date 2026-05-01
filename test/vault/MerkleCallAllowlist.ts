@@ -490,6 +490,7 @@ describe('MerkleAllowlistValidator', function () {
 
 describe('script consistency: merkleTreeBuilder vs findRule', function () {
   const RULES_FILE = path.join(__dirname, 'fixtures/cross-script-ruleset.json');
+  const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
   const TRANSFER_SELECTOR = '0xa9059cbb';
 
   let c: MerkleAllowlistValidator;
@@ -518,7 +519,7 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
     ) as { root: string; ruleEncoded: string; merkleProof: string[] };
 
     const finderOut = JSON.parse(
-      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --calldata ${calldata}`).toString()
+      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --to ${TO} --calldata ${calldata}`).toString()
     ) as { ruleName: string; root: string; ruleEncoded: string; merkleProof: string[] };
 
     expect(finderOut.ruleName).to.equal('allow_transfer');
@@ -527,7 +528,6 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
 
     await c.setAllowlistRoot(builderOut.root);
 
-    const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
     expect(
       await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, {
         ruleEncoded: builderOut.ruleEncoded,
@@ -556,9 +556,9 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
       ).toString()
     ) as { root: string; ruleEncoded: string; merkleProof: string[] };
 
-    // No --calldata, --value only — should resolve to allow_native_transfer
+    // No --calldata; --to and --value identify the native transfer rule
     const finderOut = JSON.parse(
-      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --value ${value}`).toString()
+      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --to ${TO} --value ${value}`).toString()
     ) as { ruleName: string; root: string; ruleEncoded: string; merkleProof: string[] };
 
     expect(finderOut.ruleName).to.equal('allow_native_transfer');
@@ -567,7 +567,6 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
 
     await c.setAllowlistRoot(builderOut.root);
 
-    const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
     expect(
       await merkleIsAllowed(c, ethers.ZeroAddress, TO, value, '0x', {
         ruleEncoded: finderOut.ruleEncoded,
