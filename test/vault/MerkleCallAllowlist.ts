@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import * as path from 'path';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
@@ -330,19 +331,27 @@ describe('MerkleAllowlistValidator', function () {
     let encoded: Record<string, string>;
     let ds: string;
 
-    function encodeJsonRule(rule: (typeof rulesJson)[keyof typeof rulesJson]): string {
+    interface RuleJsonEntry {
+      sender?: string;
+      to?: string;
+      value?: string | number;
+      dataLength?: string | number;
+      constraints?: RuleConstraint[];
+    }
+
+    function encodeJsonRule(rule: RuleJsonEntry): string {
       const flags =
-        (rule.flags.senderSet ? 0x01 : 0) |
-        (rule.flags.toSet ? 0x02 : 0) |
-        (rule.flags.valueSet ? 0x04 : 0) |
-        (rule.flags.dataLengthSet ? 0x08 : 0);
+        (rule.sender ? 0x01 : 0) |
+        (rule.to ? 0x02 : 0) |
+        (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
+        (rule.dataLength !== undefined ? 0x08 : 0);
       return encodeMerkleRule({
         flags,
-        sender: rule.sender !== '' ? rule.sender : ethers.ZeroAddress,
-        to: rule.to !== '' ? rule.to : ethers.ZeroAddress,
-        value: 'value' in rule && rule.value !== '' ? BigInt(rule.value as string) : 0n,
-        dataLength: rule.dataLength,
-        constraints: rule.constraints
+        sender: rule.sender || ethers.ZeroAddress,
+        to: rule.to || ethers.ZeroAddress,
+        value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
+        dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
+        constraints: rule.constraints ?? []
       });
     }
 
@@ -356,7 +365,7 @@ describe('MerkleAllowlistValidator', function () {
       ds = await c.domainSeparator();
       const rows: TreeRow[] = [];
       encoded = {};
-      for (const [name, rule] of Object.entries(rulesJson)) {
+      for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
         const ruleEncoded = encodeJsonRule(rule);
         encoded[name] = ruleEncoded;
         rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
@@ -470,5 +479,99 @@ describe('MerkleAllowlistValidator', function () {
         true
       );
     });
+  });
+});
+
+// ─── Cross-script consistency ─────────────────────────────────────────────────
+// Verifies that merkleTreeBuilder and findRule produce identical leaves for the
+// same rule when given the same ruleset and validator address.
+// Uses a dedicated fixture where every rule has calldata constraints, so
+// findRule can unambiguously identify each rule by calldata alone.
+
+describe('script consistency: merkleTreeBuilder vs findRule', function () {
+  const RULES_FILE = path.join(__dirname, 'fixtures/cross-script-ruleset.json');
+  const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+  const TRANSFER_SELECTOR = '0xa9059cbb';
+
+  let c: MerkleAllowlistValidator;
+
+  beforeEach(async function () {
+    const [owner] = await ethers.getSigners();
+    const f = await ethers.getContractFactory('MerkleAllowlistValidator');
+    c = (await f.deploy(owner.address)) as MerkleAllowlistValidator;
+    await c.waitForDeployment();
+  });
+
+  it('both scripts produce the same root, ruleEncoded, and valid proofs', async function () {
+    this.timeout(60000);
+
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${RULES_FILE} --chain-id ${chainId} --contract ${addr}`;
+
+    // Calldata matching allow_transfer (selector only, no recipient pin)
+    const calldata = ethers.solidityPacked(['bytes4', 'bytes32', 'uint256'], [TRANSFER_SELECTOR, ethers.ZeroHash, 1n]);
+
+    const builderOut = JSON.parse(
+      execSync(
+        `npx ts-node scripts/vault/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_transfer`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+
+    const finderOut = JSON.parse(
+      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --to ${TO} --calldata ${calldata}`).toString()
+    ) as { ruleName: string; root: string; ruleEncoded: string; merkleProof: string[] };
+
+    expect(finderOut.ruleName).to.equal('allow_transfer');
+    expect(finderOut.root).to.equal(builderOut.root);
+    expect(finderOut.ruleEncoded).to.equal(builderOut.ruleEncoded);
+
+    await c.setAllowlistRoot(builderOut.root);
+
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, {
+        ruleEncoded: builderOut.ruleEncoded,
+        merkleProof: builderOut.merkleProof
+      })
+    ).to.equal(true, 'merkleTreeBuilder proof rejected');
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, {
+        ruleEncoded: finderOut.ruleEncoded,
+        merkleProof: finderOut.merkleProof
+      })
+    ).to.equal(true, 'findRule proof rejected');
+  });
+
+  it('findRule matches native coin transfer by value with empty calldata', async function () {
+    this.timeout(60000);
+
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${RULES_FILE} --chain-id ${chainId} --contract ${addr}`;
+    const value = 1000000000000000000n; // 1 ETH
+
+    const builderOut = JSON.parse(
+      execSync(
+        `npx ts-node scripts/vault/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_native_transfer`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+
+    // No --calldata; --to and --value identify the native transfer rule
+    const finderOut = JSON.parse(
+      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --to ${TO} --value ${value}`).toString()
+    ) as { ruleName: string; root: string; ruleEncoded: string; merkleProof: string[] };
+
+    expect(finderOut.ruleName).to.equal('allow_native_transfer');
+    expect(finderOut.root).to.equal(builderOut.root);
+    expect(finderOut.ruleEncoded).to.equal(builderOut.ruleEncoded);
+
+    await c.setAllowlistRoot(builderOut.root);
+
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, value, '0x', {
+        ruleEncoded: finderOut.ruleEncoded,
+        merkleProof: finderOut.merkleProof
+      })
+    ).to.equal(true, 'findRule native transfer proof rejected');
   });
 });
