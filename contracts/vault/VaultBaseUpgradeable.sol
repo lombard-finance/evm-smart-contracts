@@ -32,14 +32,12 @@ abstract contract VaultBaseUpgradeable is
     bytes32 public constant STRATEGY_DEPLOYER_ROLE =
         keccak256("STRATEGY_DEPLOYER_ROLE");
 
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    bytes32 public constant PRICE_MANAGER_ROLE =
+        keccak256("PRICE_MANAGER_ROLE");
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
-
-    bytes32 public constant PRICE_PER_SHARE_GUARDIAN_ROLE =
-        keccak256("PRICE_PER_SHARE_GUARDIAN_ROLE");
 
     uint256 internal constant _BPS_DENOMINATOR = 10_000;
 
@@ -152,17 +150,28 @@ abstract contract VaultBaseUpgradeable is
 
     /// @notice Updates `pricePerShare` subject to the configured `PriceRateLimiter` capacity and refill rules.
     /// @param newPricePerShare Next asset wei per share unit; must be non-zero.
+    /// @param revertOnRateLimit If the move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause vault operations (false).
     function postPricePerShare(
-        uint256 newPricePerShare
-    ) external onlyRole(OPERATOR_ROLE) whenVaultNotPaused {
+        uint256 newPricePerShare,
+        bool revertOnRateLimit
+    ) external onlyRole(PRICE_MANAGER_ROLE) whenVaultNotPaused {
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
             $.pricePerShare,
             newPricePerShare
         );
-        $.ppsRateLimiter._consume(changeBps);
+        if (!$.ppsRateLimiter._wouldExceedLimit(changeBps)) {
+            $.ppsRateLimiter._consume(changeBps);
+            _setPricePerShare($, newPricePerShare);
+            return;
+        }
+        if (revertOnRateLimit) {
+            revert PriceRateLimiter.PriceRateLimiter_RateLimitExceeded();
+        }
+        $.ppsRateLimiter._drainRemaining();
         _setPricePerShare($, newPricePerShare);
+        _pauseVault();
     }
 
     /// @notice Configures the PPS move rate limiter (bucket ceiling and refill rate; library-defined semantics).
@@ -186,17 +195,6 @@ abstract contract VaultBaseUpgradeable is
         returns (PriceRateLimiter.Bucket memory)
     {
         return _getVaultBaseUpgradeableStorage().ppsRateLimiter._refill();
-    }
-
-    /// @notice Posts any non-zero `pricePerShare` without consuming rate-limit capacity, then pauses vault operations.
-    /// @param newPricePerShare Next asset wei per share unit.
-    function forcePostPricePerShare(
-        uint256 newPricePerShare
-    ) external onlyRole(PRICE_PER_SHARE_GUARDIAN_ROLE) {
-        VaultBaseUpgradeableStorage
-            storage $ = _getVaultBaseUpgradeableStorage();
-        _setPricePerShare($, newPricePerShare);
-        _pauseVault();
     }
 
     function _setPricePerShare(

@@ -6,7 +6,7 @@ This folder contains the vault contracts and supporting infrastructure.
 
 ## MultiAssetWithAsyncRedemptionVault
 
-The main vault product. Users deposit **any supported token** (LBTC, staked LBTC, or other configured assets) and receive **vault shares** in return. Redemptions are asynchronous — users request a withdrawal and a controller processes it before they can claim their underlying assets.
+The main vault product. Users deposit **any supported token** (LBTC, BTC.b, or other configured assets) and receive **vault shares** in return. Redemptions are asynchronous — users request a withdrawal and a controller processes it before they can claim their underlying assets.
 
 **Deposit** — accepts multiple input tokens, each with its own pricing adapter and an optional fee (in basis points). The adapter converts the deposit token into the vault's base asset before shares are minted.
 
@@ -198,13 +198,13 @@ Use `@openzeppelin/merkle-tree`'s `StandardMerkleTree.of` with type `['uint8', '
 
 ## Files
 
-| File                                      | Role                                                      |
-| ----------------------------------------- | --------------------------------------------------------- |
-| `MultiAssetWithAsyncRedemptionVault.sol`  | Main vault (multi-asset deposit + async redemption)       |
-| `MultiAssetDepositUpgradeable.sol`        | Multi-token deposit logic with converter adapters         |
-| `ERC7540RedemptionUpgradeable.sol`        | Async redemption (ERC-7540)                               |
-| `VaultBaseUpgradeable.sol`                | Shared base (access control, ERC-4626 core)               |
-| `validators/MerkleAllowlistValidator.sol` | Merkle call allowlist validator                           |
-| `interfaces/IMerkleCallAllowlist.sol`     | Interface + `CallVerificationInput` struct                |
-| `converters/`                             | Asset converter adapters (Chainlink, direct, staked LBTC) |
-| `strategies/`                             | Strategy contracts for capital deployment                 |
+| File                                      | Role                                                       |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| `MultiAssetWithAsyncRedemptionVault.sol`  | Main vault (multi-asset deposit + async redemption)        |
+| `MultiAssetDepositUpgradeable.sol`        | Multi-token deposit logic with converter adapters          |
+| `ERC7540RedemptionUpgradeable.sol`        | Async redemption (ERC-7540)                                |
+| `VaultBaseUpgradeable.sol`                | Shared base (access control, ERC-4626 core)                |
+| `validators/MerkleAllowlistValidator.sol` | Merkle call allowlist validator                            |
+| `interfaces/IMerkleCallAllowlist.sol`     | Interface + `CallVerificationInput` struct                 |
+| `converters/`                             | Asset converter adapters (Chainlink, direct (BTC.b), LBTC) |
+| `strategies/`                             | Strategy contracts for capital deployment                  |

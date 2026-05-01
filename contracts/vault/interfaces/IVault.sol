@@ -36,7 +36,7 @@ interface IVault {
     /// @dev Address argument was `address(0)` where forbidden.
     error Vault_ZeroAddress();
 
-    /// @dev `postPricePerShare` / `forcePostPricePerShare` was called with `newPricePerShare == 0`.
+    /// @dev `postPricePerShare` was called with `newPricePerShare == 0`.
     error Vault_ZeroPricePerShare();
 
     /// @notice Vault operations entrypoints are paused (`whenVaultNotPaused` reverts).

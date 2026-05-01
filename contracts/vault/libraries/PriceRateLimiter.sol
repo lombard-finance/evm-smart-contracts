@@ -58,6 +58,28 @@ library PriceRateLimiter {
         }
     }
 
+    /// @return True if `_consume(s, changeBps)` would revert (oversized change or no capacity).
+    function _wouldExceedLimit(
+        Bucket storage s,
+        uint256 changeBps
+    ) internal view returns (bool) {
+        Bucket memory b = Bucket({
+            lastRefill: s.lastRefill,
+            capacityBps: s.capacityBps,
+            maxBps: s.maxBps,
+            refillRate: s.refillRate
+        });
+        b = _refill(b);
+        if (changeBps > type(uint32).max) return true;
+        return changeBps > uint256(b.capacityBps);
+    }
+
+    /// @notice Checkpoints refill then zeros remaining capacity (soft overflow: burn full bucket without applying an oversized move).
+    function _drainRemaining(Bucket storage s) internal {
+        _checkpoint(s);
+        s.capacityBps = 0;
+    }
+
     /// @dev Applies elapsed-time refill to a memory bucket; noop when `block.timestamp <= b.lastRefill`.
     ///      Used by `_checkpoint` and by `pricePerShareRateLimiterState` (via `using` on storage bucket).
     function _refill(Bucket memory b) internal view returns (Bucket memory) {

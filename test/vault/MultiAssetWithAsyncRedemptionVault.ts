@@ -62,7 +62,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await proxy.waitForDeployment();
     vault = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
-    await vault.connect(admin).grantRole(await vault.OPERATOR_ROLE(), operator.address);
+    await vault.connect(admin).grantRole(await vault.PRICE_MANAGER_ROLE(), operator.address);
 
     snapshot = await takeSnapshot();
   });
@@ -337,11 +337,11 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
     await vault.connect(treasury).setPerformanceFeeBps(1000); // 10%
 
-    // Raise pps +10% via guardian (guardian call forces a vault pause).
-    const ppsGuardianRole = await vault.PRICE_PER_SHARE_GUARDIAN_ROLE();
-    await vault.connect(admin).grantRole(ppsGuardianRole, admin.address);
+    // Raise pps +10% via soft post (default bucket has no capacity — drains, applies NAV, pauses).
+    const priceManagerRole = await vault.PRICE_MANAGER_ROLE();
+    await vault.connect(admin).grantRole(priceManagerRole, admin.address);
     const pps0 = await vault.pricePerShare();
-    await vault.connect(admin).forcePostPricePerShare((pps0 * 11n) / 10n);
+    await vault.connect(admin).postPricePerShare((pps0 * 11n) / 10n, false);
     await vault.connect(admin).unpauseVaultOperations();
 
     const supplyBefore = await vault.totalSupply();
@@ -408,11 +408,11 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       const p0 = await vault.pricePerShare();
       // +0.05% (500 bps) — consumes the entire weekly budget
       const p1 = (p0 * 10005n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p1, true)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
 
       // Any further move is blocked until the bucket refills
-      await expect(vault.connect(operator).postPricePerShare(p1 + 1n)).to.be.revertedWithCustomError(
+      await expect(vault.connect(operator).postPricePerShare(p1 + 1n, true)).to.be.revertedWithCustomError(
         vault,
         'PriceRateLimiter_RateLimitExceeded'
       );
@@ -422,7 +422,25 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p2 = (p1 * 10005n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p2)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p2, true)).to.emit(vault, 'PricePerShareUpdated');
+    });
+
+    it('soft overflow: applies price, drains bucket, and pauses vault', async function () {
+      const maxBps = 500;
+      const weekSeconds = 604800n;
+      const refillRate = (BigInt(maxBps) * 2n ** 32n + weekSeconds - 1n) / weekSeconds;
+
+      await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
+
+      const p0 = await vault.pricePerShare();
+      const p1 = (p0 * 10005n) / 10000n;
+      await vault.connect(operator).postPricePerShare(p1, true);
+
+      const tinyBump = p1 + 1n;
+      await expect(vault.connect(operator).postPricePerShare(tinyBump, false)).to.emit(vault, 'PricePerShareUpdated');
+      expect(await vault.vaultOperationsPaused()).to.be.true;
+      expect(await vault.pricePerShare()).to.equal(tinyBump);
+      expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
     });
 
     it('50% yearly allowed change with daily bucket', async function () {
@@ -437,12 +455,12 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       const p0 = await vault.pricePerShare();
       // +0.13% (1300 bps) — within daily budget, leaving 100 bps
       const p1 = (p0 * 10013n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p1, true)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);
 
       // 2 bps exceeds the 1 bps remaining in the bucket
       const p2 = (p1 * 10002n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p2)).to.be.revertedWithCustomError(
+      await expect(vault.connect(operator).postPricePerShare(p2, true)).to.be.revertedWithCustomError(
         vault,
         'PriceRateLimiter_RateLimitExceeded'
       );
@@ -452,7 +470,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p3 = (p1 * 10013n) / 10000n;
-      await expect(vault.connect(operator).postPricePerShare(p3)).to.emit(vault, 'PricePerShareUpdated');
+      await expect(vault.connect(operator).postPricePerShare(p3, true)).to.emit(vault, 'PricePerShareUpdated');
     });
   });
 });
@@ -507,7 +525,7 @@ describe('StakedLBTC as deposit token', function () {
       strategyDeployer.address
     ]);
 
-    await stakedVault.connect(admin).grantRole(await stakedVault.OPERATOR_ROLE(), operator.address);
+    await stakedVault.connect(admin).grantRole(await stakedVault.PRICE_MANAGER_ROLE(), operator.address);
     await stakedVault
       .connect(admin)
       .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
@@ -705,7 +723,7 @@ describe('Chainlink as deposit token', function () {
     await proxy.waitForDeployment();
     clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
-    await clVault.connect(admin).grantRole(await clVault.OPERATOR_ROLE(), operator.address);
+    await clVault.connect(admin).grantRole(await clVault.PRICE_MANAGER_ROLE(), operator.address);
     await clVault.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
 
     snap = await takeSnapshot();
