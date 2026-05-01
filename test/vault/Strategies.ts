@@ -12,7 +12,7 @@ import type {
   MockVaultForStrategy
 } from '../../typechain-types';
 import { encodeMerkleRule } from './MerkleCallAllowlist';
-import { calculateStorageSlot, encode } from '../helpers';
+import { calculateStorageSlot, encode, deployContract } from '../helpers';
 
 /** ABI-encode a CallVerificationInput for the IStrategyExecValidator.isAllowed(bytes) overload.
  *  Must match abi.decode(validatorArgs, (CallVerificationInput)) in MerkleAllowlistValidator. */
@@ -56,10 +56,9 @@ describe('Strategy & SatelliteStrategy', function () {
 
     // Strategy (vault-linked)
     const stratFactory = await ethers.getContractFactory('Strategy');
-    const stratProxy = await upgrades.deployProxy(
-      stratFactory,
+    const stratProxy = await deployContract(
+      'Strategy',
       [vaultPlaceholder.address, await validator.getAddress(), admin.address, liquidityRole.address],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
     );
     await stratProxy.waitForDeployment();
     strategy = stratFactory.attach(await stratProxy.getAddress()) as unknown as Strategy;
@@ -67,10 +66,7 @@ describe('Strategy & SatelliteStrategy', function () {
 
     // SatelliteStrategy (no vault pipe)
     const satFactory = await ethers.getContractFactory('SatelliteStrategy');
-    const satProxy = await upgrades.deployProxy(satFactory, [await validator.getAddress(), admin.address], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
+    const satProxy = await deployContract('SatelliteStrategy', [await validator.getAddress(), admin.address]);
     await satProxy.waitForDeployment();
     satellite = satFactory.attach(await satProxy.getAddress()) as unknown as SatelliteStrategy;
     await satellite.connect(admin).grantRole(await satellite.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
@@ -84,11 +80,7 @@ describe('Strategy & SatelliteStrategy', function () {
     mockVault = (await mockVaultFactory.deploy()) as unknown as MockVaultForStrategy;
     await mockVault.waitForDeployment();
 
-    const fundingStratProxy = await upgrades.deployProxy(
-      stratFactory,
-      [await mockVault.getAddress(), await validator.getAddress(), admin.address, liquidityRole.address],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
+    const fundingStratProxy = await deployContract('Strategy', [await mockVault.getAddress(), await validator.getAddress(), admin.address, liquidityRole.address]);
     await fundingStratProxy.waitForDeployment();
     fundingStrategy = stratFactory.attach(await fundingStratProxy.getAddress()) as unknown as Strategy;
 

@@ -700,8 +700,7 @@ describe('Chainlink as deposit token', function () {
         controllerManager.address,
         strategyDeployer.address
       ],
-      true,
-      { initializer: 'initialize' }
+      true
     );
     await proxy.waitForDeployment();
     clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;

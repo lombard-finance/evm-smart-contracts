@@ -26,7 +26,7 @@ describe('BeaconHub', function () {
 
     // Deploy BeaconHub as upgradeable proxy
     const hubFactory = await ethers.getContractFactory('BeaconHub');
-    const hubProxy = await deployContract('BeaconHub', [0, admin.address], true, { initializer: 'initialize' });
+    const hubProxy = await deployContract('BeaconHub', [0, admin.address], true);
     await hubProxy.waitForDeployment();
     hub = hubFactory.attach(await hubProxy.getAddress()) as unknown as BeaconHub;
 
