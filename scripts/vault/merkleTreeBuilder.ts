@@ -3,13 +3,13 @@
  *
  * Usage:
  *   npx ts-node scripts/vault/merkleTreeBuilder.ts \
- *     --rules <path/to/rules.json> \
+ *     --rules <path/to/rules.json|rules.yaml> \
  *     --chain-id <chainId> \
  *     --contract <validatorAddress> \
  *     --mode build
  *
  *   npx ts-node scripts/vault/merkleTreeBuilder.ts \
- *     --rules <path/to/rules.json> \
+ *     --rules <path/to/rules.json|rules.yaml> \
  *     --chain-id <chainId> \
  *     --contract <validatorAddress> \
  *     --mode proof \
@@ -18,62 +18,69 @@
  * Modes:
  *   build  — print the Merkle root (and domain separator) for all rules in the file
  *   proof  — print ruleEncoded + merkleProof for the named rule, ready to pass to isAllowed()
+ *
+ * Rule flags are inferred from field presence:
+ *   - sender, to, value : flag set when the field is present and non-empty
+ *   - dataLength        : flag set when the field is present and non-zero
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as yaml from 'yaml';
 import { ethers } from 'ethers';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 
-// ─── JSON rule schema ────────────────────────────────────────────────────────
+// ─── Rule schema ─────────────────────────────────────────────────────────────
 
-interface RuleConstraintJson {
+interface RuleConstraint {
   offset: number;
   mask: string;
   expected: string;
 }
 
-interface RuleFlagsJson {
-  senderSet: boolean;
-  toSet: boolean;
-  valueSet: boolean;
-  dataLengthSet: boolean;
-}
-
 interface RuleJson {
-  flags: RuleFlagsJson;
-  sender: string;
-  to: string;
-  value?: string;
-  dataLength: number;
-  constraints: RuleConstraintJson[];
+  sender?: string;
+  to?: string;
+  value?: string | number; // decimal ("100"), hex ("0x64"), or unquoted YAML number
+  dataLength?: string | number; // quoted ("68") or unquoted YAML number
+  constraints?: RuleConstraint[];
 }
 
 type RulesFile = Record<string, RuleJson>;
 
+// ─── File loading ─────────────────────────────────────────────────────────────
+
+function loadRulesFile(filePath: string): RulesFile {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.yaml' || ext === '.yml') {
+    return yaml.parse(content) as RulesFile;
+  }
+  return JSON.parse(content) as RulesFile;
+}
+
 // ─── Encoding ────────────────────────────────────────────────────────────────
 
-function flagsToBitmask(f: RuleFlagsJson): number {
-  return (f.senderSet ? 0x01 : 0) | (f.toSet ? 0x02 : 0) | (f.valueSet ? 0x04 : 0) | (f.dataLengthSet ? 0x08 : 0);
+function inferFlags(rule: RuleJson): number {
+  return (
+    (rule.sender ? 0x01 : 0) |
+    (rule.to ? 0x02 : 0) |
+    (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
+    (rule.dataLength !== undefined ? 0x08 : 0)
+  );
 }
 
 function encodeRule(rule: RuleJson): string {
-  const flags = flagsToBitmask(rule.flags);
-  const sender = rule.sender && rule.sender !== '' ? rule.sender : ethers.ZeroAddress;
-  const to = rule.to && rule.to !== '' ? rule.to : ethers.ZeroAddress;
-  const value = rule.value && rule.value !== '' ? BigInt(rule.value) : 0n;
+  const flags = inferFlags(rule);
+  const sender = rule.sender || ethers.ZeroAddress;
+  const to = rule.to || ethers.ZeroAddress;
+  const value = rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n;
+  const dataLength = rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0;
+  const constraints = rule.constraints ?? [];
 
   const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
-  const values: Array<string | bigint | number> = [
-    0x01,
-    flags,
-    sender,
-    to,
-    value,
-    rule.dataLength >>> 0,
-    rule.constraints.length
-  ];
-  for (const c of rule.constraints) {
+  const values: Array<string | bigint | number> = [0x01, flags, sender, to, value, dataLength, constraints.length];
+  for (const c of constraints) {
     types.push('uint16', 'bytes32', 'bytes32');
     values.push(c.offset, c.mask, c.expected);
   }
@@ -158,7 +165,7 @@ function main() {
     process.exit(1);
   }
 
-  const rules: RulesFile = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+  const rules = loadRulesFile(fullPath);
   const ds = computeDomainSeparator(chainId, contractAddress);
   const { tree, encoded } = buildTree(rules, ds);
 

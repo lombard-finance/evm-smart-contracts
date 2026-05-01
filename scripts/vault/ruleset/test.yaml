@@ -1,0 +1,27 @@
+rule_01:
+  to: "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072"
+  value: ""
+  constraints: []
+
+rule_02:
+  to: "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072"
+  value: "0"
+  constraints:
+    - offset: 0
+      mask: "0xffffffff00000000000000000000000000000000000000000000000000000000"
+      expected: "0xa9059cbb00000000000000000000000000000000000000000000000000000000"
+
+rule_03:
+  sender: "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892"
+  to: "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072"
+  constraints:
+    - offset: 0
+      mask: "0xffffffff00000000000000000000000000000000000000000000000000000000"
+      expected: "0xa9059cbb00000000000000000000000000000000000000000000000000000000"
+    - offset: 4
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000007C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+
+rule_04:
+  to: "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072"
+  value: "100000"

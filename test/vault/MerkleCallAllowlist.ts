@@ -330,19 +330,27 @@ describe('MerkleAllowlistValidator', function () {
     let encoded: Record<string, string>;
     let ds: string;
 
-    function encodeJsonRule(rule: (typeof rulesJson)[keyof typeof rulesJson]): string {
+    interface RuleJsonEntry {
+      sender?: string;
+      to?: string;
+      value?: string | number;
+      dataLength?: string | number;
+      constraints?: RuleConstraint[];
+    }
+
+    function encodeJsonRule(rule: RuleJsonEntry): string {
       const flags =
-        (rule.flags.senderSet ? 0x01 : 0) |
-        (rule.flags.toSet ? 0x02 : 0) |
-        (rule.flags.valueSet ? 0x04 : 0) |
-        (rule.flags.dataLengthSet ? 0x08 : 0);
+        (rule.sender ? 0x01 : 0) |
+        (rule.to ? 0x02 : 0) |
+        (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
+        (rule.dataLength !== undefined ? 0x08 : 0);
       return encodeMerkleRule({
         flags,
-        sender: rule.sender !== '' ? rule.sender : ethers.ZeroAddress,
-        to: rule.to !== '' ? rule.to : ethers.ZeroAddress,
-        value: 'value' in rule && rule.value !== '' ? BigInt(rule.value as string) : 0n,
-        dataLength: rule.dataLength,
-        constraints: rule.constraints
+        sender: rule.sender || ethers.ZeroAddress,
+        to: rule.to || ethers.ZeroAddress,
+        value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
+        dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
+        constraints: rule.constraints ?? []
       });
     }
 
@@ -356,7 +364,7 @@ describe('MerkleAllowlistValidator', function () {
       ds = await c.domainSeparator();
       const rows: TreeRow[] = [];
       encoded = {};
-      for (const [name, rule] of Object.entries(rulesJson)) {
+      for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
         const ruleEncoded = encodeJsonRule(rule);
         encoded[name] = ruleEncoded;
         rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
