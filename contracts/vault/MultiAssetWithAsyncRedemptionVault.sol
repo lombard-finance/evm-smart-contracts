@@ -9,11 +9,12 @@ import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
 
 /// @title MultiAssetWithAsyncRedemptionVault
 /// @notice Concrete vault combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and EIP-7540 async redemption (`ERC7540RedemptionUpgradeable`).
-/// @dev Linearization: `ERC7540RedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; initialise parents in `initialize` as written.
+/// @dev Linearization: `ERC7540RedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__VaultBase_init` + module inits in C3 order.
 contract MultiAssetWithAsyncRedemptionVault is
     MultiAssetDepositUpgradeable,
     ERC7540RedemptionUpgradeable
 {
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -35,9 +36,9 @@ contract MultiAssetWithAsyncRedemptionVault is
         address controllerManager_,
         address strategyDeployer_
     ) external initializer {
-        __ERC20_init(name_, symbol_);
-        __ERC20Pausable_init();
         __VaultBase_init(
+            name_,
+            symbol_,
             initialDefaultAdminDelay_,
             defaultAdmin_,
             strategyDeployer_,

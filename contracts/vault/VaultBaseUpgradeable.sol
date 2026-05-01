@@ -80,12 +80,17 @@ abstract contract VaultBaseUpgradeable is
         }
     }
 
-    /// @dev Shared initializer: access control, reentrancy guard, strategy deployer role, underlying asset, initial `pricePerShare`, and zeroed rate-limiter bucket.
+    /// @dev Shared initializer: access control, reentrancy guard, ERC-20 share metadata + pausable ERC-20, strategy deployer role, underlying asset, initial `pricePerShare`, and zeroed rate-limiter bucket.
+    ///      Parent initializers run in C3 linear order (OZ upgrades validator).
+    /// @param name_ ERC-20 name for vault shares.
+    /// @param symbol_ ERC-20 symbol for vault shares.
     /// @param initialDefaultAdminDelay_ Admin delay for `AccessControlDefaultAdminRules`.
     /// @param defaultAdmin_ Default admin for roles.
     /// @param strategyDeployer_ Receives `STRATEGY_DEPLOYER_ROLE` (must not be zero).
     /// @param asset_ Vault underlying ERC-20 (`asset()`).
     function __VaultBase_init(
+        string memory name_,
+        string memory symbol_,
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_,
         address strategyDeployer_,
@@ -101,6 +106,8 @@ abstract contract VaultBaseUpgradeable is
             defaultAdmin_
         );
         __ReentrancyGuard_init();
+        __ERC20_init(name_, symbol_);
+        __ERC20Pausable_init();
 
         _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
 
