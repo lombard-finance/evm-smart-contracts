@@ -36,7 +36,7 @@ describe('StakedLBTCOracle', function () {
 
     [_, owner, treasury, notary1, notary2, signer1] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -44,13 +44,13 @@ describe('StakedLBTCOracle', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
     stakedLbtc.address = await stakedLbtc.getAddress();
 
     defaultSwitchTime = (await time.latest()) + 3600;
     const oracleFactory = await ethers.getContractFactory('StakedLBTCOracle');
-    const oracleContract = await upgrades.deployProxy(
-      oracleFactory,
+    const oracleContract = await deployContract(
+      'StakedLBTCOracle',
       [
         owner.address,
         consortium.address,
@@ -60,11 +60,10 @@ describe('StakedLBTCOracle', function () {
         defaultSwitchTime,
         defaultMaxAheadInterval
       ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
     );
-    await oracleContract.waitForDeployment();
-    oracle = (await oracleFactory.attach(await oracleContract.getAddress())) as StakedLBTCOracle & Addressable;
-    oracle.address = await oracle.getAddress();
+    oracle = oracleContract as StakedLBTCOracle & Addressable;
 
     snapshot = await takeSnapshot();
   });

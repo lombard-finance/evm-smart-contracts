@@ -70,7 +70,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -87,11 +87,11 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       owner.address,
       pauser.address,
       1_000_000
-    ]);
+    ], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
     stakeAndBake.address = await stakeAndBake.getAddress();
 
     // Mailbox
-    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
     await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
@@ -109,7 +109,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       BITCOIN_CHAIN_ID,
       mailbox.address,
       ethers.ZeroAddress
-    ]);
+    ], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
     await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
-import { calculateStorageSlot, getSignersWithPrivateKeys, Signer } from '../helpers';
+import { calculateStorageSlot, deployContract, getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
   ChainlinkConverter,
   ChainlinkFeedMock,
@@ -50,19 +50,15 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await converter.waitForDeployment();
 
     const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
-    const proxy = await upgrades.deployProxy(
-      factory,
-      [
-        'Multi Vault Shares',
-        'mVAULT',
-        await underlying.getAddress(),
-        admin.address,
-        0,
-        controllerManager.address,
-        strategyDeployer.address
-      ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
+    const proxy = await deployContract('MultiAssetWithAsyncRedemptionVault', [
+      'Multi Vault Shares',
+      'mVAULT',
+      await underlying.getAddress(),
+      admin.address,
+      0,
+      controllerManager.address,
+      strategyDeployer.address
+    ]);
     await proxy.waitForDeployment();
     vault = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
@@ -129,7 +125,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
     expect(await vault.isDepositAsset(alt)).to.be.true;
     expect(await vault.converterOf(alt)).to.equal(conv);
-    expect(await vault.depositFeeBps(alt)).to.equal(0);
+    expect(await vault.depositFee(alt)).to.equal(0);
     expect(await vault.maxDeposit(alt, user.address)).to.equal(ethers.MaxUint256);
     expect(await vault.maxMint(alt, user.address)).to.equal(ethers.MaxUint256);
   });
@@ -188,9 +184,9 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const v = await vault.getAddress();
     const sink = ethers.Wallet.createRandom().address;
 
-    const wfRole = await vault.WITHDRAWAL_FEE_MANAGER_ROLE();
-    await vault.connect(admin).grantRole(wfRole, treasury.address);
-    await vault.connect(treasury).setWithdrawalTreasury(treasury.address);
+    const treasuryRole = await vault.TREASURY_ROLE();
+    await vault.connect(admin).grantRole(treasuryRole, treasury.address);
+    await vault.connect(treasury).setFeeTreasury(treasury.address);
 
     await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100); // 1%
     await vault.connect(strategyDeployer).registerStrategy(sink);
@@ -373,18 +369,15 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const treasuryRole = await vault.TREASURY_ROLE();
     await vault.connect(admin).grantRole(treasuryRole, treasury.address);
 
-    const wfRole = await vault.WITHDRAWAL_FEE_MANAGER_ROLE();
-    await vault.connect(admin).grantRole(wfRole, treasury.address);
-
-    await expect(vault.connect(treasury).setWithdrawalTreasury(treasury.address))
-      .to.emit(vault, 'WithdrawalTreasurySet')
+    await expect(vault.connect(treasury).setFeeTreasury(treasury.address))
+      .to.emit(vault, 'FeeTreasurySet')
       .withArgs(treasury.address);
 
     await expect(vault.connect(treasury).setDepositFeeBps(alt, 10))
       .to.emit(vault, 'DepositFeeBpsSet')
       .withArgs(alt, 10);
-    expect(await vault.depositFeeBps(alt)).to.equal(10);
-    expect(await vault.getWithdrawalTreasury()).to.equal(treasury.address);
+    expect(await vault.depositFee(alt)).to.equal(10);
+    expect(await vault.feeTreasury()).to.equal(treasury.address);
   });
 
   it('admin can swap asset converter for a listed deposit asset', async function () {
@@ -488,20 +481,13 @@ describe('StakedLBTC as deposit token', function () {
     [admin, strategyDeployer, controllerManager, , , user, treasury, operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
-    const wbtcProxy = await upgrades.deployProxy(wbtcFactory, [], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
-    await wbtcProxy.waitForDeployment();
+    const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
     lbtcUnderlying = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
 
-    const stakedFactory = await ethers.getContractFactory('StakedLBTCMock');
-    const stakedProxy = await upgrades.deployProxy(stakedFactory, [treasury.address, admin.address, 0], {
+    stakedToken = await deployContract<StakedLBTCMock>('StakedLBTCMock', [treasury.address, admin.address, 0], true, {
       initializer: 'initialize',
-      unsafeAllow: ['constructor', 'missing-initializer', 'missing-initializer-call']
+      unsafeAllow: ['missing-initializer', 'missing-initializer-call']
     });
-    await stakedProxy.waitForDeployment();
-    stakedToken = stakedFactory.attach(await stakedProxy.getAddress()) as StakedLBTCMock;
 
     const oracleFactory = await ethers.getContractFactory('RatioFeedMock');
     oracle = (await oracleFactory.deploy()) as RatioFeedMock;
@@ -511,22 +497,15 @@ describe('StakedLBTC as deposit token', function () {
     stakedConverter = (await convFactory.deploy(await oracle.getAddress())) as StakedLBTCConverter;
     await stakedConverter.waitForDeployment();
 
-    const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
-    const proxy = await upgrades.deployProxy(
-      vaultFactory,
-      [
-        'Lombard BTC Vault',
-        'LBTCV',
-        await lbtcUnderlying.getAddress(),
-        admin.address,
-        0,
-        controllerManager.address,
-        strategyDeployer.address
-      ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
-    );
-    await proxy.waitForDeployment();
-    stakedVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
+    stakedVault = await deployContract<MultiAssetWithAsyncRedemptionVault>('MultiAssetWithAsyncRedemptionVault', [
+      'Lombard BTC Vault',
+      'LBTCV',
+      await lbtcUnderlying.getAddress(),
+      admin.address,
+      0,
+      controllerManager.address,
+      strategyDeployer.address
+    ]);
 
     await stakedVault.connect(admin).grantRole(await stakedVault.OPERATOR_ROLE(), operator.address);
     await stakedVault
@@ -636,9 +615,7 @@ describe('StakedLBTC as deposit token', function () {
 
       const treasuryRole = await stakedVault.TREASURY_ROLE();
       await stakedVault.connect(admin).grantRole(treasuryRole, treasury.address);
-      const wfRole = await stakedVault.WITHDRAWAL_FEE_MANAGER_ROLE();
-      await stakedVault.connect(admin).grantRole(wfRole, treasury.address);
-      await stakedVault.connect(treasury).setWithdrawalTreasury(treasury.address);
+      await stakedVault.connect(treasury).setFeeTreasury(treasury.address);
       await stakedVault.connect(treasury).setDepositFeeBps(sAddr, 100); // 1%
 
       const depositAmt = ONE_LBTC;
@@ -692,11 +669,7 @@ describe('Chainlink as deposit token', function () {
     [admin, strategyDeployer, controllerManager, , , user, , operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
-    const wbtcProxy = await upgrades.deployProxy(wbtcFactory, [], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
-    await wbtcProxy.waitForDeployment();
+    const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
     depositToken = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
 
     // 8-decimal feed, answer = 1e8 (peg: 1 token = 1 BTC)
@@ -716,8 +689,8 @@ describe('Chainlink as deposit token', function () {
     await clConverter.waitForDeployment();
 
     const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
-    const proxy = await upgrades.deployProxy(
-      vaultFactory,
+    const proxy = await deployContract(
+      'MultiAssetWithAsyncRedemptionVault',
       [
         'Chainlink BTC Vault',
         'clVAULT',
@@ -727,7 +700,8 @@ describe('Chainlink as deposit token', function () {
         controllerManager.address,
         strategyDeployer.address
       ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+      true,
+      { initializer: 'initialize' }
     );
     await proxy.waitForDeployment();
     clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;

@@ -4,7 +4,7 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import type { BeaconHub, Strategy, MerkleAllowlistValidator, UpgradeableBeacon } from '../../typechain-types';
-import { calculateStorageSlot, encode } from '../helpers';
+import { calculateStorageSlot, encode, deployContract } from '../helpers';
 
 const STRATEGY_ID = ethers.id('Strategy'); // keccak256("Strategy")
 
@@ -26,10 +26,7 @@ describe('BeaconHub', function () {
 
     // Deploy BeaconHub as upgradeable proxy
     const hubFactory = await ethers.getContractFactory('BeaconHub');
-    const hubProxy = await upgrades.deployProxy(hubFactory, [0, admin.address], {
-      initializer: 'initialize',
-      unsafeAllow: ['constructor']
-    });
+    const hubProxy = await deployContract('BeaconHub', [0, admin.address], true, { initializer: 'initialize' });
     await hubProxy.waitForDeployment();
     hub = hubFactory.attach(await hubProxy.getAddress()) as unknown as BeaconHub;
 
