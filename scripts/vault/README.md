@@ -113,7 +113,7 @@ npx ts-node scripts/vault/merkleTreeBuilder.ts \
 
 ## findRule.ts
 
-Given a transaction's calldata, locates the matching rule from the ruleset and returns the encoded rule plus Merkle proof ready to pass to `isAllowed()`. No need to know the rule name in advance.
+Given a transaction's parameters, locates the matching rule from the ruleset and returns the Merkle proof plus a ready-to-broadcast `exec()` transaction. No need to know the rule name in advance.
 
 ### Arguments
 
@@ -121,7 +121,11 @@ Given a transaction's calldata, locates the matching rule from the ruleset and r
 |---|---|---|
 | `--chain-id` | yes | Chain ID of the target network (decimal or hex) |
 | `--contract` | yes | Deployed `MerkleAllowlistValidator` address |
-| `--calldata` | yes | Calldata hex string to match against the ruleset |
+| `--to` | optional | Call target address (default: zero address) |
+| `--sender` | optional | `msg.sender` of the exec call (default: zero address) |
+| `--value` | optional | ETH value in wei (default: `0`; use for native coin transfers) |
+| `--calldata` | optional | Calldata hex string (default: `0x`; omit for native coin transfers) |
+| `--strategy` | optional | Strategy contract address — sets `execTx.to` in the output |
 | `--rules` | optional | Explicit path to the ruleset file (overrides derived path) |
 
 ### Ruleset file path convention
@@ -136,12 +140,13 @@ For example, chain ID `1` and validator `0x251a604E...` resolves to:
 scripts/vault/ruleset/0x0000000000000000000000000000000000000000000000000000000000000001/0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892.json
 ```
 
-### Example
+### Example — ERC-20 transfer
 
 ```sh
 npx ts-node scripts/vault/findRule.ts \
   --chain-id 1 \
   --contract 0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892 \
+  --to      0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072 \
   --calldata 0xa9059cbb00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000064
 ```
 
@@ -153,8 +158,26 @@ npx ts-node scripts/vault/findRule.ts \
   "merkleProof": [
     "0x82cc6271a83a9be4dbe0549e41519f93e6bfa877850d5aa87fa05fdbe2e267c6",
     "0xd92e43d83811f84dc6497e96c942734bb9fc3c53f7bab2a66704b2c51de9a42a"
-  ]
+  ],
+  "execTx": {
+    "to": null,
+    "value": "0x00",
+    "data": "0x730d12c1..."
+  }
 }
 ```
 
-The `root` must be set on-chain via `setAllowlistRoot` before calling `isAllowed()`. The `ruleEncoded` and `merkleProof` fields map directly to `CallVerificationInput.ruleEncoded` and `CallVerificationInput.merkleProof`.
+Pass `--strategy <address>` to populate `execTx.to` with the strategy contract that exposes `exec()`:
+
+```sh
+npx ts-node scripts/vault/findRule.ts \
+  --chain-id 1 \
+  --contract  0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892 \
+  --to        0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072 \
+  --calldata  0xa9059cbb... \
+  --strategy  0xYourStrategyAddress
+```
+
+`execTx` is always present. When `--strategy` is omitted `execTx.to` is `null` — fill it in before broadcasting. `execTx.data` encodes `exec(to, value, calldata, validatorArgs)` where `validatorArgs` is `abi.encode(CallVerificationInput{ruleEncoded, merkleProof})`.
+
+The `root` must be set on-chain via `setAllowlistRoot` before the `exec()` call will succeed.

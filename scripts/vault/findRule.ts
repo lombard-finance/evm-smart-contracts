@@ -1,6 +1,7 @@
 /**
  * findRule.ts — given a transaction's parameters, find the matching rule and
  * return ruleEncoded + merkleProof ready to pass to the validator's isAllowed().
+ * Optionally emits a ready-to-broadcast exec() transaction.
  *
  * Usage (derive ruleset from validator address):
  *   npx ts-node scripts/vault/findRule.ts \
@@ -10,13 +11,15 @@
  *     --sender   <address>          msg.sender   (default: zero address)
  *     --value    <decimal>          msg.value in wei (default: 0)
  *     --calldata <hex>              calldata (default: 0x for native coin transfers)
+ *     --strategy <address>          strategy contract address — when provided, adds
+ *                                   execTx to the output (ready-to-broadcast exec() call)
  *
  * Usage (explicit rules file):
  *   npx ts-node scripts/vault/findRule.ts \
  *     --rules    <path/to/rules.[json|yaml]> \
  *     --chain-id <chainId> \
  *     --contract <validatorAddress> \
- *     [--to / --sender / --value / --calldata as above]
+ *     [--to / --sender / --value / --calldata / --strategy as above]
  *
  * Ruleset file resolution (in order of priority):
  *   1. --rules <path>          — use this file directly
@@ -62,6 +65,29 @@ function txMatchesRule(rule: RuleJson, calldataHex: string, value: bigint, to: s
   return true;
 }
 
+// ─── exec() transaction builder ───────────────────────────────────────────────
+
+const EXEC_IFACE = new ethers.Interface([
+  'function exec(address to, uint256 value, bytes calldata data, bytes calldata validatorArgs) external payable returns (bytes)'
+]);
+
+function buildExecTx(
+  strategyAddress: string | undefined,
+  to: string,
+  value: bigint,
+  calldataHex: string,
+  ruleEncoded: string,
+  merkleProof: string[]
+): { to: string | null; value: string; data: string } {
+  // validatorArgs = abi.encode(CallVerificationInput{ruleEncoded, merkleProof})
+  const validatorArgs = ethers.AbiCoder.defaultAbiCoder().encode(
+    ['tuple(bytes ruleEncoded, bytes32[] merkleProof)'],
+    [[ruleEncoded, merkleProof]]
+  );
+  const data = EXEC_IFACE.encodeFunctionData('exec', [to, value, calldataHex, validatorArgs]);
+  return { to: strategyAddress ?? null, value: ethers.toBeHex(value), data };
+}
+
 // ─── CLI ──────────────────────────────────────────────────────────────────────
 
 function main() {
@@ -73,6 +99,7 @@ function main() {
   const sender = args['sender'] ?? ethers.ZeroAddress;
   const value = BigInt(args['value'] ?? '0');
   const calldataHex = args['calldata'] ?? '0x';
+  const strategyAddress = args['strategy'];
 
   const rulesetPath = resolveRulesetFromArgs(args);
   const rules = loadRulesFile(rulesetPath);
@@ -88,9 +115,10 @@ function main() {
 
   const [ruleName] = match;
   const ruleEncoded = encoded[ruleName];
-  const proof = tree.getProof([0, ds, ethers.getBytes(ruleEncoded)] as [number, string, Uint8Array]);
+  const merkleProof = tree.getProof([0, ds, ethers.getBytes(ruleEncoded)] as [number, string, Uint8Array]);
 
-  console.log(JSON.stringify({ ruleName, root: tree.root, ruleEncoded, merkleProof: proof }, null, 2));
+  const execTx = buildExecTx(strategyAddress, to, value, calldataHex, ruleEncoded, merkleProof);
+  console.log(JSON.stringify({ ruleName, root: tree.root, ruleEncoded, merkleProof, execTx }, null, 2));
 }
 
 main();
