@@ -75,7 +75,7 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
             totalSupply()
         );
         if (shares == 0) revert FeeManager_NothingToHarvest();
-        _getFeeManagerStorage().lastFeeHarvestAt = uint48(block.timestamp);
+        $.lastFeeHarvestAt = uint48(block.timestamp);
         _mint(to, shares);
         emit ManagementFeeHarvested(to, shares, elapsed);
     }
