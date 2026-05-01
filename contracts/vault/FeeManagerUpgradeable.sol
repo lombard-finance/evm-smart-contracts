@@ -12,7 +12,6 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
 
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
 
-    uint256 private constant _BPS_DENOMINATOR = 10_000;
     uint256 private constant _SECONDS_PER_YEAR = 365 days;
 
     /// @custom:storage-location erc7201:lombardfinance.storage.FeeManagerUpgradeable
@@ -37,6 +36,7 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
         }
     }
 
+    /// @dev Must be called after {__VaultBase_init} — reads pricePerShare() which is initialised there.
     function __FeeManager_init() internal onlyInitializing {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         $.highWaterMark = pricePerShare();
@@ -53,7 +53,9 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
 
     function setPerformanceFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
         if (bps >= _BPS_DENOMINATOR) revert PerformanceFeeBpsTooHigh();
-        _getFeeManagerStorage().performanceFeeBps = bps;
+        FeeManagerStorage storage $ = _getFeeManagerStorage();
+        $.performanceFeeBps = bps;
+        $.highWaterMark = pricePerShare();
         emit PerformanceFeeBpsSet(bps);
     }
 

@@ -38,6 +38,8 @@ abstract contract VaultBaseUpgradeable is
     bytes32 public constant PRICE_PER_SHARE_GUARDIAN_ROLE =
         keccak256("PRICE_PER_SHARE_GUARDIAN_ROLE");
 
+    uint256 internal constant _BPS_DENOMINATOR = 10_000;
+
     modifier whenVaultNotPaused() {
         _requireVaultNotPaused();
         _;
@@ -48,6 +50,9 @@ abstract contract VaultBaseUpgradeable is
         _;
     }
 
+    /// @dev ERC-7201 namespaced storage is used throughout this contract hierarchy — there are no __gap arrays.
+    ///      Any new storage added in future upgrades must use a new namespaced struct; never append to an
+    ///      existing struct or add bare state variables, as that would corrupt the storage layout.
     /// @custom:storage-location erc7201:lombardfinance.storage.VaultBaseUpgradeable
     struct VaultBaseUpgradeableStorage {
         EnumerableSet.AddressSet strategies;
@@ -135,7 +140,6 @@ abstract contract VaultBaseUpgradeable is
             maxBps: maxBucketBps_,
             refillRate: refillRate_
         });
-        PriceRateLimiter._validateConfig(config);
         _getVaultBaseUpgradeableStorage().ppsRateLimiter._setConfig(config);
     }
 

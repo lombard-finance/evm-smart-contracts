@@ -19,9 +19,6 @@ abstract contract MultiAssetDepositUpgradeable is
     using Math for uint256;
     using SafeERC20 for IERC20;
 
-    /// @dev Upper bound for fee denominator (100%).
-    uint256 private constant _BPS_DENOMINATOR = 10_000;
-
     /// @custom:storage-location erc7201:lombardfinance.storage.MultiAssetDepositUpgradeable
     struct MultiAssetDepositStorage {
         EnumerableSet.AddressSet depositAssets;
@@ -301,6 +298,7 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
+        if (vaultOperationsPaused()) return 0;
         if (
             !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
         ) return 0;
@@ -311,6 +309,7 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
+        if (vaultOperationsPaused()) return 0;
         if (
             !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
         ) return 0;
@@ -330,9 +329,8 @@ abstract contract MultiAssetDepositUpgradeable is
             return 0;
         }
         (, uint256 net) = _splitDepositFeeView(depositAsset, assets);
-        uint256 btcOut = IAssetConverter($.converters[depositAsset]).toBtcUnits(
-            net
-        );
+        uint256 btcOut = IAssetConverter($.converters[depositAsset])
+            .toBaseUnits(net, Math.Rounding.Floor);
         return _convertToShares(btcOut, Math.Rounding.Floor);
     }
 
@@ -349,8 +347,9 @@ abstract contract MultiAssetDepositUpgradeable is
             return 0;
         }
         uint256 btcIn = _convertToAssets(shares, Math.Rounding.Ceil);
-        uint256 net = IAssetConverter($.converters[depositAsset]).toTokenAmount(
-            btcIn
+        uint256 net = IAssetConverter($.converters[depositAsset]).fromBaseUnits(
+            btcIn,
+            Math.Rounding.Ceil
         );
         uint16 bps = $.depositFeeBps[depositAsset];
         return
@@ -370,7 +369,10 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             return 0;
         }
-        uint256 btcOut = $.converters[depositAsset].toBtcUnits(assets);
+        uint256 btcOut = $.converters[depositAsset].toBaseUnits(
+            assets,
+            Math.Rounding.Floor
+        );
         return _convertToShares(btcOut, Math.Rounding.Floor);
     }
 
@@ -384,7 +386,8 @@ abstract contract MultiAssetDepositUpgradeable is
             return 0;
         }
         uint256 btcIn = _convertToAssets(shares, Math.Rounding.Ceil);
-        return $.converters[depositAsset].toTokenAmount(btcIn);
+        return
+            $.converters[depositAsset].fromBaseUnits(btcIn, Math.Rounding.Ceil);
     }
 
     function _splitDepositFeeView(

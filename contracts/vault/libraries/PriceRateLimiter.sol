@@ -10,7 +10,6 @@ library PriceRateLimiter {
     using Math for uint256;
 
     error PriceRateLimiter_RateLimitExceeded();
-    error PriceRateLimiter_InvalidConfig();
 
     event PricePerShareRateLimitUpdated(uint32 maxBucketBps, uint64 refillRate);
 
@@ -66,11 +65,6 @@ library PriceRateLimiter {
         b.lastRefill = ts;
         return b;
     }
-
-    /// @notice Validation hook called by callers before `_setConfig`. No-op by default.
-    ///         Callers that need constraints on `Config` should revert with `PriceRateLimiter_InvalidConfig`
-    ///         in their own pre-call validation rather than relying on this function.
-    function _validateConfig(Config memory /* config */) internal pure {}
 
     /// @notice Checkpoints the refill to `block.timestamp`, then applies the new config.
     ///         Seeds a full bucket on first config; otherwise caps the stored level at the new `maxBps`.

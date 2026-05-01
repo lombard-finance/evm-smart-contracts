@@ -12,6 +12,7 @@ interface IStrategy {
     /// @dev Contract ETH balance (including `msg.value` on this call) is less than `value`.
     error Strategy_InvalidEthFunding();
 
+    /// @dev Thrown when a zero address is supplied for a strategy parameter or configuration.
     error Strategy_ZeroAddress();
 
     event Executed(

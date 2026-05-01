@@ -217,6 +217,61 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(afterU - beforeU).to.equal(assetsOut);
   });
 
+  it('fulfillRedeemRequests: reverts when vault holds no underlying for the redeemed shares', async function () {
+    // Deposit alt token — vault holds altDeposit, NOT underlying.
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+
+    const depositAmt = 1_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, depositAmt);
+    await altDeposit.connect(user).approve(v, depositAmt);
+    await vault.connect(user).deposit(alt, depositAmt, user.address);
+
+    const shares = await vault.balanceOf(user.address);
+    await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
+    await vault.connect(redeemController).setOperator(redeemOperator.address, true);
+
+    const rid = await vault.connect(user).requestRedeem.staticCall(shares, redeemController.address, user.address);
+    await vault.connect(user).requestRedeem(shares, redeemController.address, user.address);
+    expect(await vault.balanceOf(user.address)).to.equal(0n); // shares already burned
+
+    // Vault holds no underlying — fulfillment must revert (transfer fails).
+    await expect(vault.connect(redeemOperator).fulfillRedeemRequests([rid])).to.be.reverted;
+  });
+
+  it('harvestPerformanceFee: mints fee shares without automatically adjusting pricePerShare', async function () {
+    const treasuryRole = await vault.TREASURY_ROLE();
+    await vault.connect(admin).grantRole(treasuryRole, treasury.address);
+
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+
+    const depositAmt = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, depositAmt);
+    await altDeposit.connect(user).approve(v, depositAmt);
+    await vault.connect(user).deposit(alt, depositAmt, user.address);
+
+    await vault.connect(treasury).setPerformanceFeeBps(1000); // 10%
+
+    // Raise pps +10% via guardian (guardian call forces a vault pause).
+    const ppsGuardianRole = await vault.PRICE_PER_SHARE_GUARDIAN_ROLE();
+    await vault.connect(admin).grantRole(ppsGuardianRole, admin.address);
+    const pps0 = await vault.pricePerShare();
+    await vault.connect(admin).forcePostPricePerShare((pps0 * 11n) / 10n);
+    await vault.connect(admin).unpauseVaultOperations();
+
+    const supplyBefore = await vault.totalSupply();
+    const ppsBefore = await vault.pricePerShare();
+
+    await vault.connect(treasury).harvestPerformanceFee(treasury.address);
+
+    expect(await vault.totalSupply()).to.be.gt(supplyBefore); // fee shares minted
+    // pricePerShare is unchanged — operator must post a lower value to correct NAV.
+    expect(await vault.pricePerShare()).to.equal(ppsBefore);
+  });
+
   it('controller manager can set max redeem per controller', async function () {
     await vault.connect(controllerManager).registerRedeemController(redeemController.address, 1000n);
     expect(await vault.maxControllerRedeem(redeemController.address)).to.equal(1000n);
@@ -264,7 +319,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
 
       const p0 = await vault.pricePerShare();
-      // +0.05% (5 bps) — consumes the entire weekly budget
+      // +0.05% (500 bps) — consumes the entire weekly budget
       const p1 = (p0 * 10005n) / 10000n;
       await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
@@ -293,7 +348,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await vault.connect(admin).setPricePerShareRateLimit(maxBps, refillRate);
 
       const p0 = await vault.pricePerShare();
-      // +0.13% (13 bps) — within daily budget, leaving 100 bps
+      // +0.13% (1300 bps) — within daily budget, leaving 100 bps
       const p1 = (p0 * 10013n) / 10000n;
       await expect(vault.connect(operator).postPricePerShare(p1)).to.emit(vault, 'PricePerShareUpdated');
       expect((await vault.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);
@@ -392,32 +447,32 @@ describe('StakedLBTC as deposit token', function () {
   });
 
   describe('StakedLBTCConverter', function () {
-    it('at-par ratio (1e18): toBtcUnits and toTokenAmount are 1:1', async function () {
-      expect(await stakedConverter.toBtcUnits(ONE_LBTC)).to.equal(ONE_LBTC);
-      expect(await stakedConverter.toTokenAmount(ONE_LBTC)).to.equal(ONE_LBTC);
+    it('at-par ratio (1e18): toBaseUnits and fromBaseUnits are 1:1', async function () {
+      expect(await stakedConverter.toBaseUnits(ONE_LBTC, 0)).to.equal(ONE_LBTC);
+      expect(await stakedConverter.fromBaseUnits(ONE_LBTC, 1)).to.equal(ONE_LBTC);
     });
 
-    it('yield-accrued ratio (0.9e18): 1 stakedLBTC converts to more BTC units', async function () {
+    it('yield-accrued ratio (0.9e18): 1 stakedLBTC converts to more base units', async function () {
       // Each stakedLBTC is worth 1/0.9 ≈ 1.1111 LBTC when ratio = 0.9e18.
       await oracle.setRatio((ONE_ETHER * 9n) / 10n);
 
       // 1e8 * 1e18 / 0.9e18 = 111_111_111.111… → floor → 111_111_111
-      expect(await stakedConverter.toBtcUnits(ONE_LBTC)).to.equal(111_111_111n);
+      expect(await stakedConverter.toBaseUnits(ONE_LBTC, 0)).to.equal(111_111_111n);
 
       // Inverse: 111_111_111 * 0.9e18 / 1e18 = 99_999_999.9 → ceil → 100_000_000
-      expect(await stakedConverter.toTokenAmount(111_111_111n)).to.equal(ONE_LBTC);
+      expect(await stakedConverter.fromBaseUnits(111_111_111n, 1)).to.equal(ONE_LBTC);
     });
 
-    it('round-trip: toTokenAmount(toBtcUnits(x)) differs from x by at most 1 satoshi', async function () {
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) differs from x by at most 1 satoshi', async function () {
       const amounts = [ONE_LBTC / 2n, ONE_LBTC, ONE_LBTC * 100n];
       const ratios = [ONE_ETHER, (ONE_ETHER * 9n) / 10n, (ONE_ETHER * 95n) / 100n];
 
       for (const ratio of ratios) {
         await oracle.setRatio(ratio);
         for (const amt of amounts) {
-          const btcOut = await stakedConverter.toBtcUnits(amt);
-          const tokenOut = await stakedConverter.toTokenAmount(btcOut);
-          // Ceil in toTokenAmount means tokenOut >= amt, but by at most 1 satoshi.
+          const btcOut = await stakedConverter.toBaseUnits(amt, 0);
+          const tokenOut = await stakedConverter.fromBaseUnits(btcOut, 1);
+          // Ceil in fromBaseUnits means tokenOut >= amt, but by at most 1 satoshi.
           expect(tokenOut).to.be.gte(amt);
           expect(tokenOut - amt).to.be.lte(1n);
         }
@@ -591,9 +646,9 @@ describe('Chainlink as deposit token', function () {
   });
 
   describe('ChainlinkConverter', function () {
-    it('peg (answer=1e8, 8-dec feed): toBtcUnits and toTokenAmount are 1:1', async function () {
-      expect(await clConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
-      expect(await clConverter.toTokenAmount(ONE_BTC)).to.equal(ONE_BTC);
+    it('peg (answer=1e8, 8-dec feed): toBaseUnits and fromBaseUnits are 1:1', async function () {
+      expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+      expect(await clConverter.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
     });
 
     it('non-peg (answer=1.111…e18, 18-dec feed): converts correctly', async function () {
@@ -614,20 +669,20 @@ describe('Chainlink as deposit token', function () {
 
       // scalingFactor = 10^(18+8-8) = 1e18
       // btcOut = 1e8 * 111_111_111e10 / 1e18 = 111_111_111
-      expect(await conv18.toBtcUnits(ONE_BTC)).to.equal(111_111_111n);
+      expect(await conv18.toBaseUnits(ONE_BTC, 0)).to.equal(111_111_111n);
       // tokenOut = 111_111_111 * 1e18 / 111_111_111e10 = 1e8 (exact)
-      expect(await conv18.toTokenAmount(111_111_111n)).to.equal(ONE_BTC);
+      expect(await conv18.fromBaseUnits(111_111_111n, 1)).to.equal(ONE_BTC);
     });
 
-    it('round-trip: toTokenAmount(toBtcUnits(x)) differs from x by at most 1 satoshi', async function () {
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) differs from x by at most 1 satoshi', async function () {
       const answers = [ONE_BTC, ONE_BTC + ONE_BTC / 10n, (ONE_BTC * 95n) / 100n];
       const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
 
       for (const answer of answers) {
         await clFeed.setAnswer(answer);
         for (const amt of amounts) {
-          const btcOut = await clConverter.toBtcUnits(amt);
-          const tokenOut = await clConverter.toTokenAmount(btcOut);
+          const btcOut = await clConverter.toBaseUnits(amt, 0);
+          const tokenOut = await clConverter.fromBaseUnits(btcOut, 1);
           expect(tokenOut).to.be.gte(amt);
           expect(tokenOut - amt).to.be.lte(1n);
         }
@@ -637,11 +692,11 @@ describe('Chainlink as deposit token', function () {
     it('stale answer reverts with StaleAnswer', async function () {
       const block = await ethers.provider.getBlock('latest');
       await clFeed.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
-      await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_StaleAnswer'
       );
-      await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_StaleAnswer'
       );
@@ -649,11 +704,11 @@ describe('Chainlink as deposit token', function () {
 
     it('zero answer reverts with InvalidAnswer', async function () {
       await clFeed.setAnswer(0);
-      await expect(clConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_InvalidAnswer'
       );
-      await expect(clConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+      await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
         'ChainlinkConverter_InvalidAnswer'
       );
@@ -685,16 +740,16 @@ describe('Chainlink as deposit token', function () {
       });
 
       it('sequencer up and past grace period: converts normally', async function () {
-        expect(await seqConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+        expect(await seqConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
 
       it('sequencer down (answer=1): reverts with SequencerDown', async function () {
         await seqFeed.setAnswer(1);
-        await expect(seqConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_SequencerDown'
         );
-        await expect(seqConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_SequencerDown'
         );
@@ -703,11 +758,11 @@ describe('Chainlink as deposit token', function () {
       it('sequencer just recovered (within grace period): reverts with GracePeriodNotOver', async function () {
         const block = await ethers.provider.getBlock('latest');
         await seqFeed.setStartedAt(BigInt(block!.timestamp)); // just came back up
-        await expect(seqConverter.toBtcUnits(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_GracePeriodNotOver'
         );
-        await expect(seqConverter.toTokenAmount(ONE_BTC)).to.be.revertedWithCustomError(
+        await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
           'ChainlinkConverter_GracePeriodNotOver'
         );
@@ -715,7 +770,7 @@ describe('Chainlink as deposit token', function () {
 
       it('no sequencer feed (address(0)): skips check and converts normally', async function () {
         // clConverter has sequencerUptimeFeed = address(0); should still work regardless
-        expect(await clConverter.toBtcUnits(ONE_BTC)).to.equal(ONE_BTC);
+        expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
     });
   });

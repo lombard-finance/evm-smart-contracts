@@ -26,8 +26,6 @@ abstract contract ERC7540RedemptionUpgradeable is
     bytes32 public constant WITHDRAWAL_FEE_MANAGER_ROLE =
         keccak256("WITHDRAWAL_FEE_MANAGER_ROLE");
 
-    uint256 private constant _BPS_DENOMINATOR = 10_000;
-
     /// @dev EIP-7540 ERC-165: asynchronous **redemption** (`requestRedeem`, pending/claimable views). Not the same interface id as operators below.
     bytes4 private constant _ERC7540_ASYNC_REDEEM_INTERFACE_ID = 0x620ee8e4;
 
@@ -272,7 +270,7 @@ abstract contract ERC7540RedemptionUpgradeable is
     ) external nonReentrant {
         address msgSender = _msgSender();
         ERC7540RedemptionStorage storage $ = _getERC7540RedemptionStorage();
-        IERC20 asset_ = IERC20(asset());
+        IERC20 asset_ = asset();
         uint256 n = requestIds.length;
         for (uint256 i; i < n; ++i) {
             uint256 rid = requestIds[i];
@@ -299,7 +297,6 @@ abstract contract ERC7540RedemptionUpgradeable is
             emit Withdraw(msgSender, owner, assets, shares);
         }
 
-        // TODO: maybe add more summary
         emit RedeemRequestsFulfilled(requestIds);
     }
 
