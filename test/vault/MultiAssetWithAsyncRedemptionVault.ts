@@ -152,6 +152,92 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(await altDeposit.balanceOf(v)).to.equal(assets);
   });
 
+  it('optional defaultStrategy forwards net deposit tokens to a registered address', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    const sink = ethers.Wallet.createRandom().address;
+
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await expect(vault.connect(admin).setDefaultStrategy(sink)).to.emit(vault, 'DefaultStrategySet').withArgs(sink);
+
+    expect(await vault.defaultStrategy()).to.equal(sink);
+
+    const assets = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    await expect(vault.connect(user).deposit(alt, assets, user.address))
+      .to.emit(vault, 'DepositRoutedToDefaultStrategy')
+      .withArgs(sink, alt, assets);
+
+    expect(await altDeposit.balanceOf(sink)).to.equal(assets);
+    expect(await altDeposit.balanceOf(v)).to.equal(0n);
+  });
+
+  it('setDefaultStrategy reverts if strategy is not registered', async function () {
+    const rogue = ethers.Wallet.createRandom().address;
+    await expect(vault.connect(admin).setDefaultStrategy(rogue)).to.be.revertedWithCustomError(
+      vault,
+      'Vault_StrategyNotRegistered'
+    );
+  });
+
+  it('defaultStrategy forwards net only; deposit fee transfers immediately to treasury', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    const sink = ethers.Wallet.createRandom().address;
+
+    const wfRole = await vault.WITHDRAWAL_FEE_MANAGER_ROLE();
+    await vault.connect(admin).grantRole(wfRole, treasury.address);
+    await vault.connect(treasury).setWithdrawalTreasury(treasury.address);
+
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100); // 1%
+    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).setDefaultStrategy(sink);
+
+    const assets = 10_000n * 10n ** 18n;
+    const fee = (assets * 100n) / 10_000n;
+    const net = assets - fee;
+
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    await expect(vault.connect(user).deposit(alt, assets, user.address))
+      .to.emit(vault, 'DepositRoutedToDefaultStrategy')
+      .withArgs(sink, alt, net);
+
+    expect(await altDeposit.balanceOf(sink)).to.equal(net);
+    expect(await altDeposit.balanceOf(treasury.address)).to.equal(fee);
+    expect(await altDeposit.balanceOf(v)).to.equal(0n);
+  });
+
+  it('deposit with non-zero fee reverts if deposit treasury is unset', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100);
+
+    const assets = 1_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    await expect(vault.connect(user).deposit(alt, assets, user.address)).to.be.revertedWithCustomError(
+      vault,
+      'VaultDeposit_DepositTreasuryNotSet'
+    );
+  });
+
+  it('deregisterStrategy clears defaultStrategy when it matches', async function () {
+    const sink = ethers.Wallet.createRandom().address;
+    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).setDefaultStrategy(sink);
+    await expect(vault.connect(strategyDeployer).deregisterStrategy(sink))
+      .to.emit(vault, 'DefaultStrategySet')
+      .withArgs(ethers.ZeroAddress);
+    expect(await vault.defaultStrategy()).to.equal(ethers.ZeroAddress);
+  });
+
   it('mints via mint() using previewMint assets', async function () {
     const alt = await altDeposit.getAddress();
     const v = await vault.getAddress();
@@ -287,10 +373,18 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const treasuryRole = await vault.TREASURY_ROLE();
     await vault.connect(admin).grantRole(treasuryRole, treasury.address);
 
+    const wfRole = await vault.WITHDRAWAL_FEE_MANAGER_ROLE();
+    await vault.connect(admin).grantRole(wfRole, treasury.address);
+
+    await expect(vault.connect(treasury).setWithdrawalTreasury(treasury.address))
+      .to.emit(vault, 'WithdrawalTreasurySet')
+      .withArgs(treasury.address);
+
     await expect(vault.connect(treasury).setDepositFeeBps(alt, 10))
       .to.emit(vault, 'DepositFeeBpsSet')
       .withArgs(alt, 10);
     expect(await vault.depositFeeBps(alt)).to.equal(10);
+    expect(await vault.getWithdrawalTreasury()).to.equal(treasury.address);
   });
 
   it('admin can swap asset converter for a listed deposit asset', async function () {
@@ -404,7 +498,7 @@ describe('StakedLBTC as deposit token', function () {
     const stakedFactory = await ethers.getContractFactory('StakedLBTCMock');
     const stakedProxy = await upgrades.deployProxy(stakedFactory, [treasury.address, admin.address, 0], {
       initializer: 'initialize',
-      unsafeAllow: ['constructor']
+      unsafeAllow: ['constructor', 'missing-initializer', 'missing-initializer-call']
     });
     await stakedProxy.waitForDeployment();
     stakedToken = stakedFactory.attach(await stakedProxy.getAddress()) as StakedLBTCMock;
@@ -536,12 +630,15 @@ describe('StakedLBTC as deposit token', function () {
       expect(await stakedVault.balanceOf(user.address)).to.equal(targetShares);
     });
 
-    it('deposit fee accrues in stakedLBTC; net amount drives share calculation', async function () {
+    it('deposit fee transfers to treasury in stakedLBTC; net amount drives share calculation', async function () {
       const sAddr = await stakedToken.getAddress();
       const vAddr = await stakedVault.getAddress();
 
       const treasuryRole = await stakedVault.TREASURY_ROLE();
       await stakedVault.connect(admin).grantRole(treasuryRole, treasury.address);
+      const wfRole = await stakedVault.WITHDRAWAL_FEE_MANAGER_ROLE();
+      await stakedVault.connect(admin).grantRole(wfRole, treasury.address);
+      await stakedVault.connect(treasury).setWithdrawalTreasury(treasury.address);
       await stakedVault.connect(treasury).setDepositFeeBps(sAddr, 100); // 1%
 
       const depositAmt = ONE_LBTC;
@@ -553,7 +650,7 @@ describe('StakedLBTC as deposit token', function () {
 
       await stakedVault.connect(user).deposit(sAddr, depositAmt, user.address);
 
-      expect(await stakedVault.accruedDepositFees(sAddr)).to.equal(expectedFee);
+      expect(await stakedToken.balanceOf(treasury.address)).to.equal(expectedFee);
       // Net amount converts to BTC units at 1:1 (at-par ratio) → net shares minted
       expect(await stakedVault.balanceOf(user.address)).to.equal(net);
     });

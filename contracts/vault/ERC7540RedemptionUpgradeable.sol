@@ -340,4 +340,11 @@ abstract contract ERC7540RedemptionUpgradeable is
                 .redeemRequestById[requestId_]
                 .pendingShares;
     }
+
+    /// @dev Passthrough for diamond inheritance with `MultiAssetDepositUpgradeable`.
+    function _afterStrategyDeregistered(
+        address strategy
+    ) internal virtual override {
+        super._afterStrategyDeregistered(strategy);
+    }
 }

@@ -69,4 +69,19 @@ contract MultiAssetWithAsyncRedemptionVault is
     {
         return super.supportsInterface(interfaceId);
     }
+
+    /// @dev Resolves `VaultBaseUpgradeable._afterStrategyDeregistered` for the diamond base layout.
+    function _afterStrategyDeregistered(
+        address strategy
+    )
+        internal
+        override(MultiAssetDepositUpgradeable, ERC7540RedemptionUpgradeable)
+    {
+        MultiAssetDepositUpgradeable._afterStrategyDeregistered(strategy);
+    }
+
+    /// @dev Deposit fees route to the same address as EIP-7540 withdrawal fee shares (`setWithdrawalTreasury`).
+    function _depositFeeTreasury() internal view override returns (address) {
+        return _getERC7540RedemptionStorage().withdrawalTreasury;
+    }
 }

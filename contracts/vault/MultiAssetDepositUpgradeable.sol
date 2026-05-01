@@ -11,7 +11,7 @@ import {IMultiAssetDeposit} from "./interfaces/IMultiAssetDeposit.sol";
 import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title MultiAssetDepositUpgradeable
-/// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into vault base units, then into shares; optional per-asset deposit fees accrue to treasury.
+/// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into vault base units, then into shares; optional per-asset deposit fees route immediately to `depositTreasury`.
 /// @dev Composes `FeeManagerUpgradeable`; deposit paths pull ERC-20 **before** minting shares. Extend `_deposit` / previews in subclasses if accounting changes.
 abstract contract MultiAssetDepositUpgradeable is
     FeeManagerUpgradeable,
@@ -26,7 +26,8 @@ abstract contract MultiAssetDepositUpgradeable is
         EnumerableSet.AddressSet depositAssets;
         mapping(address token => uint16) depositFeeBps;
         mapping(address token => IAssetConverter) converters;
-        mapping(address token => uint256) accruedDepositFees;
+        /// @dev If set, net deposit tokens (after deposit fee) are transferred here after mint.
+        address defaultStrategy;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.MultiAssetDepositUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -46,6 +47,41 @@ abstract contract MultiAssetDepositUpgradeable is
     /// @dev No-op today; call after `__FeeManager_init` in concrete initializers to keep a stable extension point.
     function __MultiAssetDeposit_init() internal onlyInitializing {}
 
+    /// @inheritdoc IMultiAssetDeposit
+    function defaultStrategy() public view returns (address) {
+        return _getMultiAssetDepositStorage().defaultStrategy;
+    }
+
+    /// @inheritdoc IMultiAssetDeposit
+    /// @param strategy Registered strategy address, or zero to disable automatic routing.
+    function setDefaultStrategy(
+        address strategy
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (strategy != address(0)) {
+            if (
+                !_getVaultBaseUpgradeableStorage().strategies.contains(strategy)
+            ) {
+                revert Vault_StrategyNotRegistered();
+            }
+        }
+        _getMultiAssetDepositStorage().defaultStrategy = strategy;
+        emit DefaultStrategySet(strategy);
+    }
+
+    /// @return Treasury (or fee sink) that receives skimmed deposit-fee tokens; concrete vaults wire this to a configured address.
+    function _depositFeeTreasury() internal view virtual returns (address);
+
+    function _afterStrategyDeregistered(
+        address strategy
+    ) internal virtual override {
+        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
+        if ($.defaultStrategy == strategy) {
+            $.defaultStrategy = address(0);
+            emit DefaultStrategySet(address(0));
+        }
+        super._afterStrategyDeregistered(strategy);
+    }
+
     /// @notice Register `depositAsset` with converter and deposit fee (bps strictly less than 10_000).
     /// @param depositAsset ERC-20 token users may deposit.
     /// @param assetConverter_ Pricing adapter to vault base units.
@@ -58,14 +94,11 @@ abstract contract MultiAssetDepositUpgradeable is
         _registerDepositAsset(depositAsset, assetConverter_, depositFeeBps_);
     }
 
-    /// @notice Remove `depositAsset` from the allowlist (requires zero accrued fees for that token).
+    /// @notice Remove `depositAsset` from the allowlist.
     function removeDepositAsset(
         address depositAsset
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if ($.accruedDepositFees[depositAsset] != 0) {
-            revert VaultDeposit_AccruedFeesNotClaimed(depositAsset);
-        }
         if (!$.depositAssets.remove(depositAsset)) {
             revert VaultDeposit_AssetNotListed(depositAsset);
         }
@@ -147,13 +180,6 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset
     ) public view returns (IAssetConverter) {
         return _getMultiAssetDepositStorage().converters[depositAsset];
-    }
-
-    /// @return Accrued deposit fee balance for `depositAsset` awaiting `claimDepositFees`.
-    function accruedDepositFees(
-        address depositAsset
-    ) public view returns (uint256) {
-        return _getMultiAssetDepositStorage().accruedDepositFees[depositAsset];
     }
 
     function deposit(
@@ -288,34 +314,25 @@ abstract contract MultiAssetDepositUpgradeable is
         // (totalSupply not yet inflated without matching assets).
         IERC20(depositAsset).safeTransferFrom(sender, address(this), assets);
 
-        (uint256 fee, ) = _splitDepositFeeView(depositAsset, assets);
+        (uint256 fee, uint256 net) = _splitDepositFeeView(depositAsset, assets);
+        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (fee > 0) {
-            MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-            $.accruedDepositFees[depositAsset] += fee;
-            emit DepositFeeAccrued(depositAsset, fee);
+            address tr = _depositFeeTreasury();
+            if (tr == address(0)) {
+                revert VaultDeposit_DepositTreasuryNotSet();
+            }
+            IERC20(depositAsset).safeTransfer(tr, fee);
+            emit DepositFeeTransferred(depositAsset, tr, fee);
         }
 
         _mint(receiver, shares);
         emit Deposit(sender, receiver, depositAsset, assets, shares);
-    }
 
-    /// @notice Treasury pulls accrued deposit fees for `token` (same ERC-20 units as deposits).
-    function claimDepositFees(
-        address depositAsset,
-        address to,
-        uint256 amount
-    ) external onlyRole(TREASURY_ROLE) {
-        if (to == address(0)) {
-            revert Vault_ZeroAddress();
+        address ds = $.defaultStrategy;
+        if (ds != address(0) && net > 0) {
+            IERC20(depositAsset).safeTransfer(ds, net);
+            emit DepositRoutedToDefaultStrategy(ds, depositAsset, net);
         }
-        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        uint256 acc = $.accruedDepositFees[depositAsset];
-        if (amount > acc) {
-            revert VaultDeposit_ClaimExceedsAccrued();
-        }
-        $.accruedDepositFees[depositAsset] = acc - amount;
-        IERC20(depositAsset).safeTransfer(to, amount);
-        emit DepositFeesClaimed(depositAsset, to, amount);
     }
 
     /// @inheritdoc IMultiAssetDeposit

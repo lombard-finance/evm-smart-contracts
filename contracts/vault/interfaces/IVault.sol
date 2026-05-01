@@ -72,21 +72,6 @@ interface IVault {
         address indexed caller
     );
 
-    /// @notice Beacon hub used for strategy beacon deploys was replaced.
-    event BeaconHubChanged(
-        address indexed oldHub,
-        address indexed newHub,
-        address indexed caller
-    );
-
-    /// @notice A new strategy beacon proxy was deployed via the hub.
-    event StrategyDeployed(
-        address indexed proxy,
-        bytes32 indexed beaconId,
-        address indexed hub,
-        address caller
-    );
-
     /// @notice Implementation-defined semantic version string for tooling and upgrades.
     /// @return Semver or build identifier (contract-specific).
     function version() external view returns (string memory);

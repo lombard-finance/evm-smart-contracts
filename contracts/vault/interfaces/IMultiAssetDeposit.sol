@@ -5,7 +5,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @title IMultiAssetDeposit
 /// @notice ERC-165 extension: deposit or mint vault shares against **multiple** listed ERC-20 assets via per-token `IAssetConverter` pricing.
-/// @dev Mirrors EIP-4626 deposit/mint naming; adds `depositAsset` and optional slippage guards (`minSharesOut`, `maxAssetsIn`). Fees accrue to treasury per asset.
+/// @dev Mirrors EIP-4626 deposit/mint naming; adds `depositAsset` and optional slippage guards (`minSharesOut`, `maxAssetsIn`). Deposit fees transfer immediately to `depositTreasury`.
 interface IMultiAssetDeposit is IERC165 {
     /// @notice An admin listed `token` as an accepted deposit asset.
     event DepositAssetAdded(address indexed sender, address indexed token);
@@ -20,7 +20,7 @@ interface IMultiAssetDeposit is IERC165 {
         uint256 shares
     );
 
-    /// @notice `token` was removed from the deposit allowlist (requires zero accrued fees).
+    /// @notice `token` was removed from the deposit allowlist.
     event DepositAssetRemoved(address indexed token);
 
     /// @notice Deposit fee rate for `token` was updated (basis points on gross deposit).
@@ -32,13 +32,20 @@ interface IMultiAssetDeposit is IERC165 {
         address indexed assetConverter
     );
 
-    /// @notice Deposit fee skimmed from a deposit and accrued for treasury claim.
-    event DepositFeeAccrued(address indexed token, uint256 amount);
-
-    /// @notice Treasury claimed accrued deposit fees for `token`.
-    event DepositFeesClaimed(
+    /// @notice Deposit fee tokens sent to treasury from a deposit.
+    event DepositFeeTransferred(
         address indexed token,
-        address indexed to,
+        address indexed treasury,
+        uint256 amount
+    );
+
+    /// @notice Optional strategy that receives net deposit tokens after mint (see `setDefaultStrategy`).
+    event DefaultStrategySet(address indexed strategy);
+
+    /// @notice Net deposit liquidity routed to the default strategy after `Deposit`.
+    event DepositRoutedToDefaultStrategy(
+        address indexed strategy,
+        address indexed depositAsset,
         uint256 amount
     );
 
@@ -48,13 +55,11 @@ interface IMultiAssetDeposit is IERC165 {
 
     error VaultDeposit_FeeBpsTooHigh();
 
-    error VaultDeposit_AccruedFeesNotClaimed(address token);
+    error VaultDeposit_DepositTreasuryNotSet();
 
     error VaultDeposit_SharesPreviewMismatch();
 
     error VaultDeposit_MintRequiresAssets(address assetToken);
-
-    error VaultDeposit_ClaimExceedsAccrued();
 
     error VaultDeposit_ExceededMaxDeposit(
         address receiver,
@@ -154,4 +159,10 @@ interface IMultiAssetDeposit is IERC165 {
         address depositAsset,
         uint256 assets
     ) external view returns (uint256);
+
+    /// @return Registered strategy address that receives net deposit tokens after each deposit, or zero if disabled.
+    function defaultStrategy() external view returns (address);
+
+    /// @notice Sets the strategy that receives net deposit tokens (post fee) for every deposit. Must be a registered strategy, or `address(0)` to disable.
+    function setDefaultStrategy(address strategy) external;
 }

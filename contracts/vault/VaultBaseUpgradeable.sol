@@ -12,11 +12,10 @@ import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {IVault} from "./interfaces/IVault.sol";
-import {IBeaconHub} from "./interfaces/IBeaconHub.sol";
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 
 /// @title VaultBaseUpgradeable
-/// @notice Upgradeable ERC-20 vault share with NAV (`pricePerShare`), registered strategies, optional beacon deploys, and a vault-wide pause independent of ERC-20 `Pausable`.
+/// @notice Upgradeable ERC-20 vault share with NAV (`pricePerShare`), registered strategies, and a vault-wide pause independent of ERC-20 `Pausable`.
 /// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate `vaultPaused` + `_pauseVault` for deposit/redemption/strategy entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
 abstract contract VaultBaseUpgradeable is
     IERC20Metadata,
@@ -65,7 +64,6 @@ abstract contract VaultBaseUpgradeable is
         IERC20 asset;
         uint8 underlyingDecimals;
         PriceRateLimiter.Bucket ppsRateLimiter;
-        IBeaconHub beaconHub;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -161,8 +159,7 @@ abstract contract VaultBaseUpgradeable is
         view
         returns (PriceRateLimiter.Bucket memory)
     {
-        return
-            _getVaultBaseUpgradeableStorage().ppsRateLimiter._refill();
+        return _getVaultBaseUpgradeableStorage().ppsRateLimiter._refill();
     }
 
     /// @notice Posts any non-zero `pricePerShare` without consuming rate-limit capacity, then pauses vault operations.
@@ -203,45 +200,7 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().asset;
     }
 
-    /// @notice Sets the hub used by `deployStrategy` for BeaconProxy creation.
-    /// @param hub New `IBeaconHub` (must not be zero).
-    function setBeaconHub(
-        IBeaconHub hub
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (address(hub) == address(0)) revert Vault_ZeroAddress();
-        VaultBaseUpgradeableStorage
-            storage $ = _getVaultBaseUpgradeableStorage();
-        emit BeaconHubChanged(address($.beaconHub), address(hub), _msgSender());
-        $.beaconHub = hub;
-    }
-
-    /// @return hub Currently configured beacon hub (may be zero if unset).
-    function beaconHub() external view returns (IBeaconHub) {
-        return _getVaultBaseUpgradeableStorage().beaconHub;
-    }
-
-    /// @notice Deploy a strategy proxy via the BeaconHub and register it.
-    /// @param id       Hub key identifying which UpgradeableBeacon to use.
-    /// @param initData ABI-encoded initializer calldata forwarded to the new proxy. Pass "" to skip.
-    function deployStrategy(
-        bytes32 id,
-        bytes calldata initData
-    )
-        external
-        nonReentrant
-        onlyRole(STRATEGY_DEPLOYER_ROLE)
-        returns (address proxy)
-    {
-        VaultBaseUpgradeableStorage
-            storage $ = _getVaultBaseUpgradeableStorage();
-        IBeaconHub hub = $.beaconHub;
-        proxy = hub.deploy(id, initData);
-        $.strategies.add(proxy);
-        emit StrategyDeployed(proxy, id, address(hub), _msgSender());
-        emit StrategyRegistered(proxy, _msgSender());
-    }
-
-    /// @notice Whether `strategy` was deployed and registered via {deployStrategy}.
+    /// @notice Whether `strategy` is registered for funding.
     function isRegisteredStrategy(
         address strategy
     ) external view returns (bool) {
@@ -262,11 +221,15 @@ abstract contract VaultBaseUpgradeable is
     /// @param strategy Strategy address to remove.
     function deregisterStrategy(
         address strategy
-    ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
+    ) external virtual onlyRole(STRATEGY_DEPLOYER_ROLE) {
         if (!_getVaultBaseUpgradeableStorage().strategies.remove(strategy))
             revert Vault_StrategyNotRegistered();
         emit StrategyDeregistered(strategy, _msgSender());
+        _afterStrategyDeregistered(strategy);
     }
+
+    /// @dev Extension point for modules that track per-strategy references (e.g. default deposit routing).
+    function _afterStrategyDeregistered(address) internal virtual {}
 
     /// @notice Transfer `amount` of `token` to the calling strategy.
     /// @dev Only callable by a registered strategy; uses nonReentrant to guard against re-entrancy via token callbacks.
@@ -307,11 +270,7 @@ abstract contract VaultBaseUpgradeable is
     {
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
-        return $.underlyingDecimals + _decimalsOffset();
-    }
-
-    function _decimalsOffset() internal view virtual returns (uint8) {
-        return 0;
+        return $.underlyingDecimals;
     }
 
     function _convertToShares(
