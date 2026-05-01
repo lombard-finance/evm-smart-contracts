@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import * as path from 'path';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
@@ -478,5 +479,66 @@ describe('MerkleAllowlistValidator', function () {
         true
       );
     });
+  });
+});
+
+// ─── Cross-script consistency ─────────────────────────────────────────────────
+// Verifies that merkleTreeBuilder and findRule produce identical leaves for the
+// same rule when given the same ruleset and validator address.
+// Uses a dedicated fixture where every rule has calldata constraints, so
+// findRule can unambiguously identify each rule by calldata alone.
+
+describe('script consistency: merkleTreeBuilder vs findRule', function () {
+  const RULES_FILE = path.join(__dirname, 'fixtures/cross-script-ruleset.json');
+  const TRANSFER_SELECTOR = '0xa9059cbb';
+
+  let c: MerkleAllowlistValidator;
+
+  beforeEach(async function () {
+    const [owner] = await ethers.getSigners();
+    const f = await ethers.getContractFactory('MerkleAllowlistValidator');
+    c = (await f.deploy(owner.address)) as MerkleAllowlistValidator;
+    await c.waitForDeployment();
+  });
+
+  it('both scripts produce the same root, ruleEncoded, and valid proofs', async function () {
+    this.timeout(60000);
+
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${RULES_FILE} --chain-id ${chainId} --contract ${addr}`;
+
+    // Calldata matching allow_transfer (selector only, no recipient pin)
+    const calldata = ethers.solidityPacked(['bytes4', 'bytes32', 'uint256'], [TRANSFER_SELECTOR, ethers.ZeroHash, 1n]);
+
+    const builderOut = JSON.parse(
+      execSync(
+        `npx ts-node scripts/vault/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_transfer`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+
+    const finderOut = JSON.parse(
+      execSync(`npx ts-node scripts/vault/findRule.ts ${base} --calldata ${calldata}`).toString()
+    ) as { ruleName: string; root: string; ruleEncoded: string; merkleProof: string[] };
+
+    expect(finderOut.ruleName).to.equal('allow_transfer');
+    expect(finderOut.root).to.equal(builderOut.root);
+    expect(finderOut.ruleEncoded).to.equal(builderOut.ruleEncoded);
+
+    await c.setAllowlistRoot(builderOut.root);
+
+    const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, {
+        ruleEncoded: builderOut.ruleEncoded,
+        merkleProof: builderOut.merkleProof
+      })
+    ).to.equal(true, 'merkleTreeBuilder proof rejected');
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, {
+        ruleEncoded: finderOut.ruleEncoded,
+        merkleProof: finderOut.merkleProof
+      })
+    ).to.equal(true, 'findRule proof rejected');
   });
 });

@@ -1,5 +1,6 @@
 {
   "rule_01": {
+    "description": "some useful description about this particular rule",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "constraints": []
   },

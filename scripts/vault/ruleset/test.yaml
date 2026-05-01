@@ -10,6 +10,7 @@ rule_02:
     - offset: 0
       mask: "0xffffffff00000000000000000000000000000000000000000000000000000000"
       expected: "0xa9059cbb00000000000000000000000000000000000000000000000000000000"
+  descrition: "some useful description about this particular rule"
 
 rule_03:
   sender: "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892"
