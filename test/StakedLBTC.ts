@@ -2097,11 +2097,12 @@ describe('StakedLBTC', function () {
     });
 
     it('redeem() reverts when assetRouter is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       const sender = signer1;
@@ -2206,11 +2207,12 @@ describe('StakedLBTC', function () {
     });
 
     it('deposit() reverts when assetRouter is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       const sender = signer1;
@@ -2219,11 +2221,12 @@ describe('StakedLBTC', function () {
     });
 
     it('deposit() reverts when deposit route is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       const stakedLbtcBytes = encode(['address'], [await stakedLbtc.getAddress()]);
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       await assetRouter.connect(owner).setRoute(BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, stakedLbtcBytes, CHAIN_ID, 1);

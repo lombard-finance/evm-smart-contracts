@@ -56,10 +56,12 @@ describe('Strategy & SatelliteStrategy', function () {
 
     // Strategy (vault-linked)
     const stratFactory = await ethers.getContractFactory('Strategy');
-    const stratProxy = await deployContract(
-      'Strategy',
-      [vaultPlaceholder.address, await validator.getAddress(), admin.address, liquidityRole.address],
-    );
+    const stratProxy = await deployContract('Strategy', [
+      vaultPlaceholder.address,
+      await validator.getAddress(),
+      admin.address,
+      liquidityRole.address
+    ]);
     await stratProxy.waitForDeployment();
     strategy = stratFactory.attach(await stratProxy.getAddress()) as unknown as Strategy;
     await strategy.connect(admin).grantRole(await strategy.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
@@ -80,7 +82,12 @@ describe('Strategy & SatelliteStrategy', function () {
     mockVault = (await mockVaultFactory.deploy()) as unknown as MockVaultForStrategy;
     await mockVault.waitForDeployment();
 
-    const fundingStratProxy = await deployContract('Strategy', [await mockVault.getAddress(), await validator.getAddress(), admin.address, liquidityRole.address]);
+    const fundingStratProxy = await deployContract('Strategy', [
+      await mockVault.getAddress(),
+      await validator.getAddress(),
+      admin.address,
+      liquidityRole.address
+    ]);
     await fundingStratProxy.waitForDeployment();
     fundingStrategy = stratFactory.attach(await fundingStratProxy.getAddress()) as unknown as Strategy;
 

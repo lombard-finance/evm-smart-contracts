@@ -69,7 +69,10 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -78,15 +81,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     stakedLbtc = await initStakedLBTC(owner.address, treasury.address);
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
-    stakeAndBake = await deployContract<StakeAndBake & Addressable>('StakeAndBake', [
-      stakedLbtc.address,
-      owner.address,
-      operator.address,
-      1,
-      owner.address,
-      pauser.address,
-      1_000_000
-    ], true, { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] });
+    stakeAndBake = await deployContract<StakeAndBake & Addressable>(
+      'StakeAndBake',
+      [stakedLbtc.address, owner.address, operator.address, 1, owner.address, pauser.address, 1_000_000],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     stakeAndBake.address = await stakeAndBake.getAddress();
 
     // Mailbox
