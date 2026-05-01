@@ -299,7 +299,7 @@ describe('MerkleAllowlistValidator', function () {
     await c.setAllowlistRoot(ethers.hexlify(ethers.randomBytes(32)));
     const fullMask = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
     const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
-    const values: Array<string | bigint | number> = [3, 6, ethers.ZeroAddress, await c.getAddress(), 0n, 0, 65];
+    const values: Array<string | bigint | number> = [1, 0x06, ethers.ZeroAddress, await c.getAddress(), 0n, 0, 65];
     for (let i = 0; i < 65; i++) {
       types.push('uint16', 'bytes32', 'bytes32');
       values.push(i, fullMask, ethers.ZeroHash);

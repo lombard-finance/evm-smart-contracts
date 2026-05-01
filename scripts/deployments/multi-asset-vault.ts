@@ -34,7 +34,7 @@ task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault B
     const [signer] = await hre.ethers.getSigners();
     const signerAddr = await signer.getAddress();
 
-    const { owner: defaultAdmin, owner: strategyDeployer } = await getOwnersOrDefault(
+    const { owner: defaultAdmin, upgradeAdmin: strategyDeployer } = await getOwnersOrDefault(
       hre,
       taskArgs.defaultAdmin,
       taskArgs.strategyDeployer
