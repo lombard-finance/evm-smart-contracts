@@ -23,7 +23,7 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BeaconHub")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BEACON_HUB_STORAGE_LOCATION =
-        0xc5cb0e80d3ce166f5f2bffbedaeee7a3f7cd5fbd5fb80257895467ba1df8b000;
+        0x8848268cb0a9760555c426c1cb606566800a4fcee255ebce7ed6d56858cfeb00;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

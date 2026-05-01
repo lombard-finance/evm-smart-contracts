@@ -12,6 +12,7 @@ import type {
   MockVaultForStrategy
 } from '../../typechain-types';
 import { encodeMerkleRule } from './MerkleCallAllowlist';
+import { calculateStorageSlot, encode } from '../helpers';
 
 /** ABI-encode a CallVerificationInput for the IStrategyExecValidator.isAllowed(bytes) overload.
  *  Must match abi.decode(validatorArgs, (CallVerificationInput)) in MerkleAllowlistValidator. */
@@ -109,6 +110,18 @@ describe('Strategy & SatelliteStrategy', function () {
       expect(await strategy.hasRole(await strategy.PRIVILEGED_EXECUTOR_ROLE(), executor.address)).to.be.true;
     });
 
+    it('Verify StrategyStorage slot', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.Strategy');
+      const storage = await ethers.provider.getStorage(await strategy.getAddress(), slot);
+      expect(storage).to.equal(encode(['address'], [vaultPlaceholder.address]));
+    });
+
+    it('Verify StrategyBaseStorage slot', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.StrategyBaseUpgradeable');
+      const storage = await ethers.provider.getStorage(await strategy.getAddress(), slot);
+      expect(storage).to.equal(encode(['address'], [await validator.getAddress()]));
+    });
+
     it('pullFromVault: transfers token from vault to strategy and emits PulledFromVault', async function () {
       const amount = 1_000n;
       const tokenAddr = await vaultToken.getAddress();
@@ -186,6 +199,12 @@ describe('Strategy & SatelliteStrategy', function () {
       expect(await satellite.validator()).to.equal(await validator.getAddress());
       expect(await satellite.hasRole(await satellite.DEFAULT_ADMIN_ROLE(), admin.address)).to.be.true;
       expect(await satellite.hasRole(await satellite.PRIVILEGED_EXECUTOR_ROLE(), executor.address)).to.be.true;
+    });
+
+    it('Verify StrategyBaseStorage slot', async function () {
+      const slot = calculateStorageSlot('lombardfinance.storage.StrategyBaseUpgradeable');
+      const storage = await ethers.provider.getStorage(await satellite.getAddress(), slot);
+      expect(storage).to.equal(encode(['address'], [await validator.getAddress()]));
     });
 
     it('exec (validator-governed): allowed call emits Executed', async function () {

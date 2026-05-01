@@ -4,6 +4,7 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
 import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import type { BeaconHub, Strategy, MerkleAllowlistValidator, UpgradeableBeacon } from '../../typechain-types';
+import { calculateStorageSlot, encode } from '../helpers';
 
 const STRATEGY_ID = ethers.id('Strategy'); // keccak256("Strategy")
 
@@ -59,6 +60,18 @@ describe('BeaconHub', function () {
 
   beforeEach(async function () {
     await snapshot.restore();
+  });
+
+  it('Verify storage slot', async function () {
+    const beaconAddr = await beacon.getAddress();
+    await hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, beaconAddr);
+    const base = calculateStorageSlot('lombardfinance.storage.BeaconHub');
+    // beacons is a mapping at base+0; compute the slot for STRATEGY_ID
+    const mappingSlot = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(['bytes32', 'uint256'], [STRATEGY_ID, base])
+    );
+    const storage = await ethers.provider.getStorage(await hub.getAddress(), mappingSlot);
+    expect(storage).to.equal(encode(['address'], [beaconAddr]));
   });
 
   // ── setBeacon ──────────────────────────────────────────────────────────────

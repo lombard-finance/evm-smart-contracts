@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
-import { getSignersWithPrivateKeys, Signer } from '../helpers';
+import { calculateStorageSlot, getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
   ChainlinkConverter,
   ChainlinkFeedMock,
@@ -80,6 +80,38 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(await vault.symbol()).to.equal('mVAULT');
     expect(await vault.asset()).to.equal(await underlying.getAddress());
     expect(await vault.version()).to.equal('MultiAssetWithAsyncRedemptionVault-0.0.1');
+  });
+
+  it('Verify VaultBaseUpgradeableStorage slot', async function () {
+    const base = calculateStorageSlot('lombardfinance.storage.VaultBaseUpgradeable');
+    // pricePerShare (uint256) is at base+2, after the 2-slot EnumerableSet for strategies
+    const storage = await ethers.provider.getStorage(await vault.getAddress(), base + 2n);
+    expect(storage).to.equal(ethers.toBeHex(10n ** 18n, 32));
+  });
+
+  it('Verify MultiAssetDepositStorage slot', async function () {
+    await vault.connect(admin).addDepositAsset(await altDeposit.getAddress(), await converter.getAddress(), 0);
+    const base = calculateStorageSlot('lombardfinance.storage.MultiAssetDepositUpgradeable');
+    // depositAssets EnumerableSet stores its array length at base+0 (= 1 after adding one asset)
+    const storage = await ethers.provider.getStorage(await vault.getAddress(), base);
+    expect(storage).to.equal(ethers.toBeHex(1n, 32));
+  });
+
+  it('Verify ERC7540RedemptionStorage slot', async function () {
+    await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
+    const base = calculateStorageSlot('lombardfinance.storage.ERC7540RedemptionUpgradeable');
+    // controllers EnumerableSet length is at base+2, after 2 mapping slots (pendingShares, pendingAssets)
+    const storage = await ethers.provider.getStorage(await vault.getAddress(), base + 2n);
+    expect(storage).to.equal(ethers.toBeHex(1n, 32));
+  });
+
+  it('Verify FeeManagerStorage slot', async function () {
+    const slot = calculateStorageSlot('lombardfinance.storage.FeeManagerUpgradeable');
+    const storage = await ethers.provider.getStorage(await vault.getAddress(), slot);
+    // Slot packs managementFeeBps (uint16, 0) | performanceFeeBps (uint16, 0) | lastFeeHarvestAt (uint48, block.timestamp at init)
+    const lastHarvest = await vault.lastFeeHarvestAt();
+    const expected = ethers.toBeHex(BigInt(lastHarvest) << 32n, 32);
+    expect(storage).to.equal(expected);
   });
 
   it('advertises ERC-7540 and operator interface ids', async function () {
