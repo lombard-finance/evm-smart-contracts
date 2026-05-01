@@ -24,10 +24,6 @@ abstract contract ERC7540RedemptionUpgradeable is
     bytes32 public constant CONTROLLER_MANAGER_ROLE =
         keccak256("CONTROLLER_MANAGER_ROLE");
 
-    /// @notice May {setWithdrawalFeeBps} and {setWithdrawalTreasury}.
-    bytes32 public constant WITHDRAWAL_FEE_MANAGER_ROLE =
-        keccak256("WITHDRAWAL_FEE_MANAGER_ROLE");
-
     /// @dev EIP-7540 ERC-165: asynchronous **redemption** (`requestRedeem`, pending/claimable views). Not the same interface id as operators below.
     bytes4 private constant _ERC7540_ASYNC_REDEEM_INTERFACE_ID = 0x620ee8e4;
 
@@ -55,7 +51,6 @@ abstract contract ERC7540RedemptionUpgradeable is
         /// @dev Max redeem shares per redeem request for controller
         mapping(address controller => uint256) maxRedeemShares;
         uint16 withdrawalFeeBps;
-        address withdrawalTreasury;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.ERC7540RedemptionUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -141,32 +136,16 @@ abstract contract ERC7540RedemptionUpgradeable is
         return _getERC7540RedemptionStorage().maxRedeemShares[controller];
     }
 
-    /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to `withdrawalTreasury`.
-    function setWithdrawalFeeBps(
-        uint16 bps
-    ) external onlyRole(WITHDRAWAL_FEE_MANAGER_ROLE) {
+    /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
+    function setWithdrawalFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
         if (bps >= _BPS_DENOMINATOR) revert ERC7540_WithdrawalFeeBpsTooHigh();
         _getERC7540RedemptionStorage().withdrawalFeeBps = bps;
         emit WithdrawalFeeBpsSet(bps);
     }
 
-    /// @notice Treasury receiving withdrawal fee shares (must not be zero when fees are enabled).
-    function setWithdrawalTreasury(
-        address treasury_
-    ) external onlyRole(WITHDRAWAL_FEE_MANAGER_ROLE) {
-        if (treasury_ == address(0)) revert Vault_ZeroAddress();
-        _getERC7540RedemptionStorage().withdrawalTreasury = treasury_;
-        emit WithdrawalTreasurySet(treasury_);
-    }
-
-    /// @return Current withdrawal fee in basis points.
-    function getWithdrawalFeeBps() external view returns (uint16) {
+    /// @return Withdrawal fee in basis points (same units as {setWithdrawalFeeBps}).
+    function withdrawalFee() external view returns (uint16) {
         return _getERC7540RedemptionStorage().withdrawalFeeBps;
-    }
-
-    /// @return Treasury address for withdrawal fee shares.
-    function getWithdrawalTreasury() external view returns (address) {
-        return _getERC7540RedemptionStorage().withdrawalTreasury;
     }
 
     /// @inheritdoc IERC7540Redemption
@@ -249,7 +228,7 @@ abstract contract ERC7540RedemptionUpgradeable is
         uint256 feeShares;
         {
             uint16 feeBps = $.withdrawalFeeBps;
-            address treasury_ = $.withdrawalTreasury;
+            address treasury_ = feeTreasury();
             if (feeBps > 0 && treasury_ != address(0)) {
                 feeShares = shares.mulDiv(
                     feeBps,
@@ -272,7 +251,7 @@ abstract contract ERC7540RedemptionUpgradeable is
 
         _burn(owner, netShares);
         if (feeShares > 0) {
-            address treasury_ = $.withdrawalTreasury;
+            address treasury_ = feeTreasury();
             _transfer(owner, treasury_, feeShares);
             emit WithdrawalFeeCharged(treasury_, feeShares);
         }

@@ -36,6 +36,8 @@ abstract contract VaultBaseUpgradeable is
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
+    bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
+
     bytes32 public constant PRICE_PER_SHARE_GUARDIAN_ROLE =
         keccak256("PRICE_PER_SHARE_GUARDIAN_ROLE");
 
@@ -64,6 +66,8 @@ abstract contract VaultBaseUpgradeable is
         IERC20 asset;
         uint8 underlyingDecimals;
         PriceRateLimiter.Bucket ppsRateLimiter;
+        /// @dev Receives ERC-7540 withdrawal fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
+        address feeTreasury;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.VaultBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -124,6 +128,21 @@ abstract contract VaultBaseUpgradeable is
             maxBps: 0,
             refillRate: 0
         });
+    }
+
+    /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `ERC7540RedemptionUpgradeable`) withdrawal fee shares.
+    /// @param treasury_ Must not be zero.
+    function setFeeTreasury(
+        address treasury_
+    ) external onlyRole(TREASURY_ROLE) {
+        if (treasury_ == address(0)) revert Vault_ZeroAddress();
+        _getVaultBaseUpgradeableStorage().feeTreasury = treasury_;
+        emit FeeTreasurySet(treasury_);
+    }
+
+    /// @return Address configured by {setFeeTreasury}.
+    function feeTreasury() public view returns (address) {
+        return _getVaultBaseUpgradeableStorage().feeTreasury;
     }
 
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.

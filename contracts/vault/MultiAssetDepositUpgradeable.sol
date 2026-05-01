@@ -68,9 +68,6 @@ abstract contract MultiAssetDepositUpgradeable is
         emit DefaultStrategySet(strategy);
     }
 
-    /// @return Treasury (or fee sink) that receives skimmed deposit-fee tokens; concrete vaults wire this to a configured address.
-    function _depositFeeTreasury() internal view virtual returns (address);
-
     function _afterStrategyDeregistered(
         address strategy
     ) internal virtual override {
@@ -171,7 +168,7 @@ abstract contract MultiAssetDepositUpgradeable is
     }
 
     /// @return Configured deposit fee in basis points for `depositAsset`.
-    function depositFeeBps(address depositAsset) public view returns (uint16) {
+    function depositFee(address depositAsset) public view returns (uint16) {
         return _getMultiAssetDepositStorage().depositFeeBps[depositAsset];
     }
 
@@ -314,10 +311,13 @@ abstract contract MultiAssetDepositUpgradeable is
         // (totalSupply not yet inflated without matching assets).
         IERC20(depositAsset).safeTransferFrom(sender, address(this), assets);
 
-        (uint256 fee, uint256 net) = _splitDepositFeeView(depositAsset, assets);
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
+        (uint256 fee, uint256 net) = _splitDepositFeeView(
+            $.depositFeeBps[depositAsset],
+            assets
+        );
         if (fee > 0) {
-            address tr = _depositFeeTreasury();
+            address tr = feeTreasury();
             if (tr == address(0)) {
                 revert VaultDeposit_DepositTreasuryNotSet();
             }
@@ -371,7 +371,10 @@ abstract contract MultiAssetDepositUpgradeable is
         if (assets == 0) {
             return 0;
         }
-        (, uint256 net) = _splitDepositFeeView(depositAsset, assets);
+        (, uint256 net) = _splitDepositFeeView(
+            $.depositFeeBps[depositAsset],
+            assets
+        );
         uint256 btcOut = IAssetConverter($.converters[depositAsset])
             .toBaseUnits(net, Math.Rounding.Floor);
         return _convertToShares(btcOut, Math.Rounding.Floor);
@@ -434,10 +437,9 @@ abstract contract MultiAssetDepositUpgradeable is
     }
 
     function _splitDepositFeeView(
-        address token,
+        uint16 bps,
         uint256 gross
-    ) private view returns (uint256 fee, uint256 net) {
-        uint256 bps = _getMultiAssetDepositStorage().depositFeeBps[token];
+    ) private pure returns (uint256 fee, uint256 net) {
         fee = gross.mulDiv(bps, _BPS_DENOMINATOR, Math.Rounding.Floor);
         net = gross - fee;
     }

@@ -80,9 +80,4 @@ contract MultiAssetWithAsyncRedemptionVault is
     {
         MultiAssetDepositUpgradeable._afterStrategyDeregistered(strategy);
     }
-
-    /// @dev Deposit fees route to the same address as EIP-7540 withdrawal fee shares (`setWithdrawalTreasury`).
-    function _depositFeeTreasury() internal view override returns (address) {
-        return _getERC7540RedemptionStorage().withdrawalTreasury;
-    }
 }

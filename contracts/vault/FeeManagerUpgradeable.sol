@@ -12,8 +12,6 @@ import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
 abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
     using Math for uint256;
 
-    bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
-
     uint256 private constant _SECONDS_PER_YEAR = 365 days;
 
     /// @custom:storage-location erc7201:lombardfinance.storage.FeeManagerUpgradeable

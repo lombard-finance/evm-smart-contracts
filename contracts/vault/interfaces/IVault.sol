@@ -45,6 +45,9 @@ interface IVault {
     /// @notice Vault operations entrypoints are active again.
     event VaultOperationsUnpaused(address account);
 
+    /// @notice Protocol fee treasury updated (`setFeeTreasury`).
+    event FeeTreasurySet(address indexed treasury);
+
     /// @dev Caller expected vault to be paused for this action (e.g. internal unpause guard).
     error Vault_EnforcedVaultOperationsPause();
 
