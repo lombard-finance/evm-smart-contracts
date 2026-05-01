@@ -11,6 +11,8 @@ import {IMultiAssetDeposit} from "./interfaces/IMultiAssetDeposit.sol";
 import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title MultiAssetDepositUpgradeable
+/// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into vault base units, then into shares; optional per-asset deposit fees accrue to treasury.
+/// @dev Composes `FeeManagerUpgradeable`; deposit paths pull ERC-20 **before** minting shares. Extend `_deposit` / previews in subclasses if accounting changes.
 abstract contract MultiAssetDepositUpgradeable is
     FeeManagerUpgradeable,
     IMultiAssetDeposit
@@ -41,9 +43,13 @@ abstract contract MultiAssetDepositUpgradeable is
         }
     }
 
+    /// @dev No-op today; call after `__FeeManager_init` in concrete initializers to keep a stable extension point.
     function __MultiAssetDeposit_init() internal onlyInitializing {}
 
-    /// @notice Register a token as a deposit asset with pricing adapter and fee in basis points.
+    /// @notice Register `depositAsset` with converter and deposit fee (bps strictly less than 10_000).
+    /// @param depositAsset ERC-20 token users may deposit.
+    /// @param assetConverter_ Pricing adapter to vault base units.
+    /// @param depositFeeBps_ Fee on gross deposit, in basis points.
     function addDepositAsset(
         address depositAsset,
         IAssetConverter assetConverter_,
@@ -52,46 +58,50 @@ abstract contract MultiAssetDepositUpgradeable is
         _registerDepositAsset(depositAsset, assetConverter_, depositFeeBps_);
     }
 
+    /// @notice Remove `depositAsset` from the allowlist (requires zero accrued fees for that token).
     function removeDepositAsset(
         address depositAsset
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if ($.accruedDepositFees[depositAsset] != 0) {
-            revert AccruedFeesNotClaimed(depositAsset);
+            revert VaultDeposit_AccruedFeesNotClaimed(depositAsset);
         }
         if (!$.depositAssets.remove(depositAsset)) {
-            revert DepositAssetNotListed(depositAsset);
+            revert VaultDeposit_AssetNotListed(depositAsset);
         }
         delete $.depositFeeBps[depositAsset];
         delete $.converters[depositAsset];
         emit DepositAssetRemoved(depositAsset);
     }
 
+    /// @notice Updates the converter used to price `depositAsset`.
+    /// @param assetConverter_ Must not be zero address.
     function setAssetConverter(
         address depositAsset,
         IAssetConverter assetConverter_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
-            revert DepositAssetNotListed(depositAsset);
+            revert VaultDeposit_AssetNotListed(depositAsset);
         }
         if (address(assetConverter_) == address(0)) {
-            revert ZeroAddress();
+            revert Vault_ZeroAddress();
         }
         $.converters[depositAsset] = assetConverter_;
         emit DepositAssetConverterSet(depositAsset, address(assetConverter_));
     }
 
+    /// @notice Sets deposit fee bps for a listed asset (`bps` strictly below 10_000).
     function setDepositFeeBps(
         address depositAsset,
         uint16 depositFeeBps_
     ) external onlyRole(TREASURY_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
-            revert DepositAssetNotListed(depositAsset);
+            revert VaultDeposit_AssetNotListed(depositAsset);
         }
         if (depositFeeBps_ >= _BPS_DENOMINATOR) {
-            revert DepositFeeBpsTooHigh();
+            revert VaultDeposit_FeeBpsTooHigh();
         }
         $.depositFeeBps[depositAsset] = depositFeeBps_;
         emit DepositFeeBpsSet(depositAsset, depositFeeBps_);
@@ -105,14 +115,14 @@ abstract contract MultiAssetDepositUpgradeable is
         if (
             depositAsset == address(0) || address(assetConverter_) == address(0)
         ) {
-            revert ZeroAddress();
+            revert Vault_ZeroAddress();
         }
         if (depositFeeBps_ >= _BPS_DENOMINATOR) {
-            revert DepositFeeBpsTooHigh();
+            revert VaultDeposit_FeeBpsTooHigh();
         }
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.add(depositAsset)) {
-            revert DepositAssetAlreadyAdded(depositAsset);
+            revert VaultDeposit_AssetAlreadyAdded(depositAsset);
         }
         $.depositFeeBps[depositAsset] = depositFeeBps_;
         $.converters[depositAsset] = assetConverter_;
@@ -121,21 +131,25 @@ abstract contract MultiAssetDepositUpgradeable is
         emit DepositAssetConverterSet(depositAsset, address(assetConverter_));
     }
 
+    /// @return True if `depositAsset` is listed for deposits.
     function isDepositAsset(address depositAsset) public view returns (bool) {
         return
             _getMultiAssetDepositStorage().depositAssets.contains(depositAsset);
     }
 
+    /// @return Configured deposit fee in basis points for `depositAsset`.
     function depositFeeBps(address depositAsset) public view returns (uint16) {
         return _getMultiAssetDepositStorage().depositFeeBps[depositAsset];
     }
 
+    /// @return Converter contract used for `depositAsset`.
     function converterOf(
         address depositAsset
     ) public view returns (IAssetConverter) {
         return _getMultiAssetDepositStorage().converters[depositAsset];
     }
 
+    /// @return Accrued deposit fee balance for `depositAsset` awaiting `claimDepositFees`.
     function accruedDepositFees(
         address depositAsset
     ) public view returns (uint256) {
@@ -156,7 +170,7 @@ abstract contract MultiAssetDepositUpgradeable is
     {
         uint256 maxAssets = maxDeposit(depositAsset, receiver);
         if (assets > maxAssets) {
-            revert ExceededMaxDeposit(
+            revert VaultDeposit_ExceededMaxDeposit(
                 receiver,
                 depositAsset,
                 assets,
@@ -185,7 +199,7 @@ abstract contract MultiAssetDepositUpgradeable is
     {
         uint256 maxAssets = maxDeposit(depositAsset, receiver);
         if (assets > maxAssets) {
-            revert ExceededMaxDeposit(
+            revert VaultDeposit_ExceededMaxDeposit(
                 receiver,
                 depositAsset,
                 assets,
@@ -195,7 +209,7 @@ abstract contract MultiAssetDepositUpgradeable is
 
         uint256 shares = previewDeposit(depositAsset, assets);
         if (shares < minSharesOut) {
-            revert InsufficientSharesOut(shares, minSharesOut);
+            revert VaultDeposit_InsufficientSharesOut(shares, minSharesOut);
         }
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
@@ -216,7 +230,12 @@ abstract contract MultiAssetDepositUpgradeable is
     {
         uint256 maxShares = maxMint(depositAsset, receiver);
         if (shares > maxShares) {
-            revert ExceededMaxMint(receiver, depositAsset, shares, maxShares);
+            revert VaultDeposit_ExceededMaxMint(
+                receiver,
+                depositAsset,
+                shares,
+                maxShares
+            );
         }
 
         uint256 assets = previewMint(depositAsset, shares);
@@ -240,12 +259,17 @@ abstract contract MultiAssetDepositUpgradeable is
     {
         uint256 maxShares = maxMint(depositAsset, receiver);
         if (shares > maxShares) {
-            revert ExceededMaxMint(receiver, depositAsset, shares, maxShares);
+            revert VaultDeposit_ExceededMaxMint(
+                receiver,
+                depositAsset,
+                shares,
+                maxShares
+            );
         }
 
         uint256 assets = previewMint(depositAsset, shares);
         if (assets > maxAssetsIn) {
-            revert ExcessiveAssetsIn(assets, maxAssetsIn);
+            revert VaultDeposit_ExcessiveAssetsIn(assets, maxAssetsIn);
         }
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
@@ -253,7 +277,7 @@ abstract contract MultiAssetDepositUpgradeable is
     }
 
     function _deposit(
-        address caller,
+        address sender,
         address receiver,
         address depositAsset,
         uint256 assets,
@@ -262,7 +286,7 @@ abstract contract MultiAssetDepositUpgradeable is
         // Interaction first: pull tokens before minting shares so that any hook
         // fired during the transfer (e.g. ERC-777) observes a consistent state
         // (totalSupply not yet inflated without matching assets).
-        IERC20(depositAsset).safeTransferFrom(caller, address(this), assets);
+        IERC20(depositAsset).safeTransferFrom(sender, address(this), assets);
 
         (uint256 fee, ) = _splitDepositFeeView(depositAsset, assets);
         if (fee > 0) {
@@ -272,7 +296,7 @@ abstract contract MultiAssetDepositUpgradeable is
         }
 
         _mint(receiver, shares);
-        emit Deposit(caller, receiver, depositAsset, assets, shares);
+        emit Deposit(sender, receiver, depositAsset, assets, shares);
     }
 
     /// @notice Treasury pulls accrued deposit fees for `token` (same ERC-20 units as deposits).
@@ -282,18 +306,19 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 amount
     ) external onlyRole(TREASURY_ROLE) {
         if (to == address(0)) {
-            revert ZeroAddress();
+            revert Vault_ZeroAddress();
         }
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         uint256 acc = $.accruedDepositFees[depositAsset];
         if (amount > acc) {
-            revert ClaimExceedsAccrued();
+            revert VaultDeposit_ClaimExceedsAccrued();
         }
         $.accruedDepositFees[depositAsset] = acc - amount;
         IERC20(depositAsset).safeTransfer(to, amount);
         emit DepositFeesClaimed(depositAsset, to, amount);
     }
 
+    /// @inheritdoc IMultiAssetDeposit
     function maxDeposit(
         address depositAsset,
         address
@@ -305,6 +330,7 @@ abstract contract MultiAssetDepositUpgradeable is
         return type(uint256).max;
     }
 
+    /// @inheritdoc IMultiAssetDeposit
     function maxMint(
         address depositAsset,
         address
@@ -316,7 +342,7 @@ abstract contract MultiAssetDepositUpgradeable is
         return type(uint256).max;
     }
 
-    /// @dev Preview deposit assets to shares
+    /// @inheritdoc IMultiAssetDeposit
     function previewDeposit(
         address depositAsset,
         uint256 assets
@@ -334,7 +360,7 @@ abstract contract MultiAssetDepositUpgradeable is
         return _convertToShares(btcOut, Math.Rounding.Floor);
     }
 
-    /// @dev Preview mint shares to assets
+    /// @inheritdoc IMultiAssetDeposit
     function previewMint(
         address depositAsset,
         uint256 shares
@@ -360,7 +386,7 @@ abstract contract MultiAssetDepositUpgradeable is
             );
     }
 
-    /// @dev Convert assets to shares (excluding fees)
+    /// @inheritdoc IMultiAssetDeposit
     function convertToShares(
         address depositAsset,
         uint256 assets
@@ -376,7 +402,7 @@ abstract contract MultiAssetDepositUpgradeable is
         return _convertToShares(btcOut, Math.Rounding.Floor);
     }
 
-    /// @dev Convert shares to assets (excluding fees)
+    /// @inheritdoc IMultiAssetDeposit
     function convertToAssets(
         address depositAsset,
         uint256 shares

@@ -7,6 +7,8 @@ import {IFeeManager} from "./interfaces/IFeeManager.sol";
 import {VaultBaseUpgradeable} from "./VaultBaseUpgradeable.sol";
 
 /// @title FeeManagerUpgradeable
+/// @notice Management and performance fee module minting fee shares to treasury; see `IFeeManager` for economics.
+/// @dev Expects `__FeeManager_init` after `__VaultBase_init` so `pricePerShare` and time basis are initialised.
 abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
     using Math for uint256;
 
@@ -43,68 +45,80 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
         $.lastFeeHarvestAt = uint48(block.timestamp);
     }
 
+    /// @inheritdoc IFeeManager
     function setManagementFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
-        if (bps >= _BPS_DENOMINATOR) revert ManagementFeeBpsTooHigh();
+        if (bps >= _BPS_DENOMINATOR)
+            revert FeeManager_ManagementFeeBpsTooHigh();
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         $.managementFeeBps = bps;
         $.lastFeeHarvestAt = uint48(block.timestamp);
         emit ManagementFeeBpsSet(bps);
     }
 
+    /// @inheritdoc IFeeManager
     function setPerformanceFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
-        if (bps >= _BPS_DENOMINATOR) revert PerformanceFeeBpsTooHigh();
+        if (bps >= _BPS_DENOMINATOR)
+            revert FeeManager_PerformanceFeeBpsTooHigh();
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         $.performanceFeeBps = bps;
         $.highWaterMark = pricePerShare();
         emit PerformanceFeeBpsSet(bps);
     }
 
+    /// @inheritdoc IFeeManager
     function harvestManagementFee(
         address to
     ) external onlyRole(TREASURY_ROLE) nonReentrant {
-        if (to == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert Vault_ZeroAddress();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares();
-        if (shares == 0) revert NothingToHarvest();
+        if (shares == 0) revert FeeManager_NothingToHarvest();
         _getFeeManagerStorage().lastFeeHarvestAt = uint48(block.timestamp);
         _mint(to, shares);
         emit ManagementFeeHarvested(to, shares, elapsed);
     }
 
+    /// @inheritdoc IFeeManager
     function harvestPerformanceFee(
         address to
     ) external onlyRole(TREASURY_ROLE) nonReentrant {
-        if (to == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert Vault_ZeroAddress();
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         uint256 pps = pricePerShare();
         uint256 hwm = $.highWaterMark;
-        if (pps <= hwm) revert PriceAtOrBelowHighWaterMark();
+        if (pps <= hwm) revert FeeManager_PriceAtOrBelowHighWaterMark();
         (uint256 shares, , ) = _computePerformanceFeeShares();
-        if (shares == 0) revert NothingToHarvest();
+        if (shares == 0) revert FeeManager_NothingToHarvest();
         $.highWaterMark = pps;
         _mint(to, shares);
         emit PerformanceFeeHarvested(to, shares, hwm, pps);
     }
 
+    /// @inheritdoc IFeeManager
     function managementFeeBps() external view returns (uint16) {
         return _getFeeManagerStorage().managementFeeBps;
     }
 
+    /// @inheritdoc IFeeManager
     function performanceFeeBps() external view returns (uint16) {
         return _getFeeManagerStorage().performanceFeeBps;
     }
 
+    /// @inheritdoc IFeeManager
     function lastFeeHarvestAt() external view returns (uint48) {
         return _getFeeManagerStorage().lastFeeHarvestAt;
     }
 
+    /// @inheritdoc IFeeManager
     function highWaterMark() external view returns (uint256) {
         return _getFeeManagerStorage().highWaterMark;
     }
 
+    /// @inheritdoc IFeeManager
     function previewManagementFee() external view returns (uint256 shares) {
         (shares, ) = _computeManagementFeeShares();
     }
 
+    /// @inheritdoc IFeeManager
     function previewPerformanceFee() external view returns (uint256 shares) {
         (shares, , ) = _computePerformanceFeeShares();
     }

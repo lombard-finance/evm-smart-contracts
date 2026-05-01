@@ -7,7 +7,8 @@ import {CallVerificationInput, IMerkleCallAllowlist} from "../interfaces/IMerkle
 import {IStrategyExecValidator} from "../interfaces/IStrategyExecValidator.sol";
 
 /// @title MerkleAllowlistValidator
-/// @notice On-chain Merkle-based call-data allowlist validator.
+/// @notice On-chain Merkle-based allowlist for strategy `exec`: proves an encoded rule leaf is under `allowlistRoot`, then checks calldata constraints.
+/// @dev Implements both `IMerkleCallAllowlist` (typed struct proofs) and `IStrategyExecValidator` (ABI-encoded struct calldata). Owner rotates the Merkle root.
 contract MerkleAllowlistValidator is
     Ownable2Step,
     IMerkleCallAllowlist,

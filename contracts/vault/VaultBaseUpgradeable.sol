@@ -16,6 +16,8 @@ import {IBeaconHub} from "./interfaces/IBeaconHub.sol";
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 
 /// @title VaultBaseUpgradeable
+/// @notice Upgradeable ERC-20 vault share with NAV (`pricePerShare`), registered strategies, optional beacon deploys, and a vault-wide pause independent of ERC-20 `Pausable`.
+/// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate `vaultPaused` + `_pauseVault` for deposit/redemption/strategy entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
 abstract contract VaultBaseUpgradeable is
     IERC20Metadata,
     IVault,
@@ -80,6 +82,11 @@ abstract contract VaultBaseUpgradeable is
         }
     }
 
+    /// @dev Shared initializer: access control, reentrancy guard, strategy deployer role, underlying asset, initial `pricePerShare`, and zeroed rate-limiter bucket.
+    /// @param initialDefaultAdminDelay_ Admin delay for `AccessControlDefaultAdminRules`.
+    /// @param defaultAdmin_ Default admin for roles.
+    /// @param strategyDeployer_ Receives `STRATEGY_DEPLOYER_ROLE` (must not be zero).
+    /// @param asset_ Vault underlying ERC-20 (`asset()`).
     function __VaultBase_init(
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_,
@@ -87,7 +94,7 @@ abstract contract VaultBaseUpgradeable is
         IERC20 asset_
     ) internal onlyInitializing {
         if (strategyDeployer_ == address(0)) {
-            revert ZeroAddress();
+            revert Vault_ZeroAddress();
         }
 
         __AccessControl_init();
@@ -119,6 +126,8 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().pricePerShare;
     }
 
+    /// @notice Updates `pricePerShare` subject to the configured `PriceRateLimiter` capacity and refill rules.
+    /// @param newPricePerShare Next asset wei per share unit; must be non-zero.
     function postPricePerShare(
         uint256 newPricePerShare
     ) external onlyRole(OPERATOR_ROLE) whenVaultNotPaused {
@@ -132,6 +141,9 @@ abstract contract VaultBaseUpgradeable is
         _setPricePerShare($, newPricePerShare);
     }
 
+    /// @notice Configures the PPS move rate limiter (bucket ceiling and refill rate; library-defined semantics).
+    /// @param maxBucketBps_ Maximum bucket capacity in PriceRateLimiter micro-bps.
+    /// @param refillRate_ Per-second refill parameter passed through to `PriceRateLimiter.Config`.
     function setPricePerShareRateLimit(
         uint32 maxBucketBps_,
         uint64 refillRate_
@@ -150,12 +162,11 @@ abstract contract VaultBaseUpgradeable is
         returns (PriceRateLimiter.Bucket memory)
     {
         return
-            _getVaultBaseUpgradeableStorage()
-                .ppsRateLimiter
-                ._currentBucketState();
+            _getVaultBaseUpgradeableStorage().ppsRateLimiter._refill();
     }
 
-    /// @dev allows to post any price, but pause vault operations
+    /// @notice Posts any non-zero `pricePerShare` without consuming rate-limit capacity, then pauses vault operations.
+    /// @param newPricePerShare Next asset wei per share unit.
     function forcePostPricePerShare(
         uint256 newPricePerShare
     ) external onlyRole(PRICE_PER_SHARE_GUARDIAN_ROLE) {
@@ -170,7 +181,7 @@ abstract contract VaultBaseUpgradeable is
         uint256 newPricePerShare
     ) internal {
         if (newPricePerShare == 0) {
-            revert ZeroPricePerShare();
+            revert Vault_ZeroPricePerShare();
         }
         $.pricePerShare = newPricePerShare;
         emit PricePerShareUpdated(
@@ -186,20 +197,25 @@ abstract contract VaultBaseUpgradeable is
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }
 
+    /// @notice Underlying ERC-20 used for NAV accounting and async redemption payout (same role as ERC-4626 `asset()`).
+    /// @return The underlying token set in `__VaultBase_init`.
     function asset() public view returns (IERC20) {
         return _getVaultBaseUpgradeableStorage().asset;
     }
 
+    /// @notice Sets the hub used by `deployStrategy` for BeaconProxy creation.
+    /// @param hub New `IBeaconHub` (must not be zero).
     function setBeaconHub(
         IBeaconHub hub
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (address(hub) == address(0)) revert ZeroAddress();
+        if (address(hub) == address(0)) revert Vault_ZeroAddress();
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
         emit BeaconHubChanged(address($.beaconHub), address(hub), _msgSender());
         $.beaconHub = hub;
     }
 
+    /// @return hub Currently configured beacon hub (may be zero if unset).
     function beaconHub() external view returns (IBeaconHub) {
         return _getVaultBaseUpgradeableStorage().beaconHub;
     }
@@ -232,20 +248,23 @@ abstract contract VaultBaseUpgradeable is
         return _getVaultBaseUpgradeableStorage().strategies.contains(strategy);
     }
 
-    /// @dev used to register early deployed strategies or arbitrary strategies (not beacon-deployed)
+    /// @notice Registers an existing strategy contract address without deploying via the hub.
+    /// @param strategy Strategy contract to whitelist for `requestFunding`.
     function registerStrategy(
         address strategy
     ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
         if (!_getVaultBaseUpgradeableStorage().strategies.add(strategy))
-            revert AlreadyRegisteredStrategy();
+            revert Vault_StrategyAlreadyRegistered();
         emit StrategyRegistered(strategy, _msgSender());
     }
 
+    /// @notice Removes `strategy` from the funding whitelist.
+    /// @param strategy Strategy address to remove.
     function deregisterStrategy(
         address strategy
     ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
         if (!_getVaultBaseUpgradeableStorage().strategies.remove(strategy))
-            revert NotRegisteredStrategy();
+            revert Vault_StrategyNotRegistered();
         emit StrategyDeregistered(strategy, _msgSender());
     }
 
@@ -255,11 +274,12 @@ abstract contract VaultBaseUpgradeable is
         IERC20 token,
         uint256 amount
     ) external virtual override nonReentrant {
-        if (address(token) == address(this)) revert ShareTransferNotAllowed();
-        if (amount == 0) revert ZeroAmount();
+        if (address(token) == address(this))
+            revert Vault_ShareTransferNotAllowed();
+        if (amount == 0) revert Vault_ZeroAmount();
         address caller = _msgSender();
         if (!_getVaultBaseUpgradeableStorage().strategies.contains(caller))
-            revert NotRegisteredStrategy();
+            revert Vault_StrategyNotRegistered();
         token.safeTransfer(caller, amount);
         emit FundingRequested(caller, address(token), amount);
     }
@@ -308,27 +328,30 @@ abstract contract VaultBaseUpgradeable is
         return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
     }
 
+    /// @notice Sets vault-level pause (blocks `whenVaultNotPaused` routes); distinct from ERC-20 transfer pause.
     function pauseVaultOperations() external onlyRole(PAUSER_ROLE) {
         _pauseVault();
     }
 
+    /// @notice Clears vault-level pause.
     function unpauseVaultOperations() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpauseVault();
     }
 
+    /// @return True if vault operations (deposit/redemption/funding paths using `whenVaultNotPaused`) are paused.
     function vaultOperationsPaused() public view virtual returns (bool) {
         return _getVaultBaseUpgradeableStorage().vaultPaused;
     }
 
     function _requireVaultNotPaused() internal view virtual {
         if (vaultOperationsPaused()) {
-            revert EnforcedVaultOperationsPause();
+            revert Vault_EnforcedVaultOperationsPause();
         }
     }
 
     function _requireVaultPaused() internal view virtual {
         if (!vaultOperationsPaused()) {
-            revert ExpectedVaultOperationsPause();
+            revert Vault_ExpectedVaultOperationsPause();
         }
     }
 

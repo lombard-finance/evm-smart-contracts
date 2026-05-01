@@ -3,14 +3,19 @@ pragma solidity 0.8.24;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/// @notice Bucket rate limiter for price-per-share moves expressed in basis points.
-/// @dev callers use `using PriceRateLimiter for PriceRateLimiter.Bucket`
-///      and invoke library functions as methods on the bucket struct.
+/// @title PriceRateLimiter
+/// @notice Rate limit on how large a single relative `pricePerShare` move may be (micro-basis-point units), using configurable capacity and refill.
+/// @dev Attach with `using PriceRateLimiter for PriceRateLimiter.Bucket` and call `_consume`, `_setConfig`, etc. on storage buckets.
+///      **Micro-bps**: internal scale uses `BPS_DENOMINATOR = 1_000_000` (not 10_000).
 library PriceRateLimiter {
     using Math for uint256;
 
+    /// @dev Consumption exceeded refill-adjusted remaining bucket capacity for the attempted PPS delta.
     error PriceRateLimiter_RateLimitExceeded();
 
+    /// @notice Admin updated the rate-limit bucket configuration used when posting `pricePerShare`.
+    /// @param maxBucketBps Bucket ceiling in the library’s micro-bps scale.
+    /// @param refillRate Refill rate: additional capacity per second, scaled by `>> 32` in `_refill`.
     event PricePerShareRateLimitUpdated(uint32 maxBucketBps, uint64 refillRate);
 
     /// @dev Micro-basis-points: 1 unit = 0.0001% (1/1,000,000), NOT standard bps (1/10,000).
@@ -18,16 +23,24 @@ library PriceRateLimiter {
     ///      Example: 100 units = 0.01%, 10000 units = 1%.
     uint256 private constant BPS_DENOMINATOR = 100_0000;
 
-    /// @dev Packed into one 32-byte storage slot: 6+4+4+8 = 22 bytes.
+    /// @notice Persistent capacity/refill state for this rate limiter.
+    /// @dev Packed into one 32-byte storage slot (22 bytes used): timestamps and bps fields.
     struct Bucket {
-        uint48 lastRefill; // ─╮ timestamp of last checkpoint
-        uint32 capacityBps; //  │ available capacity (bps)
-        uint32 maxBps; //  │ bucket ceiling
-        uint64 refillRate; // ─╯ refill rate: bps/sec × 2^32
+        /// @dev Last refill checkpoint (unix seconds, truncated to uint48).
+        uint48 lastRefill;
+        /// @dev Remaining capacity in the library’s micro-bps scale.
+        uint32 capacityBps;
+        /// @dev Maximum bucket level (`capacityBps` cannot exceed this after refill).
+        uint32 maxBps;
+        /// @dev Refill increment per second, scaled: added capacity is `(elapsed * refillRate) >> 32`.
+        uint64 refillRate;
     }
 
+    /// @notice Immutable configuration passed to `_setConfig`.
     struct Config {
+        /// @dev New bucket ceiling (micro-bps).
         uint32 maxBps;
+        /// @dev New per-second refill rate (scaled as in `Bucket.refillRate`).
         uint64 refillRate;
     }
 
@@ -45,15 +58,9 @@ library PriceRateLimiter {
         }
     }
 
-    /// @notice Returns a memory copy of the bucket with the refill virtually applied to `block.timestamp`.
-    function _currentBucketState(
-        Bucket memory b
-    ) internal view returns (Bucket memory) {
-        return _refill(b);
-    }
-
     /// @dev Applies elapsed-time refill to a memory bucket; noop when `block.timestamp <= b.lastRefill`.
-    function _refill(Bucket memory b) private view returns (Bucket memory) {
+    ///      Used by `_checkpoint` and by `pricePerShareRateLimiterState` (via `using` on storage bucket).
+    function _refill(Bucket memory b) internal view returns (Bucket memory) {
         uint48 ts = uint48(block.timestamp);
         if (ts <= b.lastRefill) return b;
         uint256 elapsed = uint256(ts) - uint256(b.lastRefill);

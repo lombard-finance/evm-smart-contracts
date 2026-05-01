@@ -30,11 +30,14 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
         _disableInitializers();
     }
 
+    /// @notice Initializes access control for the hub (`DEFAULT_ADMIN_ROLE` only until admins grant beacon/deployer roles).
+    /// @param initialDefaultAdminDelay_ Delay parameter for `AccessControlDefaultAdminRules`.
+    /// @param defaultAdmin_ Initial default admin address.
     function initialize(
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_
     ) external initializer {
-        if (defaultAdmin_ == address(0)) revert ZeroAddress();
+        if (defaultAdmin_ == address(0)) revert BeaconHub_ZeroAddress();
         __AccessControl_init();
         __AccessControlDefaultAdminRules_init(
             initialDefaultAdminDelay_,
@@ -42,11 +45,12 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
         );
     }
 
-    /// @param id The hash of the served implementation name or version
+    /// @notice Returns the registered UpgradeableBeacon for `id`, or zero if unset.
     function beacon(bytes32 id) external view returns (address) {
         return _getBeaconHubStorage().beacons[id];
     }
 
+    /// @notice Whether `proxy` was deployed through this hub (`deploy` / `deployCreate2`).
     function isDeployed(address proxy) external view returns (bool) {
         return _getBeaconHubStorage().isDeployed[proxy];
     }
@@ -58,7 +62,7 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
         address beacon_
     ) external onlyRole(BEACON_ADMIN_ROLE) {
         if (beacon_ != address(0) && beacon_.code.length == 0)
-            revert NotAContract(beacon_);
+            revert BeaconHub_NotAContract(beacon_);
         _getBeaconHubStorage().beacons[id] = beacon_;
         emit BeaconSet(id, beacon_);
     }
@@ -70,7 +74,7 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
     ) external onlyRole(DEPLOYER_ROLE) returns (address proxy) {
         BeaconHubStorage storage $ = _getBeaconHubStorage();
         address beacon_ = $.beacons[id];
-        if (beacon_ == address(0)) revert BeaconNotSet(id);
+        if (beacon_ == address(0)) revert BeaconHub_BeaconNotSet(id);
         proxy = address(new BeaconProxy(beacon_, initData));
         $.isDeployed[proxy] = true;
         emit Deployed(id, proxy, _msgSender());
@@ -86,7 +90,7 @@ contract BeaconHub is IBeaconHub, AccessControlDefaultAdminRulesUpgradeable {
     ) external onlyRole(DEPLOYER_ROLE) returns (address proxy) {
         BeaconHubStorage storage $ = _getBeaconHubStorage();
         address beacon_ = $.beacons[id];
-        if (beacon_ == address(0)) revert BeaconNotSet(id);
+        if (beacon_ == address(0)) revert BeaconHub_BeaconNotSet(id);
         proxy = address(new BeaconProxy{salt: salt}(beacon_, initData));
         $.isDeployed[proxy] = true;
         emit Deployed(id, proxy, _msgSender());

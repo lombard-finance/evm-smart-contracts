@@ -40,32 +40,42 @@ interface IERC7540Redemption {
     /// @notice ERC-4626 `maxRedeem(controller)` cap updated for async redemption flows.
     event MaxRedeemSet(address indexed controller, uint256 maxShares);
 
-    /// @notice Submit a redemption request; moves `shares` out of `owner` custody per implementation (EIP-7540).
+    /// @notice Submit a redemption request (EIP-7540); burns or locks `shares` per implementation.
+    /// @param shares Amount of vault shares to redeem.
+    /// @param controller Registered redeem controller key for this request.
+    /// @param owner Share owner whose balance is debited / allowance consumed.
+    /// @return requestId Opaque request identifier assigned by the vault.
     function requestRedeem(
         uint256 shares,
         address controller,
         address owner
     ) external returns (uint256 requestId);
 
-    /// @notice Shares still pending (not yet claimable) for `(requestId, controller)`.
+    /// @notice Shares still pending settlement for a request (implementation-defined lifecycle).
+    /// @param requestId Request identifier returned by `requestRedeem`.
+    /// @param controller Redeem controller associated with the request.
+    /// @return shares Pending share units for that ticket (may be zero after fulfillment).
     function pendingRedeemRequest(
         uint256 requestId,
         address controller
     ) external view returns (uint256 shares);
 
-    /// @notice Shares in claimable state for `(requestId, controller)` (claim via implementation-defined settlement, not ERC-4626 `withdraw` / `redeem` here).
+    /// @notice Shares ready for claim-style settlement when implementations separate pending vs claimable states.
+    /// @dev This deployment often returns zero if fulfillment does not use a separate claim queue.
     function claimableRedeemRequest(
         uint256 requestId,
         address controller
     ) external view returns (uint256 shares);
 
-    /// @notice Whether `operator` may act on requests for `controller`.
+    /// @notice Whether `operator` may fulfill or manage redemption tickets for `controller`.
+    /// @return allowed True if `operator` is approved via `setOperator`.
     function isOperator(
         address controller,
         address operator
     ) external view returns (bool);
 
-    /// @notice Approve or revoke `operator` for `msg.sender` as controller.
+    /// @notice Approve or revoke `operator` acting on behalf of `msg.sender` as a registered controller.
+    /// @return success Interface compatibility; implementations return true on success.
     function setOperator(
         address operator,
         bool approved
@@ -80,37 +90,37 @@ interface IERC7540Redemption {
     /// @notice Fee shares sent to treasury on a redemption request.
     event WithdrawalFeeCharged(address indexed treasury, uint256 feeShares);
 
-    error WithdrawalFeeBpsTooHigh();
+    error ERC7540_WithdrawalFeeBpsTooHigh();
 
-    error ERC7540PreviewDisabled();
+    error ERC7540_PreviewDisabled();
 
     /// @notice ERC-4626 `withdraw` / `redeem` are disabled; claim settled via a separate payment entrypoint.
-    error ERC7540ERC4626ClaimDisabled();
+    error ERC7540_ERC4626ClaimDisabled();
 
-    error ERC7540UnauthorizedClaimCaller(
+    error ERC7540_UnauthorizedClaimCaller(
         address caller,
         address controller,
         uint256 requestId
     );
 
-    error ERC7540RedeemRequestsAlreadyAllowed(address controller);
+    error ERC7540_RedeemRequestsAlreadyAllowed(address controller);
 
-    error ERC7540RedeemRequestsAlreadyStopped(address controller);
+    error ERC7540_RedeemRequestsAlreadyStopped(address controller);
 
-    error ERC7540RedeemControllerNotTracked(address controller);
+    error ERC7540_RedeemControllerNotTracked(address controller);
 
-    error ERC7540RedeemControllerAlreadyTracked(address controller);
+    error ERC7540_RedeemControllerAlreadyTracked(address controller);
 
-    error ERC7540RemoveControllerHasPending(address controller);
+    error ERC7540_RemoveControllerHasPending(address controller);
 
-    error ERC7540RemoveControllerNotTracked(address controller);
+    error ERC7540_RemoveControllerNotTracked(address controller);
 
-    error ERC7540ZeroRedeemRequestShares();
+    error ERC7540_ZeroRedeemRequestShares();
 
-    error ERC7540NothingToFulfill(uint256 requestId);
+    error ERC7540_NothingToFulfill(uint256 requestId);
 
-    error ERC7540ExceededMaxRedeem(
-        address ctrl,
+    error ERC7540_ExceededMaxRedeem(
+        address controller,
         uint256 shares,
         uint256 maxShares
     );

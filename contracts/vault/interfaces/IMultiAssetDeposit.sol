@@ -4,71 +4,91 @@ pragma solidity 0.8.24;
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @title IMultiAssetDeposit
+/// @notice ERC-165 extension: deposit or mint vault shares against **multiple** listed ERC-20 assets via per-token `IAssetConverter` pricing.
+/// @dev Mirrors EIP-4626 deposit/mint naming; adds `depositAsset` and optional slippage guards (`minSharesOut`, `maxAssetsIn`). Fees accrue to treasury per asset.
 interface IMultiAssetDeposit is IERC165 {
-    event DepositAssetAdded(address indexed caller, address indexed token);
+    /// @notice An admin listed `token` as an accepted deposit asset.
+    event DepositAssetAdded(address indexed sender, address indexed token);
 
+    /// @notice Shares minted after depositing `assets` of `depositAsset`.
+    /// @dev Same roles as EIP-4626 `Deposit`: `sender` initiated the tx; `owner` receives minted shares.
     event Deposit(
-        address indexed caller,
-        address indexed receiver,
+        address indexed sender,
+        address indexed owner,
         address indexed depositAsset,
         uint256 assets,
         uint256 shares
     );
 
+    /// @notice `token` was removed from the deposit allowlist (requires zero accrued fees).
     event DepositAssetRemoved(address indexed token);
 
+    /// @notice Deposit fee rate for `token` was updated (basis points on gross deposit).
     event DepositFeeBpsSet(address indexed token, uint16 depositFeeBps);
 
+    /// @notice Pricing adapter for `token` was updated.
     event DepositAssetConverterSet(
         address indexed token,
         address indexed assetConverter
     );
 
+    /// @notice Deposit fee skimmed from a deposit and accrued for treasury claim.
     event DepositFeeAccrued(address indexed token, uint256 amount);
 
+    /// @notice Treasury claimed accrued deposit fees for `token`.
     event DepositFeesClaimed(
         address indexed token,
         address indexed to,
         uint256 amount
     );
 
-    error DepositAssetNotListed(address token);
+    error VaultDeposit_AssetNotListed(address token);
 
-    error AssetConverterZero();
+    error VaultDeposit_AssetConverterZero();
 
-    error DepositFeeBpsTooHigh();
+    error VaultDeposit_FeeBpsTooHigh();
 
-    error AccruedFeesNotClaimed(address token);
+    error VaultDeposit_AccruedFeesNotClaimed(address token);
 
-    error SharesPreviewMismatch();
+    error VaultDeposit_SharesPreviewMismatch();
 
-    error MintRequiresAssets(address assetToken);
-    error ClaimExceedsAccrued();
+    error VaultDeposit_MintRequiresAssets(address assetToken);
 
-    error ExceededMaxDeposit(
+    error VaultDeposit_ClaimExceedsAccrued();
+
+    error VaultDeposit_ExceededMaxDeposit(
         address receiver,
         address depositAsset,
         uint256 assets,
         uint256 maxAssets
     );
-    error ExceededMaxMint(
+
+    error VaultDeposit_ExceededMaxMint(
         address receiver,
         address depositAsset,
         uint256 shares,
         uint256 maxShares
     );
-    error DepositAssetAlreadyAdded(address depositAsset);
 
-    error InsufficientSharesOut(uint256 sharesOut, uint256 minSharesOut);
+    error VaultDeposit_AssetAlreadyAdded(address depositAsset);
 
-    error ExcessiveAssetsIn(uint256 assetsIn, uint256 maxAssetsIn);
+    error VaultDeposit_InsufficientSharesOut(
+        uint256 sharesOut,
+        uint256 minSharesOut
+    );
 
+    error VaultDeposit_ExcessiveAssetsIn(uint256 assetsIn, uint256 maxAssetsIn);
+
+    /// @notice Deposit `assets` of `depositAsset` and mint shares to `receiver`.
+    /// @return shares Vault shares minted.
     function deposit(
         address depositAsset,
         uint256 assets,
         address receiver
     ) external returns (uint256);
 
+    /// @notice Deposit with slippage guard: revert if minted shares fall below `minSharesOut`.
+    /// @return shares Vault shares minted.
     function deposit(
         address depositAsset,
         uint256 assets,
@@ -76,12 +96,16 @@ interface IMultiAssetDeposit is IERC165 {
         uint256 minSharesOut
     ) external returns (uint256);
 
+    /// @notice Mint exactly `shares` to `receiver` by pulling the computed asset amount of `depositAsset`.
+    /// @return assets Gross deposit asset amount transferred in (before fee split internally).
     function mint(
         address depositAsset,
         uint256 shares,
         address receiver
     ) external returns (uint256);
 
+    /// @notice Mint with cap: revert if required gross assets exceed `maxAssetsIn`.
+    /// @return assets Gross deposit asset amount transferred in.
     function mint(
         address depositAsset,
         uint256 shares,
@@ -89,31 +113,43 @@ interface IMultiAssetDeposit is IERC165 {
         uint256 maxAssetsIn
     ) external returns (uint256);
 
+    /// @notice Converts `depositAsset` units (after fee logic in implementation) to shares at current NAV.
+    /// @return shares Expected shares for `assets` deposit amount.
     function previewDeposit(
         address depositAsset,
         uint256 assets
     ) external view returns (uint256);
 
+    /// @notice Assets of `depositAsset` required to mint `shares` at current NAV (implementation-defined fee handling).
+    /// @return assets Gross assets required from user.
     function previewMint(
         address depositAsset,
         uint256 shares
     ) external view returns (uint256);
 
+    /// @notice Upper bound on deposit amount for `(depositAsset, receiver)` given pause/listing state.
+    /// @return maxAssets `0` when paused or unlisted; otherwise unbounded in the default implementation.
     function maxDeposit(
         address depositAsset,
         address receiver
     ) external view returns (uint256);
 
+    /// @notice Upper bound on mintable shares for `(depositAsset, receiver)` given pause/listing state.
+    /// @return maxShares `0` when paused or unlisted; otherwise unbounded in the default implementation.
     function maxMint(
         address depositAsset,
         address receiver
     ) external view returns (uint256);
 
+    /// @notice Converts vault shares to `depositAsset` units using the token converter (preview path; may exclude deposit fees depending on implementation).
+    /// @return assets Amount of `depositAsset` equivalent to `shares`.
     function convertToAssets(
         address depositAsset,
         uint256 shares
     ) external view returns (uint256);
 
+    /// @notice Converts `depositAsset` amount to equivalent shares using the token converter.
+    /// @return shares Vault shares equivalent to `assets`.
     function convertToShares(
         address depositAsset,
         uint256 assets

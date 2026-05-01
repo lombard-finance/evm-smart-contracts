@@ -24,9 +24,9 @@ Deliver a **`VaultBase`** core (strategy registry + `pricePerShare` ratio field 
 ### Redemptions (async, ERC-7540)
 
 - **`requestRedeem(shares, controller, owner)`** — Burns **`shares`** from **`owner`** immediately (**no** share escrow). **`totalSupply`** **MUST** drop at request time. The **`controller`** **MUST** be registered and currently accepting requests (**`acceptsRedeemRequests[controller] == true`**); otherwise **MUST revert** (**`RedeemRequestsNotAccepted`**). **`shares`** **MUST NOT** exceed **`maxRedeemShares[controller]`** (**`ERC4626ExceededMaxRedeem`**). If **`msg.sender != owner`**, allowance **MUST** be spent via **`_spendAllowance`**. Asset amount is computed via **`_convertToAssets`** (floor) at request time. Returns a unique non-zero **`requestId`**.
-- **`previewRedeem`** **MUST revert** (**`ERC7540PreviewDisabled`**). **`previewWithdraw`** **MUST revert** as well: the exit path is **async** (direct settlement via **`fulfillRedeemRequests`**).
-- **`withdraw` / `redeem`** (ERC-4626) — **Disabled**; **MUST revert** (**`ERC7540ERC4626ClaimDisabled`**). There is no ERC-4626 claim step.
-- **`maxWithdraw`** — **Disabled**; **MUST revert** (**`ERC7540ERC4626ClaimDisabled`**).
+- **`previewRedeem`** **MUST revert** (**`ERC7540_PreviewDisabled`**). **`previewWithdraw`** **MUST revert** as well: the exit path is **async** (direct settlement via **`fulfillRedeemRequests`**).
+- **`withdraw` / `redeem`** (ERC-4626) — **Disabled**; **MUST revert** (**`ERC7540_ERC4626ClaimDisabled`**). There is no ERC-4626 claim step.
+- **`maxWithdraw`** — **Disabled**; **MUST revert** (**`ERC7540_ERC4626ClaimDisabled`**).
 - **`maxRedeem(controller)`** — Returns **`maxRedeemShares[controller]`**, the per-controller share cap set by the controller via **`setMaxRedeem`**.
 - **`cancelRedeemRequest`** — **Not** supported; if present, **MUST** **`revert`**. **MUST NOT** emit **`CancelRedeemRequest`**.
 - **`pendingRedeemRequest(requestId, controller)`** — Returns **`pendingShares`** for **`requestId`** (the **`controller`** parameter is accepted for ERC-7540 interface compliance but **ignored** in lookups; state is keyed by **`requestId`** only).
@@ -41,10 +41,10 @@ Deliver a **`VaultBase`** core (strategy registry + `pricePerShare` ratio field 
 
 Controllers are externally managed addresses that gate redemption requests. **`CONTROLLER_MANAGER_ROLE`** (**`keccak256("CONTROLLER_MANAGER_ROLE")`**) **MUST** be held to call any management function.
 
-- **`registerRedeemController(address controller)`** — Adds **`controller`** to the tracked set; **MUST revert** if already tracked (**`ERC7540RedeemControllerAlreadyTracked`**). Does **not** automatically allow requests.
+- **`registerRedeemController(address controller)`** — Adds **`controller`** to the tracked set; **MUST revert** if already tracked (**`ERC7540_RedeemControllerAlreadyTracked`**). Does **not** automatically allow requests.
 - **`allowRedeemRequests(address controller)`** — Sets **`acceptsRedeemRequests[controller] = true`**; **MUST revert** if controller is not tracked or already allowed.
 - **`stopRedeemRequests(address controller)`** — Sets **`acceptsRedeemRequests[controller] = false`**; pending requests are **not** affected. **MUST revert** if already stopped.
-- **`removeRedeemController(address controller)`** — Removes controller from tracking; **MUST revert** if not tracked or if **`pendingAssets`** or **`pendingShares`** are non-zero (**`ERC7540RemoveControllerHasPending`**). Clears **`acceptsRedeemRequests`**, **`operators`**, and **`maxRedeemShares`** for the controller.
+- **`removeRedeemController(address controller)`** — Removes controller from tracking; **MUST revert** if not tracked or if **`pendingAssets`** or **`pendingShares`** are non-zero (**`ERC7540_RemoveControllerHasPending`**). Clears **`acceptsRedeemRequests`**, **`operators`**, and **`maxRedeemShares`** for the controller.
 - **`acceptsRedeemRequests(address controller)`** — View; returns whether **`controller`** currently accepts new redeem requests.
 
 ### `setMaxRedeem` / `maxRedeem`
@@ -54,13 +54,13 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 
 ### Redemption fulfillment
 
-- **`fulfillRedeemRequests(uint256[] calldata requestIds)`** — Caller **MUST** be an ERC-7540 **operator** for the **`controller`** of each supplied request ID; **MUST revert** otherwise (**`ERC7540UnauthorizedClaimCaller`**). For each **`requestId`**: subtracts **`pendingShares`** and **`pendingAssets`** from the controller's aggregate, deletes the request record, and transfers **`pendingAssets`** directly to the request **`owner`** via **`safeTransfer`**. Emits **`RedeemRequestsFulfilled(requestIds)`**.
+- **`fulfillRedeemRequests(uint256[] calldata requestIds)`** — Caller **MUST** be an ERC-7540 **operator** for the **`controller`** of each supplied request ID; **MUST revert** otherwise (**`ERC7540_UnauthorizedClaimCaller`**). For each **`requestId`**: subtracts **`pendingShares`** and **`pendingAssets`** from the controller's aggregate, deletes the request record, and transfers **`pendingAssets`** directly to the request **`owner`** via **`safeTransfer`**. Emits **`RedeemRequestsFulfilled(requestIds)`**.
 - **Scope** — There is **no** per-controller budget cap enforced by the Vault; the caller controls which request IDs to include. The Vault's asset balance **MUST** be sufficient to cover all transfers or the tx will revert at the ERC-20 level.
 - **No `IRedemptionPolicy`** — Allocation is fully determined by the operator-supplied **`requestIds`** list; there is no pluggable policy contract.
 
 ### ERC-7540 operators
 
-- **`setOperator(address operator, bool approved)`** — Caller **MUST** be a registered controller (**`controllers.contains(msg.sender)`**); **MUST revert** otherwise (**`ERC7540RedeemControllerNotTracked`**). Approves or revokes **`operator`** for **`msg.sender`**. Emits **`OperatorSet(controller, operator, approved)`**.
+- **`setOperator(address operator, bool approved)`** — Caller **MUST** be a registered controller (**`controllers.contains(msg.sender)`**); **MUST revert** otherwise (**`ERC7540_RedeemControllerNotTracked`**). Approves or revokes **`operator`** for **`msg.sender`**. Emits **`OperatorSet(controller, operator, approved)`**.
 - **`isOperator(address controller, address operator)`** — View; returns membership in **`operators[controller]`**.
 
 ### Implementation shape
@@ -73,10 +73,10 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 ### Accounting and `totalAssets`
 
 - **`asset()`** (ERC-4626) **MUST** match **`IVault.asset()`** (same underlying token for the §B pipe).
-- **`pricePerShare`** — Stored exchange rate: **asset wei per `10 ** decimals()` share units**. **MUST** be set to a non-zero value via **`postPricePerShare`** before the vault is usable (zero price returns 0 for all conversions).
-- **`totalAssets()`** **MUST** equal **`_convertToAssets(totalSupply(), Floor)`**, i.e. **`totalSupply() * pricePerShare / 10 ** decimals()`** (floor rounding). It is **not** a raw ERC-20 balance sum of the Vault and registered Strategies. The rate is posted externally and reflects the economic NAV of the strategy portfolio.
-- **`_convertToShares(assets, rounding)`** = **`assets * 10 ** decimals() / pricePerShare`** (using the posted rate).
-- **`_convertToAssets(shares, rounding)`** = **`shares * pricePerShare / 10 ** decimals()`** (using the posted rate).
+- **`pricePerShare`** — Stored exchange rate: **asset wei per `10 ** decimals()` share units**. **MUST** be set to a non-zero value via **`postPricePerShare`\*\* before the vault is usable (zero price returns 0 for all conversions).
+- **`totalAssets()`** **MUST** equal **`_convertToAssets(totalSupply(), Floor)`**, i.e. **`totalSupply() \* pricePerShare / 10 ** decimals()`** (floor rounding). It is **not\*\* a raw ERC-20 balance sum of the Vault and registered Strategies. The rate is posted externally and reflects the economic NAV of the strategy portfolio.
+- **`_convertToShares(assets, rounding)`** = **`assets \* 10 ** decimals() / pricePerShare`\*\* (using the posted rate).
+- **`_convertToAssets(shares, rounding)`** = **`shares \* pricePerShare / 10 ** decimals()`\*\* (using the posted rate).
 - **`preview*` / `convertTo*`** (where EIP applies) **MUST** follow **ERC-4626** from **`totalAssets()`** and **`totalSupply()`** only.
 - **Fees** — **Out of scope**. Rounding **MUST** still follow ERC-4626 / ERC-7540 where the EIPs apply.
 
@@ -91,7 +91,7 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 ### Cross-chain ratio (`pricePerShare`)
 
 - **MUST** expose **`uint256 pricePerShare`** (asset wei per `10 ** decimals()` vault shares) as a **`view`** getter. **Only** **`PRICE_PER_SHARE_POSTER_ROLE`** (**`keccak256("PRICE_PER_SHARE_POSTER_ROLE")`**) **MUST** write it via **`postPricePerShare(uint256 newPricePerShare)`**. **MUST revert** if **`newPricePerShare == 0`** (**`ZeroPricePerShare`**).
-- Each successful update **MUST** emit **`PricePerShareUpdated(uint256 pricePerShare, uint256 nav, uint64 postedAt)`** where **`nav`** = **`totalSupply() * newPricePerShare / 10 ** decimals()`** (floor) and **`postedAt`** = **`block.timestamp`**.
+- Each successful update **MUST** emit **`PricePerShareUpdated(uint256 pricePerShare, uint256 nav, uint64 postedAt)`** where **`nav`** = **`totalSupply() \* newPricePerShare / 10 ** decimals()`** (floor) and **`postedAt`** = **`block.timestamp`\*\*.
 - **`DEFAULT_ADMIN_ROLE`** **MUST** **grant/revoke** **`PRICE_PER_SHARE_POSTER_ROLE`**.
 - **No** mandatory on-chain staleness guard in this spec.
 
@@ -107,12 +107,12 @@ Controllers are externally managed addresses that gate redemption requests. **`C
 
 1. **`IVault` (002)** + Strategy **`pullFromVault`** with registry and allowance; **`registerStrategy`** gated **only** by **`STRATEGY_DEPLOYER_ROLE`**, **idempotent** for already-registered strategies with **`forceApprove(..., type(uint256).max)`** per **Strategy integration**; **no** **`restoreStrategyAllowance`**.
 2. **ERC-4626** deposits and previews; **`requestDeposit`** reverts if present.
-3. **ERC-7540** redemptions: **`requestRedeem`** burns shares immediately; **`controller`** must be registered and accepting requests; shares capped by **`maxRedeemShares[controller]`**; **`previewRedeem`** and **`previewWithdraw`** **MUST revert**; cancel unsupported (revert if present); **`withdraw`** / **`redeem`** / **`maxWithdraw`** **MUST revert** (**`ERC7540ERC4626ClaimDisabled`**); **`claimableRedeemRequest`** always returns **`0`**; events per EIP.
+3. **ERC-7540** redemptions: **`requestRedeem`** burns shares immediately; **`controller`** must be registered and accepting requests; shares capped by **`maxRedeemShares[controller]`**; **`previewRedeem`** and **`previewWithdraw`** **MUST revert**; cancel unsupported (revert if present); **`withdraw`** / **`redeem`** / **`maxWithdraw`** **MUST revert** (**`ERC7540_ERC4626ClaimDisabled`**); **`claimableRedeemRequest`** always returns **`0`**; events per EIP.
 4. **Controller management** — **`CONTROLLER_MANAGER_ROLE`** gates **`registerRedeemController`**, **`allowRedeemRequests`**, **`stopRedeemRequests`**, **`removeRedeemController`**; state transitions and guards per **Controller management**.
 5. **`setMaxRedeem`** callable by registered controllers; **`maxRedeem`** returns the stored cap; **`requestRedeem`** enforces it.
 6. **Redemption fulfillment** — **`fulfillRedeemRequests(uint256[] requestIds)`** gated by operator membership for each request's controller; directly transfers **`asset`** to each request's **`owner`**; no claimable state; no **`IRedemptionPolicy`**.
 7. **Beacon** deployment + initializer per **002** §A.1.
-8. **`totalAssets()`** = **`totalSupply() * pricePerShare / 10 ** decimals()`** (floor); **`convertTo*` / deposit `preview*`** per **Accounting and `totalAssets`** and ERC-4626 deposit rules.
+8. **`totalAssets()`** = **`totalSupply() \* pricePerShare / 10 ** decimals()`** (floor); **`convertTo*`/ deposit`preview*`** per **Accounting and `totalAssets`\*\* and ERC-4626 deposit rules.
 9. **`pricePerShare`** field, **`PRICE_PER_SHARE_POSTER_ROLE`**, **`postPricePerShare`** setter, **`PricePerShareUpdated`** event per **Cross-chain ratio**.
 10. **ERC-165** — **`0x620ee8e4`** (async redeem) and **`0xe3bc4e65`** (operators) **MUST** be **true**; ERC-4626 interface ID **MUST** be **true**; **ERC-7575 MUST NOT**.
 11. **ERC-7540 operators** — **`setOperator` / `isOperator`** per **ERC-7540 operators**; **`setOperator`** only callable by registered controllers.

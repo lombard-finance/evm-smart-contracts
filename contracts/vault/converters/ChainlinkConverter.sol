@@ -38,6 +38,12 @@ contract ChainlinkConverter is IAssetConverter {
     /// @dev Decimal count of the vault's underlying base asset (e.g. 8 for BTC, 18 for ETH).
     uint8 public immutable baseDecimals;
 
+    /// @param feed_ Chainlink AggregatorV3Interface for the deposit asset price.
+    /// @param tokenDecimals_ Deposit token decimals (metadata scale).
+    /// @param baseDecimals_ Vault underlying decimals (must match vault asset decimals).
+    /// @param heartbeat_ Maximum allowed staleness of `latestRoundData.updatedAt` (seconds).
+    /// @param sequencerUptimeFeed_ L2 sequencer feed; zero disables sequencer checks.
+    /// @param gracePeriod_ Seconds after sequencer recovery during which `_checkSequencer` still reverts.
     constructor(
         address feed_,
         uint8 tokenDecimals_,

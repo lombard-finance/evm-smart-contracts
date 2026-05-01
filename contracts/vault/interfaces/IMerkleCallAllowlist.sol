@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-/// @dev Rule body + Merkle proof supplied on each verification call.
+/// @notice Payload proving an encoded rule is a member of the active Merkle tree.
+/// @dev `ruleEncoded` layout is versioned by the validator (see `MerkleAllowlistValidator`).
 struct CallVerificationInput {
+    /// @dev Canonical encoded rule bytes (`RULE_VERSION` prefix and constraint layout).
     bytes ruleEncoded;
+    /// @dev Merkle proof from leaf (`ruleEncoded`) to `allowlistRoot`.
     bytes32[] merkleProof;
 }
 
-/// @title Merkle-based allowlist for call-data validation
+/// @title IMerkleCallAllowlist
+/// @notice Merkle-root–governed allowlist for validating arbitrary `(sender, to, value, data)` tuples off-chain and verifying on-chain.
 interface IMerkleCallAllowlist {
     /// @notice Emitted when the active Merkle root changes.
     event AllowlistRootUpdated(bytes32 oldRoot, bytes32 newRoot);

@@ -5,7 +5,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IAssetConverter} from "../interfaces/IAssetConverter.sol";
 
 /// @title DirectConverter
-/// @notice IAssetConverter for assets whose units are identical to the vault's base accounting units (e.g. LBTC).
+/// @notice `IAssetConverter` identity mapping: deposit token units equal vault base accounting units (no oracle).
+/// @dev Use when the deposit asset **is** the underlying NAV denomination (e.g. native LBTC into an LBTC-accounted vault).
 contract DirectConverter is IAssetConverter {
     /// @inheritdoc IAssetConverter
     function toBaseUnits(

@@ -92,9 +92,9 @@ describe('BeaconHub', function () {
       );
     });
 
-    it('reverts with NotAContract for EOA address', async function () {
+    it('reverts with BeaconHub_NotAContract for EOA address', async function () {
       await expect(hub.connect(beaconAdmin).setBeacon(STRATEGY_ID, other.address))
-        .to.be.revertedWithCustomError(hub, 'NotAContract')
+        .to.be.revertedWithCustomError(hub, 'BeaconHub_NotAContract')
         .withArgs(other.address);
     });
 
@@ -147,10 +147,10 @@ describe('BeaconHub', function () {
       );
     });
 
-    it('reverts with BeaconNotSet for unknown id', async function () {
+    it('reverts with BeaconHub_BeaconNotSet for unknown id', async function () {
       const unknownId = ethers.id('Unknown');
       await expect(hub.connect(deployer).deploy(unknownId, '0x'))
-        .to.be.revertedWithCustomError(hub, 'BeaconNotSet')
+        .to.be.revertedWithCustomError(hub, 'BeaconHub_BeaconNotSet')
         .withArgs(unknownId);
     });
 
