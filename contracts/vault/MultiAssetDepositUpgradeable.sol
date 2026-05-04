@@ -56,7 +56,7 @@ abstract contract MultiAssetDepositUpgradeable is
     /// @param strategy Registered strategy address, or zero to disable automatic routing.
     function setDefaultStrategy(
         address strategy
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(LIMITED_ADMIN_ROLE) {
         if (strategy != address(0)) {
             if (
                 !_getVaultBaseUpgradeableStorage().strategies.contains(strategy)
@@ -123,7 +123,7 @@ abstract contract MultiAssetDepositUpgradeable is
     function setDepositFeeBps(
         address depositAsset,
         uint16 depositFeeBps_
-    ) external onlyRole(TREASURY_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
             revert VaultDeposit_AssetNotListed(depositAsset);

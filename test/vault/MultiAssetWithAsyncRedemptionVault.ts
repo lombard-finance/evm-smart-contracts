@@ -17,7 +17,6 @@ import type {
 
 describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let admin: Signer;
-  let strategyDeployer: Signer;
   let redeemOperator: Signer;
   let user: Signer;
   let treasury: Signer;
@@ -31,7 +30,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [admin, strategyDeployer, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
+    [admin, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
 
     underlying = await deployContract<TokenMock>('TokenMock', ['Underlying', 'UND'], false);
     altDeposit = await deployContract<TokenMock>('TokenMock', ['Alt Deposit', 'ALT'], false);
@@ -46,14 +45,14 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       'mVAULT',
       await underlying.getAddress(),
       admin.address,
-      0,
-      strategyDeployer.address
+      0
     ]);
     await proxy.waitForDeployment();
     vault = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
-    await vault.connect(admin).grantRole(await vault.PRICE_MANAGER_ROLE(), operator.address);
-    await vault.connect(admin).grantRole(await vault.OPERATOR_ROLE(), redeemOperator.address);
+    await vault.connect(admin).grantRole(await vault.PRICE_SETTER_ROLE(), operator.address);
+    await vault.connect(admin).grantRole(await vault.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
+    await vault.connect(admin).grantRole(await vault.LIMITED_ADMIN_ROLE(), admin.address);
 
     snapshot = await takeSnapshot();
   });
@@ -149,7 +148,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const sink = ethers.Wallet.createRandom().address;
 
     await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
-    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).registerStrategy(sink);
     await expect(vault.connect(admin).setDefaultStrategy(sink)).to.emit(vault, 'DefaultStrategySet').withArgs(sink);
 
     expect(await vault.defaultStrategy()).to.equal(sink);
@@ -181,10 +180,10 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
     const treasuryRole = await vault.TREASURY_ROLE();
     await vault.connect(admin).grantRole(treasuryRole, treasury.address);
-    await vault.connect(treasury).setFeeTreasury(treasury.address);
+    await vault.connect(admin).setFeeTreasury(treasury.address);
 
     await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100); // 1%
-    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).registerStrategy(sink);
     await vault.connect(admin).setDefaultStrategy(sink);
 
     const assets = 10_000n * 10n ** 18n;
@@ -220,9 +219,9 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
   it('deregisterStrategy clears defaultStrategy when it matches', async function () {
     const sink = ethers.Wallet.createRandom().address;
-    await vault.connect(strategyDeployer).registerStrategy(sink);
+    await vault.connect(admin).registerStrategy(sink);
     await vault.connect(admin).setDefaultStrategy(sink);
-    await expect(vault.connect(strategyDeployer).deregisterStrategy(sink))
+    await expect(vault.connect(admin).deregisterStrategy(sink))
       .to.emit(vault, 'DefaultStrategySet')
       .withArgs(ethers.ZeroAddress);
     expect(await vault.defaultStrategy()).to.equal(ethers.ZeroAddress);
@@ -324,10 +323,10 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.connect(user).approve(v, depositAmt);
     await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
 
-    await vault.connect(treasury).setPerformanceFeeBps(1000, treasury.address, true); // 10%
+    await vault.connect(admin).setPerformanceFeeBps(1000, treasury.address, true); // 10%
 
     // Raise pps +10% via soft post (default bucket has no capacity — drains, applies NAV, pauses).
-    const priceManagerRole = await vault.PRICE_MANAGER_ROLE();
+    const priceManagerRole = await vault.PRICE_SETTER_ROLE();
     await vault.connect(admin).grantRole(priceManagerRole, admin.address);
     const pps0 = await vault.pricePerShare();
     await vault.connect(admin).postPricePerShare((pps0 * 11n) / 10n, false);
@@ -343,7 +342,6 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(await vault.pricePerShare()).to.equal(ppsBefore);
   });
 
-
   it('treasury can update deposit fee bps', async function () {
     const alt = await altDeposit.getAddress();
     await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
@@ -351,13 +349,11 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const treasuryRole = await vault.TREASURY_ROLE();
     await vault.connect(admin).grantRole(treasuryRole, treasury.address);
 
-    await expect(vault.connect(treasury).setFeeTreasury(treasury.address))
+    await expect(vault.connect(admin).setFeeTreasury(treasury.address))
       .to.emit(vault, 'FeeTreasurySet')
       .withArgs(treasury.address);
 
-    await expect(vault.connect(treasury).setDepositFeeBps(alt, 10))
-      .to.emit(vault, 'DepositFeeBpsSet')
-      .withArgs(alt, 10);
+    await expect(vault.connect(admin).setDepositFeeBps(alt, 10)).to.emit(vault, 'DepositFeeBpsSet').withArgs(alt, 10);
     expect(await vault.depositFee(alt)).to.equal(10);
     expect(await vault.feeTreasury()).to.equal(treasury.address);
   });
@@ -502,12 +498,12 @@ describe('StakedLBTC as deposit token', function () {
       'LBTCV',
       await lbtcUnderlying.getAddress(),
       admin.address,
-      0,
-      strategyDeployer.address
+      0
     ]);
 
-    await stakedVault.connect(admin).grantRole(await stakedVault.PRICE_MANAGER_ROLE(), operator.address);
-    await stakedVault.connect(admin).grantRole(await stakedVault.OPERATOR_ROLE(), redeemOperator.address)
+    await stakedVault.connect(admin).grantRole(await stakedVault.PRICE_SETTER_ROLE(), operator.address);
+    await stakedVault.connect(admin).grantRole(await stakedVault.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
+    await stakedVault.connect(admin).grantRole(await stakedVault.LIMITED_ADMIN_ROLE(), admin.address);
     await stakedVault
       .connect(admin)
       .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
@@ -617,8 +613,8 @@ describe('StakedLBTC as deposit token', function () {
 
       const treasuryRole = await stakedVault.TREASURY_ROLE();
       await stakedVault.connect(admin).grantRole(treasuryRole, treasury.address);
-      await stakedVault.connect(treasury).setFeeTreasury(treasury.address);
-      await stakedVault.connect(treasury).setDepositFeeBps(sAddr, 100); // 1%
+      await stakedVault.connect(admin).setFeeTreasury(treasury.address);
+      await stakedVault.connect(admin).setDepositFeeBps(sAddr, 100); // 1%
 
       const depositAmt = ONE_LBTC;
       const expectedFee = (depositAmt * 100n) / 10_000n; // floor: 1_000_000
@@ -693,21 +689,15 @@ describe('Chainlink as deposit token', function () {
     const vaultFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
     const proxy = await deployContract(
       'MultiAssetWithAsyncRedemptionVault',
-      [
-        'Chainlink BTC Vault',
-        'clVAULT',
-        await depositToken.getAddress(),
-        admin.address,
-        0,
-        strategyDeployer.address
-      ],
+      ['Chainlink BTC Vault', 'clVAULT', await depositToken.getAddress(), admin.address, 0],
       true
     );
     await proxy.waitForDeployment();
     clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
-    await clVault.connect(admin).grantRole(await clVault.PRICE_MANAGER_ROLE(), operator.address);
-    await clVault.connect(admin).grantRole(await clVault.OPERATOR_ROLE(), redeemOperator.address);
+    await clVault.connect(admin).grantRole(await clVault.PRICE_SETTER_ROLE(), operator.address);
+    await clVault.connect(admin).grantRole(await clVault.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
+    await clVault.connect(admin).grantRole(await clVault.LIMITED_ADMIN_ROLE(), admin.address);
     await clVault.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
 
     snap = await takeSnapshot();

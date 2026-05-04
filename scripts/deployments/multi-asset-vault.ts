@@ -21,13 +21,7 @@ task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault B
   .addParam('adminDelay', 'Initial default admin delay in seconds', '0')
   .addParam('strategyDeployer', 'Strategy deployer address', 'self')
   .setAction(async (taskArgs, hre) => {
-    const {
-      beaconHub: beaconHubAddr,
-      name,
-      symbol,
-      asset,
-      adminDelay,
-    } = taskArgs;
+    const { beaconHub: beaconHubAddr, name, symbol, asset, adminDelay } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     const signerAddr = await signer.getAddress();

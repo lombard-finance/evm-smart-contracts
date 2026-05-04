@@ -29,17 +29,24 @@ abstract contract VaultBaseUpgradeable is
     using SafeERC20 for IERC20;
     using PriceRateLimiter for PriceRateLimiter.Bucket;
 
-    bytes32 public constant STRATEGY_DEPLOYER_ROLE =
-        keccak256("STRATEGY_DEPLOYER_ROLE");
+    bytes32 public constant LIMITED_ADMIN_ROLE =
+        keccak256("LIMITED_ADMIN_ROLE");
 
-    bytes32 public constant PRICE_MANAGER_ROLE =
-        keccak256("PRICE_MANAGER_ROLE");
+    /// @notice Price setter role is used to set the price per share; may pause the vault operations.
+    bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
 
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    /// @notice Soft pauser role is used to pause the vault operations without pausing the ERC-20 transfers.
+    bytes32 public constant SOFT_PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
+    /// @notice Hard pauser role is used to pause the vault operations and the ERC-20 transfers.
+    bytes32 public constant HARD_PAUSER_ROLE = keccak256("HARD_PAUSER_ROLE");
+
+    /// @notice Treasury role is used to harvest fee.
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
 
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    /// @notice The role is used to fulfill the redemption requests.
+    bytes32 public constant PAY_REDEMPTIONS_ROLE =
+        keccak256("PAY_REDEMPTIONS_ROLE");
 
     uint256 internal constant _BPS_DENOMINATOR = 10_000;
 
@@ -90,18 +97,14 @@ abstract contract VaultBaseUpgradeable is
     /// @param symbol_ ERC-20 symbol for vault shares.
     /// @param initialDefaultAdminDelay_ Admin delay for `AccessControlDefaultAdminRules`.
     /// @param defaultAdmin_ Default admin for roles.
-    /// @param strategyDeployer_ Receives `STRATEGY_DEPLOYER_ROLE` (must not be zero).
     /// @param asset_ Vault underlying ERC-20 (`asset()`).
     function __VaultBase_init(
         string memory name_,
         string memory symbol_,
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_,
-        address strategyDeployer_,
         IERC20 asset_
     ) internal onlyInitializing {
-        if (strategyDeployer_ == address(0)) revert Vault_ZeroAddress();
-
         __AccessControl_init();
         __AccessControlDefaultAdminRules_init(
             initialDefaultAdminDelay_,
@@ -110,8 +113,6 @@ abstract contract VaultBaseUpgradeable is
         __ReentrancyGuard_init();
         __ERC20_init(name_, symbol_);
         __ERC20Pausable_init();
-
-        _grantRole(STRATEGY_DEPLOYER_ROLE, strategyDeployer_);
 
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
@@ -132,7 +133,7 @@ abstract contract VaultBaseUpgradeable is
     /// @param treasury_ Must not be zero.
     function setFeeTreasury(
         address treasury_
-    ) external onlyRole(TREASURY_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (treasury_ == address(0)) revert Vault_ZeroAddress();
         _getVaultBaseUpgradeableStorage().feeTreasury = treasury_;
         emit FeeTreasurySet(treasury_);
@@ -154,7 +155,7 @@ abstract contract VaultBaseUpgradeable is
     function postPricePerShare(
         uint256 newPricePerShare,
         bool revertOnRateLimit
-    ) external onlyRole(PRICE_MANAGER_ROLE) whenVaultNotPaused {
+    ) external onlyRole(PRICE_SETTER_ROLE) whenVaultNotPaused {
         VaultBaseUpgradeableStorage
             storage $ = _getVaultBaseUpgradeableStorage();
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
@@ -238,7 +239,7 @@ abstract contract VaultBaseUpgradeable is
     /// @param strategy Strategy contract to whitelist for `requestFunding`.
     function registerStrategy(
         address strategy
-    ) external onlyRole(STRATEGY_DEPLOYER_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!_getVaultBaseUpgradeableStorage().strategies.add(strategy))
             revert Vault_StrategyAlreadyRegistered();
         emit StrategyRegistered(strategy, _msgSender());
@@ -248,7 +249,7 @@ abstract contract VaultBaseUpgradeable is
     /// @param strategy Strategy address to remove.
     function deregisterStrategy(
         address strategy
-    ) external virtual onlyRole(STRATEGY_DEPLOYER_ROLE) {
+    ) external virtual onlyRole(LIMITED_ADMIN_ROLE) {
         if (!_getVaultBaseUpgradeableStorage().strategies.remove(strategy))
             revert Vault_StrategyNotRegistered();
         emit StrategyDeregistered(strategy, _msgSender());
@@ -315,12 +316,12 @@ abstract contract VaultBaseUpgradeable is
     }
 
     /// @notice Sets vault-level pause (blocks `whenVaultNotPaused` routes); distinct from ERC-20 transfer pause.
-    function pauseVaultOperations() external onlyRole(PAUSER_ROLE) {
+    function pauseVaultOperations() external onlyRole(SOFT_PAUSER_ROLE) {
         _pauseVault();
     }
 
     /// @notice Clears vault-level pause.
-    function unpauseVaultOperations() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unpauseVaultOperations() external onlyRole(LIMITED_ADMIN_ROLE) {
         _unpauseVault();
     }
 
@@ -355,11 +356,11 @@ abstract contract VaultBaseUpgradeable is
         emit VaultOperationsUnpaused(_msgSender());
     }
 
-    function pause() external onlyRole(PAUSER_ROLE) {
+    function pause() external onlyRole(HARD_PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unpause() external onlyRole(LIMITED_ADMIN_ROLE) {
         _unpause();
     }
 }

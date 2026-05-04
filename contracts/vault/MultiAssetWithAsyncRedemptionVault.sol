@@ -25,21 +25,18 @@ contract MultiAssetWithAsyncRedemptionVault is
     /// @param asset_ Underlying asset (`asset()`).
     /// @param defaultAdmin_ Default admin for access control.
     /// @param initialDefaultAdminDelay_ Admin delay for default admin rules.
-    /// @param strategyDeployer_ Receives `STRATEGY_DEPLOYER_ROLE`.
     function initialize(
         string memory name_,
         string memory symbol_,
         IERC20 asset_,
         address defaultAdmin_,
-        uint48 initialDefaultAdminDelay_,
-        address strategyDeployer_
+        uint48 initialDefaultAdminDelay_
     ) external initializer {
         __VaultBase_init(
             name_,
             symbol_,
             initialDefaultAdminDelay_,
             defaultAdmin_,
-            strategyDeployer_,
             asset_
         );
         __FeeManager_init();

@@ -50,7 +50,9 @@ abstract contract AsyncRedemptionUpgradeable is
     function __AsyncRedemption_init() internal onlyInitializing {}
 
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
-    function setWithdrawalFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
+    function setWithdrawalFeeBps(
+        uint16 bps
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)
             revert AsyncRedemption_WithdrawalFeeBpsTooHigh(bps);
         _getAsyncRedemptionStorage().withdrawalFeeBps = bps;
@@ -123,7 +125,7 @@ abstract contract AsyncRedemptionUpgradeable is
     /// @notice Pays underlying against queued requests; requires `OPERATOR_ROLE`.
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
-    ) external onlyRole(OPERATOR_ROLE) nonReentrant {
+    ) external onlyRole(PAY_REDEMPTIONS_ROLE) nonReentrant {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         IERC20 asset_ = asset();
         address msgSender = _msgSender();

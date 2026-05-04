@@ -51,7 +51,7 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
         uint16 bps,
         address feeRecipient,
         bool forfeitAccrued
-    ) external onlyRole(TREASURY_ROLE) nonReentrant {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (bps >= _BPS_DENOMINATOR)
             revert FeeManager_ManagementFeeBpsTooHigh(bps);
         FeeManagerStorage storage $ = _getFeeManagerStorage();
@@ -97,7 +97,7 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
         uint16 bps,
         address feeRecipient,
         bool forfeitAccrued
-    ) external onlyRole(TREASURY_ROLE) nonReentrant {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (bps >= _BPS_DENOMINATOR)
             revert FeeManager_PerformanceFeeBpsTooHigh(bps);
         FeeManagerStorage storage $ = _getFeeManagerStorage();
