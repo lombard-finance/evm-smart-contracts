@@ -9,7 +9,7 @@ import { getOwnersOrDefault, verify } from '../helpers';
  *
  * After deployment:
  * 1. Configure deposit assets via addDepositAsset() on the proxy
- * 2. Configure redemption controller via the controllerManager
+ * 2. Optionally grant `OPERATOR_ROLE` / adjust `maxRedeemRequestShares` via admin or treasury
  */
 
 task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault BeaconProxy via BeaconHub')
@@ -19,7 +19,6 @@ task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault B
   .addParam('asset', 'Underlying ERC-20 asset address')
   .addParam('defaultAdmin', 'Default admin address', 'self')
   .addParam('adminDelay', 'Initial default admin delay in seconds', '0')
-  .addParam('controllerManager', 'ERC-7540 controller manager address', 'self')
   .addParam('strategyDeployer', 'Strategy deployer address', 'self')
   .setAction(async (taskArgs, hre) => {
     const {
@@ -28,7 +27,6 @@ task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault B
       symbol,
       asset,
       adminDelay,
-      controllerManager: controllerManagerArg
     } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
@@ -39,7 +37,6 @@ task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault B
       taskArgs.defaultAdmin,
       taskArgs.strategyDeployer
     );
-    const controllerManager = hre.ethers.isAddress(controllerManagerArg) ? controllerManagerArg : signerAddr;
 
     const vault = await hre.ethers.getContractFactory('MultiAssetWithAsyncRedemptionVault');
     const initData = vault.interface.encodeFunctionData('initialize', [
@@ -48,7 +45,6 @@ task('deploy-multi-asset-vault', 'Deploys a MultiAssetWithAsyncRedemptionVault B
       asset,
       defaultAdmin,
       Number(adminDelay),
-      controllerManager,
       strategyDeployer
     ]);
 

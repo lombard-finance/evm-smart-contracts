@@ -1,34 +1,34 @@
-# Feature: Vault (Multi-Asset Deposits, ERC-7540 Async Redemption, Strategy Integration)
+# Feature: Vault (Multi-Asset Deposits, Async Redemption, Strategy Integration)
 
-Normative spec for **one** deployable vault: multi-asset depositor entry and accounting with **Strategies** moving liquidity via **`pullFromVault` / `pushToVault`** per **`docs/spec/002-strategy.md`**. The vault implements **[ERC-7540](https://eips.ethereum.org/EIPS/eip-7540)** (async redemption). Deposits use a **multi-asset** model (not standard ERC-4626 `deposit(assets, receiver)`). The **`IVault`** interface for Strategies MUST match **`contracts/vault/interfaces/IVault.sol`**; multi-asset deposit and redemption entrypoints are **in addition** to that interface.
+Normative spec for **one** deployable vault: multi-asset depositor entry and accounting with **Strategies** moving liquidity via **`pullFromVault` / `pushToVault`** per **`docs/spec/002-strategy.md`**. The vault implements **async redemption** (non-standard vs ERC-4626 immediate `withdraw`/`redeem`). Deposits use a **multi-asset** model (not standard ERC-4626 `deposit(assets, receiver)`). The **`IVault`** interface for Strategies MUST match **`contracts/vault/interfaces/IVault.sol`**; multi-asset deposit and redemption entrypoints are **in addition** to that interface.
 
 ---
 
 ## Goal
 
-Deliver a **`VaultBase`** core (strategy registry + `pricePerShare` + vault-wide pause), fee management (**`FeeManagerUpgradeable`**), multi-asset deposit routing (**`MultiAssetDepositUpgradeable`**), and async redemption (**`ERC7540RedemptionUpgradeable`**), composed into a concrete vault behind **`BeaconProxy`**.
+Deliver a **`VaultBase`** core (strategy registry + `pricePerShare` + vault-wide pause), fee management (**`FeeManagerUpgradeable`**), multi-asset deposit routing (**`MultiAssetDepositUpgradeable`**), and async redemption (**`AsyncRedemptionUpgradeable`**), composed into a concrete vault behind **`BeaconProxy`**.
 
 1. **Deposits** — Multi-asset `deposit` / `mint` accepting listed ERC-20s via per-token `IAssetConverter` pricing; optional deposit fees and default-strategy routing.
-2. **Exits** — `requestRedeem` → pending → `fulfillRedeemRequests` (operator-authorized, direct settlement) per ERC-7540. No ERC-4626 `withdraw` / `redeem`.
-3. **Redemption fulfillment** — `fulfillRedeemRequests(uint256[] requestIds)` transfers `asset` directly to each request's `owner` in one pass; caller MUST be an ERC-7540 **operator** for the `controller` of each request.
+2. **Exits** — `requestRedeem` → pending → `fulfillRedeemRequests` (operator-authorized, direct settlement). No ERC-4626 `withdraw` / `redeem`.
+3. **Redemption fulfillment** — `fulfillRedeemRequests(uint256[] requestIds)` transfers `asset` directly to each request's `owner` in one pass; caller MUST hold **`OPERATOR_ROLE`**.
 4. **Strategies** — `registerStrategy` + `requestFunding` pipe per **002**; no extra Vault APIs moving `asset()` outside **002**.
 5. **Exchange rate** — `pricePerShare` (asset wei per `10 ** decimals()` shares) posted by `PRICE_MANAGER_ROLE`; `totalAssets()` derived from this rate.
 6. **Fees** — Management fee (time-based dilution) and performance fee (high-water-mark) minted as shares by `TREASURY_ROLE`.
 
-**Architecture (fixed):** Redemption fulfillment is invoked **by an ERC-7540 operator** of the relevant `controller`, directly paying asset to each request's owner in one tx. Cross-chain pricing field `pricePerShare` MUST be writable **only** by `PRICE_MANAGER_ROLE`, subject to a **rate limiter** bucket. The implementation MUST ship behind OpenZeppelin **`BeaconProxy` + `UpgradeableBeacon`** (Vault-dedicated beacon, same pattern as **002** §A.1).
+**Architecture (fixed):** Redemption fulfillment is invoked by an account with **`OPERATOR_ROLE`**, directly paying asset to each request's owner in one tx. Cross-chain pricing field `pricePerShare` MUST be writable **only** by `PRICE_MANAGER_ROLE`, subject to a **rate limiter** bucket. The implementation MUST ship behind OpenZeppelin **`BeaconProxy` + `UpgradeableBeacon`** (Vault-dedicated beacon, same pattern as **002** §A.1).
 
 ---
 
 ## Roles
 
-| Role | Constant | Capabilities |
-|---|---|---|
-| `DEFAULT_ADMIN_ROLE` | OZ standard | Grant/revoke all roles; unpause vault operations; set default strategy; add/remove deposit assets; set asset converters |
-| `STRATEGY_DEPLOYER_ROLE` | `keccak256("STRATEGY_DEPLOYER_ROLE")` | `registerStrategy`, `deregisterStrategy` |
-| `PRICE_MANAGER_ROLE` | `keccak256("PRICE_MANAGER_ROLE")` | `postPricePerShare`; configure rate limiter |
-| `PAUSER_ROLE` | `keccak256("PAUSER_ROLE")` | `pauseVaultOperations` |
-| `TREASURY_ROLE` | `keccak256("TREASURY_ROLE")` | `setFeeTreasury`; set/harvest management and performance fees; set deposit fee bps; set withdrawal fee bps |
-| `CONTROLLER_MANAGER_ROLE` | `keccak256("CONTROLLER_MANAGER_ROLE")` | `registerRedeemController`, `removeRedeemController`, `setMaxControllerRedeem` |
+| Role                     | Constant                              | Capabilities                                                                                                                                    |
+| ------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`     | OZ standard                           | Grant/revoke all roles; unpause vault operations; set default strategy; add/remove deposit assets; set asset converters                         |
+| `STRATEGY_DEPLOYER_ROLE` | `keccak256("STRATEGY_DEPLOYER_ROLE")` | `registerStrategy`, `deregisterStrategy`                                                                                                        |
+| `PRICE_MANAGER_ROLE`     | `keccak256("PRICE_MANAGER_ROLE")`     | `postPricePerShare`; configure rate limiter                                                                                                     |
+| `PAUSER_ROLE`            | `keccak256("PAUSER_ROLE")`            | `pauseVaultOperations`                                                                                                                          |
+| `TREASURY_ROLE`          | `keccak256("TREASURY_ROLE")`          | `setFeeTreasury`; set/harvest management and performance fees; set deposit fee bps; set withdrawal fee bps; set global `maxRedeemRequestShares` |
+| `OPERATOR_ROLE`          | `keccak256("OPERATOR_ROLE")`          | `fulfillRedeemRequests`                                                                                                                         |
 
 `DEFAULT_ADMIN_ROLE` MUST grant/revoke all other roles.
 
@@ -71,6 +71,7 @@ All deposit/mint paths require vault to not be paused (`whenVaultNotPaused`) and
 **`mint(address depositAsset, uint256 shares, address receiver, uint256 maxAssetsIn)`** → `uint256 assets` (slippage cap: reverts if `assets > maxAssetsIn` with `VaultDeposit_ExcessiveAssetsIn`)
 
 **Deposit flow (normative):**
+
 1. Pull `assets` of `depositAsset` from `msg.sender` via `safeTransferFrom` to the vault.
 2. Split the deposit: `fee = assets * depositFeeBps / 10_000` (floor); `net = assets - fee`.
 3. If `fee > 0`: transfer `fee` of `depositAsset` to `feeTreasury`. Reverts with `VaultDeposit_FeeTreasuryNotSet` if `feeTreasury == address(0)`. Emits `DepositFeeTransferred`.
@@ -80,12 +81,14 @@ All deposit/mint paths require vault to not be paused (`whenVaultNotPaused`) and
 7. If `defaultStrategy != address(0)` and `net > 0`: transfer `net` of `depositAsset` to `defaultStrategy`. Emits `DepositRoutedToDefaultStrategy`.
 
 **Bounds:**
+
 - `maxDeposit(depositAsset, receiver)` → `0` if paused or unlisted; otherwise `type(uint256).max`.
 - `maxMint(depositAsset, receiver)` → `0` if paused or unlisted; otherwise `type(uint256).max`.
 - `previewDeposit(depositAsset, assets)` → shares at current NAV after deposit fee (or `0` if unlisted/zero assets).
 - `previewMint(depositAsset, shares)` → gross assets required at current NAV including deposit fee (or `0` if unlisted/zero shares). Uses ceiling rounding.
 
 **Converter previews (no fee):**
+
 - `convertToShares(depositAsset, assets)` → shares equivalent to `assets` (using converter, no deposit fee).
 - `convertToAssets(depositAsset, shares)` → asset units equivalent to `shares` (using converter, ceiling rounding).
 
@@ -168,35 +171,30 @@ shares = gainShares * feeBps / 10_000
 
 ---
 
-## ERC-7540 Redemptions (Async)
+## Async Redemptions
 
-### Controller management
+### Global limits
 
-Controllers are externally managed addresses that gate redemption requests. `CONTROLLER_MANAGER_ROLE` gates all management functions.
+- **`setMaxRedeemRequestShares(uint256 maxShares)`** — Upper bound on `shares` for each `requestRedeem` call (defaults to `type(uint256).max`). Requires `TREASURY_ROLE`. Emits `MaxRedeemRequestSet(maxShares)`.
+- **`maxRedeemRequestShares()`** — View: returns the configured cap.
 
-- **`registerRedeemController(address controller, uint256 maxRedeemShares)`** — Adds `controller` to the tracked set and sets its per-request share cap. Reverts if already tracked (`ERC7540_RedeemControllerAlreadyTracked`). Emits `RedeemControllerRegistered(controller)` and `MaxRedeemSet(controller, maxRedeemShares)`.
-- **`removeRedeemController(address controller)`** — Removes controller from tracking. Reverts if not tracked (`ERC7540_RemoveControllerNotTracked`). Reverts if `pendingAssets` or `pendingShares` are non-zero (`ERC7540_RemoveControllerHasPending`). Clears operators and `maxRedeemShares` for the controller. Emits `RedeemControllerRemoved(controller)`.
-- **`setMaxControllerRedeem(address controller, uint256 maxShares)`** — Updates the per-request share cap for an existing controller. Requires `CONTROLLER_MANAGER_ROLE`. Reverts if controller is not tracked (`ERC7540_RedeemControllerNotTracked`). Emits `MaxRedeemSet(controller, maxShares)`.
-- **`maxControllerRedeem(address controller)`** — View: returns `maxRedeemShares[controller]`.
-
-There is **no** `allowRedeemRequests` / `stopRedeemRequests` / `acceptsRedeemRequests` mechanism. A controller is either tracked (eligible for requests up to its max) or not tracked (all requests revert). To stop new requests from a controller, set `maxRedeemShares` to `0` via `setMaxControllerRedeem`.
+To block new redemption requests, set `maxRedeemRequestShares` to `0`.
 
 ### `requestRedeem`
 
-**`requestRedeem(uint256 shares, address controller, address owner)`** → `uint256 requestId`
+**`requestRedeem(uint256 shares, address owner)`** → `uint256 requestId`
 
 - Requires vault not paused (`whenVaultNotPaused`). Protected by `nonReentrant`.
-- `shares` MUST be non-zero (`ERC7540_ZeroRedeemRequestShares`).
-- `controller` MUST be tracked (`ERC7540_RedeemControllerNotTracked`).
-- `shares` MUST NOT exceed `maxRedeemShares[controller]` (`ERC7540_ExceededMaxRedeem`).
+- `shares` MUST be non-zero (`AsyncRedemption_ZeroRedeemRequestShares`).
+- `shares` MUST NOT exceed `maxRedeemRequestShares` (`AsyncRedemption_ExceededMaxRedeem`).
 - If `msg.sender != owner`, allowance is spent via `_spendAllowance(owner, msg.sender, shares)`.
 - **Withdrawal fee** (if configured and treasury is set): `feeShares = shares * withdrawalFeeBps / 10_000` (floor). Fee shares are transferred from `owner` to `feeTreasury`. Emits `WithdrawalFeeCharged(treasury, feeShares)`.
 - `netShares = shares - feeShares`. Burns `netShares` from `owner`.
 - `assets = _convertToAssets(netShares, Floor)`.
 - Assigns a new non-zero `requestId` via `++nextRequestId` (starting from `1`).
-- Records `RedeemRequest { controller, pendingShares: netShares, pendingAssets: assets, owner }`.
-- Updates `pendingShares[controller]` and `pendingAssets[controller]` aggregates.
-- Emits `RedeemRequested(requestId, owner, controller, caller, shares)` (original `shares`, not `netShares`).
+- Records `RedeemRequest { pendingShares: netShares, pendingAssets: assets, owner }`.
+- Updates global `totalPendingShares` and `totalPendingAssets`.
+- Emits `RedeemRequested(requestId, owner, caller, shares)` (original `shares`, not `netShares`).
 
 **Returns** unique non-zero `requestId`.
 
@@ -207,28 +205,20 @@ There is **no** `allowRedeemRequests` / `stopRedeemRequests` / `acceptsRedeemReq
 
 ### Request queries
 
-- **`pendingRedeemRequest(uint256 requestId, address)`** — Returns `pendingShares` for `requestId` (controller parameter accepted for ERC-7540 interface compliance but ignored; state is keyed by `requestId` only).
-- **`claimableRedeemRequest(uint256, address)`** — Always returns `0`; there is no separate claimable buffer.
+- **`pendingRedeemRequest(uint256 requestId)`** — Returns `pendingShares` for `requestId`.
+- **`claimableRedeemRequest(uint256)`** — Always returns `0`; there is no separate claimable buffer.
 
 ### Redemption fulfillment
 
 **`fulfillRedeemRequests(uint256[] calldata requestIds)`**
 
-- Protected by `nonReentrant`. **Not** guarded by vault pause.
-- Caller MUST be an ERC-7540 **operator** for the `controller` of each supplied request ID; MUST revert otherwise (`ERC7540_UnauthorizedClaimCaller`).
-- For each `requestId`: if `pendingAssets == 0`, reverts `ERC7540_NothingToFulfill(requestId)`.
-- Subtracts `pendingShares` and `pendingAssets` from the controller's aggregate.
+- Requires **`OPERATOR_ROLE`**. Protected by `nonReentrant`. **Not** guarded by vault pause.
+- For each `requestId`: if `pendingAssets == 0`, reverts `AsyncRedemption_NothingToFulfill(requestId)`.
+- Subtracts from global `totalPendingShares` and `totalPendingAssets`.
 - Deletes the request record.
 - Transfers `pendingAssets` of `asset()` directly to request `owner` via `safeTransfer`. Emits `Withdraw(msgSender, owner, assets, shares)`.
 - After all requests: emits `RedeemRequestsFulfilled(requestIds)`.
 - The Vault's asset balance MUST be sufficient at transfer time; the ERC-20 transfer will revert if insufficient.
-- The caller controls which request IDs to include; there is no per-controller budget cap enforced by the Vault. There is no `IRedemptionPolicy`.
-
-### ERC-7540 operators
-
-- **`setOperator(address operator, bool approved)`** — Caller MUST be a registered controller (`ERC7540_RedeemControllerNotTracked` if not). Approves or revokes `operator` for `msg.sender`. Emits `OperatorSet(controller, operator, approved)`. Returns `true`.
-- **`isOperator(address controller, address operator)`** — View: returns membership in `operators[controller]`.
-- The `controller` itself is NOT a permitted caller for `fulfillRedeemRequests` unless also registered as an operator.
 
 ### Request IDs
 
@@ -237,23 +227,12 @@ There is **no** `allowRedeemRequests` / `stopRedeemRequests` / `acceptsRedeemReq
 
 ---
 
-## ERC-165
-
-**`supportsInterface`** MUST return `true` for:
-- `0x620ee8e4` — ERC-7540 asynchronous redemption (`requestRedeem`, pending/claimable views)
-- `0xe3bc4e65` — ERC-7540 / ERC-7575 operator API (`setOperator` / `isOperator`)
-- ERC-165 itself, plus interfaces from the `AccessControl` / `ERC20` stack.
-
-The vault MUST NOT return `true` for **ERC-7575** share-based interface IDs beyond those listed above.
-
----
-
 ## Implementation Shape
 
 - **`VaultBaseUpgradeable`** — Holds `IVault` behavior (strategy registry, `requestFunding`, `pricePerShare`, `postPricePerShare`, `totalAssets`, `AccessControl`, `ReentrancyGuard`, vault pause). Abstract. Uses ERC-7201 namespaced storage — no `__gap` arrays.
 - **`FeeManagerUpgradeable`** — Extends `VaultBaseUpgradeable`; adds management + performance fee state and harvest logic. Abstract.
 - **`MultiAssetDepositUpgradeable`** — Extends `FeeManagerUpgradeable`; adds multi-asset deposit/mint, converter registry, deposit fees, default strategy routing. Abstract.
-- **`ERC7540RedemptionUpgradeable`** — Extends `VaultBaseUpgradeable`; adds async redemption controller management, request lifecycle, fulfillment, operator API. Abstract.
+- **`AsyncRedemptionUpgradeable`** — Extends `VaultBaseUpgradeable`; adds async redemption requests, global caps, fulfillment gated by `OPERATOR_ROLE`. Abstract.
 - **Concrete vault** — Composes all of the above into a single implementation contract set on the Vault `UpgradeableBeacon`.
 - **Beacon** — Live vault MUST be `BeaconProxy` with `UpgradeableBeacon` (Vault-dedicated beacon, not shared with Strategy). Updating the implementation pointer MUST be restricted to protocol admin. `constructor` empty of mutable state; `initializer` per **002** §A.1.
 
@@ -264,17 +243,13 @@ The vault MUST NOT return `true` for **ERC-7575** share-based interface IDs beyo
 1. **`IVault` (002)** + Strategy `requestFunding` pipe: `registerStrategy` gated by `STRATEGY_DEPLOYER_ROLE`, reverts if already registered; `deregisterStrategy` by same role; `requestFunding` callable only by registered strategies, transfers token directly.
 2. **Multi-asset deposits**: `deposit` and `mint` (both overloads each) accept listed `depositAsset`; deposit fee routed to `feeTreasury` before mint; optional default strategy receives `net` tokens; `previewDeposit` / `previewMint` / `maxDeposit` / `maxMint` per **Multi-Asset Deposits**.
 3. **Fee system**: management fee (time-based, `TREASURY_ROLE` harvests) and performance fee (HWM, `TREASURY_ROLE` harvests); `setManagementFeeBps` / `setPerformanceFeeBps` by `TREASURY_ROLE`; fees minted as shares; HWM resets on `setPerformanceFeeBps`.
-4. **ERC-7540 redemptions**: `requestRedeem` burns `netShares`; controller must be tracked; shares capped by `maxRedeemShares[controller]`; withdrawal fee taken as shares; no `acceptsRedeemRequests` gate; `claimableRedeemRequest` always returns `0`.
-5. **Controller management**: `CONTROLLER_MANAGER_ROLE` gates `registerRedeemController` (takes `maxRedeemShares`), `removeRedeemController`, `setMaxControllerRedeem`; no `allowRedeemRequests` / `stopRedeemRequests`.
-6. **`setMaxControllerRedeem`** callable by `CONTROLLER_MANAGER_ROLE` for any tracked controller.
-7. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` gated by operator membership; reverts `ERC7540_NothingToFulfill` on empty request; transfers `asset` to owner; emits `Withdraw` per request; emits `RedeemRequestsFulfilled` after batch.
-8. **Vault pause**: `PAUSER_ROLE` pauses, `DEFAULT_ADMIN_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
-9. **`postPricePerShare(uint256, bool)`**: rate-limiter bucket; `PRICE_MANAGER_ROLE`; `PricePerShareUpdated` event; auto-pause on excess if `revertOnRateLimit = false`.
-10. **Beacon** deployment + initializer per **002** §A.1.
-11. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
-12. **ERC-165**: `0x620ee8e4`, `0xe3bc4e65` MUST be `true`; ERC-7575 share MUST NOT.
-13. **ERC-7540 operators**: `setOperator` / `isOperator`; `setOperator` only callable by registered controllers.
-14. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, withdrawal fee shares.
+4. **Async redemptions**: `requestRedeem` burns `netShares`; shares capped by `maxRedeemRequestShares` (`TREASURY_ROLE`); withdrawal fee taken as shares; `claimableRedeemRequest` always returns `0`.
+5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `OPERATOR_ROLE`; reverts `AsyncRedemption_NothingToFulfill` for unknown or already fulfilled ids; transfers `asset` to owner; emits `Withdraw` per request; emits `RedeemRequestsFulfilled` after batch.
+6. **Vault pause**: `PAUSER_ROLE` pauses, `DEFAULT_ADMIN_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
+7. **`postPricePerShare(uint256, bool)`**: rate-limiter bucket; `PRICE_MANAGER_ROLE`; `PricePerShareUpdated` event; auto-pause on excess if `revertOnRateLimit = false`.
+8. **Beacon** deployment + initializer per **002** §A.1.
+9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
+10. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, withdrawal fee shares.
 
 ---
 
@@ -282,26 +257,23 @@ The vault MUST NOT return `true` for **ERC-7575** share-based interface IDs beyo
 
 - **`totalAssets()`** is derived from the posted rate, not raw ERC-20 balances.
 - Redemption fulfillment uses the Vault's live asset balance at transfer time; the ERC-20 transfer reverts if insufficient. Strategies MUST `pushToVault` before the operator calls `fulfillRedeemRequests` if their custody should fund settlements.
-- **`removeRedeemController`** reverts if any `pendingAssets` or `pendingShares` remain; all open requests MUST be fulfilled first.
-- **`setOperator`** is callable only by registered controllers.
 - **Withdrawal fee of `0` bps** (or unset treasury): no shares are deducted; `netShares == shares`.
-- **`maxRedeemShares[controller] == 0`**: `requestRedeem` with any non-zero shares will always revert `ERC7540_ExceededMaxRedeem`; this is the mechanism to block new requests from a controller.
+- **`maxRedeemRequestShares == 0`**: `requestRedeem` with any non-zero shares reverts `AsyncRedemption_ExceededMaxRedeem`; this blocks new requests.
 - **Rounding** follows floor/ceiling discipline in each path; extreme ratios can produce `0` shares or assets.
 - **`pricePerShare` rate limiter at zero capacity** (initial state): the limiter's `_wouldExceedLimit` behavior with a zeroed bucket means the first `postPricePerShare` may succeed or trigger the limit depending on config. Operators MUST call `setPricePerShareRateLimit` before relying on the limiter.
-- **Explicit non-goals (unless added later):** bridge vendor / message format; Strategy `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `ERC-7575`; `requestDeposit`; `cancelRedeemRequest`.
+- **Explicit non-goals (unless added later):** bridge vendor / message format; Strategy `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`.
 
 ---
 
 ## References
 
-- [EIP-7540](https://eips.ethereum.org/EIPS/eip-7540)
 - `docs/spec/002-strategy.md` — `IVault`, Strategy pipe
 - `contracts/vault/interfaces/IVault.sol`
-- `contracts/vault/interfaces/IERC7540Redemption.sol`
+- `contracts/vault/interfaces/IAsyncRedemption.sol`
 - `contracts/vault/interfaces/IFeeManager.sol`
 - `contracts/vault/interfaces/IMultiAssetDeposit.sol`
 - `contracts/vault/VaultBaseUpgradeable.sol`
 - `contracts/vault/FeeManagerUpgradeable.sol`
 - `contracts/vault/MultiAssetDepositUpgradeable.sol`
-- `contracts/vault/ERC7540RedemptionUpgradeable.sol`
+- `contracts/vault/AsyncRedemptionUpgradeable.sol`
 - `contracts/vault/libraries/PriceRateLimiter.sol`

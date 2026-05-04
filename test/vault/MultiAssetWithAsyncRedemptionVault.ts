@@ -15,14 +15,9 @@ import type {
   TokenMock
 } from '../../typechain-types';
 
-const ERC7540_ASYNC_REDEEM = '0x620ee8e4';
-const ERC7540_OPERATORS = '0xe3bc4e65';
-
 describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let admin: Signer;
   let strategyDeployer: Signer;
-  let controllerManager: Signer;
-  let redeemController: Signer;
   let redeemOperator: Signer;
   let user: Signer;
   let treasury: Signer;
@@ -36,8 +31,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let snapshot: SnapshotRestorer;
 
   before(async function () {
-    [admin, strategyDeployer, controllerManager, redeemController, redeemOperator, user, treasury, operator] =
-      await getSignersWithPrivateKeys();
+    [admin, strategyDeployer, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
 
     underlying = await deployContract<TokenMock>('TokenMock', ['Underlying', 'UND'], false);
     altDeposit = await deployContract<TokenMock>('TokenMock', ['Alt Deposit', 'ALT'], false);
@@ -53,13 +47,13 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
       await underlying.getAddress(),
       admin.address,
       0,
-      controllerManager.address,
       strategyDeployer.address
     ]);
     await proxy.waitForDeployment();
     vault = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
     await vault.connect(admin).grantRole(await vault.PRICE_MANAGER_ROLE(), operator.address);
+    await vault.connect(admin).grantRole(await vault.OPERATOR_ROLE(), redeemOperator.address);
 
     snapshot = await takeSnapshot();
   });
@@ -90,10 +84,19 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(storage).to.equal(ethers.toBeHex(1n, 32));
   });
 
-  it('Verify ERC7540RedemptionStorage slot', async function () {
-    await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
-    const base = calculateStorageSlot('lombardfinance.storage.ERC7540RedemptionUpgradeable');
-    // controllers EnumerableSet length is at base+2, after 2 mapping slots (pendingShares, pendingAssets)
+  it('Verify AsyncRedemptionStorage slot', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await vault.getAddress();
+    await vault.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+    const depositAmt = 1000n * 10n ** 18n;
+    await altDeposit.mint(user.address, depositAmt);
+    await altDeposit.connect(user).approve(v, depositAmt);
+    await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
+    const shares = await vault.balanceOf(user.address);
+    await vault.connect(user).requestRedeem(shares, user.address);
+
+    const base = calculateStorageSlot('lombardfinance.storage.AsyncRedemptionUpgradeable');
+    // nextRequestId is the third word (totalPendingShares, totalPendingAssets, nextRequestId)
     const storage = await ethers.provider.getStorage(await vault.getAddress(), base + 2n);
     expect(storage).to.equal(ethers.toBeHex(1n, 32));
   });
@@ -105,11 +108,6 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const [, , lastHarvest] = await vault.managementFee();
     const expected = ethers.toBeHex(BigInt(lastHarvest) << 32n, 32);
     expect(storage).to.equal(expected);
-  });
-
-  it('advertises ERC-7540 and operator interface ids', async function () {
-    expect(await vault.supportsInterface(ERC7540_ASYNC_REDEEM)).to.be.true;
-    expect(await vault.supportsInterface(ERC7540_OPERATORS)).to.be.true;
   });
 
   it('lists a deposit asset and records converter + fee', async function () {
@@ -278,16 +276,12 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
 
     await underlying.mint(v, assetsOut + 1n);
 
-    await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
-    await vault.connect(redeemController).setOperator(redeemOperator.address, true);
-    expect(await vault.isOperator(redeemController.address, redeemOperator.address)).to.be.true;
-
     const beforeU = await underlying.balanceOf(user.address);
-    const rid = await vault.connect(user).requestRedeem.staticCall(shares, redeemController.address, user.address);
-    await vault.connect(user).requestRedeem(shares, redeemController.address, user.address);
+    const rid = await vault.connect(user).requestRedeem.staticCall(shares, user.address);
+    await vault.connect(user).requestRedeem(shares, user.address);
 
     expect(await vault.balanceOf(user.address)).to.equal(0n);
-    expect(await vault.pendingRedeemRequest(rid, redeemController.address)).to.equal(shares);
+    expect(await vault.pendingRedeemRequest(rid)).to.equal(shares);
 
     await expect(vault.connect(redeemOperator).fulfillRedeemRequests([rid]))
       .to.emit(vault, 'RedeemRequestsFulfilled')
@@ -309,11 +303,8 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
 
     const shares = await vault.balanceOf(user.address);
-    await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
-    await vault.connect(redeemController).setOperator(redeemOperator.address, true);
-
-    const rid = await vault.connect(user).requestRedeem.staticCall(shares, redeemController.address, user.address);
-    await vault.connect(user).requestRedeem(shares, redeemController.address, user.address);
+    const rid = await vault.connect(user).requestRedeem.staticCall(shares, user.address);
+    await vault.connect(user).requestRedeem(shares, user.address);
     expect(await vault.balanceOf(user.address)).to.equal(0n); // shares already burned
 
     // Vault holds no underlying — fulfillment must revert (transfer fails).
@@ -352,13 +343,6 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(await vault.pricePerShare()).to.equal(ppsBefore);
   });
 
-  it('controller manager can set max redeem per controller', async function () {
-    await vault.connect(controllerManager).registerRedeemController(redeemController.address, 1000n);
-    expect(await vault.maxControllerRedeem(redeemController.address)).to.equal(1000n);
-
-    await vault.connect(controllerManager).setMaxControllerRedeem(redeemController.address, 2000n);
-    expect(await vault.maxControllerRedeem(redeemController.address)).to.equal(2000n);
-  });
 
   it('treasury can update deposit fee bps', async function () {
     const alt = await altDeposit.getAddress();
@@ -480,7 +464,7 @@ describe('StakedLBTC as deposit token', function () {
 
   let admin: Signer;
   let strategyDeployer: Signer;
-  let controllerManager: Signer;
+  let redeemOperator: Signer;
   let treasury: Signer;
   let operator: Signer;
   let user: Signer;
@@ -494,7 +478,7 @@ describe('StakedLBTC as deposit token', function () {
   let snap: SnapshotRestorer;
 
   before(async function () {
-    [admin, strategyDeployer, controllerManager, , , user, treasury, operator] = await getSignersWithPrivateKeys();
+    [admin, strategyDeployer, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
     const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
@@ -519,11 +503,11 @@ describe('StakedLBTC as deposit token', function () {
       await lbtcUnderlying.getAddress(),
       admin.address,
       0,
-      controllerManager.address,
       strategyDeployer.address
     ]);
 
     await stakedVault.connect(admin).grantRole(await stakedVault.PRICE_MANAGER_ROLE(), operator.address);
+    await stakedVault.connect(admin).grantRole(await stakedVault.OPERATOR_ROLE(), redeemOperator.address)
     await stakedVault
       .connect(admin)
       .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
@@ -672,7 +656,7 @@ describe('Chainlink as deposit token', function () {
 
   let admin: Signer;
   let strategyDeployer: Signer;
-  let controllerManager: Signer;
+  let redeemOperator: Signer;
   let operator: Signer;
   let user: Signer;
 
@@ -684,7 +668,7 @@ describe('Chainlink as deposit token', function () {
   let snap: SnapshotRestorer;
 
   before(async function () {
-    [admin, strategyDeployer, controllerManager, , , user, , operator] = await getSignersWithPrivateKeys();
+    [admin, strategyDeployer, , , redeemOperator, user, , operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
     const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
@@ -715,7 +699,6 @@ describe('Chainlink as deposit token', function () {
         await depositToken.getAddress(),
         admin.address,
         0,
-        controllerManager.address,
         strategyDeployer.address
       ],
       true
@@ -724,6 +707,7 @@ describe('Chainlink as deposit token', function () {
     clVault = vaultFactory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionVault;
 
     await clVault.connect(admin).grantRole(await clVault.PRICE_MANAGER_ROLE(), operator.address);
+    await clVault.connect(admin).grantRole(await clVault.OPERATOR_ROLE(), redeemOperator.address);
     await clVault.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
 
     snap = await takeSnapshot();

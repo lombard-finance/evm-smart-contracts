@@ -4,28 +4,27 @@ pragma solidity 0.8.24;
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {ERC7540RedemptionUpgradeable} from "./ERC7540RedemptionUpgradeable.sol";
+import {AsyncRedemptionUpgradeable} from "./AsyncRedemptionUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
 
 /// @title MultiAssetWithAsyncRedemptionVault
-/// @notice Concrete vault combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and EIP-7540 async redemption (`ERC7540RedemptionUpgradeable`).
-/// @dev Linearization: `ERC7540RedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__VaultBase_init` + module inits in C3 order.
+/// @notice Concrete vault combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
+/// @dev Linearization: `AsyncRedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__VaultBase_init` + module inits in C3 order.
 contract MultiAssetWithAsyncRedemptionVault is
     MultiAssetDepositUpgradeable,
-    ERC7540RedemptionUpgradeable
+    AsyncRedemptionUpgradeable
 {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    /// @notice Full initializer for ERC-20 metadata, vault base, fees, deposits, and redemption controller admin.
+    /// @notice Full initializer for ERC-20 metadata, vault base, fees, deposits, and async redemption operator.
     /// @param name_ ERC-20 name for vault shares.
     /// @param symbol_ ERC-20 symbol for vault shares.
     /// @param asset_ Underlying asset (`asset()`).
     /// @param defaultAdmin_ Default admin for access control.
     /// @param initialDefaultAdminDelay_ Admin delay for default admin rules.
-    /// @param controllerManager_ Receives `CONTROLLER_MANAGER_ROLE` for redeem controllers.
     /// @param strategyDeployer_ Receives `STRATEGY_DEPLOYER_ROLE`.
     function initialize(
         string memory name_,
@@ -33,7 +32,6 @@ contract MultiAssetWithAsyncRedemptionVault is
         IERC20 asset_,
         address defaultAdmin_,
         uint48 initialDefaultAdminDelay_,
-        address controllerManager_,
         address strategyDeployer_
     ) external initializer {
         __VaultBase_init(
@@ -46,7 +44,7 @@ contract MultiAssetWithAsyncRedemptionVault is
         );
         __FeeManager_init();
         __MultiAssetDeposit_init();
-        __ERC7540Redemption_init(controllerManager_);
+        __AsyncRedemption_init();
     }
 
     /// @notice Human-readable build label for off-chain integrations.
@@ -54,18 +52,14 @@ contract MultiAssetWithAsyncRedemptionVault is
         return "MultiAssetWithAsyncRedemptionVault-0.0.1";
     }
 
-    /// @inheritdoc ERC7540RedemptionUpgradeable
+    /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
     function supportsInterface(
         bytes4 interfaceId
     )
         public
         view
         virtual
-        override(
-            AccessControlDefaultAdminRulesUpgradeable,
-            ERC7540RedemptionUpgradeable,
-            IERC165
-        )
+        override(AccessControlDefaultAdminRulesUpgradeable, IERC165)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
@@ -76,7 +70,7 @@ contract MultiAssetWithAsyncRedemptionVault is
         address strategy
     )
         internal
-        override(MultiAssetDepositUpgradeable, ERC7540RedemptionUpgradeable)
+        override(MultiAssetDepositUpgradeable, AsyncRedemptionUpgradeable)
     {
         MultiAssetDepositUpgradeable._afterStrategyDeregistered(strategy);
     }

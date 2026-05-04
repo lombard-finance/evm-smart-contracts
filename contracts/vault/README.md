@@ -6,7 +6,7 @@ This folder contains the vault contracts and supporting infrastructure.
 
 ## MultiAssetWithAsyncRedemptionVault
 
-The main vault product. Users deposit **any supported token** (LBTC, BTC.b, or other configured assets) and receive **vault shares** in return. Redemptions are asynchronous ([ERC-7540](https://eips.ethereum.org/EIPS/eip-7540)): users `requestRedeem` against a registered controller (shares burn net of fees); **operators** for that controller call `fulfillRedeemRequests` to deliver underlying to the owner — no separate end-user claim transaction.
+The main vault product. Users deposit **any supported token** (LBTC, BTC.b, or other configured assets) and receive **vault shares** in return. Redemptions are **asynchronous**: users call `requestRedeem` (shares burn net of fees); accounts with **`OPERATOR_ROLE`** call `fulfillRedeemRequests` to deliver underlying to the owner — no separate end-user claim transaction.
 
 **Deposit** — accepts multiple input tokens, each with its own pricing adapter and an optional fee (in basis points). The adapter converts the deposit token into the vault's base asset before shares are minted. The concrete vault composes `FeeManagerUpgradeable` (management / performance fees on shares) with `MultiAssetDepositUpgradeable`.
 
@@ -18,25 +18,23 @@ vault.addDepositAsset(tokenAddress, converterAdapter, depositFeeBps);
 uint256 shares = vault.deposit(tokenAddress, amount, receiver);
 ```
 
-**Redeem** — follows [ERC-7540](https://eips.ethereum.org/EIPS/eip-7540). Users call `requestRedeem` (shares are burned up front, net of an optional withdrawal fee in shares to the fee treasury). Settlement is **not** ERC-4626 `withdraw`/`redeem`; payout happens when a **registered redeem operator** for that request’s controller calls `fulfillRedeemRequests`. Only addresses approved via `setOperator` on the vault for that controller may fulfill; underlying assets are transferred to the **owner** on fulfillment — there is no separate user claim step.
+**Redeem** — Users call `requestRedeem` (shares are burned up front, net of an optional withdrawal fee in shares to the fee treasury). Settlement is **not** ERC-4626 `withdraw`/`redeem`; payout happens when an address with **`OPERATOR_ROLE`** calls `fulfillRedeemRequests`. Underlying assets are transferred to the **owner** on fulfillment — there is no separate user claim step.
 
 ```solidity
-// User requests redemption (after controller is registered by CONTROLLER_MANAGER_ROLE)
-vault.requestRedeem(shares, controller, owner);
-// Operator(s) for `controller` fulfill — assets sent to `owner`
+vault.requestRedeem(shares, owner);
 vault.fulfillRedeemRequests([requestId1, requestId2]);
 ```
 
 **Roles**
 
-| Role                      | Controls                                                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`      | Deposit asset list / converters, `pricePerShare` rate-limit config, unpause vault            |
-| `TREASURY_ROLE`           | Fee treasury, per-asset deposit fee bps, mgmt/performance fees, harvests, withdrawal fee bps |
-| `PRICE_MANAGER_ROLE`      | `postPricePerShare` within the configured rate limit                                         |
-| `PAUSER_ROLE`             | `pauseVaultOperations`                                                                       |
-| `CONTROLLER_MANAGER_ROLE` | Register / remove redeem controllers, set per-controller max redeem shares                   |
-| `STRATEGY_DEPLOYER_ROLE`  | Deploy via beacon hub, register / deregister strategies                                      |
+| Role                     | Controls                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`     | Deposit asset list / converters, `pricePerShare` rate-limit config, unpause vault                                                   |
+| `TREASURY_ROLE`          | Fee treasury, per-asset deposit fee bps, mgmt/performance fees, harvests, withdrawal fee bps, global max shares per `requestRedeem` |
+| `PRICE_MANAGER_ROLE`     | `postPricePerShare` within the configured rate limit                                                                                |
+| `PAUSER_ROLE`            | `pauseVaultOperations`                                                                                                              |
+| `OPERATOR_ROLE`          | `fulfillRedeemRequests`                                                                                                             |
+| `STRATEGY_DEPLOYER_ROLE` | Deploy via beacon hub, register / deregister strategies                                                                             |
 
 **Fees** — The vault combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates with **`TREASURY_ROLE`** and pulls accrued mint-based fees via **`harvestManagementFee`** / **`harvestPerformanceFee`**.
 
@@ -256,7 +254,7 @@ Both are **beacon-proxy upgradeable** strategies that share **`StrategyBaseUpgra
 | `MultiAssetWithAsyncRedemptionVault.sol`  | Main vault (multi-asset deposit + async redemption)                         |
 | `MultiAssetDepositUpgradeable.sol`        | Multi-token deposit logic with converter adapters                           |
 | `FeeManagerUpgradeable.sol`               | Management / performance fee module (share minting to treasury)             |
-| `ERC7540RedemptionUpgradeable.sol`        | Async redemption (ERC-7540), controllers & operators                        |
+| `AsyncRedemptionUpgradeable.sol`          | Async redemption, global per-request cap, `OPERATOR_ROLE` fulfillment       |
 | `VaultBaseUpgradeable.sol`                | Shared base (access control, share token, NAV, pause, strategies)           |
 | `libraries/PriceRateLimiter.sol`          | Bucket used to limit relative `pricePerShare` moves                         |
 | `BeaconHub.sol`                           | Beacon registry (`bytes32` → beacon) + `BeaconProxy` deploy / CREATE2       |

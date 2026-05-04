@@ -39,6 +39,8 @@ abstract contract VaultBaseUpgradeable is
 
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
 
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+
     uint256 internal constant _BPS_DENOMINATOR = 10_000;
 
     modifier whenVaultNotPaused() {
@@ -64,7 +66,7 @@ abstract contract VaultBaseUpgradeable is
         IERC20 asset;
         uint8 underlyingDecimals;
         PriceRateLimiter.Bucket ppsRateLimiter;
-        /// @dev Receives ERC-7540 withdrawal fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
+        /// @dev Receives async redemption withdrawal fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
         address feeTreasury;
     }
 
@@ -126,7 +128,7 @@ abstract contract VaultBaseUpgradeable is
         });
     }
 
-    /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `ERC7540RedemptionUpgradeable`) withdrawal fee shares.
+    /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) withdrawal fee shares.
     /// @param treasury_ Must not be zero.
     function setFeeTreasury(
         address treasury_
