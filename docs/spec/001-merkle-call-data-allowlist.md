@@ -26,6 +26,8 @@ The design MUST scale to very large allowlists by making on-chain cost depend on
 
 and not on total number of rules.
 
+**Strategy integration note:** When the allowlist validator is used as an `IStrategyExecValidator` (see **`docs/spec/002-strategy.md` §A.2**), callers supply `validatorArgs` as `bytes calldata` that ABI-encodes a `CallVerificationInput`. The strategy calls `IStrategyExecValidator.isAllowed(sender, to, value, data, validatorArgs)` — a different function selector from `IMerkleCallAllowlist.isAllowed` — so a concrete validator can implement both interfaces simultaneously.
+
 ---
 
 ## Acceptance Criteria
@@ -61,7 +63,7 @@ The contract MUST provide a mechanism to update the root. **Who may update the r
 The contract MUST emit an event on root update:
 
 ```text
-event AllowlistRootUpdated(bytes32 oldRoot, bytes32 newRoot);
+event AllowlistRootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
 ```
 
 The recommended Solidity-facing interface names this updater **`setAllowlistRoot(bytes32 newRoot)`** and declares **`AllowlistRootUpdated`** (see **Recommended Solidity-facing interface** below). Implementations SHOULD use those names; the mechanism MAY add modifiers or a different entry point only if behavior remains equivalent (single active root, event on change).
@@ -117,7 +119,7 @@ Constraint {
 }
 ```
 
-**`offset` range:** each constraint’s `offset` is a `uint16` (0..65535). This range is **normative** and sufficient for intended contract calldata lengths; this spec does not define constraints at byte offsets above 65535.
+**`offset` range:** each constraint's `offset` is a `uint16` (0..65535). This range is **normative** and sufficient for intended contract calldata lengths; this spec does not define constraints at byte offsets above 65535.
 
 ---
 
@@ -133,8 +135,8 @@ The `flags` field MUST use the following bit layout:
 
 Semantics:
 
-* if a field’s exact bit is set, the actual field MUST equal the encoded field value
-* if a field’s exact bit is not set, that field is wildcard and the encoded value MUST be zero in canonical encoding
+* if a field's exact bit is set, the actual field MUST equal the encoded field value
+* if a field's exact bit is not set, that field is wildcard and the encoded value MUST be zero in canonical encoding
 
 Canonical zeroing rules:
 
@@ -151,7 +153,7 @@ This prevents multiple encodings for the same logical rule. The same rule MAY be
 
 Each constraint operates on one **32-byte word** read from `data` starting at a **byte offset** into `data` (not into the EVM transaction calldata beyond the `data` argument; the `data` parameter to `isAllowed` is the full contract call data for matching purposes).
 
-Let `offset` be the constraint’s `offset` field. Let `b` be the byte sequence of length `L = min(32, max(0, data.length - offset))` consisting of `data[offset .. offset + L)` when `offset < data.length`, else empty. The word `word` MUST be the `bytes32` formed by **left-aligning** those `L` bytes in big-endian word order (first byte of `b` is the most significant among the calldata-derived bytes) and **right-padding** with zero bytes to 32 bytes:
+Let `offset` be the constraint's `offset` field. Let `b` be the byte sequence of length `L = min(32, max(0, data.length - offset))` consisting of `data[offset .. offset + L)` when `offset < data.length`, else empty. The word `word` MUST be the `bytes32` formed by **left-aligning** those `L` bytes in big-endian word order (first byte of `b` is the most significant among the calldata-derived bytes) and **right-padding** with zero bytes to 32 bytes:
 
 * if `data.length <= offset`, `word` is `bytes32(0)`
 * if `data.length >= offset + 32`, `word` is exactly `data[offset .. offset + 32]` in that byte order as a `bytes32`
@@ -193,7 +195,7 @@ offset = 4 + 32 * n
 
 This formula applies to typical packed ABI heads; tuples, dynamic `bytes`/`string`, and nonstandard encodings MAY require different offsets. Integrators MUST compute offsets from the actual ABI encoding they intend to allow.
 
-Implementations and off-chain builders MUST align `mask` / `expected` with the same byte ordering as Solidity’s `bytes32(bytes.concat(data[offset:offset+L], bytes(32-L)))` with `L = min(32, max(0, data.length - offset))` when `offset < data.length`, and `bytes32(0)` when `offset >= data.length`.
+Implementations and off-chain builders MUST align `mask` / `expected` with the same byte ordering as Solidity's `bytes32(bytes.concat(data[offset:offset+L], bytes(32-L)))` with `L = min(32, max(0, data.length - offset))` when `offset < data.length`, and `bytes32(0)` when `offset >= data.length`.
 
 **Note:** Comparison to EVM `calldataload` is **informative only**: matching applies to the `data` bytes passed into `isAllowed`, not to the outer transaction calldata of the `isAllowed` invocation.
 
@@ -278,7 +280,7 @@ domainSeparator = keccak256(
 )
 ```
 
-**`abi.encodePacked` preimage (normative types and widths):** off-chain code MUST reproduce Solidity’s packing byte-for-byte. Fields are concatenated in this order **before** the outer `keccak256`:
+**`abi.encodePacked` preimage (normative types and widths):** off-chain code MUST reproduce Solidity's packing byte-for-byte. Fields are concatenated in this order **before** the outer `keccak256`:
 
 ```text
 field              Solidity type   width (bytes)   encoding
@@ -293,7 +295,7 @@ In Solidity, **`block.chainid` is a `uint256`**. In `abi.encodePacked`, that val
 
 **Validator address and tree timing:** `domainSeparator` includes **`address(this)`**, so every leaf and the Merkle root depend on the **exact** validator contract address on that chain (and on `chainId`). Off-chain builders MUST use the same address the deployed contract will use when hashing. **A correct tree cannot be produced without that address**—typically meaning the tree is built **after** deployment, unless the address is known beforehand (e.g. **CREATE2** with a fixed salt/factory, or another pre-committed deployment address). If the validator is deployed or redeployed to a different address, **`domainSeparator`, leaves, root, and proofs MUST all be recomputed** and `allowlistRoot` updated.
 
-Leaf hash (matches Solidity in OpenZeppelin [merkle-tree README](https://github.com/OpenZeppelin/merkle-tree) “Validating a Proof in Solidity” for typed leaves):
+Leaf hash (matches Solidity in OpenZeppelin [merkle-tree README](https://github.com/OpenZeppelin/merkle-tree) "Validating a Proof in Solidity" for typed leaves):
 
 ```text
 leaf = keccak256(
@@ -328,7 +330,7 @@ const values = rules.map((ruleEncoded) => [0, domainSeparator, ruleEncoded]);
 const tree = StandardMerkleTree.of(values, ["uint8", "bytes32", "bytes"]);
 ```
 
-The `leaf` for a row MUST equal `keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))` in Solidity for that row’s `ruleEncoded`. Proofs from `tree.getProof(i)` MUST verify with `MerkleProof.verifyCalldata` against `tree.root` and that `leaf`.
+The `leaf` for a row MUST equal `keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))` in Solidity for that row's `ruleEncoded`. Proofs from `tree.getProof(i)` MUST verify with `MerkleProof.verifyCalldata` against `tree.root` and that `leaf`.
 
 Requirements:
 
@@ -363,7 +365,7 @@ Verification MUST return `false` when the rebuilt root does not equal `allowlist
 
 The contract MUST expose a verification function that takes the **call tuple** plus a **`CallVerificationInput`** value bundling the **rule bytes** and **Merkle proof** for this invocation. The rule body is **provided in calldata each time** (inside `input.ruleEncoded`); only `allowlistRoot` is persisted on-chain.
 
-**Normative ABI:** integrators and implementations MUST use the following shape (see **Recommended Solidity-facing interface**). This is the **canonical** `isAllowed` surface; it MUST NOT be replaced by a flat parameter list for the same logical function, because the **function selector** differs from a signature that lists `bytes` and `bytes32[]` as separate trailing parameters.
+**Normative ABI:** integrators and implementations MUST use the following shape (see **Recommended Solidity-facing interface**). This is the **canonical** `isAllowed` surface on `IMerkleCallAllowlist`; it MUST NOT be replaced by a flat parameter list for the same logical function, because the **function selector** differs from a signature that lists `bytes` and `bytes32[]` as separate trailing parameters.
 
 ```solidity
 struct CallVerificationInput {
@@ -587,9 +589,12 @@ struct CallVerificationInput {
 }
 
 interface IMerkleCallAllowlist {
-    event AllowlistRootUpdated(bytes32 oldRoot, bytes32 newRoot);
+    event AllowlistRootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
 
     function allowlistRoot() external view returns (bytes32);
+
+    /// @notice Domain separator used in leaf hashing (§8); depends on address(this) and block.chainid.
+    function domainSeparator() external view returns (bytes32);
 
     /// @notice Sets the active Merkle root. Access control is implementation-defined (§2).
     function setAllowlistRoot(bytes32 newRoot) external;

@@ -235,19 +235,34 @@ address proxy = hub.deploy(STRATEGY_TYPE_ID, initCalldata);
 
 ---
 
+## Strategies (`Strategy` & `SatelliteStrategy`)
+
+Both are **beacon-proxy upgradeable** strategies that share **`StrategyBaseUpgradeable`**: off-chain policy (via `IStrategyExecValidator`, e.g. Merkle allowlist) gates **`exec`**—arbitrary external calls with optional ETH—while **`PRIVILEGED_EXECUTOR_ROLE`** may call a validator-bypass **`exec`** overload for emergencies or ops that policy cannot express. Admins can **`setValidator`**; the contract can **`receive`** ETH so balances fund forwarded calls.
+
+### `Strategy`
+
+**Vault-attached deployment.** Initialized with a vault and a liquidity-role holder. **`VAULT_TOKEN_LIQUIDITY_ROLE`** may **`pullFromVault`** (vault **`requestFunding`**) and **`pushToVault`** (return ERC-20 to the vault). Choose this when capital moves **through the vault funding pipe** and everything else is **validator-approved `exec`** (protocol integrations, bridges, etc.).
+
+### `SatelliteStrategy`
+
+**Exec-only footprint.** No vault reference—no **`pullFromVault`** / **`pushToVault`**. Liquidity is **`exec`** only (validator-gated or privileged). Choose this when outbound activity is **purely approved external calls**, not **`IVault.requestFunding`**.
+
+---
+
 ## Files
 
-| File                                      | Role                                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| `MultiAssetWithAsyncRedemptionVault.sol`  | Main vault (multi-asset deposit + async redemption)                     |
-| `MultiAssetDepositUpgradeable.sol`        | Multi-token deposit logic with converter adapters                       |
-| `FeeManagerUpgradeable.sol`               | Management / performance fee module (share minting to treasury)         |
-| `ERC7540RedemptionUpgradeable.sol`        | Async redemption (ERC-7540), controllers & operators                    |
-| `VaultBaseUpgradeable.sol`                | Shared base (access control, share token, NAV, pause, strategies)       |
-| `libraries/PriceRateLimiter.sol`          | Bucket used to limit relative `pricePerShare` moves                     |
-| `BeaconHub.sol`                           | Beacon registry (`bytes32` → beacon) + `BeaconProxy` deploy / CREATE2   |
-| `interfaces/IBeaconHub.sol`               | Hub API (`beacon`, `deploy`, `deployCreate2`, `isDeployed`)             |
-| `validators/MerkleAllowlistValidator.sol` | Merkle call allowlist validator                                         |
-| `interfaces/IMerkleCallAllowlist.sol`     | Interface + `CallVerificationInput` struct                              |
-| `converters/`                             | Asset converter adapters (Chainlink, direct (BTC.b), staked LBTC, etc.) |
-| `strategies/`                             | Strategy contracts for capital deployment                               |
+| File                                      | Role                                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------------- |
+| `MultiAssetWithAsyncRedemptionVault.sol`  | Main vault (multi-asset deposit + async redemption)                         |
+| `MultiAssetDepositUpgradeable.sol`        | Multi-token deposit logic with converter adapters                           |
+| `FeeManagerUpgradeable.sol`               | Management / performance fee module (share minting to treasury)             |
+| `ERC7540RedemptionUpgradeable.sol`        | Async redemption (ERC-7540), controllers & operators                        |
+| `VaultBaseUpgradeable.sol`                | Shared base (access control, share token, NAV, pause, strategies)           |
+| `libraries/PriceRateLimiter.sol`          | Bucket used to limit relative `pricePerShare` moves                         |
+| `BeaconHub.sol`                           | Beacon registry (`bytes32` → beacon) + `BeaconProxy` deploy / CREATE2       |
+| `interfaces/IBeaconHub.sol`               | Hub API (`beacon`, `deploy`, `deployCreate2`, `isDeployed`)                 |
+| `validators/MerkleAllowlistValidator.sol` | Merkle call allowlist validator                                             |
+| `interfaces/IMerkleCallAllowlist.sol`     | Interface + `CallVerificationInput` struct                                  |
+| `converters/`                             | Asset converter adapters (Chainlink, direct (BTC.b), staked LBTC, etc.)     |
+| `strategies/Strategy.sol`                 | Vault-linked strategy: `requestFunding` pull / `pushToVault` + gated `exec` |
+| `strategies/SatelliteStrategy.sol`        | Validator-gated `exec` only (no vault funding helpers)                      |
