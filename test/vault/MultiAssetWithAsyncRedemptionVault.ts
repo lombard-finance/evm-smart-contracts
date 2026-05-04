@@ -7,12 +7,12 @@ import type {
   ChainlinkConverter,
   ChainlinkFeedMock,
   DirectConverter,
-  MockVaultToken,
   WBTCMock,
   MultiAssetWithAsyncRedemptionVault,
   RatioFeedMock,
   StakedLBTCConverter,
-  StakedLBTCMock
+  StakedLBTCMock,
+  TokenMock
 } from '../../typechain-types';
 
 const ERC7540_ASYNC_REDEEM = '0x620ee8e4';
@@ -28,8 +28,8 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
   let treasury: Signer;
   let operator: Signer;
 
-  let underlying: MockVaultToken;
-  let altDeposit: MockVaultToken;
+  let underlying: TokenMock;
+  let altDeposit: TokenMock;
   let converter: DirectConverter;
   let vault: MultiAssetWithAsyncRedemptionVault;
 
@@ -39,11 +39,8 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     [admin, strategyDeployer, controllerManager, redeemController, redeemOperator, user, treasury, operator] =
       await getSignersWithPrivateKeys();
 
-    const tokenFactory = await ethers.getContractFactory('MockVaultToken');
-    underlying = (await tokenFactory.deploy()) as MockVaultToken;
-    altDeposit = (await tokenFactory.deploy()) as MockVaultToken;
-    await underlying.waitForDeployment();
-    await altDeposit.waitForDeployment();
+    underlying = await deployContract<TokenMock>('TokenMock', ['Underlying', 'UND'], false);
+    altDeposit = await deployContract<TokenMock>('TokenMock', ['Alt Deposit', 'ALT'], false);
 
     const convFactory = await ethers.getContractFactory('DirectConverter');
     converter = (await convFactory.deploy()) as DirectConverter;
@@ -140,7 +137,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.connect(user).approve(v, assets);
 
     const preview = await vault.previewDeposit(alt, assets);
-    await expect(vault.connect(user).deposit(alt, assets, user.address))
+    await expect(vault.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address))
       .to.emit(vault, 'Deposit')
       .withArgs(user.address, user.address, alt, assets, preview);
 
@@ -163,7 +160,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.mint(user.address, assets);
     await altDeposit.connect(user).approve(v, assets);
 
-    await expect(vault.connect(user).deposit(alt, assets, user.address))
+    await expect(vault.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address))
       .to.emit(vault, 'DepositRoutedToDefaultStrategy')
       .withArgs(sink, alt, assets);
 
@@ -199,7 +196,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.mint(user.address, assets);
     await altDeposit.connect(user).approve(v, assets);
 
-    await expect(vault.connect(user).deposit(alt, assets, user.address))
+    await expect(vault.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address))
       .to.emit(vault, 'DepositRoutedToDefaultStrategy')
       .withArgs(sink, alt, net);
 
@@ -218,10 +215,9 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.mint(user.address, assets);
     await altDeposit.connect(user).approve(v, assets);
 
-    await expect(vault.connect(user).deposit(alt, assets, user.address)).to.be.revertedWithCustomError(
-      vault,
-      'VaultDeposit_DepositTreasuryNotSet'
-    );
+    await expect(
+      vault.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address)
+    ).to.be.revertedWithCustomError(vault, 'VaultDeposit_DepositTreasuryNotSet');
   });
 
   it('deregisterStrategy clears defaultStrategy when it matches', async function () {
@@ -244,10 +240,12 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.mint(user.address, assetsNeeded);
     await altDeposit.connect(user).approve(v, assetsNeeded);
 
-    const pulled = await vault.connect(user).mint.staticCall(alt, targetShares, user.address);
+    const pulled = await vault
+      .connect(user)
+      ['mint(address,uint256,address)'].staticCall(alt, targetShares, user.address);
     expect(pulled).to.equal(assetsNeeded);
 
-    await vault.connect(user).mint(alt, targetShares, user.address);
+    await vault.connect(user)['mint(address,uint256,address)'](alt, targetShares, user.address);
     expect(await vault.balanceOf(user.address)).to.equal(targetShares);
   });
 
@@ -270,7 +268,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const depositAmt = 2_000n * 10n ** 18n;
     await altDeposit.mint(user.address, depositAmt);
     await altDeposit.connect(user).approve(v, depositAmt);
-    await vault.connect(user).deposit(alt, depositAmt, user.address);
+    await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
 
     const shares = await vault.balanceOf(user.address);
     const dec = BigInt(await vault.decimals());
@@ -308,7 +306,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const depositAmt = 1_000n * 10n ** 18n;
     await altDeposit.mint(user.address, depositAmt);
     await altDeposit.connect(user).approve(v, depositAmt);
-    await vault.connect(user).deposit(alt, depositAmt, user.address);
+    await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
 
     const shares = await vault.balanceOf(user.address);
     await vault.connect(controllerManager).registerRedeemController(redeemController.address, ethers.MaxUint256);
@@ -333,7 +331,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     const depositAmt = 10_000n * 10n ** 18n;
     await altDeposit.mint(user.address, depositAmt);
     await altDeposit.connect(user).approve(v, depositAmt);
-    await vault.connect(user).deposit(alt, depositAmt, user.address);
+    await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
 
     await vault.connect(treasury).setPerformanceFeeBps(1000); // 10%
 
@@ -580,7 +578,7 @@ describe('StakedLBTC as deposit token', function () {
       await stakedToken.connect(user).approve(vAddr, ONE_LBTC);
 
       const preview = await stakedVault.previewDeposit(sAddr, ONE_LBTC);
-      await expect(stakedVault.connect(user).deposit(sAddr, ONE_LBTC, user.address))
+      await expect(stakedVault.connect(user)['deposit(address,uint256,address)'](sAddr, ONE_LBTC, user.address))
         .to.emit(stakedVault, 'Deposit')
         .withArgs(user.address, user.address, sAddr, ONE_LBTC, preview);
 
@@ -599,7 +597,7 @@ describe('StakedLBTC as deposit token', function () {
       await stakedToken.connect(user).approve(vAddr, depositAmt);
 
       const preview = await stakedVault.previewDeposit(sAddr, depositAmt);
-      await stakedVault.connect(user).deposit(sAddr, depositAmt, user.address);
+      await stakedVault.connect(user)['deposit(address,uint256,address)'](sAddr, depositAmt, user.address);
 
       // 0.9 stakedLBTC * (1e18 / 0.9e18) = 1 LBTC worth → 1 share at pps=1e8
       expect(preview).to.equal(ONE_LBTC);
@@ -620,10 +618,12 @@ describe('StakedLBTC as deposit token', function () {
       await stakedToken.mintTo(user.address, assetsNeeded);
       await stakedToken.connect(user).approve(vAddr, assetsNeeded);
 
-      const pulled = await stakedVault.connect(user).mint.staticCall(sAddr, targetShares, user.address);
+      const pulled = await stakedVault
+        .connect(user)
+        ['mint(address,uint256,address)'].staticCall(sAddr, targetShares, user.address);
       expect(pulled).to.equal(assetsNeeded);
 
-      await stakedVault.connect(user).mint(sAddr, targetShares, user.address);
+      await stakedVault.connect(user)['mint(address,uint256,address)'](sAddr, targetShares, user.address);
       expect(await stakedVault.balanceOf(user.address)).to.equal(targetShares);
     });
 
@@ -643,7 +643,7 @@ describe('StakedLBTC as deposit token', function () {
       await stakedToken.mintTo(user.address, depositAmt);
       await stakedToken.connect(user).approve(vAddr, depositAmt);
 
-      await stakedVault.connect(user).deposit(sAddr, depositAmt, user.address);
+      await stakedVault.connect(user)['deposit(address,uint256,address)'](sAddr, depositAmt, user.address);
 
       expect(await stakedToken.balanceOf(treasury.address)).to.equal(expectedFee);
       // Net amount converts to BTC units at 1:1 (at-par ratio) → net shares minted
@@ -872,7 +872,7 @@ describe('Chainlink as deposit token', function () {
       await depositToken.connect(user).approve(vAddr, ONE_BTC);
 
       const preview = await clVault.previewDeposit(tAddr, ONE_BTC);
-      await expect(clVault.connect(user).deposit(tAddr, ONE_BTC, user.address))
+      await expect(clVault.connect(user)['deposit(address,uint256,address)'](tAddr, ONE_BTC, user.address))
         .to.emit(clVault, 'Deposit')
         .withArgs(user.address, user.address, tAddr, ONE_BTC, preview);
 
@@ -893,7 +893,7 @@ describe('Chainlink as deposit token', function () {
       await depositToken.mint(user.address, assetsNeeded);
       await depositToken.connect(user).approve(vAddr, assetsNeeded);
 
-      await clVault.connect(user).mint(tAddr, targetShares, user.address);
+      await clVault.connect(user)['mint(address,uint256,address)'](tAddr, targetShares, user.address);
       expect(await clVault.balanceOf(user.address)).to.equal(targetShares);
     });
 

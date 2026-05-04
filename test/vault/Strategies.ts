@@ -8,8 +8,8 @@ import type {
   Strategy,
   SatelliteStrategy,
   MerkleAllowlistValidator,
-  MockVaultToken,
-  MockVaultForStrategy
+  MockVaultForStrategy,
+  TokenMock
 } from '../../typechain-types';
 import { encodeMerkleRule } from './MerkleCallAllowlist';
 import { calculateStorageSlot, encode, deployContract } from '../helpers';
@@ -43,7 +43,7 @@ describe('Strategy & SatelliteStrategy', function () {
   let strategy: Strategy;
   let satellite: SatelliteStrategy;
   let mockVault: MockVaultForStrategy;
-  let vaultToken: MockVaultToken;
+  let vaultToken: TokenMock;
   let fundingStrategy: Strategy;
   let snapshot: SnapshotRestorer;
 
@@ -73,10 +73,7 @@ describe('Strategy & SatelliteStrategy', function () {
     satellite = satFactory.attach(await satProxy.getAddress()) as unknown as SatelliteStrategy;
     await satellite.connect(admin).grantRole(await satellite.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
 
-    // Mock vault + token for pullFromVault / pushToVault happy-path tests
-    const tokenFactory = await ethers.getContractFactory('MockVaultToken');
-    vaultToken = (await tokenFactory.deploy()) as unknown as MockVaultToken;
-    await vaultToken.waitForDeployment();
+    vaultToken = await deployContract<TokenMock>('TokenMock', ['Vault Token', 'VTK'], false);
 
     const mockVaultFactory = await ethers.getContractFactory('MockVaultForStrategy');
     mockVault = (await mockVaultFactory.deploy()) as unknown as MockVaultForStrategy;
