@@ -17,8 +17,11 @@ import {IOracle} from "../../LBTC/interfaces/IOracle.sol";
 ///      Conversions:
 ///        toBtcUnits:   btcOut   = tokenAmount * 1e18 / ratio  (Floor — fewer shares is safer)
 ///        toTokenAmount: tokenOut = btcUnits   * ratio / 1e18  (Ceil  — caller pays more, protects vault)
+///
+///      Invariant: `IOracle.ratio()` MUST be strictly positive (enforced in `StakedLBTCOracle`; defensive check here).
 contract StakedLBTCConverter is IAssetConverter {
     error StakedLBTCConverter_ZeroOracle();
+    error StakedLBTCConverter_ZeroRatio();
 
     IOracle public immutable oracle;
 
@@ -32,7 +35,9 @@ contract StakedLBTCConverter is IAssetConverter {
         uint256 tokenAmount,
         Math.Rounding rounding
     ) external view override returns (uint256 baseOut) {
-        return Math.mulDiv(tokenAmount, 1e18, oracle.ratio(), rounding);
+        uint256 ratio_ = oracle.ratio();
+        if (ratio_ == 0) revert StakedLBTCConverter_ZeroRatio();
+        return Math.mulDiv(tokenAmount, 1e18, ratio_, rounding);
     }
 
     /// @inheritdoc IAssetConverter

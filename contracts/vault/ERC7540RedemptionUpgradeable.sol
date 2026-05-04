@@ -138,7 +138,8 @@ abstract contract ERC7540RedemptionUpgradeable is
 
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
     function setWithdrawalFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
-        if (bps >= _BPS_DENOMINATOR) revert ERC7540_WithdrawalFeeBpsTooHigh();
+        if (bps >= _BPS_DENOMINATOR)
+            revert ERC7540_WithdrawalFeeBpsTooHigh(bps);
         _getERC7540RedemptionStorage().withdrawalFeeBps = bps;
         emit WithdrawalFeeBpsSet(bps);
     }
@@ -220,22 +221,30 @@ abstract contract ERC7540RedemptionUpgradeable is
         }
 
         address caller = _msgSender();
-        // Allow request redeem by allowance
         if (caller != owner) {
             _spendAllowance(owner, caller, shares);
         }
 
+        return _requestRedeem($, shares, controller, owner, caller);
+    }
+
+    /// @dev Records redeem ticket, burns net shares, routes fee shares to treasury. Caller must have passed validation and allowance.
+    function _requestRedeem(
+        ERC7540RedemptionStorage storage $,
+        uint256 shares,
+        address controller,
+        address owner,
+        address caller
+    ) private returns (uint256 requestId) {
+        address treasury_ = feeTreasury();
         uint256 feeShares;
-        {
-            uint16 feeBps = $.withdrawalFeeBps;
-            address treasury_ = feeTreasury();
-            if (feeBps > 0 && treasury_ != address(0)) {
-                feeShares = shares.mulDiv(
-                    feeBps,
-                    _BPS_DENOMINATOR,
-                    Math.Rounding.Floor
-                );
-            }
+        uint16 feeBps = $.withdrawalFeeBps;
+        if (feeBps > 0 && treasury_ != address(0)) {
+            feeShares = shares.mulDiv(
+                feeBps,
+                _BPS_DENOMINATOR,
+                Math.Rounding.Floor
+            );
         }
         uint256 netShares = shares - feeShares;
         uint256 assets = _convertToAssets(netShares, Math.Rounding.Floor);
@@ -251,7 +260,6 @@ abstract contract ERC7540RedemptionUpgradeable is
 
         _burn(owner, netShares);
         if (feeShares > 0) {
-            address treasury_ = feeTreasury();
             _transfer(owner, treasury_, feeShares);
             emit WithdrawalFeeCharged(treasury_, feeShares);
         }

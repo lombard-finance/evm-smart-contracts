@@ -14,7 +14,10 @@ struct CallVerificationInput {
 /// @notice Merkle-root–governed allowlist for validating arbitrary `(sender, to, value, data)` tuples off-chain and verifying on-chain.
 interface IMerkleCallAllowlist {
     /// @notice Emitted when the active Merkle root changes.
-    event AllowlistRootUpdated(bytes32 oldRoot, bytes32 newRoot);
+    event AllowlistRootUpdated(
+        bytes32 indexed oldRoot,
+        bytes32 indexed newRoot
+    );
 
     /// @return The active allowlist Merkle root; `bytes32(0)` means deny-all.
     function allowlistRoot() external view returns (bytes32);

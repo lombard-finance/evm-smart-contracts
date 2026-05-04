@@ -11,7 +11,12 @@ library PriceRateLimiter {
     using Math for uint256;
 
     /// @dev Consumption exceeded refill-adjusted remaining bucket capacity for the attempted PPS delta.
-    error PriceRateLimiter_RateLimitExceeded();
+    /// @param requestedBps Relative PPS change (micro-bps scale) that could not be consumed.
+    /// @param availableBps Remaining bucket capacity after virtual refill, before the attempted consume.
+    error PriceRateLimiter_RateLimitExceeded(
+        uint256 requestedBps,
+        uint256 availableBps
+    );
 
     /// @notice Admin updated the rate-limit bucket configuration used when posting `pricePerShare`.
     /// @param maxBucketBps Bucket ceiling in the library’s micro-bps scale.
@@ -21,7 +26,7 @@ library PriceRateLimiter {
     /// @dev Micro-basis-points: 1 unit = 0.0001% (1/1,000,000), NOT standard bps (1/10,000).
     ///      This provides finer granularity for rate limiting price changes.
     ///      Example: 100 units = 0.01%, 10000 units = 1%.
-    uint256 private constant BPS_DENOMINATOR = 100_0000;
+    uint256 private constant BPS_DENOMINATOR = 1_000_000;
 
     /// @notice Persistent capacity/refill state for this rate limiter.
     /// @dev Packed into one 32-byte storage slot (22 bytes used): timestamps and bps fields.
@@ -44,6 +49,20 @@ library PriceRateLimiter {
         uint64 refillRate;
     }
 
+    /// @notice Virtual refill to `block.timestamp` without writing storage; used for revert context.
+    function _availableAfterRefill(
+        Bucket storage s
+    ) internal view returns (uint256) {
+        Bucket memory b = Bucket({
+            lastRefill: s.lastRefill,
+            capacityBps: s.capacityBps,
+            maxBps: s.maxBps,
+            refillRate: s.refillRate
+        });
+        b = _refill(b);
+        return uint256(b.capacityBps);
+    }
+
     /// @notice Refills toward `maxBps` then drains `changeBps` from the bucket.
     /// @param changeBps Basis-point change to consume; use `_relativeChangeBps` to compute.
     function _consume(Bucket storage s, uint256 changeBps) internal {
@@ -51,7 +70,10 @@ library PriceRateLimiter {
         if (
             changeBps > type(uint32).max || uint256(s.capacityBps) < changeBps
         ) {
-            revert PriceRateLimiter_RateLimitExceeded();
+            revert PriceRateLimiter_RateLimitExceeded(
+                changeBps,
+                uint256(s.capacityBps)
+            );
         }
         unchecked {
             s.capacityBps -= uint32(changeBps);

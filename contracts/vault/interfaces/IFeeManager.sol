@@ -6,10 +6,10 @@ pragma solidity 0.8.24;
 /// @dev Basis points use `10_000 = 100%`. Fees mint shares to `to` without pulling underlying assets.
 interface IFeeManager {
     /// @notice Annual management fee rate was updated (bps).
-    event ManagementFeeBpsSet(uint16 bps);
+    event ManagementFeeBpsSet(address indexed account, uint16 bps);
 
     /// @notice Performance fee rate was updated (bps).
-    event PerformanceFeeBpsSet(uint16 bps);
+    event PerformanceFeeBpsSet(address indexed account, uint16 bps);
 
     /// @notice Management fee shares were minted to `to`.
     event ManagementFeeHarvested(
@@ -26,26 +26,18 @@ interface IFeeManager {
         uint256 newHighWaterMark
     );
 
-    error FeeManager_ManagementFeeBpsTooHigh();
-    error FeeManager_PerformanceFeeBpsTooHigh();
-    error FeeManager_NothingToHarvest();
-    error FeeManager_PriceAtOrBelowHighWaterMark();
-
-    /// @notice Sets management fee in basis points; resets last harvest timestamp tracking.
-    /// @param bps Fee rate; must be strictly less than 10000.
-    function setManagementFeeBps(uint16 bps) external;
-
-    /// @notice Sets performance fee in basis points and resets high-water mark to current `pricePerShare`.
-    /// @param bps Fee rate; must be strictly less than 10000.
-    function setPerformanceFeeBps(uint16 bps) external;
-
-    /// @notice Mint management fee shares accrued since `lastFeeHarvestAt` to `to`.
-    /// @param to Recipient of minted shares (must not be zero).
-    function harvestManagementFee(address to) external;
-
-    /// @notice Mint performance fee shares if `pricePerShare` exceeds `highWaterMark`, then raise HWM.
-    /// @param to Recipient of minted shares (must not be zero).
-    function harvestPerformanceFee(address to) external;
+    /// @param bps The management fee rate that failed validation (must be < 10_000).
+    error FeeManager_ManagementFeeBpsTooHigh(uint16 bps);
+    /// @param bps The performance fee rate that failed validation (must be < 10_000).
+    error FeeManager_PerformanceFeeBpsTooHigh(uint16 bps);
+    /// @dev Accrued fee shares require a non-zero recipient when settling via fee `bps` setters.
+    error FeeManager_FeeRecipientRequired();
+    /// @param pricePerShare Current `pricePerShare` when the harvest was attempted.
+    /// @param highWaterMark Stored high-water mark that was not exceeded.
+    error FeeManager_PriceAtOrBelowHighWaterMark(
+        uint256 pricePerShare,
+        uint256 highWaterMark
+    );
 
     /// @return feeBps Configured management fee in basis points.
     /// @return previewShares Shares that would be minted if `harvestManagementFee` were called now.

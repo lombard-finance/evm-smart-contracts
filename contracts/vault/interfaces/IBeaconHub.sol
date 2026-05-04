@@ -9,7 +9,11 @@ interface IBeaconHub {
     event BeaconSet(bytes32 indexed id, address indexed beacon);
 
     /// @notice A new BeaconProxy was created and tracked by the hub.
-    event Deployed(bytes32 indexed id, address indexed proxy, address caller);
+    event Deployed(
+        bytes32 indexed id,
+        address indexed proxy,
+        address indexed caller
+    );
 
     /// @dev No beacon registered for `id`, or beacon address is zero when deploy was attempted.
     error BeaconHub_BeaconNotSet(bytes32 id);

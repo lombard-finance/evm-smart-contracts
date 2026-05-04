@@ -43,61 +43,101 @@ abstract contract FeeManagerUpgradeable is VaultBaseUpgradeable, IFeeManager {
         $.lastFeeHarvestAt = uint48(block.timestamp);
     }
 
-    /// @inheritdoc IFeeManager
-    function setManagementFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
-        if (bps >= _BPS_DENOMINATOR)
-            revert FeeManager_ManagementFeeBpsTooHigh();
-        FeeManagerStorage storage $ = _getFeeManagerStorage();
-        $.managementFeeBps = bps;
-        $.lastFeeHarvestAt = uint48(block.timestamp);
-        emit ManagementFeeBpsSet(bps);
-    }
-
-    /// @inheritdoc IFeeManager
-    function setPerformanceFeeBps(uint16 bps) external onlyRole(TREASURY_ROLE) {
-        if (bps >= _BPS_DENOMINATOR)
-            revert FeeManager_PerformanceFeeBpsTooHigh();
-        FeeManagerStorage storage $ = _getFeeManagerStorage();
-        $.performanceFeeBps = bps;
-        $.highWaterMark = pricePerShare();
-        emit PerformanceFeeBpsSet(bps);
-    }
-
-    /// @inheritdoc IFeeManager
-    function harvestManagementFee(
-        address to
+    /// @notice Sets management fee in basis points after handling accrued management fee at the **prior** rate.
+    /// @param bps Fee rate; must be strictly less than 10000.
+    /// @param feeRecipient Recipient when `forfeitAccrued` is false and accrued shares are non-zero.
+    /// @param forfeitAccrued If false, mint accrued fee shares to `feeRecipient`. If true, forfeit accrual (clock advances; fee stays with LPs).
+    function setManagementFeeBps(
+        uint16 bps,
+        address feeRecipient,
+        bool forfeitAccrued
     ) external onlyRole(TREASURY_ROLE) nonReentrant {
+        if (bps >= _BPS_DENOMINATOR)
+            revert FeeManager_ManagementFeeBpsTooHigh(bps);
         FeeManagerStorage storage $ = _getFeeManagerStorage();
-        if (to == address(0)) revert Vault_ZeroAddress();
+        _harvestManagementFee($, feeRecipient, forfeitAccrued);
+        $.managementFeeBps = bps;
+        emit ManagementFeeBpsSet(_msgSender(), bps);
+    }
+
+    /// @notice Mint management fee shares accrued since `lastFeeHarvestAt` to `feeRecipient`.
+    /// @param feeRecipient Recipient of minted shares (must not be zero).
+    function harvestManagementFee(
+        address feeRecipient
+    ) external onlyRole(TREASURY_ROLE) nonReentrant {
+        _harvestManagementFee(_getFeeManagerStorage(), feeRecipient, false);
+    }
+
+    /// @dev Harvests management fee at current `managementFeeBps` / `lastFeeHarvestAt`.
+    /// @param forfeitAccrued If true and accrued shares are non-zero, advances `lastFeeHarvestAt` without minting (fee forfeited).
+    function _harvestManagementFee(
+        FeeManagerStorage storage $,
+        address to,
+        bool forfeitAccrued
+    ) internal {
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
             $.lastFeeHarvestAt,
             $.managementFeeBps,
             totalSupply()
         );
-        if (shares == 0) revert FeeManager_NothingToHarvest();
         $.lastFeeHarvestAt = uint48(block.timestamp);
+        if (shares == 0 || forfeitAccrued) {
+            return;
+        }
+        if (to == address(0)) revert FeeManager_FeeRecipientRequired();
         _mint(to, shares);
         emit ManagementFeeHarvested(to, shares, elapsed);
     }
 
-    /// @inheritdoc IFeeManager
-    function harvestPerformanceFee(
-        address to
+    /// @notice Sets performance fee in basis points after handling accrued performance fee at the **prior** rate, then resets high-water mark to current `pricePerShare`.
+    /// @param bps Fee rate; must be strictly less than 10000.
+    /// @param feeRecipient Recipient when `forfeitAccrued` is false and accrued shares are non-zero.
+    /// @param forfeitAccrued If false, mint accrued performance fee to `feeRecipient`. If true, forfeit (reset HWM without minting that accrual).
+    function setPerformanceFeeBps(
+        uint16 bps,
+        address feeRecipient,
+        bool forfeitAccrued
     ) external onlyRole(TREASURY_ROLE) nonReentrant {
-        if (to == address(0)) revert Vault_ZeroAddress();
+        if (bps >= _BPS_DENOMINATOR)
+            revert FeeManager_PerformanceFeeBpsTooHigh(bps);
         FeeManagerStorage storage $ = _getFeeManagerStorage();
+        _harvestPerformanceFee($, feeRecipient, forfeitAccrued);
+        $.performanceFeeBps = bps;
+        emit PerformanceFeeBpsSet(_msgSender(), bps);
+    }
+
+    /// @notice Mint performance fee shares if `pricePerShare` exceeds `highWaterMark`, then raise HWM.
+    /// @param feeRecipient Recipient of minted shares (must not be zero).
+    function harvestPerformanceFee(
+        address feeRecipient
+    ) external onlyRole(TREASURY_ROLE) nonReentrant {
+        _harvestPerformanceFee(_getFeeManagerStorage(), feeRecipient, false);
+    }
+
+    /// @dev Harvests performance fee at current `performanceFeeBps` / `highWaterMark`.
+    /// @param forfeitAccrued If true and fee shares would be non-zero, skips mint; setter resets HWM.
+    function _harvestPerformanceFee(
+        FeeManagerStorage storage $,
+        address to,
+        bool forfeitAccrued
+    ) internal {
         uint256 pps = pricePerShare();
         uint256 hwm = $.highWaterMark;
-        if (pps <= hwm) revert FeeManager_PriceAtOrBelowHighWaterMark();
+        if (pps <= hwm) {
+            return;
+        }
         uint256 shares = _computePerformanceFeeShares(
             pps,
             hwm,
             $.performanceFeeBps,
             totalSupply()
         );
-        if (shares == 0) revert FeeManager_NothingToHarvest();
-        $.highWaterMark = pps;
+        if (shares == 0 || forfeitAccrued) {
+            return;
+        }
+        if (to == address(0)) revert FeeManager_FeeRecipientRequired();
         _mint(to, shares);
+        $.highWaterMark = pps;
         emit PerformanceFeeHarvested(to, shares, hwm, pps);
     }
 

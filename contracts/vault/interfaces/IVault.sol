@@ -40,10 +40,10 @@ interface IVault {
     error Vault_ZeroPricePerShare();
 
     /// @notice Vault operations entrypoints are paused (`whenVaultNotPaused` reverts).
-    event VaultOperationsPaused(address account);
+    event VaultOperationsPaused(address indexed account);
 
     /// @notice Vault operations entrypoints are active again.
-    event VaultOperationsUnpaused(address account);
+    event VaultOperationsUnpaused(address indexed account);
 
     /// @notice Protocol fee treasury updated (`setFeeTreasury`).
     event FeeTreasurySet(address indexed treasury);

@@ -98,9 +98,7 @@ abstract contract VaultBaseUpgradeable is
         address strategyDeployer_,
         IERC20 asset_
     ) internal onlyInitializing {
-        if (strategyDeployer_ == address(0)) {
-            revert Vault_ZeroAddress();
-        }
+        if (strategyDeployer_ == address(0)) revert Vault_ZeroAddress();
 
         __AccessControl_init();
         __AccessControlDefaultAdminRules_init(
@@ -167,7 +165,10 @@ abstract contract VaultBaseUpgradeable is
             return;
         }
         if (revertOnRateLimit) {
-            revert PriceRateLimiter.PriceRateLimiter_RateLimitExceeded();
+            revert PriceRateLimiter.PriceRateLimiter_RateLimitExceeded(
+                changeBps,
+                $.ppsRateLimiter._availableAfterRefill()
+            );
         }
         $.ppsRateLimiter._drainRemaining();
         _setPricePerShare($, newPricePerShare);

@@ -18,7 +18,6 @@ describe('PoR', function () {
     [owner, operator] = await ethers.getSigners();
     const PoRFactory = await ethers.getContractFactory('PoR');
     const contract = await deployContract('PoR', [await owner.getAddress()], true, { initializer: 'initialize' });
-    await contract.waitForDeployment();
 
     por = PoRFactory.attach(await contract.getAddress()) as PoR;
     //grant operator role to operator

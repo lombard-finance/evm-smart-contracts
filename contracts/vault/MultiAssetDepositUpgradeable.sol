@@ -11,7 +11,7 @@ import {IMultiAssetDeposit} from "./interfaces/IMultiAssetDeposit.sol";
 import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title MultiAssetDepositUpgradeable
-/// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into vault base units, then into shares; optional per-asset deposit fees route immediately to `depositTreasury`.
+/// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into vault base units, then into shares; optional per-asset deposit fees route immediately to the vault fee treasury (`feeTreasury` / `setFeeTreasury`).
 /// @dev Composes `FeeManagerUpgradeable`; deposit paths pull ERC-20 **before** minting shares. Extend `_deposit` / previews in subclasses if accounting changes.
 abstract contract MultiAssetDepositUpgradeable is
     FeeManagerUpgradeable,
@@ -114,9 +114,7 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             revert VaultDeposit_AssetNotListed(depositAsset);
         }
-        if (address(assetConverter_) == address(0)) {
-            revert Vault_ZeroAddress();
-        }
+        if (address(assetConverter_) == address(0)) revert Vault_ZeroAddress();
         $.converters[depositAsset] = assetConverter_;
         emit DepositAssetConverterSet(depositAsset, address(assetConverter_));
     }
@@ -130,9 +128,8 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             revert VaultDeposit_AssetNotListed(depositAsset);
         }
-        if (depositFeeBps_ >= _BPS_DENOMINATOR) {
-            revert VaultDeposit_FeeBpsTooHigh();
-        }
+        if (depositFeeBps_ >= _BPS_DENOMINATOR)
+            revert VaultDeposit_FeeBpsTooHigh(depositFeeBps_);
         $.depositFeeBps[depositAsset] = depositFeeBps_;
         emit DepositFeeBpsSet(depositAsset, depositFeeBps_);
     }
@@ -142,14 +139,10 @@ abstract contract MultiAssetDepositUpgradeable is
         IAssetConverter assetConverter_,
         uint16 depositFeeBps_
     ) private {
-        if (
-            depositAsset == address(0) || address(assetConverter_) == address(0)
-        ) {
-            revert Vault_ZeroAddress();
-        }
-        if (depositFeeBps_ >= _BPS_DENOMINATOR) {
-            revert VaultDeposit_FeeBpsTooHigh();
-        }
+        if (depositAsset == address(0)) revert Vault_ZeroAddress();
+        if (address(assetConverter_) == address(0)) revert Vault_ZeroAddress();
+        if (depositFeeBps_ >= _BPS_DENOMINATOR)
+            revert VaultDeposit_FeeBpsTooHigh(depositFeeBps_);
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.add(depositAsset)) {
             revert VaultDeposit_AssetAlreadyAdded(depositAsset);
@@ -318,9 +311,8 @@ abstract contract MultiAssetDepositUpgradeable is
         );
         if (fee > 0) {
             address tr = feeTreasury();
-            if (tr == address(0)) {
-                revert VaultDeposit_DepositTreasuryNotSet();
-            }
+            if (tr == address(0))
+                revert VaultDeposit_FeeTreasuryNotSet(depositAsset);
             IERC20(depositAsset).safeTransfer(tr, fee);
             emit DepositFeeTransferred(depositAsset, tr, fee);
         }
@@ -375,9 +367,9 @@ abstract contract MultiAssetDepositUpgradeable is
             $.depositFeeBps[depositAsset],
             assets
         );
-        uint256 btcOut = IAssetConverter($.converters[depositAsset])
+        uint256 assetsOut = IAssetConverter($.converters[depositAsset])
             .toBaseUnits(net, Math.Rounding.Floor);
-        return _convertToShares(btcOut, Math.Rounding.Floor);
+        return _convertToShares(assetsOut, Math.Rounding.Floor);
     }
 
     /// @inheritdoc IMultiAssetDeposit
@@ -392,9 +384,9 @@ abstract contract MultiAssetDepositUpgradeable is
         if (shares == 0) {
             return 0;
         }
-        uint256 btcIn = _convertToAssets(shares, Math.Rounding.Ceil);
+        uint256 assetsIn = _convertToAssets(shares, Math.Rounding.Ceil);
         uint256 net = IAssetConverter($.converters[depositAsset]).fromBaseUnits(
-            btcIn,
+            assetsIn,
             Math.Rounding.Ceil
         );
         uint16 bps = $.depositFeeBps[depositAsset];
@@ -415,11 +407,11 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             return 0;
         }
-        uint256 btcOut = $.converters[depositAsset].toBaseUnits(
+        uint256 assetsOut = $.converters[depositAsset].toBaseUnits(
             assets,
             Math.Rounding.Floor
         );
-        return _convertToShares(btcOut, Math.Rounding.Floor);
+        return _convertToShares(assetsOut, Math.Rounding.Floor);
     }
 
     /// @inheritdoc IMultiAssetDeposit
@@ -431,9 +423,12 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             return 0;
         }
-        uint256 btcIn = _convertToAssets(shares, Math.Rounding.Ceil);
+        uint256 assetsIn = _convertToAssets(shares, Math.Rounding.Ceil);
         return
-            $.converters[depositAsset].fromBaseUnits(btcIn, Math.Rounding.Ceil);
+            $.converters[depositAsset].fromBaseUnits(
+                assetsIn,
+                Math.Rounding.Ceil
+            );
     }
 
     function _splitDepositFeeView(

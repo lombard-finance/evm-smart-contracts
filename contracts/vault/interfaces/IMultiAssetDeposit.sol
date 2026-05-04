@@ -5,7 +5,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @title IMultiAssetDeposit
 /// @notice ERC-165 extension: deposit or mint vault shares against **multiple** listed ERC-20 assets via per-token `IAssetConverter` pricing.
-/// @dev Mirrors EIP-4626 deposit/mint naming; adds `depositAsset` and optional slippage guards (`minSharesOut`, `maxAssetsIn`). Deposit fees transfer immediately to `depositTreasury`.
+/// @dev Adds `depositAsset` and optional slippage guards (`minSharesOut`, `maxAssetsIn`). Deposit fees transfer immediately to the vault fee treasury (`feeTreasury` / `setFeeTreasury` on the concrete vault).
 interface IMultiAssetDeposit is IERC165 {
     /// @notice An admin listed `token` as an accepted deposit asset.
     event DepositAssetAdded(address indexed sender, address indexed token);
@@ -51,15 +51,11 @@ interface IMultiAssetDeposit is IERC165 {
 
     error VaultDeposit_AssetNotListed(address token);
 
-    error VaultDeposit_AssetConverterZero();
+    /// @param bps The fee basis points that failed validation (must be < 10_000).
+    error VaultDeposit_FeeBpsTooHigh(uint16 bps);
 
-    error VaultDeposit_FeeBpsTooHigh();
-
-    error VaultDeposit_DepositTreasuryNotSet();
-
-    error VaultDeposit_SharesPreviewMismatch();
-
-    error VaultDeposit_MintRequiresAssets(address assetToken);
+    /// @param depositAsset Deposit token for which a fee was charged while `feeTreasury` was unset.
+    error VaultDeposit_FeeTreasuryNotSet(address depositAsset);
 
     error VaultDeposit_ExceededMaxDeposit(
         address receiver,

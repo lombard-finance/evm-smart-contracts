@@ -205,7 +205,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     expect(await altDeposit.balanceOf(v)).to.equal(0n);
   });
 
-  it('deposit with non-zero fee reverts if deposit treasury is unset', async function () {
+  it('deposit with non-zero fee reverts if fee treasury is unset', async function () {
     const alt = await altDeposit.getAddress();
     const v = await vault.getAddress();
 
@@ -215,9 +215,9 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.mint(user.address, assets);
     await altDeposit.connect(user).approve(v, assets);
 
-    await expect(
-      vault.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address)
-    ).to.be.revertedWithCustomError(vault, 'VaultDeposit_DepositTreasuryNotSet');
+    await expect(vault.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address))
+      .to.be.revertedWithCustomError(vault, 'VaultDeposit_FeeTreasuryNotSet')
+      .withArgs(alt);
   });
 
   it('deregisterStrategy clears defaultStrategy when it matches', async function () {
@@ -333,7 +333,7 @@ describe('MultiAssetWithAsyncRedemptionVault (happy path)', function () {
     await altDeposit.connect(user).approve(v, depositAmt);
     await vault.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
 
-    await vault.connect(treasury).setPerformanceFeeBps(1000); // 10%
+    await vault.connect(treasury).setPerformanceFeeBps(1000, treasury.address, true); // 10%
 
     // Raise pps +10% via soft post (default bucket has no capacity — drains, applies NAV, pauses).
     const priceManagerRole = await vault.PRICE_MANAGER_ROLE();

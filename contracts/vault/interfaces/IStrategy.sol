@@ -23,6 +23,9 @@ interface IStrategy {
         bytes data
     );
 
+    /// @notice Plain ETH accepted in the strategy's `receive` (pre-funding for `exec`).
+    event EthReceived(address indexed from, uint256 amount);
+
     /// @notice The Merkle or other policy validator contract was replaced by admin.
     event ValidatorUpdated(
         IStrategyExecValidator indexed oldValidator,

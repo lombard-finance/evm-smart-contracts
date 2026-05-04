@@ -11,7 +11,7 @@ contract DirectConverter is IAssetConverter {
     /// @inheritdoc IAssetConverter
     function toBaseUnits(
         uint256 tokenAmount,
-        Math.Rounding
+        Math.Rounding /* rounding */
     ) external pure override returns (uint256) {
         return tokenAmount;
     }
@@ -19,7 +19,7 @@ contract DirectConverter is IAssetConverter {
     /// @inheritdoc IAssetConverter
     function fromBaseUnits(
         uint256 baseUnits,
-        Math.Rounding
+        Math.Rounding /* rounding */
     ) external pure override returns (uint256) {
         return baseUnits;
     }

@@ -11,6 +11,7 @@ import {IStrategy} from "../interfaces/IStrategy.sol";
 /// @notice Shared validator-gated `exec` for Strategy and SatelliteStrategy.
 /// @dev Validator lives in ERC-7201 namespaced storage (`StrategyBaseStorage`); one implementation
 /// can serve many BeaconProxy instances. Values are set once in `initializer` and never changed.
+/// Plain ETH may be received via {receive} to build balance for `exec` forwards; `msg.value` on `exec` also credits the contract.
 abstract contract StrategyBaseUpgradeable is
     IStrategy,
     AccessControlUpgradeable,
@@ -46,6 +47,8 @@ abstract contract StrategyBaseUpgradeable is
     /// @notice Validator-governed external call.
     /// @param validatorArgs Encoding is defined by the configured `IStrategyExecValidator` (e.g. Merkle `CallVerificationInput`).
     /// @dev ETH: requires `address(this).balance >= value` after receiving `msg.value`.
+    ///      `to == address(this)` is allowed by design: calldata may invoke this contract (e.g. `AccessControl.grantRole`),
+    ///      so policy / the validator MUST explicitly allow or deny self-targeted calls (“self-grant roles” surface).
     function exec(
         address to,
         uint256 value,
@@ -78,6 +81,7 @@ abstract contract StrategyBaseUpgradeable is
 
     /// @notice Validator-bypassing external call for privileged executors (`PRIVILEGED_EXECUTOR_ROLE`).
     /// @dev Skips `IStrategyExecValidator`; all other safety checks (reentrancy, ETH balance) still apply.
+    ///      As with the gated overload, `to == address(this)` is valid (e.g. roles on this contract); trusted executors only.
     function exec(
         address to,
         uint256 value,
@@ -98,6 +102,11 @@ abstract contract StrategyBaseUpgradeable is
 
         emit Executed(_msgSender(), to, value, data);
         return returndata;
+    }
+
+    /// @notice Accepts plain ETH transfers (no calldata) so the strategy balance can be pre-funded for `exec`.
+    receive() external payable {
+        emit EthReceived(msg.sender, msg.value);
     }
 
     /// @dev Shared initializer fragment; call from concrete `initialize`.

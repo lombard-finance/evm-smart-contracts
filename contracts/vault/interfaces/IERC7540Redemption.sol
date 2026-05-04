@@ -3,8 +3,11 @@ pragma solidity 0.8.24;
 
 /// @title IERC7540Redemption
 /// @notice Asynchronous redemption + operator surface from [ERC-7540](https://eips.ethereum.org/EIPS/eip-7540), optional controller-manager registration for redeem controllers, and implementation errors.
-/// @dev Claim settlement is implementation-defined (this implementation disables ERC-4626 `withdraw` / `redeem`; use the separated payment flow). ERC-165:
-/// `0x620ee8e4` — async redemption; `0xe3bc4e65` — operator methods (required when ERC-7575 is not implemented).
+/// @dev Claim settlement is implementation-defined (this implementation disables ERC-4626 `withdraw` / `redeem`; use the separated payment flow).
+///
+///      ERC-165 interface IDs for [ERC-7540](https://eips.ethereum.org/EIPS/eip-7540) / [ERC-7575](https://eips.ethereum.org/EIPS/eip-7575) compliance: both are mandatory companion
+///      interfaces on async ERC-4626-style vaults — `0x620ee8e4` (ERC-7540 asynchronous redemption) and
+///      `0xe3bc4e65` (ERC-7575 operator methods). A conforming implementation MUST expose both IDs via ERC-165.
 interface IERC7540Redemption {
     /// @dev Emitted when `requestRedeem` is called (EIP-7540).
     event RedeemRequested(
@@ -21,12 +24,6 @@ interface IERC7540Redemption {
         address indexed operator,
         bool approved
     );
-
-    /// @notice Emitted when `controller` may again receive new redeem requests (`acceptsRedeemRequests` becomes true).
-    event RedeemRequestsAllowed(address indexed controller);
-
-    /// @notice Emitted when `controller` stops accepting new redeem requests (pending may remain).
-    event RedeemRequestsStopped(address indexed controller);
 
     /// @notice Emitted when `controller` is removed from the tracked controller set (`controllers`).
     event RedeemControllerRemoved(address indexed controller);
@@ -87,22 +84,14 @@ interface IERC7540Redemption {
     /// @notice Fee shares sent to treasury on a redemption request.
     event WithdrawalFeeCharged(address indexed treasury, uint256 feeShares);
 
-    error ERC7540_WithdrawalFeeBpsTooHigh();
-
-    error ERC7540_PreviewDisabled();
-
-    /// @notice ERC-4626 `withdraw` / `redeem` are disabled; claim settled via a separate payment entrypoint.
-    error ERC7540_ERC4626ClaimDisabled();
+    /// @param bps The withdrawal fee rate that failed validation (must be < 10_000).
+    error ERC7540_WithdrawalFeeBpsTooHigh(uint16 bps);
 
     error ERC7540_UnauthorizedClaimCaller(
         address caller,
         address controller,
         uint256 requestId
     );
-
-    error ERC7540_RedeemRequestsAlreadyAllowed(address controller);
-
-    error ERC7540_RedeemRequestsAlreadyStopped(address controller);
 
     error ERC7540_RedeemControllerNotTracked(address controller);
 

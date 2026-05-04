@@ -39,13 +39,11 @@ describe('BeaconHub', function () {
     strategyImpl = (await stratFactory.deploy()) as unknown as Strategy;
     await strategyImpl.waitForDeployment();
 
-    // Deploy UpgradeableBeacon pointing to strategy implementation
-    const beaconFactory = await ethers.getContractFactory('UpgradeableBeacon');
-    beacon = (await beaconFactory.deploy(
-      await strategyImpl.getAddress(),
-      admin.address
-    )) as unknown as UpgradeableBeacon;
-    await beacon.waitForDeployment();
+    beacon = await deployContract<UpgradeableBeacon>(
+      'UpgradeableBeacon',
+      [await strategyImpl.getAddress(), admin.address],
+      false
+    );
 
     // Deploy validator for initData tests
     const valFactory = await ethers.getContractFactory('MerkleAllowlistValidator');
