@@ -58,6 +58,7 @@ function main() {
   const { tree, encoded } = buildTree(rules, ds);
 
   if (mode === 'build') {
+    console.log('Rulest path:', rulesetPath);
     console.log('Domain separator:', ds);
     console.log('Rules processed: ', Object.keys(rules).join(', '));
     console.log('Merkle root:     ', tree.root);
