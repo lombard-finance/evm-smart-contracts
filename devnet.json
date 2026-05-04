@@ -36,10 +36,12 @@
       "AssetRouter": "0x76329dd2d888424fD203C354498E6d3d4bdEac22",
       "StakedLBTCOracle": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1",
-      "BeaconHub": "0x80E706B4ddD8CF5A053fA0137172005c15688102"
+      "BeaconHub": "0x80E706B4ddD8CF5A053fA0137172005c15688102",
+      "MultiAssetWithAsyncRedemptionVault_beacon": "",
+      "SatelliteStrategy_beacon": "0x3B3746ca197E9f50e72909e7019c4545EB902CAa"
     },
     "vaults": {
-      "MultiAssetWithAsyncRedemptionVault_1": ""
+      "SatelliteStrategy_1": "0x8363862D5C002C70ef54C72c337EDcc576f81165"
     },
     "chainlink": {
       "ChainSelector": "16015286601757825753",
@@ -101,7 +103,12 @@
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
-      "PoR": "0xD4BF82406b2E33bE3013881DFbf17A763046517a"
+      "PoR": "0xD4BF82406b2E33bE3013881DFbf17A763046517a",
+      "BeaconHub": "0x80E706B4ddD8CF5A053fA0137172005c15688102",
+      "SatelliteStrategy_beacon": "0x0606690DfA2BAbB0070D854c05a1841be5AD663a"
+    },
+    "vaults": {
+      "SatelliteStrategy_test1": "0xe1F99A9b8e518c9A50858Fd7735E9DC4C15f810a"
     },
     "BTCB": {
       "BTCB": "0xdd48f288874c7226603cCC98cab0661b3bd5721A",

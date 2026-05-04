@@ -30,3 +30,4 @@ export * from './beacon-hub';
 export * from './beacon';
 export * from './multi-asset-vault';
 export * from './merkle-allowlist-validator';
+export * from './satellite-strategy';
