@@ -352,4 +352,12 @@ abstract contract VaultBaseUpgradeable is
         $.vaultPaused = false;
         emit VaultOperationsUnpaused(_msgSender());
     }
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
 }

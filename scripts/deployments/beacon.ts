@@ -45,7 +45,9 @@ task(
         console.log('Raw transaction:\n', JSON.stringify(txData, null, 2));
       } else {
         await (await hub.setBeacon(beaconId, beaconAddr)).wait();
-        console.log(`Beacon registered in BeaconHub: id=${beaconId} (keccak256("${contractName}")) beacon=${beaconAddr}`);
+        console.log(
+          `Beacon registered in BeaconHub: id=${beaconId} (keccak256("${contractName}")) beacon=${beaconAddr}`
+        );
       }
     }
   });
