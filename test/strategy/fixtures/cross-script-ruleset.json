@@ -12,5 +12,42 @@
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "selector": "approve(address,uint256)",
     "constraints": []
+  },
+  "allow_transfer_hex_selector": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "0xa9059cbb",
+    "constraints": []
+  },
+  "allow_approve_hex_selector": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "0x095ea7b3",
+    "constraints": []
+  },
+  "allow_transfer_hex_with_constraints": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "0xa9059cbb",
+    "constraints": [
+      {
+        "offset": 0,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x0000000000000000000000007C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+      },
+      {
+        "offset": 32,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+      }
+    ]
+  },
+  "allow_approve_hex_with_constraints": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "0x095ea7b3",
+    "constraints": [
+      {
+        "offset": 0,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x0000000000000000000000007C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+      }
+    ]
   }
 }
