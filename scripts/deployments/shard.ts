@@ -15,27 +15,27 @@ import { getOwnersOrDefault, verify } from '../helpers';
 
 task('deploy-shard', 'Deploys a Shard BeaconProxy via BeaconHub')
   .addParam('beaconHub', 'BeaconHub address')
-  .addParam('lombardStrategy', 'IStrategy (share token) address')
+  .addParam('strategy', 'IStrategy (share token) address')
   .addParam('validator', 'IShardExecValidator address (e.g. MerkleAllowlistValidator)')
-  .addParam('defaultAdmin', 'Receives DEFAULT_ADMIN_ROLE', 'self')
+  .addParam('admin', 'Receives DEFAULT_ADMIN_ROLE', 'self')
   .addParam('liquidityRoleHolder', 'Receives STRATEGY_TOKEN_LIQUIDITY_ROLE', 'self')
   .setAction(async (taskArgs, hre) => {
     const {
       beaconHub: beaconHubAddr,
-      lombardStrategy: strategyAddr,
+      strategy: strategyAddr,
       validator: validatorAddr,
-      defaultAdmin: defaultAdminArg,
+      admin,
       liquidityRoleHolder: liquidityArg
     } = taskArgs;
 
-    const { owner: defaultAdmin } = await getOwnersOrDefault(hre, defaultAdminArg, defaultAdminArg);
+    const { owner } = await getOwnersOrDefault(hre, admin, admin);
     const { owner: liquidityRoleHolder } = await getOwnersOrDefault(hre, liquidityArg, liquidityArg);
 
     const shard = await hre.ethers.getContractFactory('Shard');
     const initData = shard.interface.encodeFunctionData('initialize', [
       strategyAddr,
       validatorAddr,
-      defaultAdmin,
+      owner,
       liquidityRoleHolder
     ]);
 
