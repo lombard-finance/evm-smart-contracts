@@ -73,7 +73,7 @@ describe('Shard & RemoteShard', function () {
     remoteShard = remoteFactory.attach(await remoteProxy.getAddress()) as unknown as RemoteShard;
     await remoteShard.connect(admin).grantRole(await remoteShard.PRIVILEGED_EXECUTOR_ROLE(), executor.address);
 
-    strategyToken = await deployContract<TokenMock>('TokenMock', ['Strategy Token', 'STK'], false);
+    strategyToken = await deployContract<TokenMock>('TokenMock', ['Strategy Token', 'STK', 18], false);
 
     const mockStrategyFactory = await ethers.getContractFactory('MockStrategyForShard');
     mockStrategy = (await mockStrategyFactory.deploy()) as unknown as MockStrategyForShard;

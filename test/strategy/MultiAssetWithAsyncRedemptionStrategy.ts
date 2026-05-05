@@ -32,8 +32,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   before(async function () {
     [admin, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
 
-    underlying = await deployContract<TokenMock>('TokenMock', ['Underlying', 'UND'], false);
-    altDeposit = await deployContract<TokenMock>('TokenMock', ['Alt Deposit', 'ALT'], false);
+    underlying = await deployContract<TokenMock>('TokenMock', ['Underlying', 'UND', 18], false);
+    altDeposit = await deployContract<TokenMock>('TokenMock', ['Alt Deposit', 'ALT', 18], false);
 
     const convFactory = await ethers.getContractFactory('DirectConverter');
     converter = (await convFactory.deploy()) as DirectConverter;
