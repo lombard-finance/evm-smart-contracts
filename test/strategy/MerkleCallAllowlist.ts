@@ -5,10 +5,8 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import { expect } from 'chai';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import { BasculeV3, ERC20, ERC20__factory, MerkleAllowlistValidator, StakedLBTC } from '../../typechain-types';
-import { Addressable, deployContract, e18, randomBigInt } from '../helpers';
-import { factory } from '../../typechain-types/contracts';
-import { BytesLike } from 'ethers/lib.commonjs/utils/data';
+import { ERC20__factory, MerkleAllowlistValidator } from '../../typechain-types';
+import { e18, randomBigInt } from '../helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
@@ -176,7 +174,7 @@ describe('MerkleAllowlistValidator', function () {
     const tree = await treeWithRule(c, rule);
     await c.setAllowlistRoot(tree.root);
     const ds = await c.domainSeparator();
-    const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
+    const proof = tree.getProof([0n, ds, ethers.getBytes(rule)] as [bigint, string, Uint8Array]);
 
     expect(
       await merkleIsAllowed(c, await other.getAddress(), target, 2n, '0x', {
@@ -205,7 +203,7 @@ describe('MerkleAllowlistValidator', function () {
     const tree = await treeWithRule(c, rule);
     await c.setAllowlistRoot(tree.root);
     const ds = await c.domainSeparator();
-    const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
+    const proof = tree.getProof([0n, ds, ethers.getBytes(rule)] as [bigint, string, Uint8Array]);
 
     expect(
       await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0x010203', {
@@ -681,7 +679,6 @@ describe('MerkleAllowlistValidator', function () {
         callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
         allowed: true
       },
-
       {
         name: 'transfer token and native - invalid sender',
         func: 'transfer_token_and_native',
