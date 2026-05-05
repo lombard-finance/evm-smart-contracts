@@ -115,7 +115,10 @@
       {
         "name": "BTC.b Test Vault'",
         "asset": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
-        "strategy": "0x85EE901Ea45Cd9864a58A74A44EbE389F085cE7d"
+        "strategy": "0x85EE901Ea45Cd9864a58A74A44EbE389F085cE7d",
+        "remotes": {
+          "sepolia": "0xD895761ddC77A4cc6A5665E9FE33ba621b6EB94F"
+        }
       }
     ],
     "mocks": {

@@ -31,5 +31,4 @@ export * from './beacon-hub';
 export * from './beacon';
 export * from './multi-asset-strategy';
 export * from './merkle-allowlist-validator';
-export * from './remote-shard';
 export * from './shard';
