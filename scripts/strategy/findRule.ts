@@ -35,6 +35,8 @@ import {
   computeDomainSeparator,
   buildTree,
   parseArgs,
+  packRuleSelector,
+  packedSelectorToBytes4,
   require_arg,
   resolveRulesetFromArgs
 } from './merkleUtils';
@@ -58,8 +60,16 @@ function txMatchesRule(rule: RuleJson, calldataHex: string, value: bigint, to: s
   if (rule.dataLength !== undefined && data.length !== Number(rule.dataLength)) return false;
   if (rule.value !== undefined && rule.value !== '' && BigInt(rule.value) !== value) return false;
 
+  if (rule.selector !== undefined && rule.selector.trim() !== '') {
+    if (data.length < 4) return false;
+    const want = packedSelectorToBytes4(packRuleSelector(rule.selector)).toLowerCase();
+    const got = ethers.hexlify(data.slice(0, 4)).toLowerCase();
+    if (got !== want) return false;
+  }
+
+  const argBase = 4;
   for (const c of rule.constraints ?? []) {
-    if ((readWord(data, c.offset) & BigInt(c.mask)) !== BigInt(c.expected)) return false;
+    if ((readWord(data, argBase + c.offset) & BigInt(c.mask)) !== BigInt(c.expected)) return false;
   }
 
   return true;

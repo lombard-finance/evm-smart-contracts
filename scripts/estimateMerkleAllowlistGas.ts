@@ -4,19 +4,23 @@
  */
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import { packRuleSelector, packedSelectorToBytes4 } from './strategy/merkleUtils';
 
 function encodeMerkleRule(p: {
   flags: number;
+  selector?: string;
   sender: string;
   to: string;
   value: bigint;
   dataLength: number;
   constraints: { offset: number; mask: string; expected: string }[];
 }): string {
-  const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
+  const selectorHex = packedSelectorToBytes4(packRuleSelector(p.selector));
+  const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
     0x01,
     p.flags,
+    selectorHex,
     p.sender,
     p.to,
     p.value,
@@ -126,7 +130,7 @@ async function main() {
   const constraintsMax = [];
   for (let i = 0; i < nMax; i++) {
     constraintsMax.push({
-      offset: 4 + 32 * i,
+      offset: 32 * i,
       mask: fullMask,
       expected: ethers.ZeroHash
     });
@@ -186,12 +190,12 @@ async function main() {
     dataSpan
   );
 
-  // Constraints: 1, 4, 16 (offsets 4, 36, 68, 100 ...)
+  // Constraints: arg-relative offsets 0, 32, 64, ...
   for (const n of [1, 4, 16]) {
     const constraints = [];
     for (let i = 0; i < n; i++) {
       constraints.push({
-        offset: 4 + 32 * i,
+        offset: 32 * i,
         mask: fullMask,
         expected: ethers.ZeroHash
       });

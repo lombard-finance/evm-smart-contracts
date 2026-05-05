@@ -23,29 +23,35 @@ contract MerkleAllowlistValidator is
     uint8 public constant RULE_VERSION = 0x01;
 
     /// @dev Byte size of the fixed rule header before the constraints array.
-    /// Layout: version(1) + flags(1) + sender(20) + to(20) + value(32) + dataLength(4) + constraintCount(2) = 80
-    uint256 private constant _RULE_HEADER_SIZE = 80;
+    /// Layout: version(1) + flags(1) + selector(4) + sender(20) + to(20) + value(32)
+    ///         + dataLength(4) + constraintCount(2) = 84
+    uint256 private constant _RULE_HEADER_SIZE = 84;
 
     /// @notice Per-constraint byte size: calldataOffset(2) + mask(32) + expected(32) = 66.
     /// Use this to validate the total length of an encoded rule:
+    /// Constraint offsets are relative to calldata after the function selector (`data[_SELECTOR_LENGTH:]`).
     /// `ruleEncoded.length == _RULE_HEADER_SIZE + CONSTRAINT_SIZE * constraintCount`
     uint256 public constant CONSTRAINT_SIZE = 66;
+    /// @dev Length of the EVM call selector prefix; constraints index into the bytes that follow.
+    uint256 private constant _SELECTOR_LENGTH = 4;
     uint256 private constant _CONSTRAINT_OFFSET_MASK = 2;
     uint256 private constant _CONSTRAINT_OFFSET_EXPECTED = 34;
 
-    // Rule header field byte offsets
-    uint256 private constant _RULE_OFFSET_SENDER = 2;
-    uint256 private constant _RULE_OFFSET_TO = 22;
-    uint256 private constant _RULE_OFFSET_VALUE = 42;
-    uint256 private constant _RULE_OFFSET_DATA_LENGTH = 74;
-    uint256 private constant _RULE_OFFSET_CONSTRAINT_COUNT = 78;
+    // Rule header field byte offsets (selector @ 2 follows flags @ 1)
+    uint256 private constant _RULE_OFFSET_SELECTOR = 2;
+    uint256 private constant _RULE_OFFSET_SENDER = 6;
+    uint256 private constant _RULE_OFFSET_TO = 26;
+    uint256 private constant _RULE_OFFSET_VALUE = 46;
+    uint256 private constant _RULE_OFFSET_DATA_LENGTH = 78;
+    uint256 private constant _RULE_OFFSET_CONSTRAINT_COUNT = 82;
 
     // Flag bits (r[1]) — set the corresponding bit to pin that field to the value in the rule.
     uint8 public constant FLAG_SENDER = 0x01;
     uint8 public constant FLAG_TO = 0x02;
     uint8 public constant FLAG_VALUE = 0x04;
     uint8 public constant FLAG_DATA_LENGTH = 0x08;
-    uint8 private constant _FLAGS_RESERVED = 0xF0;
+    uint8 public constant FLAG_SELECTOR = 0x10;
+    uint8 private constant _FLAGS_RESERVED = 0xE0;
 
     // Domain separator
     // keccak256(abi.encodePacked(DOMAIN_MAGIC, DOMAIN_LAYOUT_VERSION, block.chainid, address(this)))
@@ -209,6 +215,10 @@ contract MerkleAllowlistValidator is
     /// @dev Parsed rule header fields, shared between canonical and match checks.
     struct RuleHeader {
         uint8 flags;
+        /// @dev Required calldata prefix when `FLAG_SELECTOR` is set (`bytes4(data[0:4])`).
+        /// May be `bytes4(0)` — that bit-pattern can occur as `bytes4(keccak256(signature))`.
+        /// When `FLAG_SELECTOR` is clear (wildcard), canonical encoding requires this slot to be zero.
+        bytes4 selector;
         address sender;
         address to;
         uint256 value;
@@ -220,6 +230,7 @@ contract MerkleAllowlistValidator is
         bytes calldata r
     ) private pure returns (RuleHeader memory h) {
         h.flags = uint8(r[1]);
+        h.selector = _readBytes4(r, _RULE_OFFSET_SELECTOR);
         h.sender = _readAddress(r, _RULE_OFFSET_SENDER);
         h.to = _readAddress(r, _RULE_OFFSET_TO);
         h.value = _readUint256(r, _RULE_OFFSET_VALUE);
@@ -262,6 +273,9 @@ contract MerkleAllowlistValidator is
             return false;
         }
         if ((h.flags & FLAG_DATA_LENGTH) == 0 && h.dataLength != 0) {
+            return false;
+        }
+        if ((h.flags & FLAG_SELECTOR) == 0 && h.selector != bytes4(0)) {
             return false;
         }
 
@@ -330,6 +344,16 @@ contract MerkleAllowlistValidator is
             return false;
         }
 
+        if ((h.flags & FLAG_SELECTOR) != 0) {
+            if (data.length < _SELECTOR_LENGTH) {
+                return false;
+            }
+            bytes4 callSel = bytes4(_wordAt(data, 0));
+            if (callSel != h.selector) {
+                return false;
+            }
+        }
+
         return _constraintsMatchCalldata(r, h.cCount, data);
     }
 
@@ -346,7 +370,10 @@ contract MerkleAllowlistValidator is
                 r,
                 base + _CONSTRAINT_OFFSET_EXPECTED
             );
-            if ((_wordAt(data, uint256(cOff)) & mask) != expected) {
+            if (
+                (_wordAt(data, uint256(cOff) + _SELECTOR_LENGTH) & mask) !=
+                expected
+            ) {
                 return false;
             }
             unchecked {
@@ -355,6 +382,17 @@ contract MerkleAllowlistValidator is
             }
         }
         return true;
+    }
+
+    function _readBytes4(
+        bytes calldata r,
+        uint256 s
+    ) private pure returns (bytes4 v) {
+        bytes32 w;
+        assembly {
+            w := calldataload(add(r.offset, s))
+        }
+        v = bytes4(w);
     }
 
     function _readAddress(
