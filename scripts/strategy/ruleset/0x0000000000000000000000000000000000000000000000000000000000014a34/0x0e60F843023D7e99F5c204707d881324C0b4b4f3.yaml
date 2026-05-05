@@ -1,0 +1,39 @@
+# Shard: 0xd895761ddc77a4cc6a5665e9fe33ba621b6eb94f
+usdc_approve_aave:
+  sender: "0x8150532B41bf7f992B58C531432399dD9640cb28"
+  to: "0x0a215d8ba66387dca84b284d18c3b4ec3de6e54a"
+  value: "0"
+  dataLength: 68
+  constraints:
+    - offset: 0
+      mask: "0xffffffff00000000000000000000000000000000000000000000000000000000"
+      expected: "0x095ea7b300000000000000000000000000000000000000000000000000000000"
+    - offset: 4
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008bab6d1b75f19e9ed9fce8b9bd338844ff79ae27"
+
+aave_supply_any:
+  sender: "0x8150532B41bf7f992B58C531432399dD9640cb28"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 132
+  constraints:
+    - offset: 0
+      mask: "0xffffffff00000000000000000000000000000000000000000000000000000000"
+      expected: "0x617ba03700000000000000000000000000000000000000000000000000000000"
+    - offset: 68
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000d895761ddc77a4cc6a5665e9fe33ba621b6eb94f"
+
+aave_borrow_any:
+  sender: "0x8150532B41bf7f992B58C531432399dD9640cb28"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 164
+  constraints:
+    - offset: 0
+      mask: "0xffffffff00000000000000000000000000000000000000000000000000000000"
+      expected: "0xa415bcad00000000000000000000000000000000000000000000000000000000"
+    - offset: 132
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000d895761ddc77a4cc6a5665e9fe33ba621b6eb94f"
