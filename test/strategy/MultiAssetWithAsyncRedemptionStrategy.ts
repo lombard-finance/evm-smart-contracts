@@ -4,6 +4,7 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
 import { calculateStorageSlot, deployContract, getSignersWithPrivateKeys, Signer } from '../helpers';
 import type {
+  ChainlinkCompositeConverter,
   ChainlinkConverter,
   ChainlinkFeedMock,
   DirectConverter,
@@ -684,7 +685,8 @@ describe('Chainlink as deposit token', function () {
       8,
       HEARTBEAT,
       ethers.ZeroAddress,
-      0
+      0,
+      false
     )) as ChainlinkConverter;
     await clConverter.waitForDeployment();
 
@@ -727,7 +729,8 @@ describe('Chainlink as deposit token', function () {
         8,
         HEARTBEAT,
         ethers.ZeroAddress,
-        0
+        0,
+        false
       )) as ChainlinkConverter;
       await conv18.waitForDeployment();
 
@@ -798,7 +801,8 @@ describe('Chainlink as deposit token', function () {
           8,
           HEARTBEAT,
           await seqFeed.getAddress(),
-          GRACE_PERIOD
+          GRACE_PERIOD,
+          false
         )) as ChainlinkConverter;
         await seqConverter.waitForDeployment();
       });
@@ -836,6 +840,215 @@ describe('Chainlink as deposit token', function () {
         // clConverter has sequencerUptimeFeed = address(0); should still work regardless
         expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
+    });
+  });
+
+  describe('ChainlinkConverter (inverted)', function () {
+    const ONE_BTC = 10n ** 8n;
+    const HEARTBEAT = 3600n;
+
+    it('peg (answer=1e8, 8-dec feed): inverted 8/8/8 token-per-base is 1:1', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const inv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await inv.waitForDeployment();
+      expect(await inv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+      expect(await inv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+    });
+
+    it('USDC (6 dec) / BTC (8 dec) via 8-dec BTC/USD-style feed', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const price = 100_000n * ONE_BTC; // 100k USD per 1 BTC
+      const usdFeed = (await feedFactory.deploy(8, price)) as ChainlinkFeedMock;
+      await usdFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const conv = (await convFactory.deploy(
+        await usdFeed.getAddress(),
+        6,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+      const usdcIn = 100_000n * 10n ** 6n;
+      expect(await conv.toBaseUnits(usdcIn, 0)).to.equal(ONE_BTC);
+      expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(usdcIn);
+    });
+
+    it('inverted: decimals underflow when feedDec + baseDec < tokenDec', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      await expect(
+        convFactory.deploy(await invFeed.getAddress(), 18, 8, HEARTBEAT, ethers.ZeroAddress, 0, true)
+      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverter_DecimalsUnderflow');
+    });
+
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) >= x and diff <= 1 token wei (inverted)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const invConv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await invConv.waitForDeployment();
+
+      // Inverted uses mulDiv(token, SF, answer); keep answer <= SF so rounding matches forward-style bounds.
+      const answers = [(ONE_BTC * 95n) / 100n, (ONE_BTC * 99n) / 100n, ONE_BTC];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+
+      for (const answer of answers) {
+        await invFeed.setAnswer(answer);
+        for (const amt of amounts) {
+          const btcOut = await invConv.toBaseUnits(amt, 0);
+          const tokenOut = await invConv.fromBaseUnits(btcOut, 1);
+          expect(tokenOut).to.be.gte(amt);
+          expect(tokenOut - amt).to.be.lte(1n);
+        }
+      }
+    });
+  });
+
+  describe('ChainlinkCompositeConverter', function () {
+    const ONE_BTC = 10n ** 8n;
+    const HEARTBEAT = 3600n;
+
+    it('peg (both answers 1e8, 8-dec feeds, 8/8): toBaseUnits and fromBaseUnits are 1:1', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const feedNum = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      expect(await conv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+      expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+    });
+
+    it('ETH/USD ÷ BTC/USD style cross: 1 ETH wei → expected satoshi', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // USD per ETH = 2500 (8-dec), USD per BTC = 50_000 (8-dec) → 0.05 BTC per ETH
+      const ethUsd = (await feedFactory.deploy(8, 2500n * ONE_BTC)) as ChainlinkFeedMock;
+      const btcUsd = (await feedFactory.deploy(8, 50_000n * ONE_BTC)) as ChainlinkFeedMock;
+      await ethUsd.waitForDeployment();
+      await btcUsd.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await ethUsd.getAddress(),
+        await btcUsd.getAddress(),
+        18,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const oneEth = 10n ** 18n;
+      const expectedSat = (oneEth * 2500n * ONE_BTC) / (50_000n * ONE_BTC) / 10n ** 10n; // 5e6
+      expect(expectedSat).to.equal(5n * 10n ** 6n);
+      expect(await conv.toBaseUnits(oneEth, 0)).to.equal(expectedSat);
+      expect(await conv.fromBaseUnits(expectedSat, 1)).to.equal(oneEth);
+    });
+
+    it('stale numerator feed reverts', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const feedNum = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const block = await ethers.provider.getBlock('latest');
+      await feedNum.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
+      await expect(conv.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
+        conv,
+        'ChainlinkCompositeConverter_StaleAnswer'
+      );
+    });
+
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) within 2 token wei (dual mulDiv)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const feedNum = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const numAnswers = [(ONE_BTC * 95n) / 100n, ONE_BTC, (ONE_BTC * 101n) / 100n];
+      const denAnswers = [(ONE_BTC * 98n) / 100n, ONE_BTC + ONE_BTC / 10n, ONE_BTC];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+
+      for (const n of numAnswers) {
+        for (const d of denAnswers) {
+          await feedNum.setAnswer(n);
+          await feedDen.setAnswer(d);
+          for (const amt of amounts) {
+            const btcOut = await conv.toBaseUnits(amt, 0);
+            const tokenOut = await conv.fromBaseUnits(btcOut, 1);
+            const diff = tokenOut >= amt ? tokenOut - amt : amt - tokenOut;
+            expect(diff).to.be.lte(2n);
+          }
+        }
+      }
     });
   });
 
