@@ -37,7 +37,7 @@ function encodeMerkleRule(p: {
 async function main() {
   const [deployer, user] = await ethers.getSigners();
   const f = await ethers.getContractFactory('MerkleAllowlistValidator');
-  const c = await f.deploy();
+  const c = await f.deploy(deployer.address);
   await c.waitForDeployment();
   const target = await user.getAddress();
 
@@ -54,7 +54,7 @@ async function main() {
   ) {
     const input = { ruleEncoded: rule, merkleProof: proof };
     const dataLen = ethers.dataLength(data);
-    const gas = await c.isAllowed.estimateGas(sender, to, value, data, input);
+    const gas = await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'].estimateGas(sender, to, value, data, input);
     console.log(`${label}: ${gas.toString()} gas (data length ${dataLen} bytes)`);
   }
 
@@ -215,6 +215,48 @@ async function main() {
     const data = ('0x' + '00'.repeat(dataLen)) as `0x${string}`;
     await bench(`isAllowed (success, ${n} constraints)`, ruleC, proofC, ethers.ZeroAddress, target, 0n, data);
   }
+
+  // Real-world: ERC20 transfer to a fixed recipient, any amount.
+  // Constraint 0 pins the selector via mask 0xffffffff... at offset 0;
+  // constraint 1 pins the recipient (32-byte left-padded) at offset 4.
+  const transferRecipient = '0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce';
+  const transferSender = '0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892';
+  const transferTo = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+  const ruleTransfer = encodeMerkleRule({
+    flags: 0x0f,
+    sender: transferSender,
+    to: transferTo,
+    value: 0n,
+    dataLength: 68,
+    selector: 'transfer(address,uint256)',
+    constraints: [
+      {
+        offset: 0,
+        mask: fullMask,
+        expected: ethers.zeroPadValue(transferRecipient, 32)
+      }
+    ]
+  });
+  const treeTransfer = StandardMerkleTree.of(
+    [[0, ds, ethers.getBytes(ruleTransfer)]],
+    ['uint8', 'bytes32', 'bytes']
+  );
+  await c.setAllowlistRoot(treeTransfer.root);
+  const proofTransfer = treeTransfer.getProof([0, ds, ethers.getBytes(ruleTransfer)] as [number, string, Uint8Array]);
+  const transferData = ethers.concat([
+    '0xa9059cbb',
+    ethers.zeroPadValue(transferRecipient, 32),
+    ethers.zeroPadValue('0x0de0b6b3a7640000', 32) // arbitrary amount: 1e18
+  ]);
+  await bench(
+    'isAllowed (transfer_token_any_amount: ERC20 transfer, fixed recipient)',
+    ruleTransfer,
+    proofTransfer,
+    transferSender,
+    transferTo,
+    0n,
+    transferData
+  );
 
   const gasSet = await c.setAllowlistRoot.estimateGas(tree1.root);
   console.log(`setAllowlistRoot (same root update): ${gasSet.toString()} gas`);
