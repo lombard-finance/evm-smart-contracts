@@ -1,10 +1,15 @@
+import hardhat from 'hardhat';
+const { ethers } = hardhat;
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import type { MerkleAllowlistValidator } from '../../typechain-types';
-import rulesJson from '../../scripts/vault/ruleset/test.json';
+import { BasculeV3, ERC20, ERC20__factory, MerkleAllowlistValidator, StakedLBTC } from '../../typechain-types';
+import { Addressable, deployContract, e18, randomBigInt } from '../helpers';
+import { factory } from '../../typechain-types/contracts';
+import { BytesLike } from 'ethers/lib.commonjs/utils/data';
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
 async function merkleIsAllowed(
@@ -55,16 +60,19 @@ export function encodeMerkleRule(p: {
 function treeWithRule(contract: MerkleAllowlistValidator, ruleHex: string) {
   return (async () => {
     const ds = await contract.domainSeparator();
-    const row: [number, string, Uint8Array] = [0, ds, ethers.getBytes(ruleHex)];
+    const leafType = await contract.LEAF_TYPE();
+    const row: [bigint, string, Uint8Array] = [leafType, ds, ethers.getBytes(ruleHex)];
     return StandardMerkleTree.of([row], ['uint8', 'bytes32', 'bytes']);
   })();
 }
 
 describe('MerkleAllowlistValidator', function () {
   let c: MerkleAllowlistValidator;
+  let owner: HardhatEthersSigner;
+  let signer: HardhatEthersSigner;
 
   beforeEach(async function () {
-    const [owner] = await ethers.getSigners();
+    [owner, signer] = await ethers.getSigners();
     const f = await ethers.getContractFactory('MerkleAllowlistValidator');
     c = (await f.deploy(owner.address)) as MerkleAllowlistValidator;
     await c.waitForDeployment();
@@ -90,7 +98,7 @@ describe('MerkleAllowlistValidator', function () {
     });
     const tree = await treeWithRule(c, rule);
     const ds = await c.domainSeparator();
-    const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
+    const proof = tree.getProof([0n, ds, ethers.getBytes(rule)] as [bigint, string, Uint8Array]);
     expect(await c.allowlistRoot()).to.equal(ethers.ZeroHash);
     expect(
       await merkleIsAllowed(c, ethers.ZeroAddress, await c.getAddress(), 0n, '0xabcd', {
@@ -117,7 +125,9 @@ describe('MerkleAllowlistValidator', function () {
     await c.setAllowlistRoot(tree.root);
 
     const ds = await c.domainSeparator();
-    const proof = tree.getProof([0, ds, ethers.getBytes(rule)] as [number, string, Uint8Array]);
+    const proof = tree.getProof([0n, ds, ethers.getBytes(rule)] as [bigint, string, Uint8Array]);
+    console.log('proof', JSON.stringify(proof));
+    console.log(JSON.stringify(tree.getProof(0)));
 
     const calldata = ethers.hexlify(ethers.randomBytes(100));
     expect(
@@ -362,6 +372,7 @@ describe('MerkleAllowlistValidator', function () {
     }
 
     beforeEach(async function () {
+      const rulesJson = JSON.parse(readFileSync('./scripts/vault/ruleset/test.json', 'utf8'));
       ds = await c.domainSeparator();
       const rows: TreeRow[] = [];
       encoded = {};
@@ -376,6 +387,7 @@ describe('MerkleAllowlistValidator', function () {
 
     it('rule_01: allows any calldata to the fixed target', async function () {
       const { ruleEncoded, merkleProof } = proofFor('rule_01');
+      console.log(merkleProof);
       const calldata = ethers.hexlify(ethers.randomBytes(100));
       expect(await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, calldata, { ruleEncoded, merkleProof })).to.equal(
         true
@@ -480,6 +492,402 @@ describe('MerkleAllowlistValidator', function () {
       );
     });
   });
+
+  describe('ruleset coverage', function () {
+    type TreeRow = [number, string, Uint8Array];
+
+    const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+    const SENDER = '0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892';
+    const RECIPIENT = '0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce';
+
+    let tree: StandardMerkleTree<TreeRow>;
+    let encoded: Record<string, string>;
+    let ds: string;
+
+    interface RuleJsonEntry {
+      sender?: string;
+      to?: string;
+      value?: string | number;
+      dataLength?: string | number;
+      constraints?: RuleConstraint[];
+    }
+
+    function encodeJsonRule(rule: RuleJsonEntry): string {
+      const flags =
+        (rule.sender ? 0x01 : 0) |
+        (rule.to ? 0x02 : 0) |
+        (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
+        (rule.dataLength !== undefined ? 0x08 : 0);
+      return encodeMerkleRule({
+        flags,
+        sender: rule.sender || ethers.ZeroAddress,
+        to: rule.to || ethers.ZeroAddress,
+        value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
+        dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
+        constraints: rule.constraints ?? []
+      });
+    }
+
+    function proofFor(name: string): { ruleEncoded: string; merkleProof: string[] } {
+      const ruleEncoded = encoded[name];
+      const row: TreeRow = [0, ds, ethers.getBytes(ruleEncoded)];
+      return { ruleEncoded, merkleProof: tree.getProof(row) };
+    }
+
+    beforeEach(async function () {
+      const rulesJson = JSON.parse(readFileSync('./test/vault/fixtures/test-data.json', 'utf8'));
+      ds = await c.domainSeparator();
+      const rows: TreeRow[] = [];
+      encoded = {};
+      for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
+        const ruleEncoded = encodeJsonRule(rule);
+        encoded[name] = ruleEncoded;
+        rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
+      }
+      tree = StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']);
+      await c.setAllowlistRoot(tree.root);
+    });
+
+    it('setAllowlistRoot only owner can', async () => {
+      const oldRoot = tree.root;
+      const newRoot = ethers.hexlify(ethers.randomBytes(32));
+      // prettier-ignore
+      await expect(c.connect(owner).setAllowlistRoot(newRoot))
+        .to.emit(c, 'AllowlistRootUpdated')
+        .withArgs(oldRoot, newRoot);
+    });
+
+    it('setAllowlistRoot rejects when called by not an owner', async () => {
+      const newRoot = ethers.hexlify(ethers.randomBytes(32));
+      // prettier-ignore
+      await expect(c.connect(signer).setAllowlistRoot(newRoot))
+        .to.be.revertedWithCustomError(c, 'OwnableUnauthorizedAccount')
+        .withArgs(signer);
+    });
+
+    const args = [
+      // by calldata
+      {
+        name: 'any calldata - many bytes',
+        func: 'any_calldata',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ethers.hexlify(ethers.randomBytes(256)),
+        allowed: true
+      },
+      {
+        name: 'any calldata - 0 bytes',
+        func: 'any_calldata',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => '0x',
+        allowed: true
+      },
+      {
+        name: 'zero calldata - valid',
+        func: 'transfer_native_fixed_value',
+        sender: SENDER,
+        to: TO,
+        value: e18,
+        callData: () => '0x',
+        allowed: true
+      },
+      {
+        name: 'zero calldata - invalid',
+        func: 'transfer_native_fixed_value',
+        sender: SENDER,
+        to: TO,
+        value: e18,
+        callData: () => '0x01',
+        allowed: false
+      },
+      {
+        name: 'fixed selector',
+        func: 'transfer_func_any_length',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+      {
+        name: 'fixed selector - invalid',
+        func: 'transfer_func_any_length',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transferFrom', [SENDER, RECIPIENT, e18]),
+        allowed: false
+      },
+
+      // by value
+      {
+        name: 'transfer native any value - valid',
+        func: 'transfer_native_any_value',
+        sender: SENDER,
+        to: TO,
+        value: randomBigInt(9),
+        callData: () => '0x',
+        allowed: true
+      },
+      {
+        name: 'zero value allowed - valid',
+        func: 'transfer_token',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+      {
+        name: 'zero value allowed - invalid',
+        func: 'transfer_token',
+        sender: SENDER,
+        to: TO,
+        value: 1n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+
+      // by sender
+      {
+        name: 'transfer any sender - random address',
+        func: 'transfer_any_sender',
+        sender: ethers.Wallet.createRandom().address,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+      {
+        name: 'transfer any sender - zero address',
+        func: 'transfer_any_sender',
+        sender: ethers.ZeroAddress,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+
+      // any contract
+      {
+        name: 'transfer any contract - random address',
+        func: 'transfer_any_contract',
+        sender: SENDER,
+        to: ethers.Wallet.createRandom().address,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+
+      {
+        name: 'transfer token and native - invalid sender',
+        func: 'transfer_token_and_native',
+        sender: ethers.Wallet.createRandom().address,
+        to: TO,
+        value: e18,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+      {
+        name: 'transfer token and native - invalid recipient',
+        func: 'transfer_token_and_native',
+        sender: SENDER,
+        to: ethers.Wallet.createRandom().address,
+        value: e18,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+      {
+        name: 'transfer token and native - invalid value',
+        func: 'transfer_token_and_native',
+        sender: SENDER,
+        to: TO,
+        value: e18 - 1n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+      {
+        name: 'transfer token and native- length is greater',
+        func: 'transfer_token_and_native',
+        sender: SENDER,
+        to: TO,
+        value: e18,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]) + 'aa',
+        allowed: false
+      },
+      {
+        name: 'transfer token and native - length is less',
+        func: 'transfer_token_and_native',
+        sender: SENDER,
+        to: TO,
+        value: e18,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]).slice(0, -2),
+        allowed: false
+      },
+      {
+        name: 'transfer token and native - valid',
+        func: 'transfer_token_and_native',
+        sender: SENDER,
+        to: TO,
+        value: e18,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+      {
+        name: 'sender can do anything',
+        func: 'everything_allowed_to_sender',
+        sender: SENDER,
+        to: ethers.Wallet.createRandom().address,
+        value: randomBigInt(9),
+        callData: () => ethers.hexlify(ethers.randomBytes(256)),
+        allowed: true
+      },
+      {
+        name: 'anyone can do anything',
+        func: 'no_rules',
+        sender: ethers.Wallet.createRandom().address,
+        to: ethers.Wallet.createRandom().address,
+        value: randomBigInt(9),
+        callData: () => ethers.hexlify(ethers.randomBytes(256)),
+        allowed: true
+      },
+      {
+        name: 'maximum number of constraints',
+        func: 'max_constraint',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: true
+      },
+      // invalid constraint
+      {
+        name: 'constraint invalid offset',
+        func: 'invalid_constraints_offset',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+      {
+        name: 'constraint offset out of calldata',
+        func: 'constraint_offset_out_of_calldata',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+      {
+        name: 'empty constraint mask',
+        func: 'empty_constraint_mask',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      },
+      {
+        name: 'mask does not match expected',
+        func: 'mask_does_not_match_expected',
+        sender: SENDER,
+        to: TO,
+        value: 0n,
+        callData: () => ERC20__factory.createInterface().encodeFunctionData('transfer', [RECIPIENT, e18]),
+        allowed: false
+      }
+    ];
+
+    args.forEach(arg => {
+      it(`isAllowed ${arg.name}`, async () => {
+        const { ruleEncoded, merkleProof } = proofFor(arg.func);
+        const sender = arg.sender;
+        const to = arg.to;
+        const value = arg.value;
+        const calldata = arg.callData();
+        expect(
+          await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'](sender, to, value, calldata, {
+            ruleEncoded,
+            merkleProof
+          })
+        ).to.equal(arg.allowed);
+      });
+    });
+
+    const invalidEncodedRules = [
+      {
+        name: 'valid',
+        rule: 'no_rules',
+        ruleChanger: (rule: string): string => rule,
+        allowed: true
+      },
+      {
+        name: 'too short',
+        rule: 'no_rules',
+        ruleChanger: (rule: string): string => rule.slice(0, -2),
+        allowed: false
+      },
+      {
+        name: 'too long',
+        rule: 'no_rules',
+        ruleChanger: (rule: string): string => rule + 'aa',
+        allowed: false
+      },
+      {
+        name: 'TO disabled but not empty',
+        rule: 'transfer_any_sender',
+        ruleChanger: (rule: string): string => '0x010c' + rule.slice(6),
+        allowed: false
+      },
+      {
+        name: 'Value disabled but not 0',
+        rule: 'transfer_native_fixed_value',
+        ruleChanger: (rule: string): string => '0x010b' + rule.slice(6),
+        allowed: false
+      },
+      {
+        name: 'Length disabled but not 0',
+        rule: 'transfer_any_sender',
+        ruleChanger: (rule: string): string => '0x0106' + rule.slice(6),
+        allowed: false
+      }
+    ];
+    invalidEncodedRules.forEach(arg => {
+      it(`isAllowed rule ${arg.name}`, async () => {
+        let { ruleEncoded, merkleProof } = proofFor(arg.rule);
+        ruleEncoded = arg.ruleChanger(ruleEncoded);
+        const sender = ethers.Wallet.createRandom().address;
+        const to = ethers.Wallet.createRandom().address;
+        const value = randomBigInt(9);
+        const calldata = ethers.hexlify(ethers.randomBytes(256));
+        expect(
+          await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'](sender, to, value, calldata, {
+            ruleEncoded,
+            merkleProof
+          })
+        ).to.equal(arg.allowed);
+      });
+    });
+
+    it('Invalid proof', async () => {
+      const { ruleEncoded } = proofFor('no_rules');
+      const { merkleProof } = proofFor('everything_allowed_to_sender');
+      const sender = ethers.Wallet.createRandom().address;
+      const to = ethers.Wallet.createRandom().address;
+      const value = randomBigInt(9);
+      const calldata = ethers.hexlify(ethers.randomBytes(256));
+      expect(
+        await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'](sender, to, value, calldata, {
+          ruleEncoded,
+          merkleProof
+        })
+      ).to.equal(false);
+    });
+  });
 });
 
 // ─── Cross-script consistency ─────────────────────────────────────────────────
@@ -489,7 +897,7 @@ describe('MerkleAllowlistValidator', function () {
 // findRule can unambiguously identify each rule by calldata alone.
 
 describe('script consistency: merkleTreeBuilder vs findRule', function () {
-  const RULES_FILE = path.join(__dirname, 'fixtures/cross-script-ruleset.json');
+  const RULES_FILE = path.join(process.cwd(), 'test/vault/fixtures/cross-script-ruleset.json');
   const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
   const TRANSFER_SELECTOR = '0xa9059cbb';
 
