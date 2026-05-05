@@ -28,6 +28,7 @@
  * Rule flags are inferred from field presence:
  *   - sender, to, value : flag set when the field is present and non-empty
  *   - dataLength        : flag set when the field is present
+ *   - selector          : flag set when present and non-empty — human-readable signature or hex bytes4 (pins data[0:4])
  */
 
 import { ethers } from 'ethers';

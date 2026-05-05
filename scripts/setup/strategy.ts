@@ -77,7 +77,9 @@ task(
 
     if (defaultArg) {
       if (!already) {
-        throw new Error(`shard ${shardArg} is not registered to make it default; register it first (--shard ${shardArg}) or in a prior call`);
+        throw new Error(
+          `shard ${shardArg} is not registered to make it default; register it first (--shard ${shardArg}) or in a prior call`
+        );
       }
       console.log(`setDefaultShard: ${shardArg}`);
       if (populate) {
