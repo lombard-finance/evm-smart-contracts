@@ -1,0 +1,6 @@
+allow_all_from_safe_wallet:
+  sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
+allow_all_from_eoa:
+  sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
+allow_all_mikhail:
+  sender: "0x564974801D2ffBE736Ed59C9bE39F6c0A4274aE6"

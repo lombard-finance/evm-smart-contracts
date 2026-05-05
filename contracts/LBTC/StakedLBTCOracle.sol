@@ -18,6 +18,7 @@ contract StakedLBTCOracle is
 {
     error WrongRatioSwitchTime();
     error RatioInitializedAlready();
+    error StakedLBTCOracle_ZeroRatio();
     error TooBigRatioChange();
     error WrongToken();
     error UnexpectedTimestampFormat(uint256 ts);
@@ -216,7 +217,9 @@ contract StakedLBTCOracle is
         _setNewRatio(ratio_, switchTime_);
     }
 
+    /// @dev `ratio_` must be non-zero: `IOracle.ratio()` is a divisor in converters and rate helpers.
     function _setNewRatio(uint256 ratio_, uint256 switchTime_) internal {
+        if (ratio_ == 0) revert StakedLBTCOracle_ZeroRatio();
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (block.timestamp >= $.switchTime) {
             $.prevRatio = $.currRatio;
