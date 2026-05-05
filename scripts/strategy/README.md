@@ -125,7 +125,7 @@ Given a transaction's parameters, locates the matching rule from the ruleset and
 | `--sender`   | optional | `msg.sender` of the exec call (default: zero address)               |
 | `--value`    | optional | ETH value in wei (default: `0`; use for native coin transfers)      |
 | `--calldata` | optional | Calldata hex string (default: `0x`; omit for native coin transfers) |
-| `--strategy` | optional | Strategy contract address — sets `execTx.to` in the output          |
+| `--shard`    | optional | Shard contract address — sets `execTx.to` in the output             |
 | `--rules`    | optional | Explicit path to the ruleset file (overrides derived path)          |
 
 ### Ruleset file path convention
@@ -167,7 +167,7 @@ npx ts-node scripts/strategy/findRule.ts \
 }
 ```
 
-Pass `--strategy <address>` to populate `execTx.to` with the strategy contract that exposes `exec()`:
+Pass `--shard <address>` to populate `execTx.to` with the shard contract that exposes `exec()`:
 
 ```sh
 npx ts-node scripts/strategy/findRule.ts \
@@ -175,9 +175,9 @@ npx ts-node scripts/strategy/findRule.ts \
   --contract  0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892 \
   --to        0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072 \
   --calldata  0xa9059cbb... \
-  --strategy  0xYourStrategyAddress
+  --shard     0xYourShardAddress
 ```
 
-`execTx` is always present. When `--strategy` is omitted `execTx.to` is `null` — fill it in before broadcasting. `execTx.data` encodes `exec(to, value, calldata, validatorArgs)` where `validatorArgs` is `abi.encode(CallVerificationInput{ruleEncoded, merkleProof})`.
+`execTx` is always present. When `--shard` is omitted `execTx.to` is `null` — fill it in before broadcasting. `execTx.data` encodes `exec(to, value, calldata, validatorArgs)` where `validatorArgs` is `abi.encode(CallVerificationInput{ruleEncoded, merkleProof})`.
 
 The `root` must be set on-chain via `setAllowlistRoot` before the `exec()` call will succeed.

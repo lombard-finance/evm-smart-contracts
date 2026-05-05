@@ -11,15 +11,15 @@
  *     --sender   <address>          msg.sender   (default: zero address)
  *     --value    <decimal>          msg.value in wei (default: 0)
  *     --calldata <hex>              calldata (default: 0x for native coin transfers)
- *     --strategy <address>          strategy contract address — when provided, adds
- *                                   execTx to the output (ready-to-broadcast exec() call)
+ *     --shard    <address>          shard contract address — sets execTx.to in the
+ *                                   output (omit to fill in before broadcasting)
  *
  * Usage (explicit rules file):
  *   npx ts-node scripts/strategy/findRule.ts \
  *     --rules    <path/to/rules.[json|yaml]> \
  *     --chain-id <chainId> \
  *     --contract <validatorAddress> \
- *     [--to / --sender / --value / --calldata / --strategy as above]
+ *     [--to / --sender / --value / --calldata / --shard as above]
  *
  * Ruleset file resolution (in order of priority):
  *   1. --rules <path>          — use this file directly
@@ -72,7 +72,7 @@ const EXEC_IFACE = new ethers.Interface([
 ]);
 
 function buildExecTx(
-  strategyAddress: string | undefined,
+  shardAddress: string | undefined,
   to: string,
   value: bigint,
   calldataHex: string,
@@ -85,7 +85,7 @@ function buildExecTx(
     [[ruleEncoded, merkleProof]]
   );
   const data = EXEC_IFACE.encodeFunctionData('exec', [to, value, calldataHex, validatorArgs]);
-  return { to: strategyAddress ?? null, value: ethers.toBeHex(value), data };
+  return { to: shardAddress ?? null, value: ethers.toBeHex(value), data };
 }
 
 // ─── CLI ──────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ function main() {
   const sender = args['sender'] ?? ethers.ZeroAddress;
   const value = BigInt(args['value'] ?? '0');
   const calldataHex = args['calldata'] ?? '0x';
-  const strategyAddress = args['strategy'];
+  const shardAddress = args['shard'];
 
   const rulesetPath = resolveRulesetFromArgs(args);
   const rules = loadRulesFile(rulesetPath);
@@ -117,7 +117,7 @@ function main() {
   const ruleEncoded = encoded[ruleName];
   const merkleProof = tree.getProof([0, ds, ethers.getBytes(ruleEncoded)] as [number, string, Uint8Array]);
 
-  const execTx = buildExecTx(strategyAddress, to, value, calldataHex, ruleEncoded, merkleProof);
+  const execTx = buildExecTx(shardAddress, to, value, calldataHex, ruleEncoded, merkleProof);
   console.log(JSON.stringify({ ruleName, root: tree.root, ruleEncoded, merkleProof, execTx }, null, 2));
 }
 
