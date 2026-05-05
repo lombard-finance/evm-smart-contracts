@@ -372,7 +372,7 @@ describe('MerkleAllowlistValidator', function () {
     }
 
     beforeEach(async function () {
-      const rulesJson = JSON.parse(readFileSync('./scripts/vault/ruleset/test.json', 'utf8'));
+      const rulesJson = JSON.parse(readFileSync('./scripts/strategy/ruleset/test.json', 'utf8'));
       ds = await c.domainSeparator();
       const rows: TreeRow[] = [];
       encoded = {};
@@ -535,7 +535,7 @@ describe('MerkleAllowlistValidator', function () {
     }
 
     beforeEach(async function () {
-      const rulesJson = JSON.parse(readFileSync('./test/vault/fixtures/test-data.json', 'utf8'));
+      const rulesJson = JSON.parse(readFileSync('./test/strategy/fixtures/test-data.json', 'utf8'));
       ds = await c.domainSeparator();
       const rows: TreeRow[] = [];
       encoded = {};
@@ -897,7 +897,7 @@ describe('MerkleAllowlistValidator', function () {
 // findRule can unambiguously identify each rule by calldata alone.
 
 describe('script consistency: merkleTreeBuilder vs findRule', function () {
-  const RULES_FILE = path.join(process.cwd(), 'test/vault/fixtures/cross-script-ruleset.json');
+  const RULES_FILE = path.join(process.cwd(), 'test/strategy/fixtures/cross-script-ruleset.json');
   const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
   const TRANSFER_SELECTOR = '0xa9059cbb';
 
