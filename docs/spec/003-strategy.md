@@ -187,7 +187,7 @@ shares = gainShares * feeBps / 10_000
 - Assigns a new non-zero `requestId` via `++nextRequestId` (starting from `1`).
 - Records `RedeemRequest { pendingShares: netShares, pendingAssets: assets, owner }`.
 - Updates global `totalPendingShares` and `totalPendingAssets`.
-- Emits `RedeemRequested(requestId, owner, caller, shares, assets)` where `shares` is the original request amount (not `netShares`) and `assets` is `pendingAssets` = `_convertToAssets(netShares, Floor)` (what the owner receives on fulfillment).
+- Emits `RedeemRequested(requestId, owner, caller, assets, shares)` where `shares` is the original request amount (not `netShares`) and `assets` is `pendingAssets` = `_convertToAssets(netShares, Floor)` (what the owner receives on fulfillment).
 
 **Returns** unique non-zero `requestId`.
 

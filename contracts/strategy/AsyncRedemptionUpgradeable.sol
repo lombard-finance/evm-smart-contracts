@@ -119,7 +119,7 @@ abstract contract AsyncRedemptionUpgradeable is
             _transfer(owner, treasury_, feeShares);
             emit WithdrawalFeeCharged(treasury_, feeShares);
         }
-        emit RedeemRequested(requestId, owner, caller, shares, assets);
+        emit RedeemRequested(requestId, owner, caller, assets, shares);
     }
 
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
