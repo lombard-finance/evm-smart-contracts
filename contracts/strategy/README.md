@@ -27,16 +27,17 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 **Roles**
 
-| Role                   | Controls                                                                                                                            |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`   | Deposit asset list / converters, `pricePerShare` rate-limit config, **register shards**, grant roles                                |
-| `TREASURY_ROLE`        | Fee treasury, per-asset deposit fee bps, mgmt/performance fees, harvests, withdrawal fee bps, global max shares per `requestRedeem` |
-| `PRICE_SETTER_ROLE`    | `postPricePerShare` within the configured rate limit                                                                                |
-| `SOFT_PAUSER_ROLE`     | `pauseStrategyOperations`                                                                                                           |
-| `PAY_REDEMPTIONS_ROLE` | `fulfillRedeemRequests`                                                                                                             |
-| `LIMITED_ADMIN_ROLE`   | **Deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause                                              |
+| Role                   | Controls                                                                                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`   | Deposit asset list / converters, fee treasury + fee bps config, redemption cap config, `pricePerShare` rate-limit config, **register shards**, grant roles |
+| `MGMT_FEE_CLAIM_ROLE`  | `harvestManagementFee`                                                                                                                                     |
+| `PERF_FEE_CLAIM_ROLE`  | `harvestPerformanceFee`                                                                                                                                    |
+| `PRICE_SETTER_ROLE`    | `postPricePerShare` within the configured rate limit                                                                                                       |
+| `SOFT_PAUSER_ROLE`     | `pauseStrategyOperations`                                                                                                                                  |
+| `PAY_REDEMPTIONS_ROLE` | `fulfillRedeemRequests`                                                                                                                                    |
+| `MANAGER_ROLE`         | **Deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause                                                                     |
 
-**Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates with **`TREASURY_ROLE`** and pulls accrued mint-based fees via **`harvestManagementFee`** / **`harvestPerformanceFee`**.
+**Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates via admin and fee-harvest execution is delegated to **`MGMT_FEE_CLAIM_ROLE`** / **`PERF_FEE_CLAIM_ROLE`**.
 
 | Surface                       | What users feel                                        | What on-chain does                                                                                                                                                                           |
 | ----------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,7 +57,9 @@ perfFeeShares   ≈ (totalSupply × (pricePerShare − HWM) / HWM) × performanc
 ```solidity
 // Treasury-configured address for deposit skims, withdrawal-fee shares, and harvest mint targets
 strategy.setFeeTreasury(treasury);
+// Caller needs MGMT_FEE_CLAIM_ROLE
 strategy.harvestManagementFee(treasury);
+// Caller needs PERF_FEE_CLAIM_ROLE
 strategy.harvestPerformanceFee(treasury);
 ```
 
@@ -237,7 +240,7 @@ Both are **beacon-proxy upgradeable** contracts that share **`ShardBaseUpgradeab
 
 ### `Shard`
 
-**Strategy-attached deployment.** Initialized with an **`IStrategy`** (the share-token contract) and a liquidity-role holder. **`STRATEGY_TOKEN_LIQUIDITY_ROLE`** may **`pullFromStrategy`** (`IStrategy.requestFunding`) and **`pushToStrategy`** (return ERC-20 to the strategy). Choose this when capital moves **through the strategy funding pipe** and everything else is **validator-approved `exec`** (protocol integrations, bridges, etc.).
+**Strategy-attached deployment.** Initialized with an **`IStrategy`** (the share-token contract) and a shard-transfer role holder. **`SHARD_TRANSFER_ROLE`** may **`pullFromStrategy`** (`IStrategy.requestFunding`) and **`pushToStrategy`** (return ERC-20 to the strategy). Choose this when capital moves **through the strategy funding pipe** and everything else is **validator-approved `exec`** (protocol integrations, bridges, etc.).
 
 ### `RemoteShard`
 

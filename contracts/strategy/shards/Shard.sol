@@ -14,8 +14,8 @@ contract Shard is ShardBaseUpgradeable {
     using SafeERC20 for IERC20;
 
     /// @notice Role required for `pullFromStrategy` / `pushToStrategy`.
-    bytes32 public constant STRATEGY_TOKEN_LIQUIDITY_ROLE =
-        keccak256("STRATEGY_TOKEN_LIQUIDITY_ROLE");
+    bytes32 public constant SHARD_TRANSFER_ROLE =
+        keccak256("SHARD_TRANSFER_ROLE");
 
     /// @custom:storage-location erc7201:lombardfinance.storage.Shard
     struct ShardStorage {
@@ -53,29 +53,26 @@ contract Shard is ShardBaseUpgradeable {
     /// @param strategy_ Strategy address; stored once in ERC-7201 `ShardStorage` (beacon-safe).
     /// @param validator_ Policy validator (`IShardExecValidator`).
     /// @param defaultAdmin_ Receives `DEFAULT_ADMIN_ROLE`.
-    /// @param liquidityRoleHolder Receives `STRATEGY_TOKEN_LIQUIDITY_ROLE` for `pullFromStrategy` / `pushToStrategy`.
+    /// @param shardTransferer Receives `SHARD_TRANSFER_ROLE` for `pullFromStrategy` / `pushToStrategy`.
     function initialize(
         IStrategy strategy_,
         IShardExecValidator validator_,
         address defaultAdmin_,
-        address liquidityRoleHolder
+        address shardTransferer
     ) external initializer {
-        if (
-            address(strategy_) == address(0) ||
-            liquidityRoleHolder == address(0)
-        ) {
+        if (address(strategy_) == address(0) || shardTransferer == address(0)) {
             revert Shard_ZeroAddress();
         }
         __ShardBase_init(validator_, defaultAdmin_);
         _getShardStorage().strategy = strategy_;
-        _grantRole(STRATEGY_TOKEN_LIQUIDITY_ROLE, liquidityRoleHolder);
+        _grantRole(SHARD_TRANSFER_ROLE, shardTransferer);
     }
 
     /// @notice Pull `token` from the strategy via `requestFunding`.
     function pullFromStrategy(
         IERC20 token,
         uint256 amount
-    ) external onlyRole(STRATEGY_TOKEN_LIQUIDITY_ROLE) {
+    ) external onlyRole(SHARD_TRANSFER_ROLE) {
         _getShardStorage().strategy.requestFunding(token, amount);
         emit PulledFromStrategy(_msgSender(), address(token), amount);
     }
@@ -84,7 +81,7 @@ contract Shard is ShardBaseUpgradeable {
     function pushToStrategy(
         IERC20 token,
         uint256 amount
-    ) external onlyRole(STRATEGY_TOKEN_LIQUIDITY_ROLE) {
+    ) external onlyRole(SHARD_TRANSFER_ROLE) {
         token.safeTransfer(address(_getShardStorage().strategy), amount);
         emit PushedToStrategy(_msgSender(), address(token), amount);
     }

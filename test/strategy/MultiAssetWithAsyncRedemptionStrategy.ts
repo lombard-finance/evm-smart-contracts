@@ -53,7 +53,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     await strategy.connect(admin).grantRole(await strategy.PRICE_SETTER_ROLE(), operator.address);
     await strategy.connect(admin).grantRole(await strategy.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
-    await strategy.connect(admin).grantRole(await strategy.LIMITED_ADMIN_ROLE(), admin.address);
+    await strategy.connect(admin).grantRole(await strategy.MANAGER_ROLE(), admin.address);
 
     snapshot = await takeSnapshot();
   });
@@ -179,8 +179,6 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     const v = await strategy.getAddress();
     const sink = ethers.Wallet.createRandom().address;
 
-    const treasuryRole = await strategy.TREASURY_ROLE();
-    await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
     await strategy.connect(admin).setFeeTreasury(treasury.address);
 
     await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100); // 1%
@@ -312,8 +310,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   it('harvestPerformanceFee: mints fee shares without automatically adjusting pricePerShare', async function () {
-    const treasuryRole = await strategy.TREASURY_ROLE();
-    await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+    const perfFeeClaimRole = await strategy.PERF_FEE_CLAIM_ROLE();
+    await strategy.connect(admin).grantRole(perfFeeClaimRole, treasury.address);
 
     const alt = await altDeposit.getAddress();
     const v = await strategy.getAddress();
@@ -343,12 +341,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.pricePerShare()).to.equal(ppsBefore);
   });
 
-  it('treasury can update deposit fee bps', async function () {
+  it('admin can update deposit fee bps', async function () {
     const alt = await altDeposit.getAddress();
     await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
-
-    const treasuryRole = await strategy.TREASURY_ROLE();
-    await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
 
     await expect(strategy.connect(admin).setFeeTreasury(treasury.address))
       .to.emit(strategy, 'FeeTreasurySet')
@@ -506,7 +501,7 @@ describe('StakedLBTC as deposit token', function () {
 
     await stakedStrategy.connect(admin).grantRole(await stakedStrategy.PRICE_SETTER_ROLE(), operator.address);
     await stakedStrategy.connect(admin).grantRole(await stakedStrategy.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
-    await stakedStrategy.connect(admin).grantRole(await stakedStrategy.LIMITED_ADMIN_ROLE(), admin.address);
+    await stakedStrategy.connect(admin).grantRole(await stakedStrategy.MANAGER_ROLE(), admin.address);
     await stakedStrategy
       .connect(admin)
       .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
@@ -614,8 +609,6 @@ describe('StakedLBTC as deposit token', function () {
       const sAddr = await stakedToken.getAddress();
       const vAddr = await stakedStrategy.getAddress();
 
-      const treasuryRole = await stakedStrategy.TREASURY_ROLE();
-      await stakedStrategy.connect(admin).grantRole(treasuryRole, treasury.address);
       await stakedStrategy.connect(admin).setFeeTreasury(treasury.address);
       await stakedStrategy.connect(admin).setDepositFeeBps(sAddr, 100); // 1%
 
@@ -701,7 +694,7 @@ describe('Chainlink as deposit token', function () {
 
     await clStrategy.connect(admin).grantRole(await clStrategy.PRICE_SETTER_ROLE(), operator.address);
     await clStrategy.connect(admin).grantRole(await clStrategy.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
-    await clStrategy.connect(admin).grantRole(await clStrategy.LIMITED_ADMIN_ROLE(), admin.address);
+    await clStrategy.connect(admin).grantRole(await clStrategy.MANAGER_ROLE(), admin.address);
     await clStrategy.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
 
     snap = await takeSnapshot();
