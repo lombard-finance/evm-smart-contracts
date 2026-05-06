@@ -36,7 +36,7 @@ export class CustomRuntimeEnvironment {
 
     console.log(`New implementation of ${contract} deployed at ${addr}, verifying...`);
 
-    await verify(run, addr);
+    await verify(this.hre.run, addr);
 
     return addr;
   }
