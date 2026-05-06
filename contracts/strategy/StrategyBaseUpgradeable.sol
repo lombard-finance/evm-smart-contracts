@@ -230,6 +230,12 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseUpgradeableStorage().shards.contains(shard);
     }
 
+    /// @notice All shard addresses registered for funding (order not stable across adds/removals).
+    /// @dev Copies the full set to memory; intended for off-chain / view calls.
+    function shards() external view returns (address[] memory) {
+        return _getStrategyBaseUpgradeableStorage().shards.values();
+    }
+
     /// @notice Registers an existing shard contract address without deploying via the hub.
     /// @param shard Shard contract to whitelist for `requestFunding`.
     function registerShard(
