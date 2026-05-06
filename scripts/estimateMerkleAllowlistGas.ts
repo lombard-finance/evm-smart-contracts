@@ -54,7 +54,13 @@ async function main() {
   ) {
     const input = { ruleEncoded: rule, merkleProof: proof };
     const dataLen = ethers.dataLength(data);
-    const gas = await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'].estimateGas(sender, to, value, data, input);
+    const gas = await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'].estimateGas(
+      sender,
+      to,
+      value,
+      data,
+      input
+    );
     console.log(`${label}: ${gas.toString()} gas (data length ${dataLen} bytes)`);
   }
 
@@ -237,10 +243,7 @@ async function main() {
       }
     ]
   });
-  const treeTransfer = StandardMerkleTree.of(
-    [[0, ds, ethers.getBytes(ruleTransfer)]],
-    ['uint8', 'bytes32', 'bytes']
-  );
+  const treeTransfer = StandardMerkleTree.of([[0, ds, ethers.getBytes(ruleTransfer)]], ['uint8', 'bytes32', 'bytes']);
   await c.setAllowlistRoot(treeTransfer.root);
   const proofTransfer = treeTransfer.getProof([0, ds, ethers.getBytes(ruleTransfer)] as [number, string, Uint8Array]);
   const transferData = ethers.concat([

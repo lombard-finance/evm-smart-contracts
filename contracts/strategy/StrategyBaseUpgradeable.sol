@@ -29,8 +29,7 @@ abstract contract StrategyBaseUpgradeable is
     using SafeERC20 for IERC20;
     using PriceRateLimiter for PriceRateLimiter.Bucket;
 
-    bytes32 public constant MANAGER_ROLE =
-        keccak256("MANAGER_ROLE");
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     /// @notice Price setter role is used to set the price per share; may pause the strategy operations.
     bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
