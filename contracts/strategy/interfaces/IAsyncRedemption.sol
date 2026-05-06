@@ -9,8 +9,9 @@ interface IAsyncRedemption {
     event RedeemRequested(
         uint256 indexed requestId,
         address indexed owner,
-        address sender,
-        uint256 shares
+        address indexed sender,
+        uint256 shares,
+        uint256 assets
     );
 
     /// @notice Emitted after assets for listed redemption requests are paid to each request `owner`.

@@ -276,13 +276,17 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     const beforeU = await underlying.balanceOf(user.address);
     const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
-    await strategy.connect(user).requestRedeem(shares, user.address);
+    await expect(strategy.connect(user).requestRedeem(shares, user.address))
+      .to.emit(strategy, 'RedeemRequested')
+      .withArgs(rid, user.address, user.address, shares, assetsOut);
 
     expect(await strategy.balanceOf(user.address)).to.equal(0n);
     expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
 
     await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
-      .to.emit(strategy, 'RedeemRequestsFulfilled')
+      .to.emit(strategy, 'Redeem')
+      .withArgs(redeemOperator.address, user.address, assetsOut, shares)
+      .and.to.emit(strategy, 'RedeemRequestsFulfilled')
       .withArgs([rid]);
 
     const afterU = await underlying.balanceOf(user.address);

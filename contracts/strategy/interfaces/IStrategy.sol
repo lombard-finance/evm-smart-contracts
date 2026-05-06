@@ -17,9 +17,10 @@ interface IStrategy {
         uint64 postedAt
     );
 
-    /// @notice Assets delivered out of the strategy on redemption settlement (async flow uses this instead of ERC-4626 `withdraw`).
-    /// @dev Mirrors EIP-4626 `Withdraw` roles where applicable: `sender` fulfills/initiates settlement; `receiver` receives underlying assets. No separate share `owner` field.
-    event Withdraw(
+    /// @notice Assets delivered out of the strategy on redemption settlement (async fulfillment).
+    /// @param sender Account that fulfilled the redemption (e.g. operator with `PAY_REDEMPTIONS_ROLE`).
+    /// @param receiver Recipient of underlying assets (request owner).
+    event Redeem(
         address indexed sender,
         address indexed receiver,
         uint256 assets,

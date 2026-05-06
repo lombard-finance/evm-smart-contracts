@@ -187,7 +187,7 @@ shares = gainShares * feeBps / 10_000
 - Assigns a new non-zero `requestId` via `++nextRequestId` (starting from `1`).
 - Records `RedeemRequest { pendingShares: netShares, pendingAssets: assets, owner }`.
 - Updates global `totalPendingShares` and `totalPendingAssets`.
-- Emits `RedeemRequested(requestId, owner, caller, shares)` (original `shares`, not `netShares`).
+- Emits `RedeemRequested(requestId, owner, caller, shares, assets)` where `shares` is the original request amount (not `netShares`) and `assets` is `pendingAssets` = `_convertToAssets(netShares, Floor)` (what the owner receives on fulfillment).
 
 **Returns** unique non-zero `requestId`.
 
@@ -209,7 +209,7 @@ shares = gainShares * feeBps / 10_000
 - For each `requestId`: if `pendingAssets == 0`, reverts `AsyncRedemption_NothingToFulfill(requestId)`.
 - Subtracts from global `totalPendingShares` and `totalPendingAssets`.
 - Deletes the request record.
-- Transfers `pendingAssets` of `asset()` directly to request `owner` via `safeTransfer`. Emits `Withdraw(msgSender, owner, assets, shares)`.
+- Transfers `pendingAssets` of `asset()` directly to request `owner` via `safeTransfer`. Emits `Redeem(msgSender, owner, assets, shares)`.
 - After all requests: emits `RedeemRequestsFulfilled(requestIds)`.
 - The strategy contract's `asset()` balance MUST be sufficient at transfer time; the ERC-20 transfer will revert if insufficient.
 
@@ -237,7 +237,7 @@ shares = gainShares * feeBps / 10_000
 2. **Multi-asset deposits**: `deposit` and `mint` (both overloads each) accept listed `depositAsset`; deposit fee routed to `feeTreasury` before mint; optional default shard receives `net` tokens; `previewDeposit` / `previewMint` / `maxDeposit` / `maxMint` per **Multi-Asset Deposits**.
 3. **Fee system**: management fee (time-based, `TREASURY_ROLE` harvests) and performance fee (HWM, `TREASURY_ROLE` harvests); fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM resets on performance fee rate updates per implementation.
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional withdrawal fee taken as shares; `claimableRedeemRequest` always returns `0`.
-5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; transfers `asset` to owner; emits `Withdraw` per request; emits `RedeemRequestsFulfilled` after batch.
+5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; transfers `asset` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `SOFT_PAUSER_ROLE` pauses; `LIMITED_ADMIN_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
 7. **`postPricePerShare(uint256, bool)`**: rate-limiter bucket; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
