@@ -118,6 +118,36 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(storage).to.equal(expected);
   });
 
+  it('lists a deposit asset and records converter + fee', async function () {
+    await expect(strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0))
+      .to.emit(strategy, 'DepositAssetAdded')
+      .withArgs(admin.address, altDeposit.address);
+
+    expect(await strategy.isDepositAsset(altDeposit.address)).to.be.true;
+    expect(await strategy.converterOf(altDeposit.address)).to.equal(directConverter.address);
+    expect(await strategy.depositFee(altDeposit.address)).to.equal(0);
+    expect(await strategy.maxDeposit(altDeposit.address, user.address)).to.equal(ethers.MaxUint256);
+    expect(await strategy.maxMint(altDeposit.address, user.address)).to.equal(ethers.MaxUint256);
+  });
+
+  it('deposits alt asset and mints shares (preview matches execution)', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    await strategy.connect(admin).addDepositAsset(alt, directConverter.address, 0);
+
+    const assets = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    const preview = await strategy.previewDeposit(alt, assets);
+    await expect(strategy.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address))
+      .to.emit(strategy, 'Deposit')
+      .withArgs(user.address, user.address, alt, assets, preview, 0n);
+
+    expect(await strategy.balanceOf(user.address)).to.equal(preview);
+    expect(await altDeposit.balanceOf(v)).to.equal(assets);
+  });
+
   it('optional defaultShard forwards net deposit tokens to a registered address', async function () {
     const sink = ethers.Wallet.createRandom().address;
 
@@ -438,9 +468,12 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
         await expect(tx)
           .to.emit(strategy, 'RedeemRequested')
-          .withArgs(rid, user.address, user.address, expectedAssets, shares);
+          .withArgs(rid, user.address, user.address, expectedAssets, shares, 0n);
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
-        expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
+        const pending = await strategy.pendingRedeemRequest(rid);
+        expect(pending.pendingShares).to.equal(shares);
+        expect(pending.pendingAssets).to.equal(assetsOut);
+        expect(pending.owner).to.equal(user.address);
 
         const balanceBefore = await underlying.balanceOf(user.address);
         await underlying.mint(strategy.address, expectedAssets);
@@ -964,7 +997,7 @@ describe('StakedLBTC as deposit token', function () {
       const preview = await stakedStrategy.previewDeposit(sAddr, ONE_LBTC);
       await expect(stakedStrategy.connect(user)['deposit(address,uint256,address)'](sAddr, ONE_LBTC, user.address))
         .to.emit(stakedStrategy, 'Deposit')
-        .withArgs(user.address, user.address, sAddr, ONE_LBTC, preview);
+        .withArgs(user.address, user.address, sAddr, ONE_LBTC, preview, 0n);
 
       expect(await stakedStrategy.balanceOf(user.address)).to.equal(ONE_LBTC);
       expect(preview).to.equal(ONE_LBTC);
@@ -1462,7 +1495,7 @@ describe('Chainlink as deposit token', function () {
       const preview = await clStrategy.previewDeposit(tAddr, ONE_BTC);
       await expect(clStrategy.connect(user)['deposit(address,uint256,address)'](tAddr, ONE_BTC, user.address))
         .to.emit(clStrategy, 'Deposit')
-        .withArgs(user.address, user.address, tAddr, ONE_BTC, preview);
+        .withArgs(user.address, user.address, tAddr, ONE_BTC, preview, 0n);
 
       expect(preview).to.equal(ONE_BTC);
       expect(await clStrategy.balanceOf(user.address)).to.equal(ONE_BTC);

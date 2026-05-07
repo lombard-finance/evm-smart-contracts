@@ -69,7 +69,7 @@ abstract contract StrategyBaseUpgradeable is
         IERC20 asset;
         uint8 underlyingDecimals;
         PriceRateLimiter.Bucket ppsRateLimiter;
-        /// @dev Receives async redemption withdrawal fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
+        /// @dev Receives async redemption redeem fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
         address feeTreasury;
     }
 
@@ -125,7 +125,7 @@ abstract contract StrategyBaseUpgradeable is
         });
     }
 
-    /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) withdrawal fee shares.
+    /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) redeem fee shares.
     /// @param treasury_ Must not be zero.
     function setFeeTreasury(
         address treasury_

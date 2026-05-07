@@ -301,25 +301,32 @@ abstract contract MultiAssetDepositUpgradeable is
         IERC20(depositAsset).safeTransferFrom(sender, address(this), assets);
 
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        (uint256 fee, uint256 net) = _splitDepositFeeView(
+        (uint256 feeAssets, uint256 netAssets) = _splitDepositFeeView(
             $.depositFeeBps[depositAsset],
             assets
         );
-        if (fee > 0) {
+        if (feeAssets > 0) {
             address tr = feeTreasury();
             if (tr == address(0))
                 revert StrategyDeposit_FeeTreasuryNotSet(depositAsset);
-            IERC20(depositAsset).safeTransfer(tr, fee);
-            emit DepositFeeTransferred(depositAsset, tr, fee);
+            IERC20(depositAsset).safeTransfer(tr, feeAssets);
+            emit DepositFeeTransferred(depositAsset, tr, feeAssets);
         }
 
         _mint(receiver, shares);
-        emit Deposit(sender, receiver, depositAsset, assets, shares);
+        emit Deposit(
+            sender,
+            receiver,
+            depositAsset,
+            netAssets,
+            shares,
+            feeAssets
+        );
 
         address ds = $.defaultShard;
-        if (ds != address(0) && net > 0) {
-            IERC20(depositAsset).safeTransfer(ds, net);
-            emit DepositRoutedToDefaultShard(ds, depositAsset, net);
+        if (ds != address(0) && netAssets > 0) {
+            IERC20(depositAsset).safeTransfer(ds, netAssets);
+            emit DepositRoutedToDefaultShard(ds, depositAsset, netAssets);
         }
     }
 
@@ -419,7 +426,7 @@ abstract contract MultiAssetDepositUpgradeable is
         if (!$.depositAssets.contains(depositAsset)) {
             return 0;
         }
-        uint256 assetsIn = _convertToAssets(shares, Math.Rounding.Ceil);
+        uint256 assetsIn = _convertToAssets(shares, Math.Rounding.Floor);
         return
             $.converters[depositAsset].fromBaseUnits(
                 assetsIn,

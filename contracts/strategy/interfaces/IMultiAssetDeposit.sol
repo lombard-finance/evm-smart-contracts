@@ -10,14 +10,18 @@ interface IMultiAssetDeposit is IERC165 {
     /// @notice An admin listed `token` as an accepted deposit asset.
     event DepositAssetAdded(address indexed sender, address indexed token);
 
-    /// @notice Shares minted after depositing `assets` of `depositAsset`.
+    /// @notice Shares minted after depositing `depositAsset`.
     /// @dev Same roles as EIP-4626 `Deposit`: `sender` initiated the tx; `owner` receives minted shares.
+    /// @param assets Net `depositAsset` amount that backed the share mint (gross transferred from `sender` minus `feeAssets`).
+    /// @param shares Strategy shares minted to `owner`.
+    /// @param feeAssets Deposit fee in `depositAsset` units routed to {feeTreasury}; gross transferred = `assets + feeAssets`.
     event Deposit(
         address indexed sender,
         address indexed owner,
         address indexed depositAsset,
         uint256 assets,
-        uint256 shares
+        uint256 shares,
+        uint256 feeAssets
     );
 
     /// @notice `token` was removed from the deposit allowlist.

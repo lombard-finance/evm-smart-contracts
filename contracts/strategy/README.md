@@ -1,6 +1,6 @@
 # Strategy (Lombard Strategies)
 
-This folder contains on-chain strategy share tokens, shards (including `RemoteShard`), `BeaconHub`, converters, and the Merkle allowlist validator used by shard `exec` policy.
+This folder contains on-chain strategy share tokens, shards (including `RemoteShard`), converters, and the Merkle allowlist validator used by shard `exec` policy.
 
 ---
 
@@ -18,7 +18,7 @@ strategy.addDepositAsset(tokenAddress, converterAdapter, depositFeeBps);
 uint256 shares = strategy.deposit(tokenAddress, amount, receiver);
 ```
 
-**Redeem** — Users call `requestRedeem` (shares are burned up front, net of an optional withdrawal fee in shares to the fee treasury). Settlement is **not** ERC-4626 `withdraw`/`redeem`; payout happens when an address with **`PAY_REDEMPTIONS_ROLE`** calls `fulfillRedeemRequests`. Underlying assets are transferred to the **owner** on fulfillment — there is no separate user claim step.
+**Redeem** — Users call `requestRedeem` (shares are burned up front, net of an optional redeem fee in shares to the fee treasury). Settlement is **not** ERC-4626 `withdraw`/`redeem`; payout happens when an address with **`PAY_REDEMPTIONS_ROLE`** calls `fulfillRedeemRequests`. Underlying assets are transferred to the **owner** on fulfillment — there is no separate user claim step.
 
 ```solidity
 strategy.requestRedeem(shares, owner);
@@ -39,12 +39,12 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates via admin and fee-harvest execution is delegated to **`MGMT_FEE_CLAIM_ROLE`** / **`PERF_FEE_CLAIM_ROLE`**.
 
-| Surface                       | What users feel                                        | What on-chain does                                                                                                                                                                           |
-| ----------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Per-asset deposit fee**     | Lower effective deposit amount for the same share mint | `depositFeeBps` on **gross** deposit assets; the fee slice of the **deposit token** is transferred to `feeTreasury` before shares are minted (requires treasury set).                        |
-| **Redemption withdrawal fee** | Fewer shares burned for the same redemption request    | `withdrawalFeeBps` on requested shares; fee shares are **transferred** to `feeTreasury`, remainder burned and booked for fulfillment.                                                        |
-| **Management fee**            | Gradual dilution over time                             | Annualized **bps on total supply**, accrued since the last management harvest; treasury calls harvest to **mint** fee shares to a recipient.                                                 |
-| **Performance fee**           | Dilution when NAV rises above the prior peak           | **High-water mark** on `pricePerShare`; when NAV clears it, harvest **mints** a bps slice of the **incremental supply that would correspond to that NAV gain** (then updates the watermark). |
+| Surface                   | What users feel                                        | What on-chain does                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Per-asset deposit fee** | Lower effective deposit amount for the same share mint | `depositFeeBps` on **gross** deposit assets; the fee slice of the **deposit token** is transferred to `feeTreasury` before shares are minted (requires treasury set).                        |
+| **Redemption redeem fee** | Fewer shares burned for the same redemption request    | `redeemFeeBps` on requested shares; fee shares are **transferred** to `feeTreasury`, remainder burned and booked for fulfillment.                                                            |
+| **Management fee**        | Gradual dilution over time                             | Annualized **bps on total supply**, accrued since the last management harvest; treasury calls harvest to **mint** fee shares to a recipient.                                                 |
+| **Performance fee**       | Dilution when NAV rises above the prior peak           | **High-water mark** on `pricePerShare`; when NAV clears it, harvest **mints** a bps slice of the **incremental supply that would correspond to that NAV gain** (then updates the watermark). |
 
 Updating **management** fee bps resets the accrual clock; updating **performance** fee bps resets the high-water mark to the current NAV — worth coordinating off-chain before changing parameters.
 
@@ -55,7 +55,7 @@ perfFeeShares   ≈ (totalSupply × (pricePerShare − HWM) / HWM) × performanc
 ```
 
 ```solidity
-// Treasury-configured address for deposit skims, withdrawal-fee shares, and harvest mint targets
+// Treasury-configured address for deposit skims, redeem-fee shares, and harvest mint targets
 strategy.setFeeTreasury(treasury);
 // Caller needs MGMT_FEE_CLAIM_ROLE
 strategy.harvestManagementFee(treasury);
@@ -221,19 +221,6 @@ Use `@openzeppelin/merkle-tree`'s `StandardMerkleTree.of` with type `['uint8', '
 
 ---
 
-## BeaconHub
-
-A shared **registry + factory** for OpenZeppelin **beacon proxies**. Beacon admins map each **`bytes32` id** (e.g. a strategy type) to an **`UpgradeableBeacon`** implementation; upgrading that beacon later updates **all** proxies pointing at it. Authorized **deployers** spin up new **`BeaconProxy`** instances with per-instance initializer calldata — ordinary `deploy`, or **`deployCreate2`** for a deterministic address from a salt.
-
-The hub records which addresses it created (`isDeployed`) so integrations can tell “factory output” from unrelated contracts. Clearing a beacon id with **`address(0)`** disables new deploys for that id until a beacon is set again. **`DEFAULT_ADMIN_ROLE`** governs who holds **`BEACON_ADMIN_ROLE`** and **`DEPLOYER_ROLE`**; grant **`DEPLOYER_ROLE`** to whatever contract or account should create proxies (the hub is designed to be shared across strategy deployments and deployers).
-
-```solidity
-hub.setBeacon(STRATEGY_TYPE_ID, upgradeableBeacon);
-address proxy = hub.deploy(STRATEGY_TYPE_ID, initCalldata);
-```
-
----
-
 ## Shards (`Shard` & `RemoteShard`)
 
 Both are **beacon-proxy upgradeable** contracts that share **`ShardBaseUpgradeable`**: off-chain policy (via `IShardExecValidator`, e.g. Merkle allowlist) gates **`exec`**—arbitrary external calls with optional ETH—while **`PRIVILEGED_EXECUTOR_ROLE`** may call a validator-bypass **`exec`** overload for emergencies or ops that policy cannot express. Admins can **`setValidator`**; the contract can **`receive`** ETH so balances fund forwarded calls.
@@ -258,8 +245,6 @@ Both are **beacon-proxy upgradeable** contracts that share **`ShardBaseUpgradeab
 | `FeeManagerUpgradeable.sol`                 | Management / performance fee module (share minting to treasury)             |
 | `AsyncRedemptionUpgradeable.sol`            | Async redemption, `PAY_REDEMPTIONS_ROLE` fulfillment                        |
 | `libraries/PriceRateLimiter.sol`            | Bucket used to limit relative `pricePerShare` moves                         |
-| `BeaconHub.sol`                             | Beacon registry (`bytes32` → beacon) + `BeaconProxy` deploy / CREATE2       |
-| `interfaces/IBeaconHub.sol`                 | Hub API (`beacon`, `deploy`, `deployCreate2`, `isDeployed`)                 |
 | `validators/MerkleAllowlistValidator.sol`   | Merkle call allowlist validator                                             |
 | `interfaces/IMerkleCallAllowlist.sol`       | Interface + `CallVerificationInput` struct                                  |
 | `converters/`                               | Asset converter adapters (Chainlink, direct, staked LBTC, etc.)             |

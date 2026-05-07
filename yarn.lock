@@ -1785,7 +1785,7 @@
     axios "^1.7.4"
     lodash "^4.17.21"
 
-"@openzeppelin/hardhat-upgrades@^3.9.1":
+"@openzeppelin/hardhat-upgrades@^3.1.0":
   version "3.9.1"
   resolved "https://registry.yarnpkg.com/@openzeppelin/hardhat-upgrades/-/hardhat-upgrades-3.9.1.tgz#7235edb9b2cd1ec3212cb92275daca7f1869732a"
   integrity sha512-pSDjlOnIpP+PqaJVe144dK6VVKZw2v6YQusyt0OOLiCsl+WUzfo4D0kylax7zjrOxqy41EK2ipQeIF4T+cCn2A==
