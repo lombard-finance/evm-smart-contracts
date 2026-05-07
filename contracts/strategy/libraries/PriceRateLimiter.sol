@@ -85,15 +85,8 @@ library PriceRateLimiter {
         Bucket storage s,
         uint256 changeBps
     ) internal view returns (bool) {
-        Bucket memory b = Bucket({
-            lastRefill: s.lastRefill,
-            capacityBps: s.capacityBps,
-            maxBps: s.maxBps,
-            refillRate: s.refillRate
-        });
-        b = _refill(b);
         if (changeBps > type(uint32).max) return true;
-        return changeBps > uint256(b.capacityBps);
+        return changeBps > _availableAfterRefill(s);
     }
 
     /// @notice Checkpoints refill then zeros remaining capacity (soft overflow: burn full bucket without applying an oversized move).
