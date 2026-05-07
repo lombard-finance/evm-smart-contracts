@@ -36,7 +36,6 @@
       "AssetRouter": "0x76329dd2d888424fD203C354498E6d3d4bdEac22",
       "StakedLBTCOracle": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1",
-      "BeaconHub": "0x80E706B4ddD8CF5A053fA0137172005c15688102",
       "MultiAssetWithAsyncRedemptionStrategy_beacon": "0x706e76F012c9AEac0F62D20eeb122688A26Ad71c",
       "RemoteShard_beacon": "0x820a0E0bB2eec313a153c98584573a07ceE7c7C3",
       "Shard_beacon": "0xd0b479AD08733fd6C63ffdEf3F9c203394699125"
@@ -105,7 +104,6 @@
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
       "PoR": "0xD4BF82406b2E33bE3013881DFbf17A763046517a",
-      "BeaconHub": "0x80E706B4ddD8CF5A053fA0137172005c15688102",
       "RemoteShard_beacon": "0x610c818DA2F54f1e577dE171DE728E2f8FddF7dC",
       "MultiAssetWithAsyncRedemptionStrategy_beacon": "0x03D678804881ab95bBF246148f6EFD8B117D46D0",
       "Shard_beacon": "0x1D1c435Cb2A7a1b10E0c104225bEa151eC5cdDBd",

@@ -27,8 +27,6 @@ export * from './bascule';
 export * from './bridge-token-adapter';
 export * from './erc4626-mock';
 export * from './defi-vault-token-wrapper';
-export * from './beacon-hub';
-export * from './beacon';
 export * from './multi-asset-strategy';
 export * from './merkle-allowlist-validator';
 export * from './shard';

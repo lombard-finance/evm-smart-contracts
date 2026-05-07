@@ -1,6 +1,6 @@
 # Strategy (Lombard Strategies)
 
-This folder contains on-chain strategy share tokens, shards (including `RemoteShard`), `BeaconHub`, converters, and the Merkle allowlist validator used by shard `exec` policy.
+This folder contains on-chain strategy share tokens, shards (including `RemoteShard`), converters, and the Merkle allowlist validator used by shard `exec` policy.
 
 ---
 
@@ -221,19 +221,6 @@ Use `@openzeppelin/merkle-tree`'s `StandardMerkleTree.of` with type `['uint8', '
 
 ---
 
-## BeaconHub
-
-A shared **registry + factory** for OpenZeppelin **beacon proxies**. Beacon admins map each **`bytes32` id** (e.g. a strategy type) to an **`UpgradeableBeacon`** implementation; upgrading that beacon later updates **all** proxies pointing at it. Authorized **deployers** spin up new **`BeaconProxy`** instances with per-instance initializer calldata — ordinary `deploy`, or **`deployCreate2`** for a deterministic address from a salt.
-
-The hub records which addresses it created (`isDeployed`) so integrations can tell “factory output” from unrelated contracts. Clearing a beacon id with **`address(0)`** disables new deploys for that id until a beacon is set again. **`DEFAULT_ADMIN_ROLE`** governs who holds **`BEACON_ADMIN_ROLE`** and **`DEPLOYER_ROLE`**; grant **`DEPLOYER_ROLE`** to whatever contract or account should create proxies (the hub is designed to be shared across strategy deployments and deployers).
-
-```solidity
-hub.setBeacon(STRATEGY_TYPE_ID, upgradeableBeacon);
-address proxy = hub.deploy(STRATEGY_TYPE_ID, initCalldata);
-```
-
----
-
 ## Shards (`Shard` & `RemoteShard`)
 
 Both are **beacon-proxy upgradeable** contracts that share **`ShardBaseUpgradeable`**: off-chain policy (via `IShardExecValidator`, e.g. Merkle allowlist) gates **`exec`**—arbitrary external calls with optional ETH—while **`PRIVILEGED_EXECUTOR_ROLE`** may call a validator-bypass **`exec`** overload for emergencies or ops that policy cannot express. Admins can **`setValidator`**; the contract can **`receive`** ETH so balances fund forwarded calls.
@@ -258,8 +245,6 @@ Both are **beacon-proxy upgradeable** contracts that share **`ShardBaseUpgradeab
 | `FeeManagerUpgradeable.sol`                 | Management / performance fee module (share minting to treasury)             |
 | `AsyncRedemptionUpgradeable.sol`            | Async redemption, `PAY_REDEMPTIONS_ROLE` fulfillment                        |
 | `libraries/PriceRateLimiter.sol`            | Bucket used to limit relative `pricePerShare` moves                         |
-| `BeaconHub.sol`                             | Beacon registry (`bytes32` → beacon) + `BeaconProxy` deploy / CREATE2       |
-| `interfaces/IBeaconHub.sol`                 | Hub API (`beacon`, `deploy`, `deployCreate2`, `isDeployed`)                 |
 | `validators/MerkleAllowlistValidator.sol`   | Merkle call allowlist validator                                             |
 | `interfaces/IMerkleCallAllowlist.sol`       | Interface + `CallVerificationInput` struct                                  |
 | `converters/`                               | Asset converter adapters (Chainlink, direct, staked LBTC, etc.)             |
