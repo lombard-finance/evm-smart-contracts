@@ -42,18 +42,19 @@ A JSON or YAML object mapping rule names to rule definitions. All rules contribu
   "allow_transfer": {
     "to": "0xTokenAddress",
     "value": "0",
+    "selector": "transfer(address,uint256)",
     "constraints": [
       {
-        "offset": 0,
-        "mask": "0xffffffff00000000000000000000000000000000000000000000000000000000",
-        "expected": "0xa9059cbb00000000000000000000000000000000000000000000000000000000"
+        "offset": 32,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x0000000000000000000000000000000000000000000000000000000000000001"
       }
     ]
   }
 }
 ```
 
-Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `dataLength: 0` is a valid exact-length constraint and sets the flag.
+Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `dataLength: 0` is a valid exact-length constraint and sets the flag. Optional **`selector`** pins `data[0:4]` and sets flag **`0x10`**. Write it as `name(types)` (`transfer(address,uint256)`), no `function` prefix, or hex `bytes4` (`0xa9059cbb`). Omit / `""` for wildcard; use literal **`0x00000000`** only when pinning an all-zero selector (distinct from wildcard in tooling). Constraint **`offset`** values are relative to **`data[4:]`** (ABI arguments).
 
 ---
 

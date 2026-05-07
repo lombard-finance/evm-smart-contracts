@@ -15,6 +15,11 @@ abstract contract FeeManagerUpgradeable is
 {
     using Math for uint256;
 
+    bytes32 public constant MGMT_FEE_CLAIM_ROLE =
+        keccak256("MGMT_FEE_CLAIM_ROLE");
+    bytes32 public constant PERF_FEE_CLAIM_ROLE =
+        keccak256("PERF_FEE_CLAIM_ROLE");
+
     uint256 private constant _SECONDS_PER_YEAR = 365 days;
 
     /// @custom:storage-location erc7201:lombardfinance.storage.FeeManagerUpgradeable
@@ -67,7 +72,7 @@ abstract contract FeeManagerUpgradeable is
     /// @param feeRecipient Recipient of minted shares (must not be zero).
     function harvestManagementFee(
         address feeRecipient
-    ) external onlyRole(TREASURY_ROLE) nonReentrant {
+    ) external onlyRole(MGMT_FEE_CLAIM_ROLE) nonReentrant {
         _harvestManagementFee(_getFeeManagerStorage(), feeRecipient, false);
     }
 
@@ -113,7 +118,7 @@ abstract contract FeeManagerUpgradeable is
     /// @param feeRecipient Recipient of minted shares (must not be zero).
     function harvestPerformanceFee(
         address feeRecipient
-    ) external onlyRole(TREASURY_ROLE) nonReentrant {
+    ) external onlyRole(PERF_FEE_CLAIM_ROLE) nonReentrant {
         _harvestPerformanceFee(_getFeeManagerStorage(), feeRecipient, false);
     }
 

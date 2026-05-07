@@ -9,7 +9,8 @@ interface IAsyncRedemption {
     event RedeemRequested(
         uint256 indexed requestId,
         address indexed owner,
-        address sender,
+        address indexed sender,
+        uint256 assets,
         uint256 shares
     );
 

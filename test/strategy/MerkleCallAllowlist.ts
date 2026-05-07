@@ -8,6 +8,7 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import { ERC20__factory, MerkleAllowlistValidator } from '../../typechain-types';
 import { e18, randomBigInt } from '../helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
+import { packRuleSelector, packedSelectorToBytes4 } from '../../scripts/strategy/merkleUtils';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
 async function merkleIsAllowed(
@@ -32,16 +33,18 @@ export interface RuleConstraint {
 export function encodeMerkleRule(p: {
   version?: number;
   flags: number;
+  selector?: string;
   sender: string;
   to: string;
   value: bigint;
   dataLength: number;
   constraints: RuleConstraint[];
 }): string {
-  const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
+  const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
     p.version ?? 0x01,
     p.flags,
+    packedSelectorToBytes4(packRuleSelector(p.selector)),
     p.sender,
     p.to,
     p.value,
@@ -74,6 +77,29 @@ describe('MerkleAllowlistValidator', function () {
     const f = await ethers.getContractFactory('MerkleAllowlistValidator');
     c = (await f.deploy(owner.address)) as MerkleAllowlistValidator;
     await c.waitForDeployment();
+  });
+
+  describe('packRuleSelector', function () {
+    it('wildcard is empty string (not 0x00000000)', function () {
+      expect(packRuleSelector(undefined)).to.equal('');
+      expect(packRuleSelector('')).to.equal('');
+      expect(packedSelectorToBytes4('')).to.equal('0x00000000');
+    });
+
+    it('human-readable signature matches hex bytes4', function () {
+      expect(packRuleSelector('transfer(address,uint256)')).to.equal('0xa9059cbb');
+      expect(packRuleSelector('0xa9059cbb')).to.equal('0xa9059cbb');
+    });
+
+    it('explicit hex 0x00000000 is distinct from wildcard', function () {
+      expect(packRuleSelector('0x00000000')).to.equal('0x00000000');
+      expect(packRuleSelector(undefined)).to.not.equal(packRuleSelector('0x00000000'));
+    });
+
+    it('normalizes whitespace in name(types) signature', function () {
+      expect(packRuleSelector('transfer(address, uint256)')).to.equal('0xa9059cbb');
+      expect(packRuleSelector('approve(address,uint256)')).to.equal('0x095ea7b3');
+    });
   });
 
   it('domainSeparator matches packed preimage (§8)', async function () {
@@ -240,7 +266,7 @@ describe('MerkleAllowlistValidator', function () {
     ).to.equal(false);
 
     const reservedFlags = encodeMerkleRule({
-      flags: 0x16,
+      flags: 0x20,
       sender: ethers.ZeroAddress,
       to: await c.getAddress(),
       value: 0n,
@@ -292,8 +318,8 @@ describe('MerkleAllowlistValidator', function () {
       value: 0n,
       dataLength: 0,
       constraints: [
-        { offset: 36, mask: fullMask, expected: ethers.ZeroHash },
-        { offset: 4, mask: fullMask, expected: ethers.ZeroHash }
+        { offset: 32, mask: fullMask, expected: ethers.ZeroHash },
+        { offset: 0, mask: fullMask, expected: ethers.ZeroHash }
       ]
     });
     expect(
@@ -307,8 +333,17 @@ describe('MerkleAllowlistValidator', function () {
   it('rejects constraintCount above MAX_CONSTRAINTS', async function () {
     await c.setAllowlistRoot(ethers.hexlify(ethers.randomBytes(32)));
     const fullMask = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
-    const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
-    const values: Array<string | bigint | number> = [1, 0x06, ethers.ZeroAddress, await c.getAddress(), 0n, 0, 65];
+    const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
+    const values: Array<string | bigint | number> = [
+      1,
+      0x06,
+      '0x00000000',
+      ethers.ZeroAddress,
+      await c.getAddress(),
+      0n,
+      0,
+      65
+    ];
     for (let i = 0; i < 65; i++) {
       types.push('uint16', 'bytes32', 'bytes32');
       values.push(i, fullMask, ethers.ZeroHash);
@@ -344,6 +379,7 @@ describe('MerkleAllowlistValidator', function () {
       to?: string;
       value?: string | number;
       dataLength?: string | number;
+      selector?: string;
       constraints?: RuleConstraint[];
     }
 
@@ -352,9 +388,11 @@ describe('MerkleAllowlistValidator', function () {
         (rule.sender ? 0x01 : 0) |
         (rule.to ? 0x02 : 0) |
         (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
-        (rule.dataLength !== undefined ? 0x08 : 0);
+        (rule.dataLength !== undefined ? 0x08 : 0) |
+        (rule.selector !== undefined && rule.selector.trim() !== '' ? 0x10 : 0);
       return encodeMerkleRule({
         flags,
+        selector: rule.selector,
         sender: rule.sender || ethers.ZeroAddress,
         to: rule.to || ethers.ZeroAddress,
         value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
@@ -890,13 +928,15 @@ describe('MerkleAllowlistValidator', function () {
 // ─── Cross-script consistency ─────────────────────────────────────────────────
 // Verifies that merkleTreeBuilder and findRule produce identical leaves for the
 // same rule when given the same ruleset and validator address.
-// Uses a dedicated fixture where every rule has calldata constraints, so
-// findRule can unambiguously identify each rule by calldata alone.
+// Uses a dedicated fixture with mixed selector formats and constrained rules.
 
 describe('script consistency: merkleTreeBuilder vs findRule', function () {
   const RULES_FILE = path.join(process.cwd(), 'test/strategy/fixtures/cross-script-ruleset.json');
   const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
   const TRANSFER_SELECTOR = '0xa9059cbb';
+  const APPROVE_SELECTOR = '0x095ea7b3';
+  const RECIPIENT = '0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce';
+  const FIXED_AMOUNT = 1000000n;
 
   let c: MerkleAllowlistValidator;
 
@@ -978,5 +1018,114 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
         merkleProof: finderOut.merkleProof
       })
     ).to.equal(true, 'findRule native transfer proof rejected');
+  });
+
+  it('accepts proof built from hex selector-only rules', async function () {
+    this.timeout(60000);
+
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${RULES_FILE} --chain-id ${chainId} --contract ${addr}`;
+
+    const transferProof = JSON.parse(
+      execSync(
+        `npx ts-node scripts/strategy/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_transfer_hex_selector`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+    const approveProof = JSON.parse(
+      execSync(
+        `npx ts-node scripts/strategy/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_approve_hex_selector`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+
+    expect(approveProof.root).to.equal(transferProof.root);
+    await c.setAllowlistRoot(transferProof.root);
+
+    const transferCalldata = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n]
+    );
+    const approveCalldata = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [APPROVE_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n]
+    );
+
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, transferCalldata, {
+        ruleEncoded: transferProof.ruleEncoded,
+        merkleProof: transferProof.merkleProof
+      })
+    ).to.equal(true, 'hex transfer selector proof rejected');
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, approveCalldata, {
+        ruleEncoded: approveProof.ruleEncoded,
+        merkleProof: approveProof.merkleProof
+      })
+    ).to.equal(true, 'hex approve selector proof rejected');
+  });
+
+  it('enforces constraints for hex selector rules', async function () {
+    this.timeout(60000);
+
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${RULES_FILE} --chain-id ${chainId} --contract ${addr}`;
+
+    const transferProof = JSON.parse(
+      execSync(
+        `npx ts-node scripts/strategy/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_transfer_hex_with_constraints`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+    const approveProof = JSON.parse(
+      execSync(
+        `npx ts-node scripts/strategy/merkleTreeBuilder.ts ${base} --mode proof --rule-name allow_approve_hex_with_constraints`
+      ).toString()
+    ) as { root: string; ruleEncoded: string; merkleProof: string[] };
+
+    expect(approveProof.root).to.equal(transferProof.root);
+    await c.setAllowlistRoot(transferProof.root);
+
+    const transferGood = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), FIXED_AMOUNT]
+    );
+    const transferWrongAmount = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), FIXED_AMOUNT + 1n]
+    );
+    const approveGood = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [APPROVE_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 1n]
+    );
+    const approveWrongRecipient = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [APPROVE_SELECTOR, ethers.zeroPadValue(ethers.ZeroAddress, 32), 1n]
+    );
+
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, transferGood, {
+        ruleEncoded: transferProof.ruleEncoded,
+        merkleProof: transferProof.merkleProof
+      })
+    ).to.equal(true, 'constrained transfer proof rejected for matching calldata');
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, transferWrongAmount, {
+        ruleEncoded: transferProof.ruleEncoded,
+        merkleProof: transferProof.merkleProof
+      })
+    ).to.equal(false, 'constrained transfer proof accepted with wrong amount');
+
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, approveGood, {
+        ruleEncoded: approveProof.ruleEncoded,
+        merkleProof: approveProof.merkleProof
+      })
+    ).to.equal(true, 'constrained approve proof rejected for matching calldata');
+    expect(
+      await merkleIsAllowed(c, ethers.ZeroAddress, TO, 0n, approveWrongRecipient, {
+        ruleEncoded: approveProof.ruleEncoded,
+        merkleProof: approveProof.merkleProof
+      })
+    ).to.equal(false, 'constrained approve proof accepted with wrong recipient');
   });
 });

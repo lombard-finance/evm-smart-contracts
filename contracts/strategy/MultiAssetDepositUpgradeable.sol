@@ -54,9 +54,7 @@ abstract contract MultiAssetDepositUpgradeable is
 
     /// @inheritdoc IMultiAssetDeposit
     /// @param shard Registered shard address, or zero to disable automatic routing.
-    function setDefaultShard(
-        address shard
-    ) external onlyRole(LIMITED_ADMIN_ROLE) {
+    function setDefaultShard(address shard) external onlyRole(MANAGER_ROLE) {
         if (shard != address(0)) {
             if (!_getStrategyBaseUpgradeableStorage().shards.contains(shard)) {
                 revert Strategy_ShardNotRegistered();

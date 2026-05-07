@@ -4,19 +4,23 @@
  */
 import { ethers } from 'hardhat';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import { packRuleSelector, packedSelectorToBytes4 } from './strategy/merkleUtils';
 
 function encodeMerkleRule(p: {
   flags: number;
+  selector?: string;
   sender: string;
   to: string;
   value: bigint;
   dataLength: number;
   constraints: { offset: number; mask: string; expected: string }[];
 }): string {
-  const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
+  const selectorHex = packedSelectorToBytes4(packRuleSelector(p.selector));
+  const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
     0x01,
     p.flags,
+    selectorHex,
     p.sender,
     p.to,
     p.value,
@@ -33,7 +37,7 @@ function encodeMerkleRule(p: {
 async function main() {
   const [deployer, user] = await ethers.getSigners();
   const f = await ethers.getContractFactory('MerkleAllowlistValidator');
-  const c = await f.deploy();
+  const c = await f.deploy(deployer.address);
   await c.waitForDeployment();
   const target = await user.getAddress();
 
@@ -50,7 +54,13 @@ async function main() {
   ) {
     const input = { ruleEncoded: rule, merkleProof: proof };
     const dataLen = ethers.dataLength(data);
-    const gas = await c.isAllowed.estimateGas(sender, to, value, data, input);
+    const gas = await c['isAllowed(address,address,uint256,bytes,(bytes,bytes32[]))'].estimateGas(
+      sender,
+      to,
+      value,
+      data,
+      input
+    );
     console.log(`${label}: ${gas.toString()} gas (data length ${dataLen} bytes)`);
   }
 
@@ -126,7 +136,7 @@ async function main() {
   const constraintsMax = [];
   for (let i = 0; i < nMax; i++) {
     constraintsMax.push({
-      offset: 4 + 32 * i,
+      offset: 32 * i,
       mask: fullMask,
       expected: ethers.ZeroHash
     });
@@ -186,12 +196,12 @@ async function main() {
     dataSpan
   );
 
-  // Constraints: 1, 4, 16 (offsets 4, 36, 68, 100 ...)
+  // Constraints: arg-relative offsets 0, 32, 64, ...
   for (const n of [1, 4, 16]) {
     const constraints = [];
     for (let i = 0; i < n; i++) {
       constraints.push({
-        offset: 4 + 32 * i,
+        offset: 32 * i,
         mask: fullMask,
         expected: ethers.ZeroHash
       });
@@ -211,6 +221,45 @@ async function main() {
     const data = ('0x' + '00'.repeat(dataLen)) as `0x${string}`;
     await bench(`isAllowed (success, ${n} constraints)`, ruleC, proofC, ethers.ZeroAddress, target, 0n, data);
   }
+
+  // Real-world: ERC20 transfer to a fixed recipient, any amount.
+  // Constraint 0 pins the selector via mask 0xffffffff... at offset 0;
+  // constraint 1 pins the recipient (32-byte left-padded) at offset 4.
+  const transferRecipient = '0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce';
+  const transferSender = '0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892';
+  const transferTo = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+  const ruleTransfer = encodeMerkleRule({
+    flags: 0x0f,
+    sender: transferSender,
+    to: transferTo,
+    value: 0n,
+    dataLength: 68,
+    selector: 'transfer(address,uint256)',
+    constraints: [
+      {
+        offset: 0,
+        mask: fullMask,
+        expected: ethers.zeroPadValue(transferRecipient, 32)
+      }
+    ]
+  });
+  const treeTransfer = StandardMerkleTree.of([[0, ds, ethers.getBytes(ruleTransfer)]], ['uint8', 'bytes32', 'bytes']);
+  await c.setAllowlistRoot(treeTransfer.root);
+  const proofTransfer = treeTransfer.getProof([0, ds, ethers.getBytes(ruleTransfer)] as [number, string, Uint8Array]);
+  const transferData = ethers.concat([
+    '0xa9059cbb',
+    ethers.zeroPadValue(transferRecipient, 32),
+    ethers.zeroPadValue('0x0de0b6b3a7640000', 32) // arbitrary amount: 1e18
+  ]);
+  await bench(
+    'isAllowed (transfer_token_any_amount: ERC20 transfer, fixed recipient)',
+    ruleTransfer,
+    proofTransfer,
+    transferSender,
+    transferTo,
+    0n,
+    transferData
+  );
 
   const gasSet = await c.setAllowlistRoot.estimateGas(tree1.root);
   console.log(`setAllowlistRoot (same root update): ${gasSet.toString()} gas`);

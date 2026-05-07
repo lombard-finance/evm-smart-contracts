@@ -119,7 +119,7 @@ abstract contract AsyncRedemptionUpgradeable is
             _transfer(owner, treasury_, feeShares);
             emit WithdrawalFeeCharged(treasury_, feeShares);
         }
-        emit RedeemRequested(requestId, owner, caller, shares);
+        emit RedeemRequested(requestId, owner, caller, assets, shares);
     }
 
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
@@ -146,7 +146,7 @@ abstract contract AsyncRedemptionUpgradeable is
             delete $.redeemRequestById[rid];
 
             asset_.safeTransfer(owner, assets);
-            emit Withdraw(msgSender, owner, assets, shares);
+            emit Redeem(msgSender, owner, assets, shares);
         }
 
         emit RedeemRequestsFulfilled(requestIds);

@@ -100,6 +100,7 @@ The canonical logical rule is:
 Rule {
     uint8 version;
     uint8 flags;
+    bytes4 selector;
     address sender;
     address to;
     uint256 value;
@@ -119,7 +120,7 @@ Constraint {
 }
 ```
 
-**`offset` range:** each constraint's `offset` is a `uint16` (0..65535). This range is **normative** and sufficient for intended contract calldata lengths; this spec does not define constraints at byte offsets above 65535.
+**`offset` range:** each constraint's `offset` is a `uint16` (0..65535). Offsets are **relative to the ABI argument bytes** `data[4..]` (i.e. after the 4-byte function selector). This range is **normative** and sufficient for intended contract calldata lengths; this spec does not define constraints at byte offsets above 65535.
 
 ---
 
@@ -131,7 +132,8 @@ The `flags` field MUST use the following bit layout:
 - bit `1` (`0x02`): `to` is exact
 - bit `2` (`0x04`): `value` is exact
 - bit `3` (`0x08`): `dataLength` is exact
-- bits `4..7`: reserved, MUST be zero
+- bit `4` (`0x10`): **selector is exact** — `bytes4(data[0:4])` MUST equal encoded `selector`
+- bits `5..7`: reserved, MUST be zero (`flags & 0xE0` MUST be `0`)
 
 Semantics:
 
@@ -144,6 +146,8 @@ Canonical zeroing rules:
 - if `to` is wildcard, encoded `to` MUST be `address(0)`
 - if `value` is wildcard, encoded `value` MUST be `0`
 - if `dataLength` is wildcard, encoded `dataLength` MUST be `0`
+- if selector is wildcard (bit `4` clear), encoded `selector` MUST be `bytes4(0)`
+- if selector is exact (bit `4` set), encoded `selector` is the required `bytes4(data[0:4])`; it MAY equal `bytes4(0)`, because that value can occur as the leading four bytes of `keccak256` over a valid function signature string (wildcard vs pin-to-zero is determined solely by bit `4`, not by comparing the slot to zero)
 
 This prevents multiple encodings for the same logical rule. The same rule MAY be checked via `isAllowed` arbitrarily many times; there is no on-chain replay or consumption mechanism.
 
@@ -151,12 +155,12 @@ This prevents multiple encodings for the same logical rule. The same rule MAY be
 
 ### 5. Constraint semantics
 
-Each constraint operates on one **32-byte word** read from `data` starting at a **byte offset** into `data` (not into the EVM transaction calldata beyond the `data` argument; the `data` parameter to `isAllowed` is the full contract call data for matching purposes).
+Each constraint operates on one **32-byte word** read from **`data` starting at byte index `4 + offset`**, where `offset` is the constraint's `offset` field. Equivalently: constraints apply only to **ABI-encoded arguments** (`data[4..]`), not to the 4-byte function selector. The `data` parameter to `isAllowed` is still the **full** contract call data (selector + arguments).
 
-Let `offset` be the constraint's `offset` field. Let `b` be the byte sequence of length `L = min(32, max(0, data.length - offset))` consisting of `data[offset .. offset + L)` when `offset < data.length`, else empty. The word `word` MUST be the `bytes32` formed by **left-aligning** those `L` bytes in big-endian word order (first byte of `b` is the most significant among the calldata-derived bytes) and **right-padding** with zero bytes to 32 bytes:
+Let `base = 4 + offset`. Let `b` be the byte sequence of length `L = min(32, max(0, data.length - base))` consisting of `data[base .. base + L)` when `base < data.length`, else empty. The word `word` MUST be the `bytes32` formed by **left-aligning** those `L` bytes in big-endian word order (first byte of `b` is the most significant among the calldata-derived bytes) and **right-padding** with zero bytes to 32 bytes:
 
-- if `data.length <= offset`, `word` is `bytes32(0)`
-- if `data.length >= offset + 32`, `word` is exactly `data[offset .. offset + 32]` in that byte order as a `bytes32`
+- if `data.length <= base`, `word` is `bytes32(0)`
+- if `data.length >= base + 32`, `word` is exactly `data[base .. base + 32]` in that byte order as a `bytes32`
 - otherwise, `word` is those remaining bytes left-aligned in the 32-byte word, zeros in all less-significant byte positions
 
 Matching condition:
@@ -178,24 +182,18 @@ A rule with `constraintCount == 0` means calldata is fully wildcard except for o
 
 Standard contract calldata for a function call MUST be understood as:
 
-- bytes `[0, 4)` — the 4-byte function selector
+- bytes `[0, 4)` — the 4-byte function selector (pinned with **`flags & 0x10`** and header **`selector`**, not via a constraint at argument offset `0`)
 - bytes `[4, 4+32)` — the first ABI-encoded argument word (each static typed argument occupies 32 bytes; dynamic types use offsets and payloads per Solidity ABI)
 
-Therefore, for the common case of **only static 32-byte-aligned arguments** after the selector:
+Constraint **`offset`** counts bytes **into `data[4:]`** only. Therefore, for static 32-byte-aligned arguments:
 
-- the selector aligns with the start of `data`; a constraint on the selector alone SHOULD use **`offset = 0`** and a `mask` that selects the selector bytes within the loaded 32-byte word (see §13)
-- the first argument word after the selector SHOULD use **`offset = 4`**
-- the second argument word SHOULD use **`offset = 36`** (`4 + 32`)
-
-More generally, the **n**th static 32-byte word of the argument list (0-based **`n`**) after the selector usually starts at:
-
-```text
-offset = 4 + 32 * n
-```
+- the first argument word uses constraint **`offset = 0`** (reads `data[4..36)`)
+- the second argument word uses **`offset = 32`**
+- the **n**th argument word (0-based **`n`**) typically uses **`offset = 32 * n`**
 
 This formula applies to typical packed ABI heads; tuples, dynamic `bytes`/`string`, and nonstandard encodings MAY require different offsets. Integrators MUST compute offsets from the actual ABI encoding they intend to allow.
 
-Implementations and off-chain builders MUST align `mask` / `expected` with the same byte ordering as Solidity's `bytes32(bytes.concat(data[offset:offset+L], bytes(32-L)))` with `L = min(32, max(0, data.length - offset))` when `offset < data.length`, and `bytes32(0)` when `offset >= data.length`.
+Implementations and off-chain builders MUST align `mask` / `expected` with the same byte ordering as loading `data[4+offset ..]` into a left-aligned `bytes32` per the padding rules above.
 
 **Note:** Comparison to EVM `calldataload` is **informative only**: matching applies to the `data` bytes passed into `isAllowed`, not to the outer transaction calldata of the `isAllowed` invocation.
 
@@ -211,9 +209,9 @@ A constraint at byte `offset` remains valid even when exact length is not enforc
 
 Example:
 
-- `data.length = 40`
-- constraint at `offset = 36`
-- the word consists of 4 bytes from `data[36..40]` **left-aligned** in the `bytes32`, with 28 zero bytes in the less-significant positions
+- `data.length = 40` (4-byte selector + 36 bytes of arguments)
+- constraint at `offset = 32` (second argument word in arg space)
+- `base = 4 + 32 = 36`; the word consists of 4 bytes from `data[36..40]` **left-aligned** in the `bytes32`, with 28 zero bytes in the less-significant positions
 
 ---
 
@@ -225,12 +223,13 @@ A rule MUST be encoded as:
 byte offset in rule  size  field
 0                    1     version
 1                    1     flags
-2                    20    sender
-22                   20    to
-42                   32    value
-74                   4     dataLength
-78                   2     constraintCount
-80                   66*n  constraints
+2                    4     selector (bytes4; zero when selector flag clear)
+6                    20    sender
+26                   20    to
+46                   32    value
+78                   4     dataLength
+82                   2     constraintCount
+84                   66*n  constraints
 ```
 
 Each constraint is encoded as:
@@ -245,19 +244,21 @@ byte offset in constraint  size  field
 Total encoded length:
 
 ```text
-80 + 66 * constraintCount
+84 + 66 * constraintCount
 ```
 
 **Solidity alignment:** the canonical `ruleEncoded` payload MUST be byte-for-byte identical to the concatenation of:
 
-1. `abi.encodePacked(version, flags, sender, to, value, dataLength, constraintCount)`
+1. `abi.encodePacked(version, flags, selector, sender, to, value, dataLength, constraintCount)`
 2. For each constraint in order: `abi.encodePacked(offset, mask, expected)` where `offset` is `uint16`
 
-Types MUST match Solidity ABI packing: `uint8`, `uint8`, `address`, `address`, `uint256`, `uint32`, `uint16`, then per constraint `uint16`, `bytes32`, `bytes32`. The contract and off-chain builder MUST produce the same bytes as a Solidity implementation using that sequence.
+Types MUST match Solidity ABI packing: `uint8`, `uint8`, `bytes4`, `address`, `address`, `uint256`, `uint32`, `uint16`, then per constraint `uint16`, `bytes32`, `bytes32`. The contract and off-chain builder MUST produce the same bytes as a Solidity implementation using that sequence.
 
 `version` for this rule encoding MUST be **`0x01`**.
 
 Any rule not matching this exact structure is invalid; `isAllowed` MUST return `false` (see §10).
+
+**Ruleset JSON/YAML (`selector` field):** off-chain tooling MAY author the optional selector as `name(types)` (e.g. `transfer(address,uint256)`), without a leading `function` keyword; optional whitespace MUST be removed before hashing. Encoded as `bytes4(keccak256(normalizedSignature))` — the same four bytes as in the binary rule above. Alternatively, authors MAY supply a hex `bytes4` (`0x` plus eight hex digits), including **`0x00000000`** when pinning an all-zero selector. Wildcard (no selector pin) MUST use omission or an empty string — tooling MUST NOT treat wildcard as ambiguous with an explicit zero selector (`packRuleSelector` uses empty string vs hex `0x00000000`). Both forms MUST encode to identical `ruleEncoded` octets when the selector flag is set.
 
 ---
 
@@ -425,11 +426,15 @@ Given parsed rule `r`:
 
 - if `r.flags & 0x08 != 0`, require `data.length == r.dataLength`
 
+#### Selector
+
+- if `r.flags & 0x10 != 0`, require `data.length >= 4` and `bytes4(data[0:4]) == r.selector`
+
 #### Constraints
 
 For each constraint `c`:
 
-- load `word` as the zero-padded 32-byte value from `data` at byte offset `c.offset` per §5
+- load `word` as the zero-padded 32-byte value from `data` at byte offset **`4 + c.offset`** per §5
 - require `(word & c.mask) == c.expected`
 
 If all checks pass, the rule matches.
@@ -467,16 +472,15 @@ Off-chain selection of which rule to use is out of scope for correctness, but in
 - other scalar fields wildcard
 - no calldata constraints
 
-#### C. Exact 4-byte selector (`offset = 0`)
+#### C. Exact 4-byte function selector
 
-- one constraint with **`offset = 0`**, loading the first 32 bytes of `data` (selector in bytes `0..4`, remainder per ABI may include the start of the first argument)
-- use a `mask` that selects only the selector bits within that `bytes32` (EVM / Solidity: selector occupies the **most significant** 4 bytes of the word loaded from calldata offset `0`)
-- `expected` MUST satisfy `expected & ~mask == 0` and match the allowed selector under that mask
+- set flag bit **`0x10`** and encode **`selector`** as the allowed **`bytes4`** (canonical zero when the flag is clear)
+- do **not** use a calldata constraint at offset `0` for the selector; constraints begin in **argument** space (`data[4:]`)
 
-#### D. Any sender, exact `to`, `value = 0`, second ABI argument is an exact `address` (`offset = 36`)
+#### D. Any sender, exact `to`, `value = 0`, second ABI argument is an exact `address` (`offset = 32` in constraint space)
 
 - exact bits for `to` and `value`
-- one constraint with **`offset = 36`** (second 32-byte word after the standard 4-byte selector)
+- one constraint with **`offset = 32`** (second 32-byte word of **arguments**, i.e. full-calldata offset `36`)
 - for a 32-byte ABI `address` slot, mask the **low** 20 bytes of the word (the address payload)
 
 Example mask:
@@ -491,9 +495,9 @@ Example expected value (illustrative `address` `0x123456789012345678901234567890
 0x0000000000000000000000001234567890123456789012345678901234567890
 ```
 
-#### E. First ABI argument word (`offset = 4`)
+#### E. First ABI argument word (`offset = 0` in constraint space)
 
-- for a call whose first argument is a single 32-byte word immediately after the selector, constrain it with **`offset = 4`** and set `mask` / `expected` for the allowed value
+- for a call whose first argument is a single 32-byte word immediately after the selector, constrain it with **`offset = 0`** (full-calldata bytes `4..36`) and set `mask` / `expected` for the allowed value
 
 ---
 
@@ -512,7 +516,7 @@ The implementation MUST NOT have cost proportional to total allowlist size.
 MAX_CONSTRAINTS = 64
 ```
 
-**Encoding length check:** for a valid rule, `ruleEncoded.length` MUST equal `80 + 66 * constraintCount`; any other length → `false`.
+**Encoding length check:** for a valid rule, `ruleEncoded.length` MUST equal `84 + 66 * constraintCount`; any other length → `false`.
 
 **Both MUST hold:** a rule is invalid if **either** `constraintCount > MAX_CONSTRAINTS` **or** the length mismatch applies. Example: `constraintCount = 65` and `ruleEncoded.length = 4370` satisfies the length formula for that count but is still **invalid** because of the cap.
 
@@ -526,7 +530,7 @@ MAX_CONSTRAINTS = 64
 
 ### Malformed flags
 
-- reserved bits set (flags & `0xF0` != 0) → canonical validation fails → `isAllowed` returns `false`
+- reserved bits set (flags & `0xE0` != 0) → canonical validation fails → `isAllowed` returns `false`
 - wildcard fields with nonzero encoded values → same
 
 ### Duplicate or unsorted constraints
@@ -620,7 +624,7 @@ if allowlistRoot == bytes32(0) -> return false
 if !parse(input.ruleEncoded) -> return false
 if !validateCanonical(rule) -> return false
 if rule.constraintCount > MAX_CONSTRAINTS -> return false
-if input.ruleEncoded.length != 80 + 66 * rule.constraintCount -> return false
+if input.ruleEncoded.length != 84 + 66 * rule.constraintCount -> return false
 leaf = leafFromRule(input.ruleEncoded)
 if !MerkleProof.verifyCalldata(input.merkleProof, allowlistRoot, leaf) -> return false
 if !match(rule, sender, to, value, data) -> return false

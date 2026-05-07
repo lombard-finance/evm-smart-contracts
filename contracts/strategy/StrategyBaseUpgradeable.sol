@@ -29,8 +29,7 @@ abstract contract StrategyBaseUpgradeable is
     using SafeERC20 for IERC20;
     using PriceRateLimiter for PriceRateLimiter.Bucket;
 
-    bytes32 public constant LIMITED_ADMIN_ROLE =
-        keccak256("LIMITED_ADMIN_ROLE");
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     /// @notice Price setter role is used to set the price per share; may pause the strategy operations.
     bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
@@ -40,9 +39,6 @@ abstract contract StrategyBaseUpgradeable is
 
     /// @notice Hard pauser role is used to pause the strategy operations and the ERC-20 transfers.
     bytes32 public constant HARD_PAUSER_ROLE = keccak256("HARD_PAUSER_ROLE");
-
-    /// @notice Treasury role is used to harvest fee.
-    bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
 
     /// @notice The role is used to fulfill the redemption requests.
     bytes32 public constant PAY_REDEMPTIONS_ROLE =
@@ -233,6 +229,12 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseUpgradeableStorage().shards.contains(shard);
     }
 
+    /// @notice All shard addresses registered for funding (order not stable across adds/removals).
+    /// @dev Copies the full set to memory; intended for off-chain / view calls.
+    function shards() external view returns (address[] memory) {
+        return _getStrategyBaseUpgradeableStorage().shards.values();
+    }
+
     /// @notice Registers an existing shard contract address without deploying via the hub.
     /// @param shard Shard contract to whitelist for `requestFunding`.
     function registerShard(
@@ -247,7 +249,7 @@ abstract contract StrategyBaseUpgradeable is
     /// @param shard Shard address to remove.
     function deregisterShard(
         address shard
-    ) external virtual onlyRole(LIMITED_ADMIN_ROLE) {
+    ) external virtual onlyRole(MANAGER_ROLE) {
         if (!_getStrategyBaseUpgradeableStorage().shards.remove(shard))
             revert Strategy_ShardNotRegistered();
         emit ShardDeregistered(shard, _msgSender());
@@ -319,7 +321,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Clears strategy-level pause.
-    function unpauseStrategyOperations() external onlyRole(LIMITED_ADMIN_ROLE) {
+    function unpauseStrategyOperations() external onlyRole(MANAGER_ROLE) {
         _unpauseStrategy();
     }
 
@@ -358,7 +360,7 @@ abstract contract StrategyBaseUpgradeable is
         _pause();
     }
 
-    function unpause() external onlyRole(LIMITED_ADMIN_ROLE) {
+    function unpause() external onlyRole(MANAGER_ROLE) {
         _unpause();
     }
 }

@@ -8,13 +8,36 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 /// @title ChainlinkConverter
 /// @notice IAssetConverter adapter for any asset priced via a Chainlink AggregatorV3Interface feed.
 ///
-/// @dev Feed semantics: `answer / 10^feed.decimals()` = price of 1 token in base-asset units.
-///      Decimal normalisation is pre-computed once as an immutable scalingFactor:
-///        scalingFactor = 10^(feedDecimals + tokenDecimals - baseDecimals)
+/// @dev Two modes, selected at construction by `inverted_`:
 ///
-///      Conversions:
-///        toBaseUnits:   baseOut   = mulDiv(tokenAmount, answer, scalingFactor, rounding)
-///        fromBaseUnits: tokenOut  = mulDiv(baseUnits, scalingFactor, answer, rounding)
+///      **Forward (`inverted = false`)** — feed reports **strategy-base per 1 deposit-token** (“how much
+///      base do I get per one token”). Example: ETH/BTC-style feed for an ETH deposit into a BTC-base
+///      strategy — `answer / 10^feed.decimals()` ≈ BTC per 1 ETH (in natural units).
+///        scalingFactor = 10^(feedDecimals + tokenDecimals - baseDecimals)
+///        Requires: feedDecimals + tokenDecimals >= baseDecimals
+///        toBaseUnits:   baseOut  = mulDiv(tokenAmount, answer, scalingFactor, rounding)
+///        fromBaseUnits: tokenOut = mulDiv(baseUnits, scalingFactor, answer, rounding)
+///
+///      **Inverted (`inverted = true`)** — feed reports **deposit-token per 1 strategy-base** (“how much
+///      token do I pay per one base unit”). Example: BTC/USD-style feed with USDC deposit and BTC-base
+///      strategy — `answer / 10^feed.decimals()` ≈ USD (stable) per 1 BTC.
+///        scalingFactor = 10^(feedDecimals + baseDecimals - tokenDecimals)
+///        Requires: feedDecimals + baseDecimals >= tokenDecimals
+///        toBaseUnits:   baseOut  = mulDiv(tokenAmount, scalingFactor, answer, rounding)
+///        fromBaseUnits: tokenOut = mulDiv(baseUnits, answer, scalingFactor, rounding)
+///
+///      **BTC-denominated strategy** (`baseDecimals = 8`, `asset()` is BTC/BTC-pegged accounting):
+///
+///      - **BTC/USD** (typical Chainlink “BTC / USD”): `answer` is **USD per 1 BTC** → stablecoin units per
+///        1 BTC → **deposit-token per base** → **`inverted = true`**.
+///      - **USD/BTC** (inverse-style feed): `answer` is **BTC per 1 USD** (base per unit of stablecoin) →
+///        **base per deposit-token** → **`inverted = false`**.
+///      - **WBTC/BTC**, **TBTC/BTC**, etc.: `answer` is **BTC per 1 wrapped token** → **`inverted = false`**.
+///      - **ETH/BTC** with ETH deposit: `answer` is **BTC per 1 ETH** → **`inverted = false`**.
+///
+///      Rule of thumb: interpret the feed as “price of **X** in **Y**”. If **Y** is your deposit token and **X**
+///      is BTC (strategy base), use **`inverted = true`**. If **Y** is BTC and **X** is your deposit token,
+///      use **`inverted = false`**.
 ///
 ///      `baseDecimals` must equal the strategy underlying asset's decimal count
 ///      (e.g. 8 for BTC/LBTC, 18 for WETH).
@@ -29,7 +52,7 @@ contract ChainlinkConverter is IAssetConverter {
     error ChainlinkConverter_DecimalsUnderflow();
 
     AggregatorV3Interface public immutable feed;
-    /// @dev 10^(feedDecimals + tokenDecimals - baseDecimals); normalises token/feed decimals to base-asset units.
+    /// @dev Normalisation factor; exponent depends on `inverted` (see contract-level @dev).
     uint256 public immutable scalingFactor;
     uint256 public immutable heartbeat;
     /// @dev address(0) disables the sequencer check (mainnet deployments).
@@ -37,6 +60,8 @@ contract ChainlinkConverter is IAssetConverter {
     uint256 public immutable gracePeriod;
     /// @dev Decimal count of the strategy's underlying base asset (e.g. 8 for BTC, 18 for ETH).
     uint8 public immutable baseDecimals;
+    /// @dev If false: feed is base-per-token. If true: feed is token-per-base.
+    bool public immutable inverted;
 
     /// @param feed_ Chainlink AggregatorV3Interface for the deposit asset price.
     /// @param tokenDecimals_ Deposit token decimals (metadata scale).
@@ -44,23 +69,35 @@ contract ChainlinkConverter is IAssetConverter {
     /// @param heartbeat_ Maximum allowed staleness of `latestRoundData.updatedAt` (seconds).
     /// @param sequencerUptimeFeed_ L2 sequencer feed; zero disables sequencer checks.
     /// @param gracePeriod_ Seconds after sequencer recovery during which `_checkSequencer` still reverts.
+    /// @param inverted_ See contract @dev: **`false`** = feed is **base per deposit-token**; **`true`** =
+    ///                  feed is **deposit-token per base**. For a BTC-base vault + Chainlink **BTC/USD** +
+    ///                  USDC deposits, use **`true`**. For a feed that reports **BTC per 1 token**, use **`false`**.
     constructor(
         address feed_,
         uint8 tokenDecimals_,
         uint8 baseDecimals_,
         uint256 heartbeat_,
         address sequencerUptimeFeed_,
-        uint256 gracePeriod_
+        uint256 gracePeriod_,
+        bool inverted_
     ) {
         if (feed_ == address(0)) revert ChainlinkConverter_ZeroFeed();
         if (heartbeat_ == 0) revert ChainlinkConverter_ZeroHeartbeat();
         feed = AggregatorV3Interface(feed_);
         uint8 feedDec = feed.decimals();
-        if (uint256(feedDec) + tokenDecimals_ < baseDecimals_)
-            revert ChainlinkConverter_DecimalsUnderflow();
         baseDecimals = baseDecimals_;
-        scalingFactor =
-            10 ** (uint256(feedDec) + tokenDecimals_ - baseDecimals_);
+        inverted = inverted_;
+        if (inverted_) {
+            if (uint256(feedDec) + baseDecimals_ < tokenDecimals_)
+                revert ChainlinkConverter_DecimalsUnderflow();
+            scalingFactor =
+                10 ** (uint256(feedDec) + baseDecimals_ - tokenDecimals_);
+        } else {
+            if (uint256(feedDec) + tokenDecimals_ < baseDecimals_)
+                revert ChainlinkConverter_DecimalsUnderflow();
+            scalingFactor =
+                10 ** (uint256(feedDec) + tokenDecimals_ - baseDecimals_);
+        }
         heartbeat = heartbeat_;
         sequencerUptimeFeed = AggregatorV3Interface(sequencerUptimeFeed_);
         gracePeriod = gracePeriod_;
@@ -71,7 +108,11 @@ contract ChainlinkConverter is IAssetConverter {
         uint256 tokenAmount,
         Math.Rounding rounding
     ) external view override returns (uint256) {
-        return Math.mulDiv(tokenAmount, _getAnswer(), scalingFactor, rounding);
+        uint256 ans = _getAnswer();
+        return
+            inverted
+                ? Math.mulDiv(tokenAmount, scalingFactor, ans, rounding)
+                : Math.mulDiv(tokenAmount, ans, scalingFactor, rounding);
     }
 
     /// @inheritdoc IAssetConverter
@@ -79,7 +120,11 @@ contract ChainlinkConverter is IAssetConverter {
         uint256 baseUnits,
         Math.Rounding rounding
     ) external view override returns (uint256) {
-        return Math.mulDiv(baseUnits, scalingFactor, _getAnswer(), rounding);
+        uint256 ans = _getAnswer();
+        return
+            inverted
+                ? Math.mulDiv(baseUnits, ans, scalingFactor, rounding)
+                : Math.mulDiv(baseUnits, scalingFactor, ans, rounding);
     }
 
     function _getAnswer() private view returns (uint256) {

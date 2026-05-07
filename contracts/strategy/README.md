@@ -27,16 +27,17 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 **Roles**
 
-| Role                   | Controls                                                                                                                            |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`   | Deposit asset list / converters, `pricePerShare` rate-limit config, **register shards**, grant roles                                |
-| `TREASURY_ROLE`        | Fee treasury, per-asset deposit fee bps, mgmt/performance fees, harvests, withdrawal fee bps, global max shares per `requestRedeem` |
-| `PRICE_SETTER_ROLE`    | `postPricePerShare` within the configured rate limit                                                                                |
-| `SOFT_PAUSER_ROLE`     | `pauseStrategyOperations`                                                                                                           |
-| `PAY_REDEMPTIONS_ROLE` | `fulfillRedeemRequests`                                                                                                             |
-| `LIMITED_ADMIN_ROLE`   | **Deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause                                              |
+| Role                   | Controls                                                                                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`   | Deposit asset list / converters, fee treasury + fee bps config, redemption cap config, `pricePerShare` rate-limit config, **register shards**, grant roles |
+| `MGMT_FEE_CLAIM_ROLE`  | `harvestManagementFee`                                                                                                                                     |
+| `PERF_FEE_CLAIM_ROLE`  | `harvestPerformanceFee`                                                                                                                                    |
+| `PRICE_SETTER_ROLE`    | `postPricePerShare` within the configured rate limit                                                                                                       |
+| `SOFT_PAUSER_ROLE`     | `pauseStrategyOperations`                                                                                                                                  |
+| `PAY_REDEMPTIONS_ROLE` | `fulfillRedeemRequests`                                                                                                                                    |
+| `MANAGER_ROLE`         | **Deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause                                                                     |
 
-**Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates with **`TREASURY_ROLE`** and pulls accrued mint-based fees via **`harvestManagementFee`** / **`harvestPerformanceFee`**.
+**Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates via admin and fee-harvest execution is delegated to **`MGMT_FEE_CLAIM_ROLE`** / **`PERF_FEE_CLAIM_ROLE`**.
 
 | Surface                       | What users feel                                        | What on-chain does                                                                                                                                                                           |
 | ----------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,7 +57,9 @@ perfFeeShares   ≈ (totalSupply × (pricePerShare − HWM) / HWM) × performanc
 ```solidity
 // Treasury-configured address for deposit skims, withdrawal-fee shares, and harvest mint targets
 strategy.setFeeTreasury(treasury);
+// Caller needs MGMT_FEE_CLAIM_ROLE
 strategy.harvestManagementFee(treasury);
+// Caller needs PERF_FEE_CLAIM_ROLE
 strategy.harvestPerformanceFee(treasury);
 ```
 
@@ -79,15 +82,15 @@ The `sender` passed to `isAllowed` is the **logical** caller your product cares 
 
 ### What you can put in a rule
 
-| You can fix or leave open            | Notes                                                                                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sender**                           | Exact address, or any.                                                                                                                            |
-| **Target contract (`to`)**           | Exact address, or any.                                                                                                                            |
-| **ETH sent with the call (`value`)** | Exact amount, or any.                                                                                                                             |
-| **Length of `data`**                 | Exact byte length, or any.                                                                                                                        |
-| **Inside `data` (calldata)**         | Up to **64** checks: at a **byte offset**, read a 32-byte window (zero-padded if the payload ends early) and require `(word & mask) == expected`. |
+| You can fix or leave open            | Notes                                                                                                                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sender**                           | Exact address, or any.                                                                                                                                                            |
+| **Target contract (`to`)**           | Exact address, or any.                                                                                                                                                            |
+| **ETH sent with the call (`value`)** | Exact amount, or any.                                                                                                                                                             |
+| **Length of `data`**                 | Exact byte length, or any.                                                                                                                                                        |
+| **Inside `data` (calldata)**         | Up to **64** checks: at a **byte offset into `data[4:]`** (ABI args only), read a 32-byte window (zero-padded if the payload ends early) and require `(word & mask) == expected`. |
 
-**Payload checks** are how you pin things like **function selector** (usually offset **0**) and **ABI argument words** (often offsets **4**, **36**, … for static types after the 4-byte selector).
+**Function selector** is pinned with flag **`0x10`** and a **`bytes4 selector`** in the rule header (not with a constraint). **Payload checks** pin **ABI argument words**: first word at constraint offset **0** (full-calldata bytes `4..36`), second at offset **32**, etc.
 
 **Limits (version `0x01`):**
 
@@ -98,16 +101,17 @@ The `sender` passed to `isAllowed` is the **logical** caller your product cares 
 
 ### Flags (which fields are fixed)
 
-`flags` is a bitmask; only the low 4 bits are used:
+`flags` uses bits **0–4**; bits **5–7** are reserved and must be zero:
 
-| Bit | Value  | Meaning when set                                  |
-| --- | ------ | ------------------------------------------------- |
-| 0   | `0x01` | `sender` must equal the address in the rule       |
-| 1   | `0x02` | `to` must equal the address in the rule           |
-| 2   | `0x04` | `value` must equal the value in the rule          |
-| 3   | `0x08` | `data.length` must equal `dataLength` in the rule |
+| Bit | Value  | Meaning when set                                      |
+| --- | ------ | ----------------------------------------------------- |
+| 0   | `0x01` | `sender` must equal the address in the rule           |
+| 1   | `0x02` | `to` must equal the address in the rule               |
+| 2   | `0x04` | `value` must equal the value in the rule              |
+| 3   | `0x08` | `data.length` must equal `dataLength` in the rule     |
+| 4   | `0x10` | `bytes4(data[0:4])` must equal `selector` in the rule |
 
-If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, or `dataLength == 0`).
+If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, `dataLength == 0`, or **`selector == bytes4(0)`**).
 
 ### Merkle leaf (for builders)
 
@@ -125,6 +129,7 @@ Below, `encodeMerkleRule` matches the packed layout used in tests (version `0x01
 
 ```typescript
 import { ethers } from 'ethers';
+import { packRuleSelector, packedSelectorToBytes4 } from '../../scripts/strategy/merkleUtils';
 
 interface RuleConstraint {
   offset: number;
@@ -134,16 +139,19 @@ interface RuleConstraint {
 
 function encodeMerkleRule(p: {
   flags: number;
+  selector?: string;
   sender: string;
   to: string;
   value: bigint;
   dataLength: number;
   constraints: RuleConstraint[];
 }): string {
-  const types: string[] = ['uint8', 'uint8', 'address', 'address', 'uint256', 'uint32', 'uint16'];
+  const sel = packedSelectorToBytes4(packRuleSelector(p.selector));
+  const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
   const values: Array<string | bigint | number> = [
     0x01,
     p.flags,
+    sel,
     p.sender,
     p.to,
     p.value,
@@ -173,44 +181,37 @@ const ruleA = encodeMerkleRule({
 
 #### Example B — Fix selector only (e.g. ERC-20 `transfer(address,uint256)` = `0xa9059cbb`)
 
-The 32-byte word at offset `0` has the 4-byte selector in the **top** 4 bytes; the rest must be masked off.
+Use **`flags | 0x10`** and set **`selector`**; leave **`constraints`** empty to allow any arguments.
 
 ```typescript
-const SELECTOR_MASK = '0xffffffff00000000000000000000000000000000000000000000000000000000';
-const transferSelectorWord = '0xa9059cbb00000000000000000000000000000000000000000000000000000000';
-
 const ruleB = encodeMerkleRule({
-  flags: 0x02,
+  flags: 0x02 | 0x10,
+  selector: 'transfer(address,uint256)',
   sender: ethers.ZeroAddress,
   to: tokenAddress,
   value: 0n,
   dataLength: 0,
-  constraints: [{ offset: 0, mask: SELECTOR_MASK, expected: transferSelectorWord }]
+  constraints: []
 });
 ```
 
 #### Example C — Fix selector + full first argument word (e.g. recipient address)
 
-First static argument usually starts at byte **4** (after the 4-byte selector). Encode the word the same way Solidity ABI places it (32-byte slot).
+Pin **`selector`**, then constrain the first ABI argument word at **constraint offset `0`** (bytes `data[4..36)`).
 
 ```typescript
-const SELECTOR_MASK = '0xffffffff00000000000000000000000000000000000000000000000000000000';
-const transferSelectorWord = '0xa9059cbb00000000000000000000000000000000000000000000000000000000';
-
 const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [recipient]); // 32-byte hex string
 
 const ALL_ONES = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
 
 const ruleC = encodeMerkleRule({
-  flags: 0x02,
+  flags: 0x02 | 0x10,
+  selector: 'transfer(address,uint256)',
   sender: ethers.ZeroAddress,
   to: tokenAddress,
   value: 0n,
   dataLength: 0,
-  constraints: [
-    { offset: 0, mask: SELECTOR_MASK, expected: transferSelectorWord },
-    { offset: 4, mask: ALL_ONES, expected: firstArgWord }
-  ]
+  constraints: [{ offset: 0, mask: ALL_ONES, expected: firstArgWord }]
 });
 ```
 
@@ -239,7 +240,7 @@ Both are **beacon-proxy upgradeable** contracts that share **`ShardBaseUpgradeab
 
 ### `Shard`
 
-**Strategy-attached deployment.** Initialized with an **`IStrategy`** (the share-token contract) and a liquidity-role holder. **`STRATEGY_TOKEN_LIQUIDITY_ROLE`** may **`pullFromStrategy`** (`IStrategy.requestFunding`) and **`pushToStrategy`** (return ERC-20 to the strategy). Choose this when capital moves **through the strategy funding pipe** and everything else is **validator-approved `exec`** (protocol integrations, bridges, etc.).
+**Strategy-attached deployment.** Initialized with an **`IStrategy`** (the share-token contract) and a shard-transfer role holder. **`SHARD_TRANSFER_ROLE`** may **`pullFromStrategy`** (`IStrategy.requestFunding`) and **`pushToStrategy`** (return ERC-20 to the strategy). Choose this when capital moves **through the strategy funding pipe** and everything else is **validator-approved `exec`** (protocol integrations, bridges, etc.).
 
 ### `RemoteShard`
 

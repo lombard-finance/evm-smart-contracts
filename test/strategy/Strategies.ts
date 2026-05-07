@@ -102,7 +102,7 @@ describe('Shard & RemoteShard', function () {
       expect(await shard.strategy()).to.equal(strategyPlaceholder.address);
       expect(await shard.validator()).to.equal(await validator.getAddress());
       expect(await shard.hasRole(await shard.DEFAULT_ADMIN_ROLE(), admin.address)).to.be.true;
-      expect(await shard.hasRole(await shard.STRATEGY_TOKEN_LIQUIDITY_ROLE(), liquidityRole.address)).to.be.true;
+      expect(await shard.hasRole(await shard.SHARD_TRANSFER_ROLE(), liquidityRole.address)).to.be.true;
       expect(await shard.hasRole(await shard.PRIVILEGED_EXECUTOR_ROLE(), executor.address)).to.be.true;
     });
 

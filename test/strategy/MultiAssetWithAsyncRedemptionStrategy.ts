@@ -12,6 +12,7 @@ import {
   Signer
 } from '../helpers';
 import type {
+  ChainlinkCompositeConverter,
   ChainlinkConverter,
   ChainlinkFeedMock,
   DirectConverter,
@@ -62,7 +63,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     await strategy.connect(admin).grantRole(await strategy.PRICE_SETTER_ROLE(), operator.address);
     await strategy.connect(admin).grantRole(await strategy.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
-    await strategy.connect(admin).grantRole(await strategy.LIMITED_ADMIN_ROLE(), admin.address);
+    await strategy.connect(admin).grantRole(await strategy.MANAGER_ROLE(), admin.address);
 
     snapshot = await takeSnapshot();
   });
@@ -271,8 +272,6 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   it('defaultShard forwards net only; deposit fee transfers immediately to treasury', async function () {
     const sink = ethers.Wallet.createRandom().address;
 
-    const treasuryRole = await strategy.TREASURY_ROLE();
-    await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
     await strategy.connect(admin).setFeeTreasury(treasury.address);
 
     const depositFeeBps = 100n; // 1%
@@ -439,6 +438,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
         const tx = await strategy.connect(user).requestRedeem(shares, user.address);
 
+        await expect(tx).to.emit(strategy, 'RedeemRequested')
+          .withArgs(rid, user.address, user.address, expectedAssets, shares);
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
         expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
 
@@ -531,17 +532,24 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
         const tx = await strategy.connect(user).requestRedeem(shares, user.address);
 
+
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
         if (expectedFee > 0) {
           await expect(tx).to.emit(strategy, 'WithdrawalFeeCharged').withArgs(treasury.address, expectedFee);
         }
+        await expect(tx).to.emit(strategy, 'RedeemRequested')
+          .withArgs(rid, user.address, user.address, expectedRedeemAmount, shares);
+
 
         expect(await underlying.balanceOf(user.address)).to.equal(0n);
         expect(await strategy.pendingRedeemRequest(rid)).to.equal(expectedRedeemAmount);
 
         const balanceBefore = await underlying.balanceOf(user.address);
         await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
-          .to.emit(strategy, 'RedeemRequestsFulfilled')
+          .to.emit(strategy, 'Redeem')
+          .withArgs(redeemOperator.address, user.address, expectedRedeemAmount, shares)
+          .and
+      .to.emit(strategy, 'RedeemRequestsFulfilled')
           .withArgs([rid]);
         const balanceAfter = await underlying.balanceOf(user.address);
         expect(balanceAfter - balanceBefore).to.equal(expectedRedeemAmount);
@@ -691,8 +699,11 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       it(`${arg.name}`, async function () {
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
-        const treasuryRole = await strategy.TREASURY_ROLE();
-        await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+        // const treasuryRole = await strategy.TREASURY_ROLE();
+        // await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+        const perfFeeClaimRole = await strategy.PERF_FEE_CLAIM_ROLE();
+        await strategy.connect(admin).grantRole(perfFeeClaimRole, treasury.address);
+
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
 
@@ -745,11 +756,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     });
   });
 
-  it('treasury can update deposit fee bps', async function () {
+  it('admin can update deposit fee bps', async function () {
     await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
-
-    const treasuryRole = await strategy.TREASURY_ROLE();
-    await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
 
     await expect(strategy.connect(admin).setFeeTreasury(treasury.address))
       .to.emit(strategy, 'FeeTreasurySet')
@@ -906,7 +914,7 @@ describe('StakedLBTC as deposit token', function () {
 
     await stakedStrategy.connect(admin).grantRole(await stakedStrategy.PRICE_SETTER_ROLE(), operator.address);
     await stakedStrategy.connect(admin).grantRole(await stakedStrategy.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
-    await stakedStrategy.connect(admin).grantRole(await stakedStrategy.LIMITED_ADMIN_ROLE(), admin.address);
+    await stakedStrategy.connect(admin).grantRole(await stakedStrategy.MANAGER_ROLE(), admin.address);
     await stakedStrategy
       .connect(admin)
       .addDepositAsset(await stakedToken.getAddress(), await stakedConverter.getAddress(), 0);
@@ -1014,8 +1022,6 @@ describe('StakedLBTC as deposit token', function () {
       const sAddr = await stakedToken.getAddress();
       const vAddr = await stakedStrategy.getAddress();
 
-      const treasuryRole = await stakedStrategy.TREASURY_ROLE();
-      await stakedStrategy.connect(admin).grantRole(treasuryRole, treasury.address);
       await stakedStrategy.connect(admin).setFeeTreasury(treasury.address);
       await stakedStrategy.connect(admin).setDepositFeeBps(sAddr, 100); // 1%
 
@@ -1085,7 +1091,8 @@ describe('Chainlink as deposit token', function () {
       8,
       HEARTBEAT,
       ethers.ZeroAddress,
-      0
+      0,
+      false
     )) as ChainlinkConverter;
     await clConverter.waitForDeployment();
 
@@ -1100,7 +1107,7 @@ describe('Chainlink as deposit token', function () {
 
     await clStrategy.connect(admin).grantRole(await clStrategy.PRICE_SETTER_ROLE(), operator.address);
     await clStrategy.connect(admin).grantRole(await clStrategy.PAY_REDEMPTIONS_ROLE(), redeemOperator.address);
-    await clStrategy.connect(admin).grantRole(await clStrategy.LIMITED_ADMIN_ROLE(), admin.address);
+    await clStrategy.connect(admin).grantRole(await clStrategy.MANAGER_ROLE(), admin.address);
     await clStrategy.connect(admin).addDepositAsset(await depositToken.getAddress(), await clConverter.getAddress(), 0);
 
     snap = await takeSnapshot();
@@ -1128,7 +1135,8 @@ describe('Chainlink as deposit token', function () {
         8,
         HEARTBEAT,
         ethers.ZeroAddress,
-        0
+        0,
+        false
       )) as ChainlinkConverter;
       await conv18.waitForDeployment();
 
@@ -1199,7 +1207,8 @@ describe('Chainlink as deposit token', function () {
           8,
           HEARTBEAT,
           await seqFeed.getAddress(),
-          GRACE_PERIOD
+          GRACE_PERIOD,
+          false
         )) as ChainlinkConverter;
         await seqConverter.waitForDeployment();
       });
@@ -1237,6 +1246,215 @@ describe('Chainlink as deposit token', function () {
         // clConverter has sequencerUptimeFeed = address(0); should still work regardless
         expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
+    });
+  });
+
+  describe('ChainlinkConverter (inverted)', function () {
+    const ONE_BTC = 10n ** 8n;
+    const HEARTBEAT = 3600n;
+
+    it('peg (answer=1e8, 8-dec feed): inverted 8/8/8 token-per-base is 1:1', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const inv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await inv.waitForDeployment();
+      expect(await inv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+      expect(await inv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+    });
+
+    it('USDC (6 dec) / BTC (8 dec) via 8-dec BTC/USD-style feed', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const price = 100_000n * ONE_BTC; // 100k USD per 1 BTC
+      const usdFeed = (await feedFactory.deploy(8, price)) as ChainlinkFeedMock;
+      await usdFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const conv = (await convFactory.deploy(
+        await usdFeed.getAddress(),
+        6,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+      const usdcIn = 100_000n * 10n ** 6n;
+      expect(await conv.toBaseUnits(usdcIn, 0)).to.equal(ONE_BTC);
+      expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(usdcIn);
+    });
+
+    it('inverted: decimals underflow when feedDec + baseDec < tokenDec', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      await expect(
+        convFactory.deploy(await invFeed.getAddress(), 18, 8, HEARTBEAT, ethers.ZeroAddress, 0, true)
+      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverter_DecimalsUnderflow');
+    });
+
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) >= x and diff <= 1 token wei (inverted)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      const invConv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await invConv.waitForDeployment();
+
+      // Inverted uses mulDiv(token, SF, answer); keep answer <= SF so rounding matches forward-style bounds.
+      const answers = [(ONE_BTC * 95n) / 100n, (ONE_BTC * 99n) / 100n, ONE_BTC];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+
+      for (const answer of answers) {
+        await invFeed.setAnswer(answer);
+        for (const amt of amounts) {
+          const btcOut = await invConv.toBaseUnits(amt, 0);
+          const tokenOut = await invConv.fromBaseUnits(btcOut, 1);
+          expect(tokenOut).to.be.gte(amt);
+          expect(tokenOut - amt).to.be.lte(1n);
+        }
+      }
+    });
+  });
+
+  describe('ChainlinkCompositeConverter', function () {
+    const ONE_BTC = 10n ** 8n;
+    const HEARTBEAT = 3600n;
+
+    it('peg (both answers 1e8, 8-dec feeds, 8/8): toBaseUnits and fromBaseUnits are 1:1', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const feedNum = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      expect(await conv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+      expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+    });
+
+    it('ETH/USD ÷ BTC/USD style cross: 1 ETH wei → expected satoshi', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // USD per ETH = 2500 (8-dec), USD per BTC = 50_000 (8-dec) → 0.05 BTC per ETH
+      const ethUsd = (await feedFactory.deploy(8, 2500n * ONE_BTC)) as ChainlinkFeedMock;
+      const btcUsd = (await feedFactory.deploy(8, 50_000n * ONE_BTC)) as ChainlinkFeedMock;
+      await ethUsd.waitForDeployment();
+      await btcUsd.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await ethUsd.getAddress(),
+        await btcUsd.getAddress(),
+        18,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const oneEth = 10n ** 18n;
+      const expectedSat = (oneEth * 2500n * ONE_BTC) / (50_000n * ONE_BTC) / 10n ** 10n; // 5e6
+      expect(expectedSat).to.equal(5n * 10n ** 6n);
+      expect(await conv.toBaseUnits(oneEth, 0)).to.equal(expectedSat);
+      expect(await conv.fromBaseUnits(expectedSat, 1)).to.equal(oneEth);
+    });
+
+    it('stale numerator feed reverts', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const feedNum = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const block = await ethers.provider.getBlock('latest');
+      await feedNum.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
+      await expect(conv.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
+        conv,
+        'ChainlinkCompositeConverter_StaleAnswer'
+      );
+    });
+
+    it('round-trip: fromBaseUnits(toBaseUnits(x)) within 2 token wei (dual mulDiv)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      const feedNum = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        8,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const numAnswers = [(ONE_BTC * 95n) / 100n, ONE_BTC, (ONE_BTC * 101n) / 100n];
+      const denAnswers = [(ONE_BTC * 98n) / 100n, ONE_BTC + ONE_BTC / 10n, ONE_BTC];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+
+      for (const n of numAnswers) {
+        for (const d of denAnswers) {
+          await feedNum.setAnswer(n);
+          await feedDen.setAnswer(d);
+          for (const amt of amounts) {
+            const btcOut = await conv.toBaseUnits(amt, 0);
+            const tokenOut = await conv.fromBaseUnits(btcOut, 1);
+            const diff = tokenOut >= amt ? tokenOut - amt : amt - tokenOut;
+            expect(diff).to.be.lte(2n);
+          }
+        }
+      }
     });
   });
 
