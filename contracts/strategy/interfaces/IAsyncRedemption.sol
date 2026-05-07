@@ -2,16 +2,27 @@
 pragma solidity 0.8.24;
 
 /// @title IAsyncRedemption
-/// @notice Asynchronous redemption: optional withdrawal fee in shares, pending requests, and operator-settled fulfillment.
+/// @notice Asynchronous redemption: optional redeem fee in shares, pending requests, and operator-settled fulfillment.
 /// @dev This implementation does not use ERC-4626 `withdraw` / `redeem` for settlement; underlying is paid on `fulfillRedeemRequests`.
 interface IAsyncRedemption {
+    /// @dev Per `requestRedeem` ticket; global totals mirror open requests.
+    struct RedeemRequest {
+        uint256 pendingShares;
+        uint256 pendingAssets;
+        address owner;
+    }
+
     /// @dev Emitted when `requestRedeem` is called.
+    /// @param assets Net underlying assets owed on fulfillment (matches `RedeemRequest.pendingAssets`).
+    /// @param shares Net shares burned for the request (matches `RedeemRequest.pendingShares`); gross requested = `shares + feeShares`.
+    /// @param feeShares Redeem fee shares transferred to {feeTreasury}.
     event RedeemRequested(
         uint256 indexed requestId,
         address indexed owner,
         address indexed sender,
         uint256 assets,
-        uint256 shares
+        uint256 shares,
+        uint256 feeShares
     );
 
     /// @notice Emitted after assets for listed redemption requests are paid to each request `owner`.
@@ -32,18 +43,22 @@ interface IAsyncRedemption {
     /// @notice Shares still pending settlement for a request.
     function pendingRedeemRequest(
         uint256 requestId
-    ) external view returns (uint256 shares);
+    ) external view returns (RedeemRequest memory request);
 
-    /// @notice Withdrawal fee rate (basis points) updated.
-    event WithdrawalFeeBpsSet(uint16 bps);
+    /// @notice Redeem fee rate (basis points) updated.
+    event RedeemFeeBpsSet(uint16 bps);
 
     /// @notice Fee shares sent to treasury on a redemption request.
-    event WithdrawalFeeCharged(address indexed treasury, uint256 feeShares);
+    event RedeemFeeCharged(address indexed treasury, uint256 feeShares);
 
-    /// @param bps The withdrawal fee rate that failed validation (must be < 10_000).
-    error AsyncRedemption_WithdrawalFeeBpsTooHigh(uint16 bps);
-
-    error AsyncRedemption_ZeroRedeemRequestShares();
+    /// @param bps The redeem fee rate that failed validation (must be < 10_000).
+    error AsyncRedemption_RedeemFeeBpsTooHigh(uint16 bps);
 
     error AsyncRedemption_NothingToFulfill(uint256 requestId);
+
+    /// @param feeShares The redeem fee shares that failed validation (must be < shares).
+    error AsyncRedemption_FeeSharesGreaterThanShares(
+        uint256 feeShares,
+        uint256 shares
+    );
 }

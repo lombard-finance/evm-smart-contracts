@@ -9,7 +9,7 @@ import {IAsyncRedemption} from "./interfaces/IAsyncRedemption.sol";
 import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title AsyncRedemptionUpgradeable
-/// @notice Asynchronous redemption: burns shares on `requestRedeem`, pays underlying on `fulfillRedeemRequests` by accounts with `PAY_REDEMPTIONS_ROLE`, optional withdrawal fee in shares.
+/// @notice Asynchronous redemption: burns shares on `requestRedeem`, pays underlying on `fulfillRedeemRequests` by accounts with `PAY_REDEMPTIONS_ROLE`, optional redeem fee in shares.
 abstract contract AsyncRedemptionUpgradeable is
     StrategyBaseUpgradeable,
     IAsyncRedemption
@@ -17,20 +17,13 @@ abstract contract AsyncRedemptionUpgradeable is
     using Math for uint256;
     using SafeERC20 for IERC20;
 
-    /// @dev Per `requestRedeem` ticket; global totals mirror open requests.
-    struct RedeemRequest {
-        uint256 pendingShares;
-        uint256 pendingAssets;
-        address owner;
-    }
-
     /// @custom:storage-location erc7201:lombardfinance.storage.AsyncRedemptionUpgradeable
     struct AsyncRedemptionStorage {
         uint256 totalPendingShares;
         uint256 totalPendingAssets;
         uint256 nextRequestId;
         mapping(uint256 requestId => RedeemRequest) redeemRequestById;
-        uint16 withdrawalFeeBps;
+        uint16 redeemFeeBps;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.AsyncRedemptionUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -50,18 +43,28 @@ abstract contract AsyncRedemptionUpgradeable is
     function __AsyncRedemption_init() internal onlyInitializing {}
 
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
-    function setWithdrawalFeeBps(
-        uint16 bps
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setRedeemFeeBps(uint16 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)
-            revert AsyncRedemption_WithdrawalFeeBpsTooHigh(bps);
-        _getAsyncRedemptionStorage().withdrawalFeeBps = bps;
-        emit WithdrawalFeeBpsSet(bps);
+            revert AsyncRedemption_RedeemFeeBpsTooHigh(bps);
+        _getAsyncRedemptionStorage().redeemFeeBps = bps;
+        emit RedeemFeeBpsSet(bps);
     }
 
-    /// @return Withdrawal fee in basis points (same units as {setWithdrawalFeeBps}).
-    function withdrawalFee() external view returns (uint16) {
-        return _getAsyncRedemptionStorage().withdrawalFeeBps;
+    /// @return Redeem fee in basis points (same units as {setRedeemFeeBps}).
+    function redeemFee() external view returns (uint16) {
+        return _getAsyncRedemptionStorage().redeemFeeBps;
+    }
+
+    /// @notice Pending shares and underlying assets across all open redemption requests.
+    /// @return totalPendingShares Aggregate burned shares not yet fulfilled.
+    /// @return totalPendingAssets Aggregate underlying amount owed for open requests.
+    function totalPending()
+        external
+        view
+        returns (uint256 totalPendingShares, uint256 totalPendingAssets)
+    {
+        AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
+        return ($.totalPendingShares, $.totalPendingAssets);
     }
 
     /// @inheritdoc IAsyncRedemption
@@ -76,7 +79,6 @@ abstract contract AsyncRedemptionUpgradeable is
         returns (uint256 requestId)
     {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
-        if (shares == 0) revert AsyncRedemption_ZeroRedeemRequestShares();
 
         address caller = _msgSender();
         if (caller != owner) {
@@ -95,12 +97,19 @@ abstract contract AsyncRedemptionUpgradeable is
     ) private returns (uint256 requestId) {
         address treasury_ = feeTreasury();
         uint256 feeShares;
-        uint16 feeBps = $.withdrawalFeeBps;
+        uint16 feeBps = $.redeemFeeBps;
         if (feeBps > 0 && treasury_ != address(0)) {
             feeShares = shares.mulDiv(
                 feeBps,
                 _BPS_DENOMINATOR,
-                Math.Rounding.Floor
+                Math.Rounding.Ceil
+            );
+        }
+        // check that enough shares are left for the request
+        if (feeShares >= shares) {
+            revert AsyncRedemption_FeeSharesGreaterThanShares(
+                feeShares,
+                shares
             );
         }
         uint256 netShares = shares - feeShares;
@@ -117,9 +126,16 @@ abstract contract AsyncRedemptionUpgradeable is
         _burn(owner, netShares);
         if (feeShares > 0) {
             _transfer(owner, treasury_, feeShares);
-            emit WithdrawalFeeCharged(treasury_, feeShares);
+            emit RedeemFeeCharged(treasury_, feeShares);
         }
-        emit RedeemRequested(requestId, owner, caller, assets, shares);
+        emit RedeemRequested(
+            requestId,
+            owner,
+            caller,
+            assets,
+            netShares,
+            feeShares
+        );
     }
 
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
@@ -155,11 +171,8 @@ abstract contract AsyncRedemptionUpgradeable is
     /// @inheritdoc IAsyncRedemption
     function pendingRedeemRequest(
         uint256 requestId_
-    ) external view override returns (uint256 shares) {
-        return
-            _getAsyncRedemptionStorage()
-                .redeemRequestById[requestId_]
-                .pendingShares;
+    ) external view override returns (RedeemRequest memory) {
+        return _getAsyncRedemptionStorage().redeemRequestById[requestId_];
     }
 
     /// @dev Passthrough for diamond inheritance with `MultiAssetDepositUpgradeable`.

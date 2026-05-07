@@ -137,7 +137,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     const preview = await strategy.previewDeposit(alt, assets);
     await expect(strategy.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address))
       .to.emit(strategy, 'Deposit')
-      .withArgs(user.address, user.address, alt, assets, preview);
+      .withArgs(user.address, user.address, alt, assets, preview, 0n);
 
     expect(await strategy.balanceOf(user.address)).to.equal(preview);
     expect(await altDeposit.balanceOf(v)).to.equal(assets);
@@ -278,10 +278,13 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
     await expect(strategy.connect(user).requestRedeem(shares, user.address))
       .to.emit(strategy, 'RedeemRequested')
-      .withArgs(rid, user.address, user.address, assetsOut, shares);
+      .withArgs(rid, user.address, user.address, assetsOut, shares, 0n);
 
     expect(await strategy.balanceOf(user.address)).to.equal(0n);
-    expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
+    const pending = await strategy.pendingRedeemRequest(rid);
+    expect(pending.pendingShares).to.equal(shares);
+    expect(pending.pendingAssets).to.equal(assetsOut);
+    expect(pending.owner).to.equal(user.address);
 
     await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
       .to.emit(strategy, 'Redeem')
@@ -562,7 +565,7 @@ describe('StakedLBTC as deposit token', function () {
       const preview = await stakedStrategy.previewDeposit(sAddr, ONE_LBTC);
       await expect(stakedStrategy.connect(user)['deposit(address,uint256,address)'](sAddr, ONE_LBTC, user.address))
         .to.emit(stakedStrategy, 'Deposit')
-        .withArgs(user.address, user.address, sAddr, ONE_LBTC, preview);
+        .withArgs(user.address, user.address, sAddr, ONE_LBTC, preview, 0n);
 
       expect(await stakedStrategy.balanceOf(user.address)).to.equal(ONE_LBTC);
       expect(preview).to.equal(ONE_LBTC);
@@ -1060,7 +1063,7 @@ describe('Chainlink as deposit token', function () {
       const preview = await clStrategy.previewDeposit(tAddr, ONE_BTC);
       await expect(clStrategy.connect(user)['deposit(address,uint256,address)'](tAddr, ONE_BTC, user.address))
         .to.emit(clStrategy, 'Deposit')
-        .withArgs(user.address, user.address, tAddr, ONE_BTC, preview);
+        .withArgs(user.address, user.address, tAddr, ONE_BTC, preview, 0n);
 
       expect(preview).to.equal(ONE_BTC);
       expect(await clStrategy.balanceOf(user.address)).to.equal(ONE_BTC);

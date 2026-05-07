@@ -78,7 +78,7 @@ All deposit/mint paths require the strategy to not be paused (`whenStrategyNotPa
 3. If `fee > 0`: transfer `fee` of `depositAsset` to `feeTreasury`. Reverts with `StrategyDeposit_FeeTreasuryNotSet` if `feeTreasury == address(0)`. Emits `DepositFeeTransferred`.
 4. Convert `net` to strategy base units via `IAssetConverter(converter).toBaseUnits(net, Floor)`.
 5. Convert base units to shares via `_convertToShares(baseUnits, Floor)`.
-6. Mint shares to `receiver`. Emits `Deposit(sender, receiver, depositAsset, assets, shares)`.
+6. Mint shares to `receiver`. Emits `Deposit(sender, receiver, depositAsset, net, shares, fee)` where `net` and `fee` are the post-split `depositAsset` amounts; gross transferred = `net + fee`.
 7. If `defaultShard != address(0)` and `net > 0`: transfer `net` of `depositAsset` to `defaultShard`. Emits `DepositRoutedToDefaultShard`.
 
 **Bounds:**
@@ -132,7 +132,7 @@ shares = gainShares * feeBps / 10_000
 
 ### Fee treasury
 
-- **`setFeeTreasury(address treasury)`** — Sets the protocol fee recipient for deposit fees, withdrawal fee shares, and future fee harvests. Must not be zero. Requires `TREASURY_ROLE`. Emits `FeeTreasurySet`.
+- **`setFeeTreasury(address treasury)`** — Sets the protocol fee recipient for deposit fees, redeem fee shares, and future fee harvests. Must not be zero. Requires `TREASURY_ROLE`. Emits `FeeTreasurySet`.
 - **`feeTreasury()`** — View: returns configured treasury address.
 - The treasury address is also used by `harvestManagementFee` / `harvestPerformanceFee` callers as the `to` recipient (callers supply it explicitly; it need not equal `feeTreasury()`).
 
@@ -181,20 +181,20 @@ shares = gainShares * feeBps / 10_000
 - Requires strategy operations not paused (`whenStrategyNotPaused`). Protected by `nonReentrant`.
 - `shares` MUST be non-zero (`AsyncRedemption_ZeroRedeemRequestShares`).
 - If `msg.sender != owner`, allowance is spent via `_spendAllowance(owner, msg.sender, shares)`.
-- **Withdrawal fee** (if configured and treasury is set): `feeShares = shares * withdrawalFeeBps / 10_000` (floor). Fee shares are transferred from `owner` to `feeTreasury`. Emits `WithdrawalFeeCharged(treasury, feeShares)`.
+- **Redeem fee** (if configured and treasury is set): `feeShares = shares * redeemFeeBps / 10_000` (floor). Fee shares are transferred from `owner` to `feeTreasury`. Emits `RedeemFeeCharged(treasury, feeShares)`.
 - `netShares = shares - feeShares`. Burns `netShares` from `owner`.
 - `assets = _convertToAssets(netShares, Floor)`.
 - Assigns a new non-zero `requestId` via `++nextRequestId` (starting from `1`).
 - Records `RedeemRequest { pendingShares: netShares, pendingAssets: assets, owner }`.
 - Updates global `totalPendingShares` and `totalPendingAssets`.
-- Emits `RedeemRequested(requestId, owner, caller, assets, shares)` where `shares` is the original request amount (not `netShares`) and `assets` is `pendingAssets` = `_convertToAssets(netShares, Floor)` (what the owner receives on fulfillment).
+- Emits `RedeemRequested(requestId, owner, caller, assets, shares, feeShares)` where `shares = netShares` (burned for the request, matches `RedeemRequest.pendingShares`), `assets = pendingAssets = _convertToAssets(netShares, Floor)` (paid on fulfillment), and `feeShares` is the fee transferred to the treasury. The gross requested amount is `shares + feeShares`.
 
 **Returns** unique non-zero `requestId`.
 
-### `setWithdrawalFeeBps` / `withdrawalFee`
+### `setRedeemFeeBps` / `redeemFee`
 
-- **`setWithdrawalFeeBps(uint16 bps)`** — Sets withdrawal fee; `bps` MUST be strictly less than `10_000`. Requires `DEFAULT_ADMIN_ROLE`. Emits `WithdrawalFeeBpsSet(bps)`.
-- **`withdrawalFee()`** — View: returns current withdrawal fee in bps.
+- **`setRedeemFeeBps(uint16 bps)`** — Sets redeem fee; `bps` MUST be strictly less than `10_000`. Requires `DEFAULT_ADMIN_ROLE`. Emits `RedeemFeeBpsSet(bps)`.
+- **`redeemFee()`** — View: returns current redeem fee in bps.
 
 ### Request queries
 
@@ -236,13 +236,13 @@ shares = gainShares * feeBps / 10_000
 1. **`IStrategy` (002)** + `requestFunding` pipe: `registerShard` by `DEFAULT_ADMIN_ROLE`; `deregisterShard` by `LIMITED_ADMIN_ROLE`; `requestFunding` callable only by registered shards; transfers token directly.
 2. **Multi-asset deposits**: `deposit` and `mint` (both overloads each) accept listed `depositAsset`; deposit fee routed to `feeTreasury` before mint; optional default shard receives `net` tokens; `previewDeposit` / `previewMint` / `maxDeposit` / `maxMint` per **Multi-Asset Deposits**.
 3. **Fee system**: management fee (time-based, `TREASURY_ROLE` harvests) and performance fee (HWM, `TREASURY_ROLE` harvests); fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM resets on performance fee rate updates per implementation.
-4. **Async redemptions**: `requestRedeem` burns `netShares`; optional withdrawal fee taken as shares; `claimableRedeemRequest` always returns `0`.
+4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `claimableRedeemRequest` always returns `0`.
 5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; transfers `asset` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `SOFT_PAUSER_ROLE` pauses; `LIMITED_ADMIN_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
 7. **`postPricePerShare(uint256, bool)`**: rate-limiter bucket; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
 9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
-10. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, withdrawal fee shares.
+10. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, redeem fee shares.
 
 ---
 
