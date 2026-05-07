@@ -129,6 +129,7 @@ abstract contract FeeManagerUpgradeable is
         address to,
         bool forfeitAccrued
     ) internal {
+        if (to == address(0)) revert FeeManager_FeeRecipientRequired();
         uint256 pps = pricePerShare();
         uint256 hwm = $.highWaterMark;
         if (pps <= hwm) {
@@ -140,12 +141,11 @@ abstract contract FeeManagerUpgradeable is
             $.performanceFeeBps,
             totalSupply()
         );
+        $.highWaterMark = pps;
         if (shares == 0 || forfeitAccrued) {
             return;
         }
-        if (to == address(0)) revert FeeManager_FeeRecipientRequired();
         _mint(to, shares);
-        $.highWaterMark = pps;
         emit PerformanceFeeHarvested(to, shares, hwm, pps);
     }
 

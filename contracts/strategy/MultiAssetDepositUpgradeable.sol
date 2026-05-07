@@ -335,9 +335,10 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
-        if (strategyOperationsPaused()) return 0;
         if (
-            !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
+            !_getMultiAssetDepositStorage().depositAssets.contains(
+                depositAsset
+            ) || strategyOperationsPaused()
         ) return 0;
         return type(uint256).max;
     }
