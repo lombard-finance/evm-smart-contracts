@@ -233,8 +233,6 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     args.forEach(arg => {
       it(`preview and deposit ${arg.name}`, async function () {
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, arg.depositFeeBps);
-        const treasuryRole = await strategy.TREASURY_ROLE();
-        await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
         await strategy.connect(admin).setFeeTreasury(treasury.address);
 
         const assets = arg.assets;
@@ -438,7 +436,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
         const tx = await strategy.connect(user).requestRedeem(shares, user.address);
 
-        await expect(tx).to.emit(strategy, 'RedeemRequested')
+        await expect(tx)
+          .to.emit(strategy, 'RedeemRequested')
           .withArgs(rid, user.address, user.address, expectedAssets, shares);
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
         expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
@@ -510,8 +509,6 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     args.forEach(arg => {
       it(`${arg.name}`, async function () {
-        const treasuryRole = await strategy.TREASURY_ROLE();
-        await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
         await strategy.connect(admin).setFeeTreasury(treasury.address);
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const redeemFee = arg.redeemFee;
@@ -530,16 +527,15 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
         await underlying.mint(strategy.address, shares + 1n);
         const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
+
         const tx = await strategy.connect(user).requestRedeem(shares, user.address);
-
-
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
         if (expectedFee > 0) {
           await expect(tx).to.emit(strategy, 'WithdrawalFeeCharged').withArgs(treasury.address, expectedFee);
         }
-        await expect(tx).to.emit(strategy, 'RedeemRequested')
+        await expect(tx)
+          .to.emit(strategy, 'RedeemRequested')
           .withArgs(rid, user.address, user.address, expectedRedeemAmount, shares);
-
 
         expect(await underlying.balanceOf(user.address)).to.equal(0n);
         expect(await strategy.pendingRedeemRequest(rid)).to.equal(expectedRedeemAmount);
@@ -547,9 +543,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const balanceBefore = await underlying.balanceOf(user.address);
         await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
           .to.emit(strategy, 'Redeem')
-          .withArgs(redeemOperator.address, user.address, expectedRedeemAmount, shares)
-          .and
-      .to.emit(strategy, 'RedeemRequestsFulfilled')
+          .withArgs(redeemOperator.address, user.address, expectedRedeemAmount, expectedRedeemAmount)
+          .and.to.emit(strategy, 'RedeemRequestsFulfilled')
           .withArgs([rid]);
         const balanceAfter = await underlying.balanceOf(user.address);
         expect(balanceAfter - balanceBefore).to.equal(expectedRedeemAmount);
@@ -699,8 +694,6 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       it(`${arg.name}`, async function () {
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
-        // const treasuryRole = await strategy.TREASURY_ROLE();
-        // await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
         const perfFeeClaimRole = await strategy.PERF_FEE_CLAIM_ROLE();
         await strategy.connect(admin).grantRole(perfFeeClaimRole, treasury.address);
 

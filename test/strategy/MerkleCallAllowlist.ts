@@ -362,6 +362,33 @@ describe('MerkleAllowlistValidator', function () {
   // The tree is rebuilt each test against the freshly deployed contract so the
   // domain separator (chain + address) is always correct.
 
+  interface RuleJsonEntry {
+    sender?: string;
+    to?: string;
+    value?: string | number;
+    dataLength?: string | number;
+    selector?: string;
+    constraints?: RuleConstraint[];
+  }
+
+  function encodeJsonRule(rule: RuleJsonEntry): string {
+    const flags =
+      (rule.sender ? 0x01 : 0) |
+      (rule.to ? 0x02 : 0) |
+      (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
+      (rule.dataLength !== undefined ? 0x08 : 0) |
+      (rule.selector !== undefined && rule.selector.trim() !== '' ? 0x10 : 0);
+    return encodeMerkleRule({
+      flags,
+      selector: rule.selector,
+      sender: rule.sender || ethers.ZeroAddress,
+      to: rule.to || ethers.ZeroAddress,
+      value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
+      dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
+      constraints: rule.constraints ?? []
+    });
+  }
+
   describe('ruleset: test.json', function () {
     type TreeRow = [number, string, Uint8Array];
 
@@ -373,33 +400,6 @@ describe('MerkleAllowlistValidator', function () {
     let tree: StandardMerkleTree<TreeRow>;
     let encoded: Record<string, string>;
     let ds: string;
-
-    interface RuleJsonEntry {
-      sender?: string;
-      to?: string;
-      value?: string | number;
-      dataLength?: string | number;
-      selector?: string;
-      constraints?: RuleConstraint[];
-    }
-
-    function encodeJsonRule(rule: RuleJsonEntry): string {
-      const flags =
-        (rule.sender ? 0x01 : 0) |
-        (rule.to ? 0x02 : 0) |
-        (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
-        (rule.dataLength !== undefined ? 0x08 : 0) |
-        (rule.selector !== undefined && rule.selector.trim() !== '' ? 0x10 : 0);
-      return encodeMerkleRule({
-        flags,
-        selector: rule.selector,
-        sender: rule.sender || ethers.ZeroAddress,
-        to: rule.to || ethers.ZeroAddress,
-        value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
-        dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
-        constraints: rule.constraints ?? []
-      });
-    }
 
     function proofFor(name: string): { ruleEncoded: string; merkleProof: string[] } {
       const ruleEncoded = encoded[name];
@@ -540,30 +540,6 @@ describe('MerkleAllowlistValidator', function () {
     let encoded: Record<string, string>;
     let ds: string;
 
-    interface RuleJsonEntry {
-      sender?: string;
-      to?: string;
-      value?: string | number;
-      dataLength?: string | number;
-      constraints?: RuleConstraint[];
-    }
-
-    function encodeJsonRule(rule: RuleJsonEntry): string {
-      const flags =
-        (rule.sender ? 0x01 : 0) |
-        (rule.to ? 0x02 : 0) |
-        (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
-        (rule.dataLength !== undefined ? 0x08 : 0);
-      return encodeMerkleRule({
-        flags,
-        sender: rule.sender || ethers.ZeroAddress,
-        to: rule.to || ethers.ZeroAddress,
-        value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
-        dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
-        constraints: rule.constraints ?? []
-      });
-    }
-
     function proofFor(name: string): { ruleEncoded: string; merkleProof: string[] } {
       const ruleEncoded = encoded[name];
       const row: TreeRow = [0, ds, ethers.getBytes(ruleEncoded)];
@@ -604,7 +580,7 @@ describe('MerkleAllowlistValidator', function () {
     const args = [
       // by calldata
       {
-        name: 'any calldata - many bytes',
+        name: 'any calldata - random bytes',
         func: 'any_calldata',
         sender: SENDER,
         to: TO,
