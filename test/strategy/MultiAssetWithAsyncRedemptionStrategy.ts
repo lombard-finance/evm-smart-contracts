@@ -276,7 +276,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         // prettier-ignore
         await expect(strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, assets, user.address))
           .to.emit(strategy, 'Deposit')
-          .withArgs(user.address, user.address, altDeposit.address, assets, previewShares);
+        .withArgs(user.address, user.address, altDeposit.address, net, previewShares, fee);
 
         expect(await strategy.balanceOf(user.address)).to.equal(previewShares);
         expect(await strategy.convertToShares(altDeposit.address, net)).to.equal(previewShares);
@@ -472,7 +472,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
         const pending = await strategy.pendingRedeemRequest(rid);
         expect(pending.pendingShares).to.equal(shares);
-        expect(pending.pendingAssets).to.equal(assetsOut);
+        expect(pending.pendingAssets).to.equal(expectedAssets);
         expect(pending.owner).to.equal(user.address);
 
         const balanceBefore = await underlying.balanceOf(user.address);
@@ -498,43 +498,43 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         name: 'amount = 11wei, fee = 5000',
         redeemShares: 11n,
         redeemFee: 5000n,
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       },
       {
         name: 'amount = e18, no fee',
         redeemShares: e18,
         redeemFee: 0n,
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       },
       {
         name: 'amount = e18, fee = 1',
         redeemShares: e18,
         redeemFee: 1n,
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       },
       {
         name: 'amount = 10001, fee = 1',
         redeemShares: 10001n,
         redeemFee: 1n,
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       },
       {
         name: 'amount = 10000, fee = 1',
         redeemShares: 10000n,
         redeemFee: 1n,
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       },
       {
         name: 'amount = 9999, fee = 1',
         redeemShares: 9999n,
         redeemFee: 1n,
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       },
       {
         name: 'amount = rnd(10^18), fee = rnd(999)',
         redeemShares: randomBigInt(17),
         redeemFee: randomBigInt(3),
-        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => (amount * (10000n - fee)) / 10000n
       }
     ];
 
@@ -545,8 +545,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         await strategy.connect(admin).setFeeTreasury(treasury.address);
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const redeemFee = arg.redeemFee;
-        await strategy.connect(admin).setWithdrawalFeeBps(redeemFee);
-        expect(await strategy.withdrawalFee()).to.be.equal(redeemFee);
+        await strategy.connect(admin).setRedeemFeeBps(redeemFee);
+        expect(await strategy.redeemFee()).to.be.equal(redeemFee);
 
         const depositAmt = e18;
         await altDeposit.mint(user.address, depositAmt);
@@ -564,14 +564,17 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const tx = await strategy.connect(user).requestRedeem(shares, user.address);
         await expect(tx).to.changeTokenBalance(strategy, user, -shares);
         if (expectedFee > 0) {
-          await expect(tx).to.emit(strategy, 'WithdrawalFeeCharged').withArgs(treasury.address, expectedFee);
+          await expect(tx).to.emit(strategy, 'RedeemFeeCharged').withArgs(treasury.address, expectedFee);
         }
         await expect(tx)
           .to.emit(strategy, 'RedeemRequested')
-          .withArgs(rid, user.address, user.address, expectedRedeemAmount, shares);
+          .withArgs(rid, user.address, user.address, expectedRedeemAmount, expectedRedeemAmount, expectedFee);
 
         expect(await underlying.balanceOf(user.address)).to.equal(0n);
-        expect(await strategy.pendingRedeemRequest(rid)).to.equal(expectedRedeemAmount);
+        const pending = await strategy.pendingRedeemRequest(rid);
+        expect(pending.pendingShares).to.equal(expectedRedeemAmount);
+        expect(pending.pendingAssets).to.equal(expectedRedeemAmount);
+        expect(pending.owner).to.equal(user.address);
 
         const balanceBefore = await underlying.balanceOf(user.address);
         await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
