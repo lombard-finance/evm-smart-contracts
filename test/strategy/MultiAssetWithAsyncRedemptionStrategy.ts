@@ -2,7 +2,15 @@ import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
-import { Addressable, calculateStorageSlot, deployContract, e18, getSignersWithPrivateKeys, Signer } from '../helpers';
+import {
+  Addressable,
+  calculateStorageSlot,
+  deployContract,
+  e18,
+  getSignersWithPrivateKeys,
+  randomBigInt,
+  Signer
+} from '../helpers';
 import type {
   ChainlinkConverter,
   ChainlinkFeedMock,
@@ -14,6 +22,8 @@ import type {
   StakedLBTCMock,
   TokenMock
 } from '../../typechain-types';
+import { randomBytes } from 'ethers';
+import { bigint } from 'hardhat/internal/core/params/argumentTypes';
 
 describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   let admin: Signer;
@@ -24,7 +34,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
   let underlying: TokenMock & Addressable;
   let altDeposit: TokenMock & Addressable;
-  let converter: DirectConverter & Addressable;
+  let directConverter: DirectConverter & Addressable;
   let strategy: MultiAssetWithAsyncRedemptionStrategy & Addressable;
 
   let snapshot: SnapshotRestorer;
@@ -39,8 +49,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       Addressable;
     altDeposit.address = await altDeposit.getAddress();
 
-    converter = (await deployContract<DirectConverter>('DirectConverter', [], false)) as DirectConverter & Addressable;
-    converter.address = await converter.getAddress();
+    directConverter = (await deployContract<DirectConverter>('DirectConverter', [], false)) as DirectConverter &
+      Addressable;
+    directConverter.address = await directConverter.getAddress();
 
     strategy = (await deployContract<MultiAssetWithAsyncRedemptionStrategy>(
       'MultiAssetWithAsyncRedemptionStrategy',
@@ -75,7 +86,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   it('Verify MultiAssetDepositStorage slot', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
     const base = calculateStorageSlot('lombardfinance.storage.MultiAssetDepositUpgradeable');
     // depositAssets EnumerableSet stores its array length at base+0 (= 1 after adding one asset)
     const storage = await ethers.provider.getStorage(await strategy.getAddress(), base);
@@ -83,7 +94,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   it('Verify AsyncRedemptionStorage slot', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
     const depositAmt = 1000n * e18;
     await altDeposit.mint(user.address, depositAmt);
     await altDeposit.connect(user).approve(strategy.address, depositAmt);
@@ -106,38 +117,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(storage).to.equal(expected);
   });
 
-  it('lists a deposit asset and records converter + fee', async function () {
-    await expect(strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0))
-      .to.emit(strategy, 'DepositAssetAdded')
-      .withArgs(admin.address, altDeposit.address);
-
-    expect(await strategy.isDepositAsset(altDeposit.address)).to.be.true;
-    expect(await strategy.converterOf(altDeposit.address)).to.equal(converter.address);
-    expect(await strategy.depositFee(altDeposit.address)).to.equal(0);
-    expect(await strategy.maxDeposit(altDeposit.address, user.address)).to.equal(ethers.MaxUint256);
-    expect(await strategy.maxMint(altDeposit.address, user.address)).to.equal(ethers.MaxUint256);
-  });
-
-  it('deposits alt asset and mints shares (preview matches execution)', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
-
-    const assets = 10_000n * e18;
-    await altDeposit.mint(user.address, assets);
-    await altDeposit.connect(user).approve(strategy.address, assets);
-
-    const preview = await strategy.previewDeposit(altDeposit.address, assets);
-    await expect(strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, assets, user.address))
-      .to.emit(strategy, 'Deposit')
-      .withArgs(user.address, user.address, altDeposit.address, assets, preview);
-
-    expect(await strategy.balanceOf(user.address)).to.equal(preview);
-    expect(await altDeposit.balanceOf(strategy.address)).to.equal(assets);
-  });
-
   it('optional defaultShard forwards net deposit tokens to a registered address', async function () {
     const sink = ethers.Wallet.createRandom().address;
 
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
     await strategy.connect(admin).registerShard(sink);
     await expect(strategy.connect(admin).setDefaultShard(sink)).to.emit(strategy, 'DefaultShardSet').withArgs(sink);
 
@@ -163,6 +146,128 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     );
   });
 
+  it('lists a deposit asset and records converter + fee', async function () {
+    const depositFeeBps = randomBigInt(3);
+    // prettier-ignore
+    await expect(strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, depositFeeBps))
+      .to.emit(strategy, 'DepositAssetAdded')
+      .withArgs(admin.address, altDeposit.address)
+      .and
+      .to.emit(strategy, 'DepositFeeBpsSet')
+      .withArgs(altDeposit.address, depositFeeBps);
+
+    expect(await strategy.isDepositAsset(altDeposit.address)).to.be.true;
+    expect(await strategy.converterOf(altDeposit.address)).to.equal(directConverter.address);
+    expect(await strategy.depositFee(altDeposit.address)).to.equal(depositFeeBps);
+    expect(await strategy.maxDeposit(altDeposit.address, user.address)).to.equal(ethers.MaxUint256);
+    expect(await strategy.maxMint(altDeposit.address, user.address)).to.equal(ethers.MaxUint256);
+  });
+
+  describe('Deposit different amount of assets', function () {
+    const args = [
+      {
+        name: 'amount is >> 0 and fee is 0',
+        assets: randomBigInt(21),
+        depositFeeBps: 0n
+      },
+      {
+        name: 'amount is >> 0 and fee is max',
+        assets: randomBigInt(21),
+        depositFeeBps: 9999n
+      },
+      {
+        name: 'amount is >> 0 and fee is > 0',
+        assets: randomBigInt(21),
+        depositFeeBps: randomBigInt(2)
+      },
+      {
+        name: 'amount = 11111 and fee is 7000',
+        assets: 11111n,
+        depositFeeBps: 7000n
+      },
+      {
+        name: 'amount = 11111 and fee is 5000',
+        assets: 11111n,
+        depositFeeBps: 5000n
+      },
+      {
+        name: 'amount = 19999 and fee is 1',
+        assets: 19999n,
+        depositFeeBps: 1n
+      },
+      {
+        name: 'amount = 10000 and fee is 1',
+        assets: 10000n,
+        depositFeeBps: 1n
+      },
+      {
+        name: 'amount = 9999 and fee is 1',
+        assets: 9999n,
+        depositFeeBps: 1n
+      },
+      {
+        name: 'amount < 10000n and fee is 1',
+        assets: randomBigInt(4),
+        depositFeeBps: 1n
+      },
+      {
+        name: 'amount = 1000 and fee is 10',
+        assets: 1000n,
+        depositFeeBps: 10n
+      },
+      {
+        name: 'amount = 99 and fee is 100',
+        assets: 99n,
+        depositFeeBps: 100n
+      },
+      {
+        name: 'amount is 1 and fee is 1',
+        assets: 1n,
+        depositFeeBps: 1n
+      }
+    ];
+
+    const rows: { assets: number; feeBps: number; fee: number; net: number }[] = [];
+
+    args.forEach(arg => {
+      it(`preview and deposit ${arg.name}`, async function () {
+        await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, arg.depositFeeBps);
+        const treasuryRole = await strategy.TREASURY_ROLE();
+        await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+        await strategy.connect(admin).setFeeTreasury(treasury.address);
+
+        const assets = arg.assets;
+        await altDeposit.mint(user.address, assets);
+        await altDeposit.connect(user).approve(strategy.address, assets);
+
+        const fee = (assets * arg.depositFeeBps) / 10_000n;
+        const net = assets - fee;
+
+        const previewShares = await strategy.previewDeposit(altDeposit.address, assets);
+        // prettier-ignore
+        await expect(strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, assets, user.address))
+          .to.emit(strategy, 'Deposit')
+          .withArgs(user.address, user.address, altDeposit.address, assets, previewShares);
+
+        expect(await strategy.balanceOf(user.address)).to.equal(previewShares);
+        expect(await strategy.convertToShares(altDeposit.address, net)).to.equal(previewShares);
+        expect(await altDeposit.balanceOf(strategy.address)).to.equal(net);
+        expect(await altDeposit.balanceOf(treasury.address)).to.equal(fee);
+
+        rows.push({
+          assets: Number(assets),
+          feeBps: Number(arg.depositFeeBps),
+          fee: Number(fee),
+          net: Number(net)
+        });
+      });
+    });
+
+    after(function () {
+      console.table(rows);
+    });
+  });
+
   it('defaultShard forwards net only; deposit fee transfers immediately to treasury', async function () {
     const sink = ethers.Wallet.createRandom().address;
 
@@ -171,7 +276,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     await strategy.connect(admin).setFeeTreasury(treasury.address);
 
     const depositFeeBps = 100n; // 1%
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, depositFeeBps);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, depositFeeBps);
     await strategy.connect(admin).registerShard(sink);
     await strategy.connect(admin).setDefaultShard(sink);
 
@@ -196,7 +301,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   it('deposit with non-zero fee reverts if fee treasury is unset', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 100);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 100);
 
     const assets = 1_000n * e18;
     await altDeposit.mint(user.address, assets);
@@ -218,7 +323,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   it('mints via mint() using previewMint assets', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
     const targetShares = 5_000n * e18;
     const assetsNeeded = await strategy.previewMint(altDeposit.address, targetShares);
@@ -234,49 +339,230 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.balanceOf(user.address)).to.equal(targetShares);
   });
 
-  it('convertToShares / convertToAssets round-trip for listed deposit asset', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+  describe('Convert assets <> shares', function () {
+    const args = [
+      {
+        name: 'pps = 1eth, amount = 1eth',
+        pps: e18,
+        amount: e18
+      },
+      {
+        name: 'pps = 1eth, amount = 1wei',
+        pps: e18,
+        amount: 1n
+      },
+      {
+        name: 'pps = 2eth, amount = 11wei',
+        pps: 2n * e18,
+        amount: 11n
+      },
+      {
+        name: 'pps = 0.5eth, amount = 11wei',
+        pps: e18 / 2n,
+        amount: 11n
+      },
+      {
+        name: 'pps = 1eth+1, amount = 1eth ',
+        pps: e18 + 1n,
+        amount: e18
+      },
+      {
+        name: 'pps = 1eth+10, amount = 1eth ',
+        pps: e18 + 10n,
+        amount: e18
+      },
+      {
+        name: 'pps = 1eth+100, amount = 1eth ',
+        pps: e18 + 100n,
+        amount: e18
+      },
+      {
+        name: 'pps = 1.1eth, amount = 1eth ',
+        pps: (e18 * 11n) / 10n,
+        amount: e18
+      }
+    ];
 
-    const assets = 1_000n * e18;
-    const shares = await strategy.convertToShares(altDeposit.address, assets);
-    const back = await strategy.convertToAssets(altDeposit.address, shares);
-    expect(back).to.equal(assets);
+    const rows: { pps: string; shares: string; assets: string }[] = [];
+
+    args.forEach(arg => {
+      let row: { pps: string; shares: string; assets: string } = {
+        pps: arg.pps.toString(),
+        shares: '',
+        assets: ''
+      };
+      it(`convertToShares ${arg.name}`, async () => {
+        const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
+        await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
+        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+
+        await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+        const amount = arg.amount;
+        const sharesExpected = (amount * e18) / arg.pps;
+        const shares = await strategy.convertToShares(altDeposit.address, amount);
+        row.shares = shares.toString();
+        expect(shares).to.equal(sharesExpected);
+      });
+
+      it(`convertToAssets ${arg.name}`, async () => {
+        const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
+        await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
+        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+
+        await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+        const amount = arg.amount;
+        const expectedAssets = (amount * arg.pps) / e18;
+        const assets = await strategy.convertToAssets(altDeposit.address, amount);
+        row.assets = assets.toString();
+        expect(assets).to.equal(expectedAssets);
+      });
+
+      it(`requestRedeem ${arg.name}`, async () => {
+        await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+        const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
+        await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
+        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        if (await strategy.strategyOperationsPaused()) {
+          await strategy.connect(admin).unpauseStrategyOperations();
+        }
+
+        const depositAmt = arg.amount;
+        await altDeposit.mint(user.address, depositAmt);
+        await altDeposit.connect(user).approve(strategy.address, depositAmt);
+        await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
+
+        const shares = await strategy.balanceOf(user);
+        const sharesExpected = (depositAmt * e18) / arg.pps;
+        expect(shares).to.equal(sharesExpected);
+
+        const expectedAssets = (shares * arg.pps) / e18;
+        const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
+        const tx = await strategy.connect(user).requestRedeem(shares, user.address);
+
+        await expect(tx).to.changeTokenBalance(strategy, user, -shares);
+        expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
+
+        const balanceBefore = await underlying.balanceOf(user.address);
+        await underlying.mint(strategy.address, expectedAssets);
+        await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
+          .to.emit(strategy, 'RedeemRequestsFulfilled')
+          .withArgs([rid]);
+        const balanceAfter = await underlying.balanceOf(user.address);
+        expect(balanceAfter - balanceBefore).to.equal(expectedAssets);
+      });
+
+      rows.push(row);
+    });
+
+    after(function () {
+      console.table(rows);
+    });
   });
 
-  it('full async redeem: request then operator fulfills with underlying paid out', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+  describe('requestRedeem', function () {
+    const args = [
+      {
+        name: 'amount = 11wei, fee = 5000',
+        redeemShares: 11n,
+        redeemFee: 5000n,
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      },
+      {
+        name: 'amount = e18, no fee',
+        redeemShares: e18,
+        redeemFee: 0n,
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      },
+      {
+        name: 'amount = e18, fee = 1',
+        redeemShares: e18,
+        redeemFee: 1n,
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      },
+      {
+        name: 'amount = 10001, fee = 1',
+        redeemShares: 10001n,
+        redeemFee: 1n,
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      },
+      {
+        name: 'amount = 10000, fee = 1',
+        redeemShares: 10000n,
+        redeemFee: 1n,
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      },
+      {
+        name: 'amount = 9999, fee = 1',
+        redeemShares: 9999n,
+        redeemFee: 1n,
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      },
+      {
+        name: 'amount = rnd(10^18), fee = rnd(999)',
+        redeemShares: randomBigInt(17),
+        redeemFee: randomBigInt(3),
+        expectedRedeemAmount: (amount: bigint, fee: bigint) => amount - (amount * fee) / 10000n
+      }
+    ];
 
-    const depositAmt = 2_000n * e18;
-    await altDeposit.mint(user.address, depositAmt);
-    await altDeposit.connect(user).approve(strategy.address, depositAmt);
-    await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
+    const rows: { redeemShares: number; feeBps: number; fee: number; net: number }[] = [];
 
-    const shares = await strategy.balanceOf(user.address);
-    const dec = BigInt(await strategy.decimals());
-    const pps = await strategy.pricePerShare();
-    // Matches StrategyBase _convertToAssets(shares, Floor)
-    const assetsOut = (shares * pps) / 10n ** dec;
+    args.forEach(arg => {
+      it(`${arg.name}`, async function () {
+        const treasuryRole = await strategy.TREASURY_ROLE();
+        await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+        await strategy.connect(admin).setFeeTreasury(treasury.address);
+        await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+        const redeemFee = arg.redeemFee;
+        await strategy.connect(admin).setWithdrawalFeeBps(redeemFee);
+        expect(await strategy.withdrawalFee()).to.be.equal(redeemFee);
 
-    await underlying.mint(strategy.address, assetsOut + 1n);
+        const depositAmt = e18;
+        await altDeposit.mint(user.address, depositAmt);
+        await altDeposit.connect(user).approve(strategy.address, depositAmt);
+        await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
 
-    const beforeU = await underlying.balanceOf(user.address);
-    const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
-    await strategy.connect(user).requestRedeem(shares, user.address);
+        // Shares to asset conversion is omitted as the default pps = 1:1 => underlying = shares;
+        const shares = arg.redeemShares;
+        const expectedRedeemAmount = arg.expectedRedeemAmount(shares, redeemFee);
+        const expectedFee = shares - expectedRedeemAmount;
 
-    expect(await strategy.balanceOf(user.address)).to.equal(0n);
-    expect(await strategy.pendingRedeemRequest(rid)).to.equal(shares);
+        await underlying.mint(strategy.address, shares + 1n);
+        const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
+        const tx = await strategy.connect(user).requestRedeem(shares, user.address);
 
-    await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
-      .to.emit(strategy, 'RedeemRequestsFulfilled')
-      .withArgs([rid]);
+        await expect(tx).to.changeTokenBalance(strategy, user, -shares);
+        if (expectedFee > 0) {
+          await expect(tx).to.emit(strategy, 'WithdrawalFeeCharged').withArgs(treasury.address, expectedFee);
+        }
 
-    const afterU = await underlying.balanceOf(user.address);
-    expect(afterU - beforeU).to.equal(assetsOut);
+        expect(await underlying.balanceOf(user.address)).to.equal(0n);
+        expect(await strategy.pendingRedeemRequest(rid)).to.equal(expectedRedeemAmount);
+
+        const balanceBefore = await underlying.balanceOf(user.address);
+        await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
+          .to.emit(strategy, 'RedeemRequestsFulfilled')
+          .withArgs([rid]);
+        const balanceAfter = await underlying.balanceOf(user.address);
+        expect(balanceAfter - balanceBefore).to.equal(expectedRedeemAmount);
+
+        rows.push({
+          redeemShares: Number(shares),
+          feeBps: Number(redeemFee),
+          fee: Number(expectedFee),
+          net: Number(expectedRedeemAmount)
+        });
+      });
+    });
+
+    after(function () {
+      console.table(rows);
+    });
   });
 
   it('fulfillRedeemRequests: reverts when strategy holds no underlying for the redeemed shares', async function () {
     // Deposit alt token — strategy holds altDeposit, NOT underlying.
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
     const depositAmt = 1_000n * e18;
     await altDeposit.mint(user.address, depositAmt);
@@ -292,38 +578,175 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid])).to.be.reverted;
   });
 
-  it('harvestPerformanceFee: mints fee shares without automatically adjusting pricePerShare', async function () {
-    const treasuryRole = await strategy.TREASURY_ROLE();
-    await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+  describe('harvestPerformanceFee at different pps', function () {
+    const args = [
+      {
+        name: 'pps increased by 1wei and fee is 99.99%',
+        supply: e18,
+        performanceFeeBps: 9999n,
+        newRate: (pps: bigint): bigint => pps + 1n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by 3wei and fee is 50%',
+        supply: e18,
+        performanceFeeBps: 5000n,
+        newRate: (pps: bigint): bigint => pps + 3n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by 10% and fee is 10%',
+        supply: e18,
+        performanceFeeBps: 1000n,
+        newRate: (pps: bigint): bigint => (pps * 110n) / 100n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
 
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+      {
+        name: 'pps increased by 10% and fee is 0.01%',
+        supply: e18,
+        performanceFeeBps: 1n,
+        newRate: (pps: bigint): bigint => (pps * 110n) / 100n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by 19999wei and fee is 0.01%',
+        supply: e18,
+        performanceFeeBps: 1n,
+        newRate: (pps: bigint): bigint => pps + 19999n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by 10000wei and fee is 0.01%',
+        supply: e18,
+        performanceFeeBps: 1n,
+        newRate: (pps: bigint): bigint => pps + 10000n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by 9999wei and fee is 0.01%',
+        supply: e18,
+        performanceFeeBps: 1n,
+        newRate: (pps: bigint): bigint => pps + 9999n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by 1wei and fee is 0.01%',
+        supply: e18,
+        performanceFeeBps: 1n,
+        newRate: (pps: bigint): bigint => pps + 1n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'pps increased by rnd(10^9) and fee is rnd(100)',
+        supply: e18,
+        performanceFeeBps: randomBigInt(2),
+        newRate: (pps: bigint): bigint => pps + randomBigInt(9),
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => {
+          return (((supply * (ppsNew - pps)) / pps) * fee) / 10000n;
+        }
+      },
+      {
+        name: 'no mint when fee is 0',
+        supply: e18,
+        performanceFeeBps: 0n,
+        newRate: (pps: bigint): bigint => pps + randomBigInt(9),
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => 0n
+      },
+      {
+        name: 'no mint when pps didnt change',
+        supply: e18,
+        performanceFeeBps: randomBigInt(2),
+        newRate: (pps: bigint): bigint => pps,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => 0n
+      },
+      {
+        name: 'no mint when pps decreased',
+        supply: e18,
+        performanceFeeBps: randomBigInt(2),
+        newRate: (pps: bigint): bigint => pps - 1n,
+        expectedShares: (supply: bigint, pps: bigint, ppsNew: bigint, fee: bigint): bigint => 0n
+      }
+    ];
 
-    const depositAmt = 10_000n * e18;
-    await altDeposit.mint(user.address, depositAmt);
-    await altDeposit.connect(user).approve(strategy.address, depositAmt);
-    await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
+    const rows: { name: string; rateDiff: number; fee: number; mintedShares: number }[] = [];
 
-    await strategy.connect(admin).setPerformanceFeeBps(1000, treasury.address, true); // 10%
+    args.forEach((arg, i) => {
+      it(`${arg.name}`, async function () {
+        await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
-    // Raise pps +10% via soft post (default bucket has no capacity — drains, applies NAV, pauses).
-    const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
-    await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-    const pps0 = await strategy.pricePerShare();
-    await strategy.connect(admin).postPricePerShare((pps0 * 11n) / 10n, false);
-    await strategy.connect(admin).unpauseStrategyOperations();
+        const treasuryRole = await strategy.TREASURY_ROLE();
+        await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
+        const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
+        await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
 
-    const supplyBefore = await strategy.totalSupply();
-    const ppsBefore = await strategy.pricePerShare();
+        const performanceFeeBps = arg.performanceFeeBps;
+        await strategy.connect(admin).setPerformanceFeeBps(performanceFeeBps, treasury.address, true);
 
-    await strategy.connect(treasury).harvestPerformanceFee(treasury.address);
+        const depositAmt = arg.supply;
+        await altDeposit.mint(user.address, depositAmt);
+        await altDeposit.connect(user).approve(strategy.address, depositAmt);
+        await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
 
-    expect(await strategy.totalSupply()).to.be.gt(supplyBefore); // fee shares minted
-    // pricePerShare is unchanged — operator must post a lower value to correct NAV.
-    expect(await strategy.pricePerShare()).to.equal(ppsBefore);
+        // Raise pps +10% via soft post (default bucket has no capacity — drains, applies NAV, pauses).
+        const defaultRate = await strategy.pricePerShare();
+        const newRate = arg.newRate(defaultRate);
+        await strategy.connect(admin).postPricePerShare(newRate, false);
+        if (await strategy.strategyOperationsPaused()) {
+          await strategy.connect(admin).unpauseStrategyOperations();
+        }
+
+        const supplyBefore = await strategy.totalSupply();
+        const expectedShares = arg.expectedShares(supplyBefore, defaultRate, newRate, performanceFeeBps);
+        const tx = await strategy.connect(treasury).harvestPerformanceFee(treasury.address);
+
+        const supplyAfter = await strategy.totalSupply();
+        rows.push({
+          name: arg.name,
+          rateDiff: Number(newRate - defaultRate),
+          fee: Number(performanceFeeBps),
+          mintedShares: Number(supplyAfter - supplyBefore)
+        });
+
+        if (expectedShares > 0n) {
+          await expect(tx)
+            .to.emit(strategy, 'PerformanceFeeHarvested')
+            .withArgs(treasury.address, expectedShares, defaultRate, newRate);
+        } else {
+          await expect(tx).to.not.emit(strategy, 'PerformanceFeeHarvested');
+        }
+        expect(supplyAfter - supplyBefore).to.be.eq(expectedShares); // fee shares minted
+        expect(await strategy.pricePerShare()).to.equal(newRate);
+
+        // repeat harvest
+        await strategy.connect(treasury).harvestPerformanceFee(treasury.address);
+        expect(await strategy.totalSupply()).to.be.eq(supplyAfter);
+      });
+    });
+
+    after(function () {
+      console.table(rows);
+    });
   });
 
   it('treasury can update deposit fee bps', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
     const treasuryRole = await strategy.TREASURY_ROLE();
     await strategy.connect(admin).grantRole(treasuryRole, treasury.address);
@@ -340,7 +763,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   it('admin can swap asset converter for a listed deposit asset', async function () {
-    await strategy.connect(admin).addDepositAsset(altDeposit.address, converter.address, 0);
+    await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
     const convFactory = await ethers.getContractFactory('DirectConverter');
     const next = (await convFactory.deploy()) as DirectConverter;
