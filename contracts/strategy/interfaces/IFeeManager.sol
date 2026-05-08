@@ -18,6 +18,12 @@ interface IFeeManager {
         uint256 elapsed
     );
 
+    /// @notice Management fee treasury updated.
+    event ManagementFeeTreasurySet(
+        address indexed account,
+        address indexed treasury
+    );
+
     /// @notice Performance fee shares were minted after NAV exceeded the prior high-water mark.
     event PerformanceFeeHarvested(
         address indexed to,
@@ -40,12 +46,16 @@ interface IFeeManager {
     );
 
     /// @return feeBps Configured management fee in basis points.
-    /// @return previewShares Shares that would be minted if `harvestManagementFee` were called now.
-    /// @return lastHarvestAt Last management fee harvest timestamp (unix seconds); accrual clock starts here.
+    /// @return lastHarvestAt Last management fee accrual timestamp (unix seconds); accrual clock starts here.
+    /// @return managementFeeTreasury Address receiving management fee share mints.
     function managementFee()
         external
         view
-        returns (uint16 feeBps, uint256 previewShares, uint48 lastHarvestAt);
+        returns (
+            uint16 feeBps,
+            uint48 lastHarvestAt,
+            address managementFeeTreasury
+        );
 
     /// @return feeBps Configured performance fee in basis points.
     /// @return previewShares Shares that would be minted if `harvestPerformanceFee` succeeded now (0 if at/below HWM).

@@ -15,8 +15,6 @@ abstract contract FeeManagerUpgradeable is
 {
     using Math for uint256;
 
-    bytes32 public constant MGMT_FEE_CLAIM_ROLE =
-        keccak256("MGMT_FEE_CLAIM_ROLE");
     bytes32 public constant PERF_FEE_CLAIM_ROLE =
         keccak256("PERF_FEE_CLAIM_ROLE");
 
@@ -27,6 +25,7 @@ abstract contract FeeManagerUpgradeable is
         uint16 managementFeeBps;
         uint16 performanceFeeBps;
         uint48 lastFeeHarvestAt;
+        address managementFeeTreasury;
         uint256 highWaterMark;
     }
 
@@ -45,56 +44,53 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @dev Must be called after {__StrategyBase_init} — reads pricePerShare() which is initialised there.
-    function __FeeManager_init() internal onlyInitializing {
+    /// @param managementFeeTreasury_ Recipient for management fee share mints; must not be zero.
+    function __FeeManager_init(
+        address managementFeeTreasury_
+    ) internal onlyInitializing {
+        if (managementFeeTreasury_ == address(0)) revert Strategy_ZeroAddress();
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         $.highWaterMark = pricePerShare();
         $.lastFeeHarvestAt = uint48(block.timestamp);
+        $.managementFeeTreasury = managementFeeTreasury_;
     }
 
-    /// @notice Sets management fee in basis points after handling accrued management fee at the **prior** rate.
+    /// @notice Sets management fee treasury address.
+    /// @param treasury Address receiving management fee share mints.
+    function setManagementFeeTreasury(
+        address treasury
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (treasury == address(0)) revert Strategy_ZeroAddress();
+        _getFeeManagerStorage().managementFeeTreasury = treasury;
+        emit ManagementFeeTreasurySet(_msgSender(), treasury);
+    }
+
+    /// @notice Sets management fee in basis points; first accrual at this rate happens on the next `_accrueManagementFee` call.
     /// @param bps Fee rate; must be strictly less than 10000.
-    /// @param feeRecipient Recipient when `forfeitAccrued` is false and accrued shares are non-zero.
-    /// @param forfeitAccrued If false, mint accrued fee shares to `feeRecipient`. If true, forfeit accrual (clock advances; fee stays with LPs).
     function setManagementFeeBps(
-        uint16 bps,
-        address feeRecipient,
-        bool forfeitAccrued
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        uint16 bps
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)
             revert FeeManager_ManagementFeeBpsTooHigh(bps);
-        FeeManagerStorage storage $ = _getFeeManagerStorage();
-        _harvestManagementFee($, feeRecipient, forfeitAccrued);
-        $.managementFeeBps = bps;
+        _getFeeManagerStorage().managementFeeBps = bps;
         emit ManagementFeeBpsSet(_msgSender(), bps);
     }
 
-    /// @notice Mint management fee shares accrued since `lastFeeHarvestAt` to `feeRecipient`.
-    /// @param feeRecipient Recipient of minted shares (must not be zero).
-    function harvestManagementFee(
-        address feeRecipient
-    ) external onlyRole(MGMT_FEE_CLAIM_ROLE) nonReentrant {
-        _harvestManagementFee(_getFeeManagerStorage(), feeRecipient, false);
-    }
-
-    /// @dev Harvests management fee at current `managementFeeBps` / `lastFeeHarvestAt`.
-    /// @param forfeitAccrued If true and accrued shares are non-zero, advances `lastFeeHarvestAt` without minting (fee forfeited).
-    function _harvestManagementFee(
-        FeeManagerStorage storage $,
-        address to,
-        bool forfeitAccrued
-    ) internal {
+    /// @dev Exact management fee accrual hook. Call unconditionally before user share mint/burn operations.
+    ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`.
+    function _accrueManagementFee() internal virtual override {
+        FeeManagerStorage storage $ = _getFeeManagerStorage();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
             $.lastFeeHarvestAt,
             $.managementFeeBps,
             totalSupply()
         );
         $.lastFeeHarvestAt = uint48(block.timestamp);
-        if (shares == 0 || forfeitAccrued) {
+        if (shares == 0) {
             return;
         }
-        if (to == address(0)) revert FeeManager_FeeRecipientRequired();
-        _mint(to, shares);
-        emit ManagementFeeHarvested(to, shares, elapsed);
+        _mint($.managementFeeTreasury, shares);
+        emit ManagementFeeHarvested($.managementFeeTreasury, shares, elapsed);
     }
 
     /// @notice Sets performance fee in basis points after handling accrued performance fee at the **prior** rate, then resets high-water mark to current `pricePerShare`.
@@ -153,16 +149,16 @@ abstract contract FeeManagerUpgradeable is
     function managementFee()
         external
         view
-        returns (uint16 feeBps, uint256 previewShares, uint48 lastHarvestAt)
+        returns (
+            uint16 feeBps,
+            uint48 lastHarvestAt,
+            address managementFeeTreasury_
+        )
     {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         feeBps = $.managementFeeBps;
         lastHarvestAt = $.lastFeeHarvestAt;
-        (previewShares, ) = _computeManagementFeeShares(
-            lastHarvestAt,
-            feeBps,
-            totalSupply()
-        );
+        managementFeeTreasury_ = $.managementFeeTreasury;
     }
 
     /// @inheritdoc IFeeManager

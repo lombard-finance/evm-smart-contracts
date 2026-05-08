@@ -5,7 +5,9 @@ import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {AsyncRedemptionUpgradeable} from "./AsyncRedemptionUpgradeable.sol";
+import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
+import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
@@ -25,12 +27,14 @@ contract MultiAssetWithAsyncRedemptionStrategy is
     /// @param asset_ Underlying asset (`asset()`).
     /// @param defaultAdmin_ Default admin for access control.
     /// @param initialDefaultAdminDelay_ Admin delay for default admin rules.
+    /// @param managementFeeTreasury_ Recipient for management fee share mints (must not be zero).
     function initialize(
         string memory name_,
         string memory symbol_,
         IERC20 asset_,
         address defaultAdmin_,
-        uint48 initialDefaultAdminDelay_
+        uint48 initialDefaultAdminDelay_,
+        address managementFeeTreasury_
     ) external initializer {
         __StrategyBase_init(
             name_,
@@ -39,7 +43,7 @@ contract MultiAssetWithAsyncRedemptionStrategy is
             defaultAdmin_,
             asset_
         );
-        __FeeManager_init();
+        __FeeManager_init(managementFeeTreasury_);
         __MultiAssetDeposit_init();
         __AsyncRedemption_init();
     }

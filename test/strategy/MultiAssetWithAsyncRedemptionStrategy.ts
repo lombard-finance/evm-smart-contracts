@@ -17,6 +17,10 @@ import type {
 } from '../../typechain-types';
 
 describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
+  const BPS_DENOMINATOR = 10_000n;
+  const SECONDS_PER_YEAR = 365n * 24n * 60n * 60n;
+  const MGMT_FEE_BPS = 1000n;
+
   let admin: Signer;
   let redeemOperator: Signer;
   let user: Signer;
@@ -29,6 +33,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   let strategy: MultiAssetWithAsyncRedemptionStrategy;
 
   let snapshot: SnapshotRestorer;
+
+  function expectedManagementFeeShares(supply: bigint, elapsedSeconds: bigint): bigint {
+    return (supply * MGMT_FEE_BPS * elapsedSeconds) / (BPS_DENOMINATOR * SECONDS_PER_YEAR);
+  }
 
   before(async function () {
     [admin, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
@@ -46,7 +54,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       'mSTRAT',
       await underlying.getAddress(),
       admin.address,
-      0
+      0,
+      treasury.address
     ]);
     await proxy.waitForDeployment();
     strategy = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionStrategy;
@@ -104,10 +113,142 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   it('Verify FeeManagerStorage slot', async function () {
     const slot = calculateStorageSlot('lombardfinance.storage.FeeManagerUpgradeable');
     const storage = await ethers.provider.getStorage(await strategy.getAddress(), slot);
-    // Slot packs managementFeeBps (uint16, 0) | performanceFeeBps (uint16, 0) | lastFeeHarvestAt (uint48, block.timestamp at init)
-    const [, , lastHarvest] = await strategy.managementFee();
-    const expected = ethers.toBeHex(BigInt(lastHarvest) << 32n, 32);
-    expect(storage).to.equal(expected);
+    const [mgmtFeeBps, lastHarvest, mgmtTreasury] = await strategy.managementFee();
+    const [perfFeeBps] = await strategy.performanceFee();
+    const expected =
+      BigInt(mgmtFeeBps) + (BigInt(perfFeeBps) << 16n) + (BigInt(lastHarvest) << 32n) + (BigInt(mgmtTreasury) << 80n);
+    expect(storage).to.equal(ethers.toBeHex(expected, 32));
+  });
+
+  it('accrues management fee on deposit and mints fee shares to management fee treasury', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+    await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS)); // 10%
+
+    const firstDeposit = 2_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, firstDeposit * 2n);
+    await altDeposit.connect(user).approve(v, firstDeposit * 2n);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+
+    await ethers.provider.send('evm_increaseTime', [7 * 24 * 60 * 60]);
+    await ethers.provider.send('evm_mine', []);
+
+    const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
+    const treasuryBefore = await strategy.balanceOf(treasury.address);
+    const tx = await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsedSeconds = BigInt(block!.timestamp) - BigInt(lastHarvest);
+    const expectedFeeShares = expectedManagementFeeShares(supplyBefore, elapsedSeconds);
+    expect(expectedFeeShares).to.be.gt(0n);
+    const treasuryAfter = await strategy.balanceOf(treasury.address);
+    expect(treasuryAfter - treasuryBefore).to.equal(expectedFeeShares);
+  });
+
+  it('accrues management fee on mint and mints fee shares to management fee treasury', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+    await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS)); // 10%
+
+    const firstDeposit = 2_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, firstDeposit * 2n);
+    await altDeposit.connect(user).approve(v, firstDeposit * 2n);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+
+    await ethers.provider.send('evm_increaseTime', [7 * 24 * 60 * 60]);
+    await ethers.provider.send('evm_mine', []);
+
+    const targetShares = 500n * 10n ** 18n;
+    const requiredAssets = await strategy.previewMint(alt, targetShares);
+    const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
+    const treasuryBefore = await strategy.balanceOf(treasury.address);
+    const tx = await strategy
+      .connect(user)
+      ['mint(address,uint256,address,uint256)'](alt, targetShares, user.address, requiredAssets);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsedSeconds = BigInt(block!.timestamp) - BigInt(lastHarvest);
+    const expectedFeeShares = expectedManagementFeeShares(supplyBefore, elapsedSeconds);
+    expect(expectedFeeShares).to.be.gt(0n);
+    const treasuryAfter = await strategy.balanceOf(treasury.address);
+    expect(treasuryAfter - treasuryBefore).to.equal(expectedFeeShares);
+  });
+
+  it('accrues management fee on requestRedeem before burning user shares', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+    await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS)); // 10%
+
+    const depositAmt = 2_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, depositAmt);
+    await altDeposit.connect(user).approve(v, depositAmt);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
+
+    await ethers.provider.send('evm_increaseTime', [7 * 24 * 60 * 60]);
+    await ethers.provider.send('evm_mine', []);
+
+    const userShares = await strategy.balanceOf(user.address);
+    const redeemShares = userShares / 2n;
+    const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
+    const treasuryBefore = await strategy.balanceOf(treasury.address);
+    const tx = await strategy.connect(user).requestRedeem(redeemShares, user.address);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsedSeconds = BigInt(block!.timestamp) - BigInt(lastHarvest);
+    const expectedFeeShares = expectedManagementFeeShares(supplyBefore, elapsedSeconds);
+    expect(expectedFeeShares).to.be.gt(0n);
+    const treasuryAfter = await strategy.balanceOf(treasury.address);
+    expect(treasuryAfter - treasuryBefore).to.equal(expectedFeeShares);
+  });
+
+  it('keeps feeTreasury and managementFeeTreasury separated on flow fees and management accrual', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    const managementTreasury = operator.address;
+    await strategy.connect(admin).setFeeTreasury(treasury.address);
+    await strategy.connect(admin).setManagementFeeTreasury(managementTreasury);
+    await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS)); // 10%
+    await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 100); // 1%
+
+    const depositAmt = 10_000n * 10n ** 18n;
+    const depositFee = (depositAmt * 100n) / 10_000n;
+    await altDeposit.mint(user.address, depositAmt * 2n);
+    await altDeposit.connect(user).approve(v, depositAmt * 2n);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
+
+    await ethers.provider.send('evm_increaseTime', [7 * 24 * 60 * 60]);
+    await ethers.provider.send('evm_mine', []);
+
+    const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
+    const feeTreasuryAssetBefore = await altDeposit.balanceOf(treasury.address);
+    const mgmtTreasurySharesBefore = await strategy.balanceOf(managementTreasury);
+    const tx = await strategy.connect(user)['deposit(address,uint256,address)'](alt, depositAmt, user.address);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsedSeconds = BigInt(block!.timestamp) - BigInt(lastHarvest);
+    const expectedFeeShares = expectedManagementFeeShares(supplyBefore, elapsedSeconds);
+    const feeTreasuryAssetAfter = await altDeposit.balanceOf(treasury.address);
+    const mgmtTreasurySharesAfter = await strategy.balanceOf(managementTreasury);
+    const feeTreasuryShares = await strategy.balanceOf(treasury.address);
+
+    expect(feeTreasuryAssetAfter - feeTreasuryAssetBefore).to.equal(depositFee);
+    expect(feeTreasuryAssetAfter).to.equal(depositFee * 2n);
+    expect(mgmtTreasurySharesAfter - mgmtTreasurySharesBefore).to.equal(expectedFeeShares);
+    expect(feeTreasuryShares).to.equal(0n);
+  });
+
+  it('initialize reverts when management fee treasury is zero', async function () {
+    const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
+    await expect(
+      upgrades.deployProxy(factory, ['Tmp', 'TMP', await underlying.getAddress(), admin.address, 0, ethers.ZeroAddress])
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAddress');
   });
 
   it('lists a deposit asset and records converter + fee', async function () {
@@ -547,7 +688,7 @@ describe('StakedLBTC as deposit token', function () {
 
     stakedStrategy = await deployContract<MultiAssetWithAsyncRedemptionStrategy>(
       'MultiAssetWithAsyncRedemptionStrategy',
-      ['Lombard BTC Strategy', 'LBTCSTR', await lbtcUnderlying.getAddress(), admin.address, 0]
+      ['Lombard BTC Strategy', 'LBTCSTR', await lbtcUnderlying.getAddress(), admin.address, 0, treasury.address]
     );
 
     await stakedStrategy.connect(admin).grantRole(await stakedStrategy.PRICE_SETTER_ROLE(), operator.address);
@@ -737,7 +878,7 @@ describe('Chainlink as deposit token', function () {
     const strategyFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
     const proxy = await deployContract(
       'MultiAssetWithAsyncRedemptionStrategy',
-      ['Chainlink BTC Strategy', 'clSTRAT', await depositToken.getAddress(), admin.address, 0],
+      ['Chainlink BTC Strategy', 'clSTRAT', await depositToken.getAddress(), admin.address, 0, admin.address],
       true
     );
     await proxy.waitForDeployment();

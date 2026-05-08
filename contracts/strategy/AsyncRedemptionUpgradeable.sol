@@ -103,6 +103,8 @@ abstract contract AsyncRedemptionUpgradeable is
         address owner,
         address caller
     ) private returns (uint256 requestId) {
+        _accrueManagementFee();
+
         address treasury_ = feeTreasury();
         uint256 feeShares;
         uint16 feeBps = $.redeemFeeBps;

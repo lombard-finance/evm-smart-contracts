@@ -42,7 +42,7 @@ abstract contract MultiAssetDepositUpgradeable is
         }
     }
 
-    /// @dev No-op today; call after `__FeeManager_init` in concrete initializers to keep a stable extension point.
+    /// @dev No-op today; call after `__FeeManager_init(managementFeeTreasury)` in concrete initializers to keep a stable extension point.
     function __MultiAssetDeposit_init() internal onlyInitializing {}
 
     /// @notice Register `depositAsset` with converter and deposit fee (bps strictly less than 10_000).
@@ -267,6 +267,8 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 assets,
         uint256 shares
     ) internal virtual {
+        _accrueManagementFee();
+
         // Interaction first: pull tokens before minting shares so that any hook
         // fired during the transfer (e.g. ERC-777) observes a consistent state
         // (totalSupply not yet inflated without matching assets).
