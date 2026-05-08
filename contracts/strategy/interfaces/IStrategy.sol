@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title IStrategy
-/// @notice Core strategy surface: NAV (`pricePerShare`), shard registry, funding, and strategy-wide pause semantics.
+/// @notice Core strategy surface: NAV (`pricePerShare`), shard registry, funding, and independent deposit/redeem pause semantics.
 /// @dev Underlying ERC-20 matches ERC-4626-style `asset()`. Price-per-share rate-limit **errors and events** live on `PriceRateLimiter` only (not re-declared here).
 interface IStrategy {
     /// @notice Posted strategy exchange rate and NAV snapshot after an operator update.
@@ -40,11 +40,17 @@ interface IStrategy {
     /// @dev `postPricePerShare` was called with `newPricePerShare == 0`.
     error Strategy_ZeroPricePerShare();
 
-    /// @notice Strategy operations entrypoints are paused (`whenStrategyNotPaused` reverts).
-    event StrategyOperationsPaused(address indexed account);
+    /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
+    event DepositPaused(address indexed account);
 
-    /// @notice Strategy operations entrypoints are active again.
-    event StrategyOperationsUnpaused(address indexed account);
+    /// @notice Deposit paths are active again.
+    event DepositUnpaused(address indexed account);
+
+    /// @notice Redeem request entrypoints are paused.
+    event RedeemPaused(address indexed account);
+
+    /// @notice Redeem paths are active again.
+    event RedeemUnpaused(address indexed account);
 
     /// @notice Protocol fee treasury updated (`setFeeTreasury`).
     event FeeTreasurySet(address indexed treasury);
@@ -52,11 +58,20 @@ interface IStrategy {
     /// @notice Blocklist / sanctions oracle used by deposit and redeem checks (`initialize` / `setBlocklistOracle`).
     event BlocklistOracleSet(address indexed oracle);
 
-    /// @dev Caller expected strategy to be paused for this action (e.g. internal unpause guard).
-    error Strategy_EnforcedStrategyOperationsPause();
+    /// @dev Deposit operation invoked while deposit pause is active.
+    error Strategy_EnforcedDepositPause();
 
-    /// @dev Caller expected strategy to be unpaused for this action.
-    error Strategy_ExpectedStrategyOperationsPause();
+    /// @dev Redeem operation invoked while redeem pause is active.
+    error Strategy_EnforcedRedeemPause();
+
+    /// @dev Unpause deposit called while deposits were not paused.
+    error Strategy_ExpectedDepositPause();
+
+    /// @dev Unpause redeem called while redeems were not paused.
+    error Strategy_ExpectedRedeemPause();
+
+    /// @dev Unpause-all called while neither deposit nor redeem pause was active.
+    error Strategy_ExpectedStrategyPause();
 
     /// @dev `shard` is not in the registered shard set.
     error Strategy_ShardNotRegistered();

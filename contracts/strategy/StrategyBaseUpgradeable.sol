@@ -16,8 +16,8 @@ import {IStrategy} from "./interfaces/IStrategy.sol";
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 
 /// @title StrategyBaseUpgradeable
-/// @notice Upgradeable ERC-20 strategy share with NAV (`pricePerShare`), registered shards, and a strategy-wide pause independent of ERC-20 `Pausable`.
-/// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate `strategyPaused` + `_pauseStrategy` for deposit/redemption/shard entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
+/// @notice Upgradeable ERC-20 strategy share with NAV (`pricePerShare`), registered shards, and independent deposit/redeem pauses distinct from ERC-20 `Pausable`.
+/// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate deposit/redeem pauses for entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
 abstract contract StrategyBaseUpgradeable is
     IERC20Metadata,
     IStrategy,
@@ -36,7 +36,7 @@ abstract contract StrategyBaseUpgradeable is
     bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
 
     /// @notice Soft pauser role is used to pause the strategy operations without pausing the ERC-20 transfers.
-    bytes32 public constant SOFT_PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant SOFT_PAUSER_ROLE = keccak256("SOFT_PAUSER_ROLE");
 
     /// @notice Hard pauser role is used to pause the strategy operations and the ERC-20 transfers.
     bytes32 public constant HARD_PAUSER_ROLE = keccak256("HARD_PAUSER_ROLE");
@@ -47,13 +47,13 @@ abstract contract StrategyBaseUpgradeable is
 
     uint256 internal constant _BPS_DENOMINATOR = 10_000;
 
-    modifier whenStrategyNotPaused() {
-        _requireStrategyNotPaused();
+    modifier whenDepositNotPaused() {
+        _requireDepositNotPaused();
         _;
     }
 
-    modifier whenStrategyPaused() {
-        _requireStrategyPaused();
+    modifier whenRedeemNotPaused() {
+        _requireRedeemNotPaused();
         _;
     }
 
@@ -69,9 +69,12 @@ abstract contract StrategyBaseUpgradeable is
         address feeTreasury;
         address defaultShard;
         uint8 underlyingDecimals;
-        bool strategyPaused;
         /// @dev Compliance oracle (`IBlocklistOracle`); required at init; replace via {setBlocklistOracle}.
         address blocklistOracle;
+        /// @dev Deposit/mint pause (independent of `redeemPaused`).
+        bool depositPaused;
+        /// @dev Redeem-request pause (independent of `depositPaused`).
+        bool redeemPaused;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StrategyBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -119,7 +122,7 @@ abstract contract StrategyBaseUpgradeable is
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(asset_);
         $.underlyingDecimals = success ? assetDecimals : 18;
         $.asset = asset_;
-        _setBlocklistOracle($,blocklistOracle_);
+        _setBlocklistOracle($, blocklistOracle_);
         // Initial price per share is 1 asset per share.
         _setPricePerShare($, 10 ** decimals());
         $.ppsRateLimiter = PriceRateLimiter.Bucket({
@@ -155,12 +158,16 @@ abstract contract StrategyBaseUpgradeable is
     function setBlocklistOracle(
         address oracle_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        StrategyBaseUpgradeableStorage storage $ = _getStrategyBaseUpgradeableStorage();
+        StrategyBaseUpgradeableStorage
+            storage $ = _getStrategyBaseUpgradeableStorage();
         _setBlocklistOracle($, oracle_);
     }
 
     /// @dev Validates `oracle_`, stores it, and emits {BlocklistOracleSet}.
-    function _setBlocklistOracle(StrategyBaseUpgradeableStorage storage $, address oracle_) internal {
+    function _setBlocklistOracle(
+        StrategyBaseUpgradeableStorage storage $,
+        address oracle_
+    ) internal {
         if (oracle_ == address(0)) revert Strategy_ZeroAddress();
         $.blocklistOracle = oracle_;
         emit BlocklistOracleSet(oracle_);
@@ -189,7 +196,13 @@ abstract contract StrategyBaseUpgradeable is
     function postPricePerShare(
         uint256 newPricePerShare,
         bool revertOnRateLimit
-    ) external onlyRole(PRICE_SETTER_ROLE) whenStrategyNotPaused {
+    )
+        external
+        onlyRole(PRICE_SETTER_ROLE)
+        whenDepositNotPaused
+        whenRedeemNotPaused
+        whenNotPaused
+    {
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
@@ -209,7 +222,8 @@ abstract contract StrategyBaseUpgradeable is
         }
         $.ppsRateLimiter._drainRemaining();
         _setPricePerShare($, newPricePerShare);
-        _pauseStrategy();
+        _pauseDeposit();
+        _pauseRedeem();
     }
 
     /// @notice Configures the PPS move rate limiter (bucket ceiling and refill rate; library-defined semantics).
@@ -372,45 +386,90 @@ abstract contract StrategyBaseUpgradeable is
         return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
     }
 
-    /// @notice Sets strategy-level pause (blocks `whenStrategyNotPaused` routes); distinct from ERC-20 transfer pause.
-    function pauseStrategyOperations() external onlyRole(SOFT_PAUSER_ROLE) {
-        _pauseStrategy();
+    /// @notice Pauses deposit/mint entrypoints; distinct from ERC-20 transfer pause.
+    function pauseDeposit() external onlyRole(SOFT_PAUSER_ROLE) {
+        _pauseDeposit();
     }
 
-    /// @notice Clears strategy-level pause.
-    function unpauseStrategyOperations() external onlyRole(MANAGER_ROLE) {
-        _unpauseStrategy();
+    /// @notice Pauses redemption request entrypoints; distinct from ERC-20 transfer pause.
+    function pauseRedeem() external onlyRole(SOFT_PAUSER_ROLE) {
+        _pauseRedeem();
     }
 
-    /// @return True if strategy operations (deposit/redemption/funding paths using `whenStrategyNotPaused`) are paused.
-    function strategyOperationsPaused() public view virtual returns (bool) {
-        return _getStrategyBaseUpgradeableStorage().strategyPaused;
+    /// @notice Clears deposit pause only.
+    function unpauseDeposit() external onlyRole(MANAGER_ROLE) {
+        _unpauseDeposit();
     }
 
-    function _requireStrategyNotPaused() internal view virtual {
-        if (strategyOperationsPaused()) {
-            revert Strategy_EnforcedStrategyOperationsPause();
+    /// @notice Clears redeem pause only.
+    function unpauseRedeem() external onlyRole(MANAGER_ROLE) {
+        _unpauseRedeem();
+    }
+
+    /// @return True if deposit/mint paths are paused.
+    function depositPaused() public view returns (bool) {
+        return _getStrategyBaseUpgradeableStorage().depositPaused;
+    }
+
+    /// @return True if redemption request paths are paused.
+    function redeemPaused() public view returns (bool) {
+        return _getStrategyBaseUpgradeableStorage().redeemPaused;
+    }
+
+    function _requireDepositNotPaused() internal view virtual {
+        if (_getStrategyBaseUpgradeableStorage().depositPaused) {
+            revert Strategy_EnforcedDepositPause();
         }
     }
 
-    function _requireStrategyPaused() internal view virtual {
-        if (!strategyOperationsPaused()) {
-            revert Strategy_ExpectedStrategyOperationsPause();
+    function _requireRedeemNotPaused() internal view virtual {
+        if (_getStrategyBaseUpgradeableStorage().redeemPaused) {
+            revert Strategy_EnforcedRedeemPause();
         }
     }
 
-    function _pauseStrategy() internal virtual whenStrategyNotPaused {
+    function _pauseDeposit() internal virtual whenDepositNotPaused {
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
-        $.strategyPaused = true;
-        emit StrategyOperationsPaused(_msgSender());
+        $.depositPaused = true;
+        emit DepositPaused(_msgSender());
     }
 
-    function _unpauseStrategy() internal virtual whenStrategyPaused {
+    function _pauseRedeem() internal virtual whenRedeemNotPaused {
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
-        $.strategyPaused = false;
-        emit StrategyOperationsUnpaused(_msgSender());
+        $.redeemPaused = true;
+        emit RedeemPaused(_msgSender());
+    }
+
+    /// @dev PPS soft overflow: set both pauses independently (two storage writes, two events).
+    function _pauseDepositAndRedeemForRateLimit() internal virtual {
+        StrategyBaseUpgradeableStorage
+            storage $ = _getStrategyBaseUpgradeableStorage();
+        $.depositPaused = true;
+        $.redeemPaused = true;
+        emit DepositPaused(_msgSender());
+        emit RedeemPaused(_msgSender());
+    }
+
+    function _unpauseDeposit() internal virtual {
+        StrategyBaseUpgradeableStorage
+            storage $ = _getStrategyBaseUpgradeableStorage();
+        if (!$.depositPaused) {
+            revert Strategy_ExpectedDepositPause();
+        }
+        $.depositPaused = false;
+        emit DepositUnpaused(_msgSender());
+    }
+
+    function _unpauseRedeem() internal virtual {
+        StrategyBaseUpgradeableStorage
+            storage $ = _getStrategyBaseUpgradeableStorage();
+        if (!$.redeemPaused) {
+            revert Strategy_ExpectedRedeemPause();
+        }
+        $.redeemPaused = false;
+        emit RedeemUnpaused(_msgSender());
     }
 
     function pause() external onlyRole(HARD_PAUSER_ROLE) {

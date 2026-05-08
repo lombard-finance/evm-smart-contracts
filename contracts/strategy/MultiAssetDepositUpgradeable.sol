@@ -149,7 +149,7 @@ abstract contract MultiAssetDepositUpgradeable is
         virtual
         override
         nonReentrant
-        whenStrategyNotPaused
+        whenDepositNotPaused
         returns (uint256)
     {
         uint256 shares = previewDeposit(depositAsset, assets);
@@ -168,7 +168,7 @@ abstract contract MultiAssetDepositUpgradeable is
         virtual
         override
         nonReentrant
-        whenStrategyNotPaused
+        whenDepositNotPaused
         returns (uint256)
     {
         uint256 shares = previewDeposit(depositAsset, assets);
@@ -189,7 +189,7 @@ abstract contract MultiAssetDepositUpgradeable is
         virtual
         override
         nonReentrant
-        whenStrategyNotPaused
+        whenDepositNotPaused
         returns (uint256)
     {
         uint256 assets = previewMint(depositAsset, shares);
@@ -208,7 +208,7 @@ abstract contract MultiAssetDepositUpgradeable is
         virtual
         override
         nonReentrant
-        whenStrategyNotPaused
+        whenDepositNotPaused
         returns (uint256)
     {
         uint256 assets = previewMint(depositAsset, shares);
@@ -275,7 +275,7 @@ abstract contract MultiAssetDepositUpgradeable is
         if (
             !_getMultiAssetDepositStorage().depositAssets.contains(
                 depositAsset
-            ) || strategyOperationsPaused()
+            ) || depositPaused()
         ) return 0;
         return type(uint256).max;
     }
@@ -285,7 +285,7 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
-        if (strategyOperationsPaused()) return 0;
+        if (depositPaused()) return 0;
         if (
             !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
         ) return 0;

@@ -83,7 +83,7 @@ abstract contract AsyncRedemptionUpgradeable is
         external
         override
         nonReentrant
-        whenStrategyNotPaused
+        whenRedeemNotPaused
         returns (uint256 requestId)
     {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
