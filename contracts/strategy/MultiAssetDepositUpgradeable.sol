@@ -152,16 +152,6 @@ abstract contract MultiAssetDepositUpgradeable is
         whenStrategyNotPaused
         returns (uint256)
     {
-        uint256 maxAssets = maxDeposit(depositAsset, receiver);
-        if (assets > maxAssets) {
-            revert StrategyDeposit_ExceededMaxDeposit(
-                receiver,
-                depositAsset,
-                assets,
-                maxAssets
-            );
-        }
-
         uint256 shares = previewDeposit(depositAsset, assets);
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
@@ -181,16 +171,6 @@ abstract contract MultiAssetDepositUpgradeable is
         whenStrategyNotPaused
         returns (uint256)
     {
-        uint256 maxAssets = maxDeposit(depositAsset, receiver);
-        if (assets > maxAssets) {
-            revert StrategyDeposit_ExceededMaxDeposit(
-                receiver,
-                depositAsset,
-                assets,
-                maxAssets
-            );
-        }
-
         uint256 shares = previewDeposit(depositAsset, assets);
         if (shares < minSharesOut) {
             revert StrategyDeposit_InsufficientSharesOut(shares, minSharesOut);
@@ -212,16 +192,6 @@ abstract contract MultiAssetDepositUpgradeable is
         whenStrategyNotPaused
         returns (uint256)
     {
-        uint256 maxShares = maxMint(depositAsset, receiver);
-        if (shares > maxShares) {
-            revert StrategyDeposit_ExceededMaxMint(
-                receiver,
-                depositAsset,
-                shares,
-                maxShares
-            );
-        }
-
         uint256 assets = previewMint(depositAsset, shares);
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
@@ -241,16 +211,6 @@ abstract contract MultiAssetDepositUpgradeable is
         whenStrategyNotPaused
         returns (uint256)
     {
-        uint256 maxShares = maxMint(depositAsset, receiver);
-        if (shares > maxShares) {
-            revert StrategyDeposit_ExceededMaxMint(
-                receiver,
-                depositAsset,
-                shares,
-                maxShares
-            );
-        }
-
         uint256 assets = previewMint(depositAsset, shares);
         if (assets > maxAssetsIn) {
             revert StrategyDeposit_ExcessiveAssetsIn(assets, maxAssetsIn);
@@ -267,6 +227,8 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 assets,
         uint256 shares
     ) internal virtual {
+        _requireOnDeposit(sender);
+        _requireOnDeposit(receiver);
         _accrueManagementFee();
 
         // Interaction first: pull tokens before minting shares so that any hook

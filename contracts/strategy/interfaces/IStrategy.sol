@@ -49,6 +49,9 @@ interface IStrategy {
     /// @notice Protocol fee treasury updated (`setFeeTreasury`).
     event FeeTreasurySet(address indexed treasury);
 
+    /// @notice Blocklist / sanctions oracle used by deposit and redeem checks (`initialize` / `setBlocklistOracle`).
+    event BlocklistOracleSet(address indexed oracle);
+
     /// @dev Caller expected strategy to be paused for this action (e.g. internal unpause guard).
     error Strategy_EnforcedStrategyOperationsPause();
 

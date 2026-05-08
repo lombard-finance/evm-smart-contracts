@@ -20,8 +20,17 @@ task('deploy-multi-asset-strategy', 'Deploys a MultiAssetWithAsyncRedemptionStra
   .addParam('defaultAdmin', 'Default admin address', 'self')
   .addParam('adminDelay', 'Initial default admin delay in seconds', '0')
   .addParam('managementFeeTreasury', 'Address receiving management fee share mints')
+  .addParam('blocklistOracle', 'IBlocklistOracle address (required; cannot be zero)')
   .setAction(async (taskArgs, hre) => {
-    const { beaconHub: beaconHubAddr, name, symbol, asset, adminDelay, managementFeeTreasury } = taskArgs;
+    const {
+      beaconHub: beaconHubAddr,
+      name,
+      symbol,
+      asset,
+      adminDelay,
+      managementFeeTreasury,
+      blocklistOracle
+    } = taskArgs;
 
     const { owner } = await getOwnersOrDefault(hre, taskArgs.defaultAdmin, taskArgs.defaultAdmin);
 
@@ -32,7 +41,8 @@ task('deploy-multi-asset-strategy', 'Deploys a MultiAssetWithAsyncRedemptionStra
       asset,
       owner,
       Number(adminDelay),
-      managementFeeTreasury
+      managementFeeTreasury,
+      blocklistOracle
     ]);
 
     const beaconId = hre.ethers.id('MultiAssetWithAsyncRedemptionStrategy');

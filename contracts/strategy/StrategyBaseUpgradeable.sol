@@ -11,6 +11,7 @@ import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/toke
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
+import {IBlocklistOracle} from "./interfaces/IBlocklistOracle.sol";
 import {IStrategy} from "./interfaces/IStrategy.sol";
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 
@@ -62,16 +63,15 @@ abstract contract StrategyBaseUpgradeable is
     /// @custom:storage-location erc7201:lombardfinance.storage.StrategyBaseUpgradeable
     struct StrategyBaseUpgradeableStorage {
         EnumerableSet.AddressSet shards;
-        /// @dev Underlying asset base units per `10 ** decimals()` share units (strategy share token decimals).
-        uint256 pricePerShare;
+        uint256 pricePerShare; // asset wei per `10 ** decimals()` share units
         PriceRateLimiter.Bucket ppsRateLimiter;
         IERC20 asset;
-        /// @dev Receives async redemption redeem fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
         address feeTreasury;
         address defaultShard;
         uint8 underlyingDecimals;
-        /// @dev pause strategy ops
         bool strategyPaused;
+        /// @dev Compliance oracle (`IBlocklistOracle`); required at init; replace via {setBlocklistOracle}.
+        address blocklistOracle;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StrategyBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -88,19 +88,22 @@ abstract contract StrategyBaseUpgradeable is
         }
     }
 
-    /// @dev Shared initializer: access control, reentrancy guard, ERC-20 share metadata + pausable ERC-20, underlying asset, initial `pricePerShare`, and zeroed rate-limiter bucket.
+    /// @dev Shared initializer: access control, reentrancy guard, ERC-20 share metadata + pausable ERC-20, underlying asset,
+    ///      mandatory blocklist oracle, initial `pricePerShare`, and zeroed rate-limiter bucket.
     ///      Parent initializers run in C3 linear order (OZ upgrades validator).
     /// @param name_ ERC-20 name for strategy shares.
     /// @param symbol_ ERC-20 symbol for strategy shares.
     /// @param initialDefaultAdminDelay_ Admin delay for `AccessControlDefaultAdminRules`.
     /// @param defaultAdmin_ Default admin for roles.
     /// @param asset_ Strategy underlying ERC-20 (`asset()`).
+    /// @param blocklistOracle_ Compliance oracle implementing `IBlocklistOracle`; must not be zero.
     function __StrategyBase_init(
         string memory name_,
         string memory symbol_,
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_,
-        IERC20 asset_
+        IERC20 asset_,
+        address blocklistOracle_
     ) internal onlyInitializing {
         __AccessControl_init();
         __AccessControlDefaultAdminRules_init(
@@ -116,6 +119,7 @@ abstract contract StrategyBaseUpgradeable is
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(asset_);
         $.underlyingDecimals = success ? assetDecimals : 18;
         $.asset = asset_;
+        _setBlocklistOracle($,blocklistOracle_);
         // Initial price per share is 1 asset per share.
         _setPricePerShare($, 10 ** decimals());
         $.ppsRateLimiter = PriceRateLimiter.Bucket({
@@ -139,6 +143,39 @@ abstract contract StrategyBaseUpgradeable is
     /// @return Address configured by {setFeeTreasury}.
     function feeTreasury() public view returns (address) {
         return _getStrategyBaseUpgradeableStorage().feeTreasury;
+    }
+
+    /// @return Current compliance oracle address (never zero after init).
+    function blocklistOracle() public view returns (address) {
+        return _getStrategyBaseUpgradeableStorage().blocklistOracle;
+    }
+
+    /// @notice Points deposit/redeem compliance checks at a new `IBlocklistOracle` implementation.
+    /// @param oracle_ Must not be zero (oracle cannot be disabled on-chain).
+    function setBlocklistOracle(
+        address oracle_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        StrategyBaseUpgradeableStorage storage $ = _getStrategyBaseUpgradeableStorage();
+        _setBlocklistOracle($, oracle_);
+    }
+
+    /// @dev Validates `oracle_`, stores it, and emits {BlocklistOracleSet}.
+    function _setBlocklistOracle(StrategyBaseUpgradeableStorage storage $, address oracle_) internal {
+        if (oracle_ == address(0)) revert Strategy_ZeroAddress();
+        $.blocklistOracle = oracle_;
+        emit BlocklistOracleSet(oracle_);
+    }
+
+    /// @dev Invokes `IBlocklistOracle.onDeposit` (oracle is always set after init).
+    function _requireOnDeposit(address account) internal view {
+        IBlocklistOracle(_getStrategyBaseUpgradeableStorage().blocklistOracle)
+            .onDeposit(account);
+    }
+
+    /// @dev Invokes `IBlocklistOracle.onRedeem` (oracle is always set after init).
+    function _requireOnRedeem(address account) internal view {
+        IBlocklistOracle(_getStrategyBaseUpgradeableStorage().blocklistOracle)
+            .onRedeem(account);
     }
 
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.
