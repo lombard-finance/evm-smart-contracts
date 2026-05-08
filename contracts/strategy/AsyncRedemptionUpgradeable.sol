@@ -6,12 +6,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IAsyncRedemption} from "./interfaces/IAsyncRedemption.sol";
-import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
+import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title AsyncRedemptionUpgradeable
 /// @notice Asynchronous redemption: burns shares on `requestRedeem`, pays underlying on `fulfillRedeemRequests` by accounts with `PAY_REDEMPTIONS_ROLE`, optional redeem fee in shares.
 abstract contract AsyncRedemptionUpgradeable is
-    StrategyBaseUpgradeable,
+    FeeManagerUpgradeable,
     IAsyncRedemption
 {
     using Math for uint256;

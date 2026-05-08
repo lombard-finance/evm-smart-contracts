@@ -78,7 +78,7 @@ abstract contract FeeManagerUpgradeable is
 
     /// @dev Exact management fee accrual hook. Call unconditionally before user share mint/burn operations.
     ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`.
-    function _accrueManagementFee() internal virtual override {
+    function _accrueManagementFee() internal virtual {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
             $.lastFeeHarvestAt,
