@@ -376,7 +376,7 @@ abstract contract MultiAssetDepositUpgradeable is
         uint16 bps,
         uint256 gross
     ) private pure returns (uint256 fee, uint256 net) {
-        fee = gross.mulDiv(bps, _BPS_DENOMINATOR, Math.Rounding.Floor);
+        fee = gross.mulDiv(bps, _BPS_DENOMINATOR, Math.Rounding.Ceil);
         net = gross - fee;
     }
 }

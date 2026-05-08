@@ -265,7 +265,6 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
-    ///         Integrators that need real holdings must sum shard balances off-chain.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }

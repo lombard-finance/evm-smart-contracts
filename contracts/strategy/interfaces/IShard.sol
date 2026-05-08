@@ -15,6 +15,9 @@ interface IShard {
     /// @dev Thrown when a zero address is supplied for a shard parameter or configuration.
     error Shard_ZeroAddress();
 
+    /// @dev `exec` target must not be this shard (`to == address(this)`).
+    error Shard_ExecToSelfNotAllowed();
+
     /// @notice An `exec` call completed successfully (validator-gated or privileged overload).
     event Executed(
         address indexed caller,

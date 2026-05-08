@@ -47,14 +47,15 @@ abstract contract ShardBaseUpgradeable is
     /// @notice Validator-governed external call.
     /// @param validatorArgs Encoding is defined by the configured `IShardExecValidator` (e.g. Merkle `CallVerificationInput`).
     /// @dev ETH: requires `address(this).balance >= value` after receiving `msg.value`.
-    ///      `to == address(this)` is allowed by design: calldata may invoke this contract (e.g. `AccessControl.grantRole`),
-    ///      so policy / the validator MUST explicitly allow or deny self-targeted calls (“self-grant roles” surface).
+    ///      `to` cannot be this contract; admin changes use dedicated flows, not `exec` self-calls.
     function exec(
         address to,
         uint256 value,
         bytes calldata data,
         bytes calldata validatorArgs
     ) external payable nonReentrant returns (bytes memory) {
+        if (to == address(this)) revert Shard_ExecToSelfNotAllowed();
+
         address sender = _msgSender();
         if (
             !_getShardBaseStorage().validator.isAllowed(
@@ -81,7 +82,7 @@ abstract contract ShardBaseUpgradeable is
 
     /// @notice Validator-bypassing external call for privileged executors (`PRIVILEGED_EXECUTOR_ROLE`).
     /// @dev Skips `IShardExecValidator`; all other safety checks (reentrancy, ETH balance) still apply.
-    ///      As with the gated overload, `to == address(this)` is valid (e.g. roles on this contract); trusted executors only.
+    ///      `to` cannot be this contract; same restriction as the validator-gated overload.
     function exec(
         address to,
         uint256 value,
@@ -93,6 +94,8 @@ abstract contract ShardBaseUpgradeable is
         onlyRole(PRIVILEGED_EXECUTOR_ROLE)
         returns (bytes memory)
     {
+        if (to == address(this)) revert Shard_ExecToSelfNotAllowed();
+
         if (address(this).balance < value) revert Shard_InvalidEthFunding();
 
         (bool success, bytes memory returndata) = payable(to).call{
