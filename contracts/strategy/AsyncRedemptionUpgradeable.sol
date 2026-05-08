@@ -184,9 +184,4 @@ abstract contract AsyncRedemptionUpgradeable is
     ) external view override returns (RedeemRequest memory) {
         return _getAsyncRedemptionStorage().redeemRequestById[requestId_];
     }
-
-    /// @dev Passthrough for diamond inheritance with `MultiAssetDepositUpgradeable`.
-    function _afterShardDeregistered(address shard) internal virtual override {
-        super._afterShardDeregistered(shard);
-    }
 }

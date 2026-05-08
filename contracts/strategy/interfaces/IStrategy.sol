@@ -73,6 +73,9 @@ interface IStrategy {
     /// @notice A shard contract was removed from the registry.
     event ShardDeregistered(address indexed shard, address indexed caller);
 
+    /// @notice Optional shard that receives deposited tokens.
+    event DefaultShardSet(address indexed shard, address indexed caller);
+
     /// @notice Implementation-defined semantic version string for tooling and upgrades.
     /// @return Semver or build identifier (contract-specific).
     function version() external view returns (string memory);

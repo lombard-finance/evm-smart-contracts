@@ -61,14 +61,4 @@ contract MultiAssetWithAsyncRedemptionStrategy is
     {
         return super.supportsInterface(interfaceId);
     }
-
-    /// @dev Resolves `StrategyBaseUpgradeable._afterShardDeregistered` for the diamond base layout.
-    function _afterShardDeregistered(
-        address shard
-    )
-        internal
-        override(MultiAssetDepositUpgradeable, AsyncRedemptionUpgradeable)
-    {
-        MultiAssetDepositUpgradeable._afterShardDeregistered(shard);
-    }
 }

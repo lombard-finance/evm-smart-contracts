@@ -150,7 +150,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
     await strategy.connect(admin).registerShard(sink);
-    await expect(strategy.connect(admin).setDefaultShard(sink)).to.emit(strategy, 'DefaultShardSet').withArgs(sink);
+    await expect(strategy.connect(admin).setDefaultShard(sink))
+      .to.emit(strategy, 'DefaultShardSet')
+      .withArgs(sink, admin.address);
 
     expect(await strategy.defaultShard()).to.equal(sink);
 
@@ -222,7 +224,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     await strategy.connect(admin).setDefaultShard(sink);
     await expect(strategy.connect(admin).deregisterShard(sink))
       .to.emit(strategy, 'DefaultShardSet')
-      .withArgs(ethers.ZeroAddress);
+      .withArgs(ethers.ZeroAddress, admin.address);
     expect(await strategy.defaultShard()).to.equal(ethers.ZeroAddress);
   });
 
@@ -285,6 +287,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(pending.pendingShares).to.equal(shares);
     expect(pending.pendingAssets).to.equal(assetsOut);
     expect(pending.owner).to.equal(user.address);
+    expect(await strategy.pendingAssetsOf(user.address)).to.equal(assetsOut);
 
     await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
       .to.emit(strategy, 'Redeem')
@@ -294,6 +297,47 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     const afterU = await underlying.balanceOf(user.address);
     expect(afterU - beforeU).to.equal(assetsOut);
+    expect(await strategy.pendingAssetsOf(user.address)).to.equal(0n);
+  });
+
+  it('tracks pending assets independently per owner', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    const secondOwner = operator;
+
+    await strategy.connect(admin).addDepositAsset(alt, await converter.getAddress(), 0);
+
+    const userDepositAmt = 2_000n * 10n ** 18n;
+    const secondOwnerDepositAmt = 1_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, userDepositAmt);
+    await altDeposit.mint(secondOwner.address, secondOwnerDepositAmt);
+    await altDeposit.connect(user).approve(v, userDepositAmt);
+    await altDeposit.connect(secondOwner).approve(v, secondOwnerDepositAmt);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, userDepositAmt, user.address);
+    await strategy
+      .connect(secondOwner)
+      ['deposit(address,uint256,address)'](alt, secondOwnerDepositAmt, secondOwner.address);
+
+    const userShares = (await strategy.balanceOf(user.address)) / 2n;
+    const secondOwnerShares = await strategy.balanceOf(secondOwner.address);
+    const dec = BigInt(await strategy.decimals());
+    const pps = await strategy.pricePerShare();
+    const userAssetsOut = (userShares * pps) / 10n ** dec;
+    const secondOwnerAssetsOut = (secondOwnerShares * pps) / 10n ** dec;
+    await underlying.mint(v, userAssetsOut + secondOwnerAssetsOut + 1n);
+
+    await strategy.connect(user).requestRedeem(userShares, user.address);
+    await strategy.connect(secondOwner).requestRedeem(secondOwnerShares, secondOwner.address);
+
+    expect(await strategy.pendingAssetsOf(user.address)).to.equal(userAssetsOut);
+    expect(await strategy.pendingAssetsOf(secondOwner.address)).to.equal(secondOwnerAssetsOut);
+
+    await strategy.connect(redeemOperator).fulfillRedeemRequests([1]);
+    expect(await strategy.pendingAssetsOf(user.address)).to.equal(0n);
+    expect(await strategy.pendingAssetsOf(secondOwner.address)).to.equal(secondOwnerAssetsOut);
+
+    await strategy.connect(redeemOperator).fulfillRedeemRequests([2]);
+    expect(await strategy.pendingAssetsOf(secondOwner.address)).to.equal(0n);
   });
 
   it('fulfillRedeemRequests: reverts when strategy holds no underlying for the redeemed shares', async function () {

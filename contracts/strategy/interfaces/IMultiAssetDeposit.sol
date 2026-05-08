@@ -43,9 +43,6 @@ interface IMultiAssetDeposit is IERC165 {
         uint256 amount
     );
 
-    /// @notice Optional shard that receives net deposit tokens after mint (see `setDefaultShard`).
-    event DefaultShardSet(address indexed shard);
-
     /// @notice Net deposit liquidity routed to the default shard after `Deposit`.
     event DepositRoutedToDefaultShard(
         address indexed shard,
@@ -162,10 +159,4 @@ interface IMultiAssetDeposit is IERC165 {
         address depositAsset,
         uint256 assets
     ) external view returns (uint256);
-
-    /// @return Registered shard address that receives net deposit tokens after each deposit, or zero if disabled.
-    function defaultShard() external view returns (address);
-
-    /// @notice Sets the shard that receives net deposit tokens (post fee) for every deposit. Must be a registered shard, or `address(0)` to disable.
-    function setDefaultShard(address shard) external;
 }

@@ -64,13 +64,14 @@ abstract contract StrategyBaseUpgradeable is
         EnumerableSet.AddressSet shards;
         /// @dev Underlying asset base units per `10 ** decimals()` share units (strategy share token decimals).
         uint256 pricePerShare;
-        /// @dev pause strategy ops
-        bool strategyPaused;
-        IERC20 asset;
-        uint8 underlyingDecimals;
         PriceRateLimiter.Bucket ppsRateLimiter;
+        IERC20 asset;
         /// @dev Receives async redemption redeem fee shares & skimmed multi-asset deposit fees (`setFeeTreasury`).
         address feeTreasury;
+        address defaultShard;
+        uint8 underlyingDecimals;
+        /// @dev pause strategy ops
+        bool strategyPaused;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.StrategyBaseUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -250,14 +251,33 @@ abstract contract StrategyBaseUpgradeable is
     function deregisterShard(
         address shard
     ) external virtual onlyRole(MANAGER_ROLE) {
-        if (!_getStrategyBaseUpgradeableStorage().shards.remove(shard))
-            revert Strategy_ShardNotRegistered();
+        StrategyBaseUpgradeableStorage
+            storage $ = _getStrategyBaseUpgradeableStorage();
+
+        if (!$.shards.remove(shard)) revert Strategy_ShardNotRegistered();
+
+        if ($.defaultShard == shard) {
+            $.defaultShard = address(0);
+            emit DefaultShardSet(address(0), _msgSender());
+        }
         emit ShardDeregistered(shard, _msgSender());
-        _afterShardDeregistered(shard);
     }
 
-    /// @dev Extension point for modules that track per-shard references (e.g. default deposit routing).
-    function _afterShardDeregistered(address) internal virtual {}
+    function setDefaultShard(address shard) external onlyRole(MANAGER_ROLE) {
+        StrategyBaseUpgradeableStorage
+            storage $ = _getStrategyBaseUpgradeableStorage();
+        if (shard != address(0)) {
+            if (!$.shards.contains(shard)) {
+                revert Strategy_ShardNotRegistered();
+            }
+        }
+        $.defaultShard = shard;
+        emit DefaultShardSet(shard, _msgSender());
+    }
+
+    function defaultShard() public view returns (address) {
+        return _getStrategyBaseUpgradeableStorage().defaultShard;
+    }
 
     /// @notice Transfer `amount` of `token` to the calling shard.
     /// @dev Only callable by a registered shard; uses nonReentrant to guard against re-entrancy via token callbacks.

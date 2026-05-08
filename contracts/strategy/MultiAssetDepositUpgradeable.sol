@@ -26,8 +26,6 @@ abstract contract MultiAssetDepositUpgradeable is
         EnumerableSet.AddressSet depositAssets;
         mapping(address token => uint16) depositFeeBps;
         mapping(address token => IAssetConverter) converters;
-        /// @dev If set, net deposit tokens (after deposit fee) are transferred here after mint.
-        address defaultShard;
     }
 
     // keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.MultiAssetDepositUpgradeable")) - 1)) & ~bytes32(uint256(0xff))
@@ -46,32 +44,6 @@ abstract contract MultiAssetDepositUpgradeable is
 
     /// @dev No-op today; call after `__FeeManager_init` in concrete initializers to keep a stable extension point.
     function __MultiAssetDeposit_init() internal onlyInitializing {}
-
-    /// @inheritdoc IMultiAssetDeposit
-    function defaultShard() public view returns (address) {
-        return _getMultiAssetDepositStorage().defaultShard;
-    }
-
-    /// @inheritdoc IMultiAssetDeposit
-    /// @param shard Registered shard address, or zero to disable automatic routing.
-    function setDefaultShard(address shard) external onlyRole(MANAGER_ROLE) {
-        if (shard != address(0)) {
-            if (!_getStrategyBaseUpgradeableStorage().shards.contains(shard)) {
-                revert Strategy_ShardNotRegistered();
-            }
-        }
-        _getMultiAssetDepositStorage().defaultShard = shard;
-        emit DefaultShardSet(shard);
-    }
-
-    function _afterShardDeregistered(address shard) internal virtual override {
-        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if ($.defaultShard == shard) {
-            $.defaultShard = address(0);
-            emit DefaultShardSet(address(0));
-        }
-        super._afterShardDeregistered(shard);
-    }
 
     /// @notice Register `depositAsset` with converter and deposit fee (bps strictly less than 10_000).
     /// @param depositAsset ERC-20 token users may deposit.
@@ -305,6 +277,7 @@ abstract contract MultiAssetDepositUpgradeable is
             $.depositFeeBps[depositAsset],
             assets
         );
+        if (netAssets == 0) revert Strategy_ZeroAmount();
         if (feeAssets > 0) {
             address tr = feeTreasury();
             if (tr == address(0))
@@ -323,8 +296,8 @@ abstract contract MultiAssetDepositUpgradeable is
             feeAssets
         );
 
-        address ds = $.defaultShard;
-        if (ds != address(0) && netAssets > 0) {
+        address ds = defaultShard();
+        if (ds != address(0)) {
             IERC20(depositAsset).safeTransfer(ds, netAssets);
             emit DepositRoutedToDefaultShard(ds, depositAsset, netAssets);
         }
