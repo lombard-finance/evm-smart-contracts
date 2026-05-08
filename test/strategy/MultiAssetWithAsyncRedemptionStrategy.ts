@@ -16,6 +16,16 @@ import type {
   TokenMock
 } from '../../typechain-types';
 
+async function deployBlocklistOracle(adminAddress: string): Promise<string> {
+  const factory = await ethers.getContractFactory('BlocklistOracle');
+  const proxy = await upgrades.deployProxy(factory, [0, adminAddress], {
+    initializer: 'initialize',
+    unsafeAllow: ['constructor']
+  });
+  await proxy.waitForDeployment();
+  return await proxy.getAddress();
+}
+
 describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   const BPS_DENOMINATOR = 10_000n;
   const SECONDS_PER_YEAR = 365n * 24n * 60n * 60n;
@@ -31,6 +41,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   let altDeposit: TokenMock;
   let converter: DirectConverter;
   let strategy: MultiAssetWithAsyncRedemptionStrategy;
+  let blocklistOracleAddr: string;
 
   let snapshot: SnapshotRestorer;
 
@@ -48,6 +59,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     converter = (await convFactory.deploy()) as DirectConverter;
     await converter.waitForDeployment();
 
+    blocklistOracleAddr = await deployBlocklistOracle(admin.address);
+
     const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
     const proxy = await deployContract('MultiAssetWithAsyncRedemptionStrategy', [
       'Multi Strategy Shares',
@@ -55,7 +68,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       await underlying.getAddress(),
       admin.address,
       0,
-      treasury.address
+      treasury.address,
+      blocklistOracleAddr
     ]);
     await proxy.waitForDeployment();
     strategy = factory.attach(await proxy.getAddress()) as MultiAssetWithAsyncRedemptionStrategy;
@@ -76,6 +90,22 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.symbol()).to.equal('mSTRAT');
     expect(await strategy.asset()).to.equal(await underlying.getAddress());
     expect(await strategy.version()).to.equal('MultiAssetWithAsyncRedemptionStrategy-0.0.1');
+    expect(await strategy.blocklistOracle()).to.equal(blocklistOracleAddr);
+  });
+
+  it('admin can setBlocklistOracle to a new address', async function () {
+    const newOracle = await deployBlocklistOracle(admin.address);
+    await expect(strategy.connect(admin).setBlocklistOracle(newOracle))
+      .to.emit(strategy, 'BlocklistOracleSet')
+      .withArgs(newOracle);
+    expect(await strategy.blocklistOracle()).to.equal(newOracle);
+  });
+
+  it('setBlocklistOracle reverts for zero address', async function () {
+    await expect(strategy.connect(admin).setBlocklistOracle(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+      strategy,
+      'Strategy_ZeroAddress'
+    );
   });
 
   it('Verify StrategyBaseUpgradeableStorage slot', async function () {
@@ -246,8 +276,32 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
   it('initialize reverts when management fee treasury is zero', async function () {
     const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
+    const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
     await expect(
-      upgrades.deployProxy(factory, ['Tmp', 'TMP', await underlying.getAddress(), admin.address, 0, ethers.ZeroAddress])
+      upgrades.deployProxy(factory, [
+        'Tmp',
+        'TMP',
+        await underlying.getAddress(),
+        admin.address,
+        0,
+        ethers.ZeroAddress,
+        blocklistOracleAddr
+      ])
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAddress');
+  });
+
+  it('initialize reverts when blocklist oracle is zero', async function () {
+    const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
+    await expect(
+      upgrades.deployProxy(factory, [
+        'Tmp',
+        'TMP',
+        await underlying.getAddress(),
+        admin.address,
+        0,
+        treasury.address,
+        ethers.ZeroAddress
+      ])
     ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAddress');
   });
 
@@ -521,7 +575,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
     const pps0 = await strategy.pricePerShare();
     await strategy.connect(admin).postPricePerShare((pps0 * 11n) / 10n, false);
-    await strategy.connect(admin).unpauseStrategyOperations();
+    await strategy.connect(admin).unpauseDeposit();
+    await strategy.connect(admin).unpauseRedeem();
 
     const supplyBefore = await strategy.totalSupply();
     const ppsBefore = await strategy.pricePerShare();
@@ -593,7 +648,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       await expect(strategy.connect(operator).postPricePerShare(p2, true)).to.emit(strategy, 'PricePerShareUpdated');
     });
 
-    it('soft overflow: applies price, drains bucket, and pauses strategy', async function () {
+    it('soft overflow: applies price, drains bucket, and pauses deposit and redeem', async function () {
       const maxBps = 500;
       const weekSeconds = 604800n;
       const refillRate = (BigInt(maxBps) * 2n ** 32n + weekSeconds - 1n) / weekSeconds;
@@ -609,7 +664,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         strategy,
         'PricePerShareUpdated'
       );
-      expect(await strategy.strategyOperationsPaused()).to.be.true;
+      expect(await strategy.depositPaused()).to.be.true;
+      expect(await strategy.redeemPaused()).to.be.true;
       expect(await strategy.pricePerShare()).to.equal(tinyBump);
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
     });
@@ -686,9 +742,19 @@ describe('StakedLBTC as deposit token', function () {
     stakedConverter = (await convFactory.deploy(await oracle.getAddress())) as StakedLBTCConverter;
     await stakedConverter.waitForDeployment();
 
+    const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
+
     stakedStrategy = await deployContract<MultiAssetWithAsyncRedemptionStrategy>(
       'MultiAssetWithAsyncRedemptionStrategy',
-      ['Lombard BTC Strategy', 'LBTCSTR', await lbtcUnderlying.getAddress(), admin.address, 0, treasury.address]
+      [
+        'Lombard BTC Strategy',
+        'LBTCSTR',
+        await lbtcUnderlying.getAddress(),
+        admin.address,
+        0,
+        treasury.address,
+        blocklistOracleAddr
+      ]
     );
 
     await stakedStrategy.connect(admin).grantRole(await stakedStrategy.PRICE_SETTER_ROLE(), operator.address);
@@ -875,10 +941,20 @@ describe('Chainlink as deposit token', function () {
     )) as ChainlinkConverter;
     await clConverter.waitForDeployment();
 
+    const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
+
     const strategyFactory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
     const proxy = await deployContract(
       'MultiAssetWithAsyncRedemptionStrategy',
-      ['Chainlink BTC Strategy', 'clSTRAT', await depositToken.getAddress(), admin.address, 0, admin.address],
+      [
+        'Chainlink BTC Strategy',
+        'clSTRAT',
+        await depositToken.getAddress(),
+        admin.address,
+        0,
+        admin.address,
+        blocklistOracleAddr
+      ],
       true
     );
     await proxy.waitForDeployment();
