@@ -2,7 +2,7 @@ import { loadFixture } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
 
-import type { BlocklistOracle, MockSanctionList } from '../../typechain-types';
+import type { BlocklistOracle, SanctionListMock } from '../../typechain-types';
 
 /** Matches `IBlocklistOracle.DenialReason`. */
 const DenialReason = {
@@ -20,8 +20,8 @@ async function deployOracleFixture() {
   })) as unknown as BlocklistOracle;
   await oracle.waitForDeployment();
 
-  const MockSanctionListFactory = await ethers.getContractFactory('MockSanctionList');
-  const sanctionList = (await MockSanctionListFactory.deploy()) as MockSanctionList;
+  const SanctionListMockFactory = await ethers.getContractFactory('SanctionListMock');
+  const sanctionList = (await SanctionListMockFactory.deploy()) as SanctionListMock;
   await sanctionList.waitForDeployment();
 
   return { oracle, sanctionList, admin, alice, bob, carol };

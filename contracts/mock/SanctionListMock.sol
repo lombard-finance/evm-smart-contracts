@@ -3,9 +3,9 @@ pragma solidity 0.8.24;
 
 import {ISanctionList} from "../strategy/interfaces/ISanctionList.sol";
 
-/// @title MockSanctionList
+/// @title SanctionListMock
 /// @notice Configurable `ISanctionList` for tests.
-contract MockSanctionList is ISanctionList {
+contract SanctionListMock is ISanctionList {
     mapping(address => bool) private _sanctioned;
 
     function setSanctioned(address addr, bool value) external {
