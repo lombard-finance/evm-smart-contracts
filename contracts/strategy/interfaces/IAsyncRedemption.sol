@@ -45,6 +45,11 @@ interface IAsyncRedemption {
         uint256 requestId
     ) external view returns (RedeemRequest memory request);
 
+    /// @notice Total underlying assets pending settlement for `owner` across all open requests.
+    function pendingAssetsOf(
+        address owner
+    ) external view returns (uint256 assets);
+
     /// @notice Redeem fee rate (basis points) updated.
     event RedeemFeeBpsSet(uint16 bps);
 

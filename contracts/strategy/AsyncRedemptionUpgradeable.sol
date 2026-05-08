@@ -22,6 +22,7 @@ abstract contract AsyncRedemptionUpgradeable is
         uint256 totalPendingShares;
         uint256 totalPendingAssets;
         uint256 nextRequestId;
+        mapping(address owner => uint256) ownerPendingAssets;
         mapping(uint256 requestId => RedeemRequest) redeemRequestById;
         uint16 redeemFeeBps;
     }
@@ -65,6 +66,13 @@ abstract contract AsyncRedemptionUpgradeable is
     {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         return ($.totalPendingShares, $.totalPendingAssets);
+    }
+
+    /// @inheritdoc IAsyncRedemption
+    function pendingAssetsOf(
+        address owner
+    ) external view returns (uint256 assets) {
+        return _getAsyncRedemptionStorage().ownerPendingAssets[owner];
     }
 
     /// @inheritdoc IAsyncRedemption
@@ -122,6 +130,7 @@ abstract contract AsyncRedemptionUpgradeable is
 
         $.totalPendingShares += netShares;
         $.totalPendingAssets += assets;
+        $.ownerPendingAssets[owner] += assets;
 
         _burn(owner, netShares);
         if (feeShares > 0) {
@@ -159,6 +168,7 @@ abstract contract AsyncRedemptionUpgradeable is
 
             $.totalPendingShares -= shares;
             $.totalPendingAssets -= assets;
+            $.ownerPendingAssets[owner] -= assets;
             delete $.redeemRequestById[rid];
 
             asset_.safeTransfer(owner, assets);
