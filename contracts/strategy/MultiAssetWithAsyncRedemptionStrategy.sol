@@ -28,7 +28,7 @@ contract MultiAssetWithAsyncRedemptionStrategy is
     /// @param defaultAdmin_ Default admin for access control.
     /// @param initialDefaultAdminDelay_ Admin delay for default admin rules.
     /// @param managementFeeTreasury_ Recipient for management fee share mints (must not be zero).
-    /// @param blocklistOracle_ Compliance oracle (`IBlocklistOracle`); must not be zero.
+    /// @param blocklistOracle_ Compliance oracle (`IBlocklistOracle.check` / `blockAccount`); must not be zero.
     function initialize(
         string memory name_,
         string memory symbol_,

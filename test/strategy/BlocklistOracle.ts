@@ -29,9 +29,28 @@ async function deployOracleFixture() {
 
 describe('BlocklistOracle', function () {
   describe('access control', function () {
-    it('reverts when non-admin sets blocklist', async function () {
+    it('reverts blockAccount when caller lacks BLOCKLIST_SETTER_ROLE', async function () {
       const { oracle, alice } = await loadFixture(deployOracleFixture);
-      await expect(oracle.connect(alice).setBlocklistEntry(alice.address, true, false)).to.be.revertedWithCustomError(
+      await expect(oracle.connect(alice).blockAccount(alice.address)).to.be.revertedWithCustomError(
+        oracle,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('allows BLOCKLIST_SETTER_ROLE (without admin) to blockAccount', async function () {
+      const { oracle, admin, alice, bob } = await loadFixture(deployOracleFixture);
+      const setterRole = await oracle.BLOCKLIST_SETTER_ROLE();
+      await oracle.connect(admin).grantRole(setterRole, alice.address);
+      await oracle.connect(alice).blockAccount(bob.address);
+      expect(await oracle.isBlocklisted(bob.address)).to.be.true;
+    });
+
+    it('reverts unblockAccount when caller has only BLOCKLIST_SETTER_ROLE', async function () {
+      const { oracle, admin, alice, bob } = await loadFixture(deployOracleFixture);
+      const setterRole = await oracle.BLOCKLIST_SETTER_ROLE();
+      await oracle.connect(admin).grantRole(setterRole, alice.address);
+      await oracle.connect(admin).blockAccount(bob.address);
+      await expect(oracle.connect(alice).unblockAccount(bob.address)).to.be.revertedWithCustomError(
         oracle,
         'AccessControlUnauthorizedAccount'
       );
@@ -53,27 +72,59 @@ describe('BlocklistOracle', function () {
     });
   });
 
-  describe('setBlocklistEntry', function () {
-    it('reverts on zero address', async function () {
+  describe('blockAccount and unblockAccount', function () {
+    it('reverts blockAccount on zero address', async function () {
       const { oracle, admin } = await loadFixture(deployOracleFixture);
-      await expect(
-        oracle.connect(admin).setBlocklistEntry(ethers.ZeroAddress, true, false)
-      ).to.be.revertedWithCustomError(oracle, 'BlocklistOracle_ZeroAddress');
+      await expect(oracle.connect(admin).blockAccount(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+        oracle,
+        'BlocklistOracle_ZeroAddress'
+      );
     });
 
-    it('emits BlocklistEntrySet with sender', async function () {
+    it('reverts blockAccount when already blocklisted', async function () {
       const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await expect(oracle.connect(admin).setBlocklistEntry(alice.address, true, false))
-        .to.emit(oracle, 'BlocklistEntrySet')
-        .withArgs(admin.address, alice.address, true, false);
+      await oracle.connect(admin).blockAccount(alice.address);
+      await expect(oracle.connect(admin).blockAccount(alice.address))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_AlreadyBlocklisted')
+        .withArgs(alice.address);
+    });
+
+    it('reverts unblockAccount on zero address', async function () {
+      const { oracle, admin } = await loadFixture(deployOracleFixture);
+      await expect(oracle.connect(admin).unblockAccount(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+        oracle,
+        'BlocklistOracle_ZeroAddress'
+      );
+    });
+
+    it('reverts unblockAccount when account is not blocklisted', async function () {
+      const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
+      await expect(oracle.connect(admin).unblockAccount(alice.address))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotBlocklisted')
+        .withArgs(alice.address);
+    });
+
+    it('emits BlocklistedSet with sender on block', async function () {
+      const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
+      await expect(oracle.connect(admin).blockAccount(alice.address))
+        .to.emit(oracle, 'BlocklistedSet')
+        .withArgs(admin.address, alice.address, true);
+    });
+
+    it('emits BlocklistedSet with sender on unblock', async function () {
+      const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
+      await oracle.connect(admin).blockAccount(alice.address);
+      await expect(oracle.connect(admin).unblockAccount(alice.address))
+        .to.emit(oracle, 'BlocklistedSet')
+        .withArgs(admin.address, alice.address, false);
     });
 
     it('updates length and enumerable set when clearing', async function () {
       const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, true, false);
+      await oracle.connect(admin).blockAccount(alice.address);
       expect(await oracle.blocklistLength()).to.equal(1n);
 
-      await oracle.connect(admin).setBlocklistEntry(alice.address, false, false);
+      await oracle.connect(admin).unblockAccount(alice.address);
       expect(await oracle.blocklistLength()).to.equal(0n);
       const entries = await oracle.getBlocklistEntries(0, 100);
       expect(entries.length).to.equal(0);
@@ -133,73 +184,63 @@ describe('BlocklistOracle', function () {
     });
   });
 
-  describe('onDeposit / onRedeem', function () {
-    it('deposit: blocklist', async function () {
+  describe('check', function () {
+    it('blocklist', async function () {
       const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, true, false);
-      await expect(oracle.onDeposit.staticCall(alice.address))
-        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_DepositNotAllowed')
+      await oracle.connect(admin).blockAccount(alice.address);
+      await expect(oracle.check.staticCall(alice.address))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
         .withArgs(DenialReason.Blocklist);
     });
 
-    it('deposit: sanction', async function () {
+    it('sanction', async function () {
       const { oracle, sanctionList, admin, alice } = await loadFixture(deployOracleFixture);
       await oracle.connect(admin).addSanctionList(await sanctionList.getAddress());
       await sanctionList.setSanctioned(alice.address, true);
-      await expect(oracle.onDeposit.staticCall(alice.address))
-        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_DepositNotAllowed')
+      await expect(oracle.check.staticCall(alice.address))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
         .withArgs(DenialReason.Sanction);
     });
 
-    it('redeem: blocklist', async function () {
-      const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, false, true);
-      await expect(oracle.onRedeem.staticCall(alice.address))
-        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_RedeemNotAllowed')
-        .withArgs(DenialReason.Blocklist);
+    it('passes when not blocklisted or sanctioned', async function () {
+      const { oracle, alice } = await loadFixture(deployOracleFixture);
+      await oracle.check.staticCall(alice.address);
     });
+  });
 
-    it('redeem: sanction', async function () {
+  describe('isBlocklisted', function () {
+    it('tracks manual blocklist only', async function () {
       const { oracle, sanctionList, admin, alice } = await loadFixture(deployOracleFixture);
+      expect(await oracle.isBlocklisted(alice.address)).to.be.false;
+      await oracle.connect(admin).blockAccount(alice.address);
+      expect(await oracle.isBlocklisted(alice.address)).to.be.true;
+      await oracle.connect(admin).unblockAccount(alice.address);
       await oracle.connect(admin).addSanctionList(await sanctionList.getAddress());
       await sanctionList.setSanctioned(alice.address, true);
-      await expect(oracle.onRedeem.staticCall(alice.address))
-        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_RedeemNotAllowed')
-        .withArgs(DenialReason.Sanction);
-    });
-
-    it('deposit blocked only for deposit flag; redeem may pass', async function () {
-      const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, true, false);
-      await oracle.onRedeem.staticCall(alice.address);
-    });
-
-    it('redeem blocked only for redeem flag; deposit may pass', async function () {
-      const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, false, true);
-      await oracle.onDeposit.staticCall(alice.address);
+      expect(await oracle.isBlocklisted(alice.address)).to.be.false;
+      expect(await oracle.isSanctioned(alice.address)).to.be.true;
     });
   });
 
   describe('getBlocklistEntries', function () {
     it('returns empty when limit is 0', async function () {
       const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, true, false);
+      await oracle.connect(admin).blockAccount(alice.address);
       const entries = await oracle.getBlocklistEntries(0, 0);
       expect(entries.length).to.equal(0);
     });
 
     it('returns empty when offset >= length', async function () {
       const { oracle, admin, alice } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, true, false);
+      await oracle.connect(admin).blockAccount(alice.address);
       expect((await oracle.getBlocklistEntries(1, 10)).length).to.equal(0);
     });
 
     it('pages results', async function () {
       const { oracle, admin, alice, bob, carol } = await loadFixture(deployOracleFixture);
-      await oracle.connect(admin).setBlocklistEntry(alice.address, true, false);
-      await oracle.connect(admin).setBlocklistEntry(bob.address, false, true);
-      await oracle.connect(admin).setBlocklistEntry(carol.address, true, true);
+      await oracle.connect(admin).blockAccount(alice.address);
+      await oracle.connect(admin).blockAccount(bob.address);
+      await oracle.connect(admin).blockAccount(carol.address);
 
       expect(await oracle.blocklistLength()).to.equal(3n);
 
@@ -209,7 +250,7 @@ describe('BlocklistOracle', function () {
       const p1 = await oracle.getBlocklistEntries(2, 5);
       expect(p1.length).to.equal(1);
 
-      const accounts = new Set([...p0, ...p1].map(e => e.account));
+      const accounts = new Set([...p0, ...p1]);
       expect(accounts.size).to.equal(3);
       expect(accounts.has(alice.address)).to.be.true;
       expect(accounts.has(bob.address)).to.be.true;

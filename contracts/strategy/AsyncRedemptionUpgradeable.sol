@@ -103,12 +103,9 @@ abstract contract AsyncRedemptionUpgradeable is
         address owner,
         address caller
     ) private returns (uint256 requestId) {
-        _requireOnRedeem(owner);
+        _requireBlocklistAllows(owner);
         _accrueManagementFee();
 
-        if (caller != owner) {
-            _requireOnRedeem(caller);
-        }
 
         address treasury_ = feeTreasury();
         uint256 feeShares;

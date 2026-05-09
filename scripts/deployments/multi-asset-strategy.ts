@@ -20,7 +20,10 @@ task('deploy-multi-asset-strategy', 'Deploys a MultiAssetWithAsyncRedemptionStra
   .addParam('defaultAdmin', 'Default admin address', 'self')
   .addParam('adminDelay', 'Initial default admin delay in seconds', '0')
   .addParam('managementFeeTreasury', 'Address receiving management fee share mints')
-  .addParam('blocklistOracle', 'IBlocklistOracle address (required; cannot be zero)')
+  .addParam(
+    'blocklistOracle',
+    'BlocklistOracle proxy implementing IBlocklistOracle (check / blockAccount); cannot be zero'
+  )
   .setAction(async (taskArgs, hre) => {
     const {
       beaconHub: beaconHubAddr,

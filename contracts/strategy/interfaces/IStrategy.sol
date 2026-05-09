@@ -55,7 +55,7 @@ interface IStrategy {
     /// @notice Protocol fee treasury updated (`setFeeTreasury`).
     event FeeTreasurySet(address indexed treasury);
 
-    /// @notice Blocklist / sanctions oracle used by deposit and redeem checks (`initialize` / `setBlocklistOracle`).
+    /// @notice Compliance oracle (`IBlocklistOracle.check`) — wired via `initialize` / `setBlocklistOracle`.
     event BlocklistOracleSet(address indexed oracle);
 
     /// @dev Deposit operation invoked while deposit pause is active.

@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import {IBlocklistOracle} from "./interfaces/IBlocklistOracle.sol";
@@ -15,15 +14,13 @@ contract BlocklistOracle is
 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    struct BlocklistEntry {
-        bool depositNotAllowed;
-        bool redeemNotAllowed;
-    }
+    /// @notice May call {blockAccount}; granted to `defaultAdmin_` in {initialize}.
+    bytes32 public constant BLOCKLIST_SETTER_ROLE =
+        keccak256("BLOCKLIST_SETTER_ROLE");
 
     /// @custom:storage-location erc7201:lombardfinance.storage.BlocklistOracle
     struct BlocklistOracleStorage {
-        mapping(address => BlocklistEntry) blocklist;
-        /// @dev Addresses with at least one of `depositNotAllowed` or `redeemNotAllowed` true; order not stable.
+        /// @dev Membership implies blocklisted; enumeration order is not stable.
         EnumerableSet.AddressSet blocklistedAccounts;
         EnumerableSet.AddressSet sanctions;
     }
@@ -63,31 +60,29 @@ contract BlocklistOracle is
             initialDefaultAdminDelay_,
             defaultAdmin_
         );
+        _grantRole(BLOCKLIST_SETTER_ROLE, defaultAdmin_);
     }
 
     /// @inheritdoc IBlocklistOracle
-    function setBlocklistEntry(
-        address account,
-        bool depositNotAllowed,
-        bool redeemNotAllowed
+    function blockAccount(
+        address account
+    ) external onlyRole(BLOCKLIST_SETTER_ROLE) {
+        if (account == address(0)) revert BlocklistOracle_ZeroAddress();
+        BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
+        if (!$.blocklistedAccounts.add(account))
+            revert BlocklistOracle_AlreadyBlocklisted(account);
+        emit BlocklistedSet(_msgSender(), account, true);
+    }
+
+    /// @inheritdoc IBlocklistOracle
+    function unblockAccount(
+        address account
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (account == address(0)) revert BlocklistOracle_ZeroAddress();
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
-        $.blocklist[account] = BlocklistEntry({
-            depositNotAllowed: depositNotAllowed,
-            redeemNotAllowed: redeemNotAllowed
-        });
-        if (depositNotAllowed || redeemNotAllowed) {
-            $.blocklistedAccounts.add(account);
-        } else {
-            $.blocklistedAccounts.remove(account);
-        }
-        emit BlocklistEntrySet(
-            _msgSender(),
-            account,
-            depositNotAllowed,
-            redeemNotAllowed
-        );
+        if (!$.blocklistedAccounts.remove(account))
+            revert BlocklistOracle_NotBlocklisted(account);
+        emit BlocklistedSet(_msgSender(), account, false);
     }
 
     /// @inheritdoc IBlocklistOracle
@@ -124,13 +119,9 @@ contract BlocklistOracle is
     }
 
     /// @inheritdoc IBlocklistOracle
-    function getBlocklistEntry(
-        address account
-    ) external view returns (bool depositNotAllowed, bool redeemNotAllowed) {
-        BlocklistEntry storage e = _getBlocklistOracleStorage().blocklist[
-            account
-        ];
-        return (e.depositNotAllowed, e.redeemNotAllowed);
+    function isBlocklisted(address account) external view returns (bool) {
+        return
+            _getBlocklistOracleStorage().blocklistedAccounts.contains(account);
     }
 
     /// @inheritdoc IBlocklistOracle
@@ -142,23 +133,17 @@ contract BlocklistOracle is
     function getBlocklistEntries(
         uint256 offset,
         uint256 limit
-    ) external view returns (BlocklistAccountEntry[] memory entries) {
+    ) external view returns (address[] memory accounts) {
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
         uint256 n = $.blocklistedAccounts.length();
         if (limit == 0 || offset >= n) {
-            return new BlocklistAccountEntry[](0);
+            return new address[](0);
         }
         uint256 remaining = n - offset;
         uint256 count = limit < remaining ? limit : remaining;
-        entries = new BlocklistAccountEntry[](count);
+        accounts = new address[](count);
         for (uint256 i = 0; i < count; ++i) {
-            address a = $.blocklistedAccounts.at(offset + i);
-            BlocklistEntry storage e = $.blocklist[a];
-            entries[i] = BlocklistAccountEntry({
-                account: a,
-                depositNotAllowed: e.depositNotAllowed,
-                redeemNotAllowed: e.redeemNotAllowed
-            });
+            accounts[i] = $.blocklistedAccounts.at(offset + i);
         }
     }
 
@@ -169,24 +154,13 @@ contract BlocklistOracle is
     }
 
     /// @inheritdoc IBlocklistOracle
-    function onDeposit(address account) external view override {
+    function check(address account) external view override {
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
-        if ($.blocklist[account].depositNotAllowed) {
-            revert BlocklistOracle_DepositNotAllowed(DenialReason.Blocklist);
+        if ($.blocklistedAccounts.contains(account)) {
+            revert BlocklistOracle_NotAllowed(DenialReason.Blocklist);
         }
         if (isSanctioned(account)) {
-            revert BlocklistOracle_DepositNotAllowed(DenialReason.Sanction);
-        }
-    }
-
-    /// @inheritdoc IBlocklistOracle
-    function onRedeem(address account) external view override {
-        BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
-        if ($.blocklist[account].redeemNotAllowed) {
-            revert BlocklistOracle_RedeemNotAllowed(DenialReason.Blocklist);
-        }
-        if (isSanctioned(account)) {
-            revert BlocklistOracle_RedeemNotAllowed(DenialReason.Sanction);
+            revert BlocklistOracle_NotAllowed(DenialReason.Sanction);
         }
     }
 }

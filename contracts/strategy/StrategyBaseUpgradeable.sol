@@ -69,7 +69,7 @@ abstract contract StrategyBaseUpgradeable is
         address feeTreasury;
         address defaultShard;
         uint8 underlyingDecimals;
-        /// @dev Compliance oracle (`IBlocklistOracle`); required at init; replace via {setBlocklistOracle}.
+        /// @dev Compliance oracle (`IBlocklistOracle.check`); required at init; replace via {setBlocklistOracle}.
         address blocklistOracle;
         /// @dev Deposit/mint pause (independent of `redeemPaused`).
         bool depositPaused;
@@ -99,7 +99,7 @@ abstract contract StrategyBaseUpgradeable is
     /// @param initialDefaultAdminDelay_ Admin delay for `AccessControlDefaultAdminRules`.
     /// @param defaultAdmin_ Default admin for roles.
     /// @param asset_ Strategy underlying ERC-20 (`asset()`).
-    /// @param blocklistOracle_ Compliance oracle implementing `IBlocklistOracle`; must not be zero.
+    /// @param blocklistOracle_ Compliance oracle (`IBlocklistOracle`); must not be zero.
     function __StrategyBase_init(
         string memory name_,
         string memory symbol_,
@@ -173,16 +173,10 @@ abstract contract StrategyBaseUpgradeable is
         emit BlocklistOracleSet(oracle_);
     }
 
-    /// @dev Invokes `IBlocklistOracle.onDeposit` (oracle is always set after init).
-    function _requireOnDeposit(address account) internal view {
+    /// @dev Invokes `IBlocklistOracle.check` (oracle is always set after init).
+    function _requireBlocklistAllows(address account) internal view {
         IBlocklistOracle(_getStrategyBaseUpgradeableStorage().blocklistOracle)
-            .onDeposit(account);
-    }
-
-    /// @dev Invokes `IBlocklistOracle.onRedeem` (oracle is always set after init).
-    function _requireOnRedeem(address account) internal view {
-        IBlocklistOracle(_getStrategyBaseUpgradeableStorage().blocklistOracle)
-            .onRedeem(account);
+            .check(account);
     }
 
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.

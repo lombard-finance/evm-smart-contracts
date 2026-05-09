@@ -227,8 +227,8 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 assets,
         uint256 shares
     ) internal virtual {
-        _requireOnDeposit(sender);
-        _requireOnDeposit(receiver);
+        _requireBlocklistAllows(sender);
+        _requireBlocklistAllows(receiver);
         _accrueManagementFee();
 
         // Interaction first: pull tokens before minting shares so that any hook

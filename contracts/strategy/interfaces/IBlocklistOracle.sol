@@ -2,23 +2,23 @@
 pragma solidity 0.8.24;
 
 interface IBlocklistOracle {
-    /// @dev Why `onDeposit` / `onRedeem` rejected the account (operation implied by the error selector).
+    /// @dev Why {check} rejected the account.
     enum DenialReason {
         Blocklist,
         Sanction
     }
 
-    error BlocklistOracle_DepositNotAllowed(DenialReason reason);
-    error BlocklistOracle_RedeemNotAllowed(DenialReason reason);
+    error BlocklistOracle_NotAllowed(DenialReason reason);
     error BlocklistOracle_ZeroAddress();
+    error BlocklistOracle_AlreadyBlocklisted(address account);
+    error BlocklistOracle_NotBlocklisted(address account);
     error BlocklistOracle_SanctionListAlreadyAdded();
     error BlocklistOracle_SanctionListNotFound();
 
-    event BlocklistEntrySet(
+    event BlocklistedSet(
         address indexed sender,
         address indexed account,
-        bool depositNotAllowed,
-        bool redeemNotAllowed
+        bool blocked
     );
     event SanctionListAdded(
         address indexed sender,
@@ -29,29 +29,25 @@ interface IBlocklistOracle {
         address indexed sanctionList
     );
 
-    /// @dev One blocklisted address with flags; used by {getBlocklistEntries}.
-    struct BlocklistAccountEntry {
-        address account;
-        bool depositNotAllowed;
-        bool redeemNotAllowed;
-    }
+    /// @return Role required for {blockAccount} (see implementation for initial grant).
+    function BLOCKLIST_SETTER_ROLE() external view returns (bytes32);
 
-    function onDeposit(address account) external view;
-    function onRedeem(address account) external view;
+    /// @notice Compliance gate for deposits and redemptions; reverts if `account` is blocklisted or sanctioned.
+    function check(address account) external view;
 
-    function setBlocklistEntry(
-        address account,
-        bool depositNotAllowed,
-        bool redeemNotAllowed
-    ) external;
+    /// @notice Adds `account` to the manual blocklist. Requires {BLOCKLIST_SETTER_ROLE}. Reverts if already blocklisted.
+    function blockAccount(address account) external;
+
+    /// @notice Removes `account` from the manual blocklist. Reverts if not blocklisted.
+    function unblockAccount(address account) external;
 
     function addSanctionList(address sanctionList) external;
     function removeSanctionList(address sanctionList) external;
 
     function isSanctioned(address account) external view returns (bool);
-    function getBlocklistEntry(
-        address account
-    ) external view returns (bool depositNotAllowed, bool redeemNotAllowed);
+
+    /// @return True if `account` is on the manual blocklist (not sanction lists).
+    function isBlocklisted(address account) external view returns (bool);
 
     function blocklistLength() external view returns (uint256);
 
@@ -61,7 +57,7 @@ interface IBlocklistOracle {
     function getBlocklistEntries(
         uint256 offset,
         uint256 limit
-    ) external view returns (BlocklistAccountEntry[] memory entries);
+    ) external view returns (address[] memory accounts);
 
     function getSanctionLists() external view returns (address[] memory);
 }
