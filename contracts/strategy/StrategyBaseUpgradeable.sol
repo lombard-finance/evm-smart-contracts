@@ -184,11 +184,19 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseUpgradeableStorage().pricePerShare;
     }
 
-    /// @notice Updates `pricePerShare` subject to the configured `PriceRateLimiter` capacity and refill rules.
-    /// @param newPricePerShare Next asset wei per share unit; must be non-zero.
-    /// @param revertOnRateLimit If the move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
+    /// @notice Posts a new `pricePerShare` reconciled against mints/burns that occurred between the operator's NAV snapshot and this call.
+    /// @dev Same-epoch deposits and async redeem *requests* are priced at the still-stored `pricePerShare`, so the
+    ///      reconciliation produces a stored PPS for which on-chain `totalAssets()` equals real backing — i.e. a frontrunning
+    ///      deposit at stale PPS cannot inflate the post-update NAV. Async redemption *fulfillments* don't change supply or
+    ///      active-share NAV and need no adjustment.
+    ///      The rate limiter gates on the *declared* PPS move (`old → navAtSnapshot * oneShare / supplyAtSnapshot`), not the
+    ///      reconciled move, so mid-epoch flow cannot mask a large declared NAV swing.
+    /// @param navAtSnapshot Total NAV (asset units) the operator observed at snapshot time; must imply non-zero PPS.
+    /// @param supplyAtSnapshot `totalSupply()` observed at the moment the off-chain NAV was computed; must be non-zero.
+    /// @param revertOnRateLimit If the declared move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
     function postPricePerShare(
-        uint256 newPricePerShare,
+        uint256 navAtSnapshot,
+        uint256 supplyAtSnapshot,
         bool revertOnRateLimit
     )
         external
@@ -197,15 +205,59 @@ abstract contract StrategyBaseUpgradeable is
         whenRedeemNotPaused
         whenNotPaused
     {
+        if (navAtSnapshot == 0) revert Strategy_ZeroNavAtSnapshot();
+        if (supplyAtSnapshot == 0) revert Strategy_ZeroSharesAtSnapshot();
+
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
+
+        uint256 currentSupply = totalSupply();
+        uint256 oneShare = 10 ** decimals();
+
+        uint256 priceToSet;
+        if (currentSupply == 0) {
+            // No active shares to reconcile against — adopt the declared PPS directly; totalAssets() is 0 either way.
+            priceToSet = navAtSnapshot.mulDiv(
+                oneShare,
+                supplyAtSnapshot,
+                Math.Rounding.Floor
+            );
+        } else {
+            uint256 reconciledNav;
+            if (currentSupply >= supplyAtSnapshot) {
+                uint256 sharesAdded = currentSupply - supplyAtSnapshot;
+                reconciledNav =
+                    navAtSnapshot +
+                    sharesAdded.mulDiv(
+                        $.pricePerShare,
+                        oneShare,
+                        Math.Rounding.Floor
+                    );
+            } else {
+                uint256 sharesRemoved = supplyAtSnapshot - currentSupply;
+                reconciledNav =
+                    navAtSnapshot -
+                    sharesRemoved.mulDiv(
+                        $.pricePerShare,
+                        oneShare,
+                        Math.Rounding.Ceil
+                    );
+            }
+
+            priceToSet = reconciledNav.mulDiv(
+                oneShare,
+                currentSupply,
+                Math.Rounding.Floor
+            );
+        }
+
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
             $.pricePerShare,
-            newPricePerShare
+            priceToSet
         );
         if (!$.ppsRateLimiter._wouldExceedLimit(changeBps)) {
             $.ppsRateLimiter._consume(changeBps);
-            _setPricePerShare($, newPricePerShare);
+            _setPricePerShare($, priceToSet);
             return;
         }
         if (revertOnRateLimit) {
@@ -215,7 +267,7 @@ abstract contract StrategyBaseUpgradeable is
             );
         }
         $.ppsRateLimiter._drainRemaining();
-        _setPricePerShare($, newPricePerShare);
+        _setPricePerShare($, priceToSet);
         _pauseDeposit();
         _pauseRedeem();
     }

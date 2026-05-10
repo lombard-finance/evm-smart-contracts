@@ -40,6 +40,12 @@ interface IStrategy {
     /// @dev `postPricePerShare` was called with `newPricePerShare == 0`.
     error Strategy_ZeroPricePerShare();
 
+    /// @dev `postPricePerShare` was called with `sharesAtSnapshot == 0` while shares are outstanding.
+    error Strategy_ZeroSharesAtSnapshot();
+
+    /// @dev `postPricePerShare` was called with `navAtSnapshot == 0`.
+    error Strategy_ZeroNavAtSnapshot();
+
     /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
     event DepositPaused(address indexed account);
 
