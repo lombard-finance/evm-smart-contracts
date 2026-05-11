@@ -27,16 +27,18 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 **Roles**
 
-| Role                    | Controls                                                                                                                                                   |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`    | Deposit asset list / converters, fee treasury + fee bps config, redemption cap config, `pricePerShare` rate-limit config, **register shards**, grant roles |
-| `MGMT_FEE_CLAIM_ROLE`   | `harvestManagementFee`                                                                                                                                     |
-| `PERF_FEE_CLAIM_ROLE`   | `harvestPerformanceFee`                                                                                                                                    |
-| `PRICE_SETTER_ROLE`     | `postPricePerShare` within the configured rate limit                                                                                                       |
-| `STRATEGY_PAUSER_ROLE`  | `pauseDeposit`, `pauseRedeem` (strategy operations pause only; not ERC-20 transfer pause)                                                                  |
-| `TRANSFERS_PAUSER_ROLE` | ERC-20 transfer pause (`pause`)                                                                                                                            |
-| `PAY_REDEMPTIONS_ROLE`  | `fulfillRedeemRequests`                                                                                                                                    |
-| `MANAGER_ROLE`          | **Deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause                                                                     |
+| Role                    | Controls                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`    | Deposit asset list / converters, redemption cap config, **register shards**, grant roles                                              |
+| `MGMT_FEE_CLAIM_ROLE`   | `harvestManagementFee`                                                                                                                |
+| `PERF_FEE_CLAIM_ROLE`   | `harvestPerformanceFee`                                                                                                               |
+| `PRICE_SETTER_ROLE`     | `postPricePerShare` within the configured rate limit                                                                                  |
+| `STRATEGY_PAUSER_ROLE`  | `pauseDeposit`, `pauseRedeem` (strategy operations pause only; not ERC-20 transfer pause)                                             |
+| `TRANSFERS_PAUSER_ROLE` | ERC-20 transfer pause (`pause`)                                                                                                       |
+| `PAY_REDEMPTIONS_ROLE`  | `fulfillRedeemRequests`                                                                                                               |
+| `MANAGER_ROLE`          | `setPricePerShareRateLimit`, `setFeeTreasury`, **deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause |
+
+> **Design note — role separation for `pricePerShare`:** The rate-limit configuration (`MANAGER_ROLE`) and the price posting itself (`PRICE_SETTER_ROLE`) are deliberately held by different parties. This is a safety catch: compromising one key alone cannot both widen the allowed price band _and_ post an out-of-range price.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates via admin and fee-harvest execution is delegated to **`MGMT_FEE_CLAIM_ROLE`** / **`PERF_FEE_CLAIM_ROLE`**.
 

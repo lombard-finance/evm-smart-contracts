@@ -36,10 +36,12 @@ abstract contract StrategyBaseUpgradeable is
     bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
 
     /// @notice Strategy pauser role is used to pause the strategy operations without pausing the ERC-20 transfers.
-    bytes32 public constant STRATEGY_PAUSER_ROLE = keccak256("STRATEGY_PAUSER_ROLE");
+    bytes32 public constant STRATEGY_PAUSER_ROLE =
+        keccak256("STRATEGY_PAUSER_ROLE");
 
     /// @notice Transfers pauser role is used to pause the ERC-20 transfers.
-    bytes32 public constant TRANSFERS_PAUSER_ROLE = keccak256("TRANSFERS_PAUSER_ROLE");
+    bytes32 public constant TRANSFERS_PAUSER_ROLE =
+        keccak256("TRANSFERS_PAUSER_ROLE");
 
     /// @notice The role is used to fulfill the redemption requests.
     bytes32 public constant PAY_REDEMPTIONS_ROLE =
@@ -224,7 +226,7 @@ abstract contract StrategyBaseUpgradeable is
     function setPricePerShareRateLimit(
         uint32 maxBucketBps_,
         uint64 refillRate_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         PriceRateLimiter.Config memory config = PriceRateLimiter.Config({
             maxBps: maxBucketBps_,
             refillRate: refillRate_

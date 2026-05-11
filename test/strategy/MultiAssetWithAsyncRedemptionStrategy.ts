@@ -1012,6 +1012,17 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   describe('price-per-share rate limit', function () {
+    it('setPricePerShareRateLimit requires MANAGER_ROLE', async function () {
+      await expect(strategy.connect(user).setPricePerShareRateLimit(500, 1n)).to.be.revertedWithCustomError(
+        strategy,
+        'AccessControlUnauthorizedAccount'
+      );
+      await expect(strategy.connect(operator).setPricePerShareRateLimit(500, 1n)).to.be.revertedWithCustomError(
+        strategy,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
     it('2.5% yearly allowed change with weekly bucket', async function () {
       // 2.5%/yr = 2_5000 bps/yr ÷ 52 weeks ≈ 500 bps/week
       const maxBps = 500;
