@@ -106,7 +106,6 @@ abstract contract AsyncRedemptionUpgradeable is
         _requireBlocklistAllows(owner);
         _accrueManagementFee();
 
-
         address treasury_ = feeTreasury();
         uint256 feeShares;
         uint16 feeBps = $.redeemFeeBps;

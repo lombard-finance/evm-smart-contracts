@@ -90,7 +90,7 @@ abstract contract MultiAssetDepositUpgradeable is
     function setDepositFeeBps(
         address depositAsset,
         uint16 depositFeeBps_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
             revert StrategyDeposit_AssetNotListed(depositAsset);

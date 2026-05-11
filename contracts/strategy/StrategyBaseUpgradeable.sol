@@ -135,9 +135,7 @@ abstract contract StrategyBaseUpgradeable is
 
     /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) redeem fee shares.
     /// @param treasury_ Must not be zero.
-    function setFeeTreasury(
-        address treasury_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeTreasury(address treasury_) external onlyRole(MANAGER_ROLE) {
         if (treasury_ == address(0)) revert Strategy_ZeroAddress();
         _getStrategyBaseUpgradeableStorage().feeTreasury = treasury_;
         emit FeeTreasurySet(treasury_);

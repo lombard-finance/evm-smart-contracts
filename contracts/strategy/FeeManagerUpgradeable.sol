@@ -59,7 +59,7 @@ abstract contract FeeManagerUpgradeable is
     /// @param treasury Address receiving management fee share mints.
     function setManagementFeeTreasury(
         address treasury
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         if (treasury == address(0)) revert Strategy_ZeroAddress();
         _getFeeManagerStorage().managementFeeTreasury = treasury;
         emit ManagementFeeTreasurySet(_msgSender(), treasury);
