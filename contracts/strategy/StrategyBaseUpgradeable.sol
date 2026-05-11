@@ -35,11 +35,11 @@ abstract contract StrategyBaseUpgradeable is
     /// @notice Price setter role is used to set the price per share; may pause the strategy operations.
     bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
 
-    /// @notice Soft pauser role is used to pause the strategy operations without pausing the ERC-20 transfers.
-    bytes32 public constant SOFT_PAUSER_ROLE = keccak256("SOFT_PAUSER_ROLE");
+    /// @notice Strategy pauser role is used to pause the strategy operations without pausing the ERC-20 transfers.
+    bytes32 public constant STRATEGY_PAUSER_ROLE = keccak256("STRATEGY_PAUSER_ROLE");
 
-    /// @notice Hard pauser role is used to pause the strategy operations and the ERC-20 transfers.
-    bytes32 public constant HARD_PAUSER_ROLE = keccak256("HARD_PAUSER_ROLE");
+    /// @notice Transfers pauser role is used to pause the ERC-20 transfers.
+    bytes32 public constant TRANSFERS_PAUSER_ROLE = keccak256("TRANSFERS_PAUSER_ROLE");
 
     /// @notice The role is used to fulfill the redemption requests.
     bytes32 public constant PAY_REDEMPTIONS_ROLE =
@@ -378,12 +378,12 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Pauses deposit/mint entrypoints; distinct from ERC-20 transfer pause.
-    function pauseDeposit() external onlyRole(SOFT_PAUSER_ROLE) {
+    function pauseDeposit() external onlyRole(STRATEGY_PAUSER_ROLE) {
         _pauseDeposit();
     }
 
     /// @notice Pauses redemption request entrypoints; distinct from ERC-20 transfer pause.
-    function pauseRedeem() external onlyRole(SOFT_PAUSER_ROLE) {
+    function pauseRedeem() external onlyRole(STRATEGY_PAUSER_ROLE) {
         _pauseRedeem();
     }
 
@@ -463,7 +463,7 @@ abstract contract StrategyBaseUpgradeable is
         emit RedeemUnpaused(_msgSender());
     }
 
-    function pause() external onlyRole(HARD_PAUSER_ROLE) {
+    function pause() external onlyRole(TRANSFERS_PAUSER_ROLE) {
         _pause();
     }
 
