@@ -134,6 +134,8 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -468,13 +470,13 @@ describe('StakedLBTC', function () {
           );
         });
 
-        it('unpauseMintBurn() reverts when called by not DEFAULT_ADMIN_ROLE', async function () {
+        it('unpauseMintBurn() reverts when called by not MANAGER_ROLE', async function () {
           await expect(stakedLbtc.connect(pauserMintBurn).unpauseMintBurn())
             .to.revertedWithCustomError(stakedLbtc, 'AccessControlUnauthorizedAccount')
-            .withArgs(pauserMintBurn.address, await stakedLbtc.DEFAULT_ADMIN_ROLE());
+            .withArgs(pauserMintBurn.address, await stakedLbtc.MANAGER_ROLE());
         });
 
-        it('unpauseMintBurn() DEFAULT_ADMIN_ROLE can unpause', async function () {
+        it('unpauseMintBurn() MANAGER_ROLE can unpause', async function () {
           await expect(stakedLbtc.connect(owner).unpauseMintBurn())
             .to.emit(stakedLbtc, 'MintBurnPauseChanged')
             .withArgs(false);
