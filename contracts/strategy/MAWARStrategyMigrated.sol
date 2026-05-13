@@ -15,6 +15,8 @@ import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 import {MultiAssetWithAsyncRedemptionStrategy} from "./MultiAssetWithAsyncRedemptionStrategy.sol";
 
 contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
+    error ZeroDecimals();
+
     uint256 private constant NOT_ENTERED = 1;
     uint256 private constant ENTERED = 2;
 
@@ -49,7 +51,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (blocklistOracle_ == address(0)) revert Strategy_ZeroAddress();
         if (address(asset_) == address(0)) revert Strategy_ZeroAddress();
-        if (decimals_ == 0) revert Strategy_ZeroAddress();
+        if (decimals_ == 0) revert ZeroDecimals();
         if (managementFeeTreasury_ == address(0)) revert Strategy_ZeroAddress();
 
         // initialize ReentrancyGuard storage

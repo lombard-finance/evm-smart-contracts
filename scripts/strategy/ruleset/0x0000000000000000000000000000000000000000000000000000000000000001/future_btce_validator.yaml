@@ -25,7 +25,7 @@ redeem_lbtcv_in_atomic_queue:
       expected: "0x0000000000000000000000008236a87084f8b84306f72007f36f2618a5634494"
     - offset: 192
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      expected: "00000000000000000000000028634d0c5edc67cf2450e74dea49b90a4ff93dce"
+      expected: "0x00000000000000000000000028634d0c5edc67cf2450e74dea49b90a4ff93dce"
     - offset: 224
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      expected: "0000000000000000000000000000000000000000000000000000000000000064"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000064"

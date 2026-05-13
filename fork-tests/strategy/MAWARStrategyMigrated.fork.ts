@@ -80,14 +80,15 @@ describeFork('MAWARStrategyMigrated (mainnet fork)', function () {
       .upgradeAndCall(await vaultWrapper.getAddress(), migratedStrategyImpl, '0x');
     const migratedStrategy = await ethers.getContractAt('MAWARStrategyMigrated', await vaultWrapper.getAddress());
 
-    const migrationTx = await migratedStrategy.connect(admin).migrate(blocklistOracle, BTCB_ADDRESS, 8, admin.address);
-    await migrationTx.wait();
+    await expect(migratedStrategy.connect(admin).migrate(blocklistOracle, BTCB_ADDRESS, 8, admin.address)).to.emit(
+      migratedStrategy,
+      'PricePerShareUpdated'
+    );
 
-    expect(migrationTx).to.be.not.reverted;
-    expect(migrationTx).to.emit(migratedStrategy, 'PricePerShareUpdated');
-
-    const roleTx = await strategy.connect(admin).grantRole(await strategy.MANAGER_ROLE(), admin.address);
-    expect(roleTx).to.emit(strategy, 'RoleGranted');
+    await expect(strategy.connect(admin).grantRole(await strategy.MANAGER_ROLE(), admin.address)).to.emit(
+      strategy,
+      'RoleGranted'
+    );
 
     await strategy.connect(admin).grantRole(await strategy.PRICE_SETTER_ROLE(), admin.address);
     await strategy.connect(admin).grantRole(await strategy.PAY_REDEMPTIONS_ROLE(), admin.address);
@@ -173,9 +174,7 @@ describeFork('MAWARStrategyMigrated (mainnet fork)', function () {
 
   it('redeem shares', async function () {
     const ONE_SHARE = 1e8;
-
     const btceHolder = await ethers.getImpersonatedSigner(BTCE_HOLDER_ADDRESS);
-    await strategy.connect(btcbHolder).approve(strategy, ONE_SHARE);
     await strategy.connect(btceHolder).requestRedeem(ONE_SHARE, BTCE_HOLDER_ADDRESS);
 
     await strategy.connect(admin).fulfillRedeemRequests([1]);
