@@ -40,6 +40,7 @@ contract BlocklistOracle is
         }
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }

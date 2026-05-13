@@ -34,7 +34,7 @@ abstract contract FeeManagerUpgradeable is
         0x6bb04eeeee847b5e3aec88250f97eced827d7fe428b8447f130d46e548afb100;
 
     function _getFeeManagerStorage()
-        private
+        internal
         pure
         returns (FeeManagerStorage storage $)
     {
