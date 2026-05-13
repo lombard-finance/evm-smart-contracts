@@ -39,6 +39,7 @@
     },
     "stakeAndBake": {
       "StakeAndBake_stakedLBTC_Veda": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "StakeAndBakeNativeToken": "0xe6Cca4C07bF9F7778BfdEC839C1bbA1f3D4BDBa8",
       "TellerWithMultiAssetSupportDepositor_stakedLBTC_Veda": "0x7C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
     },
     "veda": {
@@ -99,6 +100,7 @@
     },
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "StakeAndBakeNativeToken_mock": "0xe6Cca4C07bF9F7778BfdEC839C1bbA1f3D4BDBa8",
       "TellerWithMultiAssetSupportDepositor": "0xBb92c89608cFAbdAb47aAFb0954D98f13576AD68"
     },
     "veda": {
@@ -147,6 +149,7 @@
     },
     "stakeAndBake": {
       "StakeAndBake": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "StakeAndBakeNativeToken_mock": "0xe6Cca4C07bF9F7778BfdEC839C1bbA1f3D4BDBa8",
       "TellerWithMultiAssetSupportDepositor": "0x7c38ffD0F0d7706017b2ac89aE1009D81C33192e"
     },
     "veda": {
@@ -500,7 +503,8 @@
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "stakeAndBake": {
-      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef"
+      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "StakeAndBakeNativeToken_mock": "0xe6Cca4C07bF9F7778BfdEC839C1bbA1f3D4BDBa8"
     },
     "layerZero": {
       "LBTCBurnMintOFTAdapter": "0x7B3784AD646C10A8Ddf42b47a4f4bd9aFD351E54"
@@ -526,7 +530,8 @@
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1"
     },
     "stakeAndBake": {
-      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef"
+      "StakeAndBake_mock": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
+      "StakeAndBakeNativeToken_mock": "0xe6Cca4C07bF9F7778BfdEC839C1bbA1f3D4BDBa8"
     },
     "chainlink": {
       "ChainSelector": "9043146809313071210",
