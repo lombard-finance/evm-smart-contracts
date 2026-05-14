@@ -7,7 +7,8 @@
   "scripts": {
     "format": "prettier --write './**/*.{sol,ts,js,json}'",
     "format:check": "prettier --check './**/*.{sol,ts,js,json}'",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "test:fork": "HARDHAT_FORK=1 hardhat test fork-tests/**/*.ts"
   },
   "devDependencies": {
     "@chainlink/contracts": "1.4.0",
