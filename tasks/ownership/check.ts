@@ -11,7 +11,7 @@ const IGNORE_SCOPE_LIST: string[] = [
   'deprecated',
   'mocks',
   'strategies',
-  'implementations',
+  'implementations'
 ];
 const IGNORE_CONTRACT_LIST = [
   'ThresholdKey',

@@ -10,10 +10,7 @@ import { task } from 'hardhat/config';
  *
  * Requires MANAGER_ROLE on the strategy.
  */
-task(
-  'setup-strategy-pps-rate-limit',
-  'Configure PPS rate limiter from a human-readable percent/window pair'
-)
+task('setup-strategy-pps-rate-limit', 'Configure PPS rate limiter from a human-readable percent/window pair')
   .addPositionalParam('strategy', 'Strategy proxy address')
   .addParam('percent', 'Allowed percent change (e.g. 0.5 for 0.5%)')
   .addParam('window', 'Time window in seconds over which the percent is allowed (e.g. 86400 for 1 day)')
@@ -39,7 +36,7 @@ task(
 
     // refillRate: contract uses `(elapsed * refillRate) >> 32`
     // To refill the full bucket in windowSec: refillRate = (maxBucketBps << 32) / windowSec
-    const refillRate = BigInt(maxBucketBps) * (1n << 32n) / BigInt(windowSec);
+    const refillRate = (BigInt(maxBucketBps) * (1n << 32n)) / BigInt(windowSec);
     if (refillRate === 0n) {
       throw new Error('Computed refillRate is 0 – increase percent or decrease window');
     }

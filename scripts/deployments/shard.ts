@@ -20,7 +20,14 @@ task('deploy-shard-proxy', 'Deploys a Shard proxy via ProxyFactory (CREATE3)')
   .addParam('purpose', 'The purpose of the shard')
   .addParam('implementation', 'The implementation address')
   .setAction(async (taskArgs, hre) => {
-    const { strategy, validator, liquidityRoleHolder: liquidityArg, proxyFactoryAddr, purpose, implementation } = taskArgs;
+    const {
+      strategy,
+      validator,
+      liquidityRoleHolder: liquidityArg,
+      proxyFactoryAddr,
+      purpose,
+      implementation
+    } = taskArgs;
 
     const { owner, upgradeAdmin } = await getOwnersOrDefault(hre, taskArgs.defaultAdmin, taskArgs.defaultAdmin);
 
