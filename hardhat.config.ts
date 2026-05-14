@@ -382,18 +382,20 @@ const config: HardhatUserConfig = {
       gas: 8_000_000
     },
     hardhat: {
-      // Fork only when HARDHAT_FORK=1 so `yarn test` runs in-memory and avoids
-      // "historical state is not available". Fork tests run on this same (in-process) network
-      // so hardhat_reset and other Hardhat methods are available.
-      ...(process.env.HARDHAT_FORK === '1' && {
-        forking: {
-          url: vars.get('MAINNET_RPC', 'https://eth-mainnet.public.blastapi.io'),
-          blockNumber: 23983296
-        }
-      }),
-      chainId: 1,
       initialBaseFeePerGas: 0,
-      blockGasLimit: 60_000_000
+      blockGasLimit: 60_000_000,
+      // Forking is only supported on the network named "hardhat" (in-process).
+      // A separate name like hardhatFork is an HTTP network and requires url;
+      // it does not enable local fork simulation.
+      ...(process.env.HARDHAT_FORK === '1'
+        ? {
+            chainId: 1,
+            forking: {
+              url: vars.get('MAINNET_RPC', 'https://eth-mainnet.public.blastapi.io'),
+              blockNumber: Number(vars.get('FORKING_BLOCK', '23983296'))
+            }
+          }
+        : {})
     }
   },
   etherscan: {
