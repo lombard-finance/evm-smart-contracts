@@ -53,14 +53,14 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         IAssetConverter assetConverter_,
         uint16 depositFeeBps_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         _registerDepositAsset(depositAsset, assetConverter_, depositFeeBps_);
     }
 
     /// @notice Remove `depositAsset` from the allowlist.
     function removeDepositAsset(
         address depositAsset
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.remove(depositAsset)) {
             revert StrategyDeposit_AssetNotListed(depositAsset);
