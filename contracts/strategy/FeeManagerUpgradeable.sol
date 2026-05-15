@@ -65,13 +65,14 @@ abstract contract FeeManagerUpgradeable is
         emit ManagementFeeTreasurySet(_msgSender(), treasury);
     }
 
-    /// @notice Sets management fee in basis points; first accrual at this rate happens on the next `_accrueManagementFee` call.
+    /// @notice Sets management fee in basis points after accruing at the **prior** rate (updates `lastFeeHarvestAt`), so the new rate applies only from this timestamp onward.
     /// @param bps Fee rate; must be strictly less than 10000.
     function setManagementFeeBps(
         uint16 bps
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (bps >= _BPS_DENOMINATOR)
             revert FeeManager_ManagementFeeBpsTooHigh(bps);
+        _accrueManagementFee();
         _getFeeManagerStorage().managementFeeBps = bps;
         emit ManagementFeeBpsSet(_msgSender(), bps);
     }
