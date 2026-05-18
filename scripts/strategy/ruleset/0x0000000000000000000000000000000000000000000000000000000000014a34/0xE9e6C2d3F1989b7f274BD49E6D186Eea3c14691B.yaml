@@ -177,3 +177,7 @@ allow_all_1:
 
 allow_all_2:
   sender: "0xa53808eBD07DdF06C52A377a1CB724692703928F"
+
+allow_all_testing_wallet:
+  sender: "0x659579F1460c38C3ce3288b47b074646CEF855fc"
+  value: "0"
