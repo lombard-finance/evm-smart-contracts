@@ -66,4 +66,6 @@ interface IAsyncRedemption {
         uint256 feeShares,
         uint256 shares
     );
+
+    error AsyncRedemption_ZeroAssets(uint256 shares);
 }

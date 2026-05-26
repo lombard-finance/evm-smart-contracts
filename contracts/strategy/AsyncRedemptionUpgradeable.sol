@@ -125,6 +125,9 @@ abstract contract AsyncRedemptionUpgradeable is
         }
         uint256 netShares = shares - feeShares;
         uint256 assets = _convertToAssets(netShares, Math.Rounding.Floor);
+        if (assets == 0) {
+            revert AsyncRedemption_ZeroAssets(netShares);
+        }
         requestId = ++$.nextRequestId;
         RedeemRequest storage rq = $.redeemRequestById[requestId];
         rq.pendingShares = netShares;
