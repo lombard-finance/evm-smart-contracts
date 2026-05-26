@@ -370,10 +370,13 @@ contract MerkleAllowlistValidator is
                 r,
                 base + _CONSTRAINT_OFFSET_EXPECTED
             );
-            if (
-                (_wordAt(data, uint256(cOff) + _SELECTOR_LENGTH) & mask) !=
-                expected
-            ) {
+            uint256 offset = uint256(cOff) + _SELECTOR_LENGTH;
+            // Reject offsets past calldata: _wordAt right-pads with zero, so
+            // expected == 0 would spuriously match truncated payloads.
+            if (offset >= data.length) {
+                return false;
+            }
+            if ((_wordAt(data, offset) & mask) != expected) {
                 return false;
             }
             unchecked {
