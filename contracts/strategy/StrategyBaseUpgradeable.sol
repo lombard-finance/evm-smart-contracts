@@ -193,10 +193,11 @@ abstract contract StrategyBaseUpgradeable is
     )
         external
         onlyRole(PRICE_SETTER_ROLE)
-        whenDepositNotPaused
-        whenRedeemNotPaused
         whenNotPaused
     {
+        if (depositPaused() && redeemPaused()) {
+            revert Strategy_PricePerSharePaused();
+        }
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
