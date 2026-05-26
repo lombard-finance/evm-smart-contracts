@@ -43,11 +43,13 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     /// @param asset_ Underlying asset address.
     /// @param decimals_ Underlying asset decimals.
     /// @param managementFeeTreasury_ Management fee treasury address.
+    /// @param initialPPS_ Initial price per share.
     function migrate(
         address blocklistOracle_,
         IERC20 asset_,
         uint8 decimals_,
-        address managementFeeTreasury_
+        address managementFeeTreasury_,
+        uint256 initialPPS_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (blocklistOracle_ == address(0)) revert Strategy_ZeroAddress();
         if (address(asset_) == address(0)) revert Strategy_ZeroAddress();
@@ -68,7 +70,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
         baseStorage.asset = asset_;
 
         _setBlocklistOracle(baseStorage, blocklistOracle_);
-        _setPricePerShare(baseStorage, 10 ** decimals());
+        _setPricePerShare(baseStorage, initialPPS_);
         baseStorage.ppsRateLimiter = PriceRateLimiter.Bucket({
             lastRefill: uint48(block.timestamp),
             capacityBps: 0,
