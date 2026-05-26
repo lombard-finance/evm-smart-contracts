@@ -1,6 +1,7 @@
 # Shard: 0x0E05FC53ec94A576C5650e9FEaADC5e92D360F06
 # Validator: 0x2b4df98a5249eb4b31c0F62B37c4B2142e156941
 safe_wallet_approve_any_to_aave_pool:
+  destinationType: "ERC20"
   sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
   value: "0"
   dataLength: 68
@@ -11,6 +12,7 @@ safe_wallet_approve_any_to_aave_pool:
       expected: "0x0000000000000000000000008bab6d1b75f19e9ed9fce8b9bd338844ff79ae27"
 
 safe_wallet_supply_any_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
   sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -25,6 +27,7 @@ safe_wallet_supply_any_on_behalf_of_shard:
       expected: "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 safe_wallet_withdraw_any_to_shard:
+  destinationType: "AAVE_v3"
   sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -36,6 +39,7 @@ safe_wallet_withdraw_any_to_shard:
       expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
 
 safe_wallet_repay_any_mode_2_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
   sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -50,6 +54,7 @@ safe_wallet_repay_any_mode_2_on_behalf_of_shard:
       expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
 
 safe_wallet_set_user_use_reserve_as_collateral_any_true:
+  destinationType: "AAVE_v3"
   sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -61,6 +66,7 @@ safe_wallet_set_user_use_reserve_as_collateral_any_true:
       expected: "0x0000000000000000000000000000000000000000000000000000000000000001"
 
 eoa_approve_any_to_aave_pool:
+  destinationType: "ERC20"
   sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
   value: "0"
   dataLength: 68
@@ -71,6 +77,7 @@ eoa_approve_any_to_aave_pool:
       expected: "0x0000000000000000000000008bab6d1b75f19e9ed9fce8b9bd338844ff79ae27"
 
 eoa_supply_any_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
   sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -85,6 +92,7 @@ eoa_supply_any_on_behalf_of_shard:
       expected: "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 eoa_withdraw_any_to_shard:
+  destinationType: "AAVE_v3"
   sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -96,6 +104,7 @@ eoa_withdraw_any_to_shard:
       expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
 
 eoa_repay_any_mode_2_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
   sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -110,6 +119,7 @@ eoa_repay_any_mode_2_on_behalf_of_shard:
       expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
 
 eoa_set_user_use_reserve_as_collateral_any_true:
+  destinationType: "AAVE_v3"
   sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
@@ -121,6 +131,7 @@ eoa_set_user_use_reserve_as_collateral_any_true:
       expected: "0x0000000000000000000000000000000000000000000000000000000000000001"
 
 borrow_any_mode_2_referral_0_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
   to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
   value: "0"
   dataLength: 164
