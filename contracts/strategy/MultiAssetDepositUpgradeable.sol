@@ -75,7 +75,7 @@ abstract contract MultiAssetDepositUpgradeable is
     function setAssetConverter(
         address depositAsset,
         IAssetConverter assetConverter_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
             revert StrategyDeposit_AssetNotListed(depositAsset);
