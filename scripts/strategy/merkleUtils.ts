@@ -34,7 +34,7 @@ export interface RuleJson {
   /**
    * Human-readable label describing what the `to` address is (e.g. `AAVE_v3`, `ERC20`).
    * Not used in Merkle root calculation; always validated at build time (including disabled rules)
-   * against the known-types vocabulary in `destinationTypes.ts`.
+   * against the known-types vocabulary in `destinationTypes.yaml`.
    * Omit when the target is a wildcard or the type is not in the list.
    */
   destinationType?: string;

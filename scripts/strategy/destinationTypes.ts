@@ -1,27 +1,14 @@
-/** Known values for the optional `destinationType` field in ruleset files.
- *
- * Add new entries here when integrating a new protocol so the vocabulary stays
- * in sync across all ruleset files and tooling.  The list is used only for
- * documentation and build-time validation; it has no on-chain encoding.
- */
-export const KNOWN_DESTINATION_TYPES = [
-  'ERC20',
-  'AAVE_v3',
-  'AAVE_v4',
-  'Morpho',
-  'Uniswap_v2',
-  'Uniswap_v3',
-  'Compound_v2',
-  'Compound_v3',
-  'Curve',
-  'Balancer',
-  'BoringVault',
-] as const;
+import * as fs from 'fs';
+import * as path from 'path';
+import * as yaml from 'yaml';
 
-export type DestinationType = (typeof KNOWN_DESTINATION_TYPES)[number];
+const TYPES_FILE = path.join(__dirname, 'destinationTypes.yaml');
+
+/** Known values for `destinationType` — loaded from `destinationTypes.yaml`. */
+export const KNOWN_DESTINATION_TYPES: string[] = yaml.parse(fs.readFileSync(TYPES_FILE, 'utf8')) as string[];
 
 const DESTINATION_TYPE_SET = new Set<string>(KNOWN_DESTINATION_TYPES);
 
-export function isKnownDestinationType(value: string): value is DestinationType {
+export function isKnownDestinationType(value: string): boolean {
   return DESTINATION_TYPE_SET.has(value);
 }
