@@ -435,16 +435,6 @@ abstract contract StrategyBaseUpgradeable is
         emit RedeemPaused(_msgSender());
     }
 
-    /// @dev PPS soft overflow: set both pauses independently (two storage writes, two events).
-    function _pauseDepositAndRedeemForRateLimit() internal virtual {
-        StrategyBaseUpgradeableStorage
-            storage $ = _getStrategyBaseUpgradeableStorage();
-        $.depositPaused = true;
-        $.redeemPaused = true;
-        emit DepositPaused(_msgSender());
-        emit RedeemPaused(_msgSender());
-    }
-
     function _unpauseDeposit() internal virtual {
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
