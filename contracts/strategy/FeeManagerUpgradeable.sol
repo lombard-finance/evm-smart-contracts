@@ -9,6 +9,8 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 /// @title FeeManagerUpgradeable
 /// @notice Management and performance fee module minting fee shares to treasury; see `IFeeManager` for economics.
 /// @dev Expects `__FeeManager_init` after `__StrategyBase_init` so `pricePerShare` and time basis are initialised.
+///      Management fee accrual uses `totalSupply()` as the share base, so prior management-fee mints held by
+///      `managementFeeTreasury` compound into later accruals (intended; treasury balance is not excluded).
 abstract contract FeeManagerUpgradeable is
     StrategyBaseUpgradeable,
     IFeeManager
@@ -78,7 +80,9 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @dev Exact management fee accrual hook. Call unconditionally before user share mint/burn operations.
-    ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`.
+    ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`, minting dilution shares to
+    ///      `managementFeeTreasury`. The share base is full `totalSupply()`, including shares already
+    ///      minted to the treasury on prior accruals, so the effective rate compounds on treasury holdings.
     function _accrueManagementFee() internal virtual {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
@@ -183,6 +187,8 @@ abstract contract FeeManagerUpgradeable is
         );
     }
 
+    /// @dev `totalSupply` is the full outstanding share count (user + treasury). Fee shares previously
+    ///      minted to `managementFeeTreasury` remain in that supply and therefore increase later accruals.
     function _computeManagementFeeShares(
         uint48 lastFeeHarvestAt,
         uint16 bps,
