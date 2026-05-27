@@ -379,4 +379,10 @@ abstract contract MultiAssetDepositUpgradeable is
         fee = gross.mulDiv(bps, _BPS_DENOMINATOR, Math.Rounding.Ceil);
         net = gross - fee;
     }
+
+    /// @inheritdoc IMultiAssetDeposit
+    function getAssets() public view virtual returns (address[] memory) {
+        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
+        return $.depositAssets.values();
+    }
 }
