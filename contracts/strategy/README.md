@@ -51,6 +51,22 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 Updating **management** fee bps resets the accrual clock; updating **performance** fee bps resets the high-water mark to the current NAV — worth coordinating off-chain before changing parameters.
 
+### Posted NAV vs dilution fees
+
+`pricePerShare` is the **posted** exchange rate. It changes only through `postPricePerShare` (subject to `PriceRateLimiter`), not when management or performance fees mint shares.
+
+Fee harvests increase `totalSupply` but leave `pricePerShare` unchanged, so `totalAssets()` (= `totalSupply × pricePerShare`) can read **slightly above** custodied underlying immediately after a harvest. Example: `totalSupply = 100`, `pricePerShare = 1.10`, performance fee mints `2` shares → posted NAV is `102 × 1.10 = 112.2` while underlying value is still `110`.
+
+This is **intentional**. Dilution fees transfer economics via new shares to the treasury; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
+
+**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare`.
+
+**Operational expectations:**
+
+- Configure total fees (flow + management + performance) so they remain **below** yield/rewards accruing to remaining holders.
+- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics.
+- Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
+
 ```text
 depositFee      = assets × depositFeeBps / 10_000
 mgmtFeeShares   ≈ totalSupply × (managementFeeBps × Δseconds) / (10_000 × 365 days)
