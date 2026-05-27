@@ -290,7 +290,7 @@ contract MerkleAllowlistValidator is
         uint16 prevOffset;
         bool havePrev;
 
-        for (uint256 i = 0; i < cCount; ) {
+        for (uint256 i; i < cCount; ) {
             uint16 cOff = _readUint16BE(r, base);
             bytes32 mask = _readBytes32(r, base + _CONSTRAINT_OFFSET_MASK);
             bytes32 expected = _readBytes32(

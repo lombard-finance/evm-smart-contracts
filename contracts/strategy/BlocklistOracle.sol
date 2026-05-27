@@ -111,7 +111,7 @@ contract BlocklistOracle is
     function isSanctioned(address account) public view returns (bool) {
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
         uint256 len = $.sanctions.length();
-        for (uint256 i = 0; i < len; ++i) {
+        for (uint256 i; i < len; ++i) {
             if (ISanctionList($.sanctions.at(i)).isSanctioned(account)) {
                 return true;
             }
@@ -143,7 +143,7 @@ contract BlocklistOracle is
         uint256 remaining = n - offset;
         uint256 count = limit < remaining ? limit : remaining;
         accounts = new address[](count);
-        for (uint256 i = 0; i < count; ++i) {
+        for (uint256 i; i < count; ++i) {
             accounts[i] = $.blocklistedAccounts.at(offset + i);
         }
     }
