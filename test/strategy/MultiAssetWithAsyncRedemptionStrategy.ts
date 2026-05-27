@@ -1302,8 +1302,8 @@ describe('StakedLBTC as deposit token', function () {
       const back = await stakedStrategy.convertToAssets(sAddr, shares);
 
       // back may differ from assets by at most 1 satoshi due to rounding
-      expect(back).to.be.gte(assets);
-      expect(back - assets).to.be.lte(1n);
+      expect(back).to.be.lte(assets);
+      expect(assets - back).to.be.lte(1n);
     });
   });
 });
@@ -1768,8 +1768,8 @@ describe('Chainlink as deposit token', function () {
       const shares = await clStrategy.convertToShares(tAddr, assets);
       const back = await clStrategy.convertToAssets(tAddr, shares);
 
-      expect(back).to.be.gte(assets);
-      expect(back - assets).to.be.lte(1n);
+      expect(back).to.be.lte(assets);
+      expect(assets - back).to.be.lte(1n);
     });
   });
 });
