@@ -9,6 +9,8 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 /// @title FeeManagerUpgradeable
 /// @notice Management and performance fee module minting fee shares to treasury; see `IFeeManager` for economics.
 /// @dev Expects `__FeeManager_init` after `__StrategyBase_init` so `pricePerShare` and time basis are initialised.
+///      Fee mints dilute holders by increasing `totalSupply` without asset inflow; `totalAssets()` may overstate backing
+///      until the next `postPricePerShare` reconciles against an operator NAV snapshot that includes fee-minted supply.
 abstract contract FeeManagerUpgradeable is
     StrategyBaseUpgradeable,
     IFeeManager
@@ -77,7 +79,8 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @dev Exact management fee accrual hook. Call unconditionally before user share mint/burn operations.
-    ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`.
+    ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`. Mints shares with no underlying transfer;
+    ///      overvaluation of `totalAssets()` is corrected on the next `postPricePerShare`.
     function _accrueManagementFee() internal virtual {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
@@ -118,7 +121,8 @@ abstract contract FeeManagerUpgradeable is
         _harvestPerformanceFee(_getFeeManagerStorage(), feeRecipient, false);
     }
 
-    /// @dev Harvests performance fee at current `performanceFeeBps` / `highWaterMark`.
+    /// @dev Harvests performance fee at current `performanceFeeBps` / `highWaterMark`. Mints shares with no underlying
+    ///      transfer; overvaluation of `totalAssets()` is corrected on the next `postPricePerShare`.
     /// @param forfeitAccrued If true and fee shares would be non-zero, skips mint; setter resets HWM.
     function _harvestPerformanceFee(
         FeeManagerStorage storage $,
