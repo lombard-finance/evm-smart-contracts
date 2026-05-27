@@ -187,7 +187,7 @@ contract MerkleAllowlistValidator is
     function _wordAt(
         bytes calldata data,
         uint256 offset
-    ) private pure returns (bytes32 word) {
+    ) private pure returns (bytes32) {
         uint256 len = data.length;
         if (offset >= len) {
             return bytes32(0);

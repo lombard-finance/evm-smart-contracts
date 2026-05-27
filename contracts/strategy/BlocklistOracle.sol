@@ -149,7 +149,7 @@ contract BlocklistOracle is
     }
 
     /// @inheritdoc IBlocklistOracle
-    function getSanctionLists() external view returns (address[] memory lists) {
+    function getSanctionLists() external view returns (address[] memory) {
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
         return $.sanctions.values();
     }

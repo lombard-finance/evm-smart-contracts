@@ -34,7 +34,7 @@ contract StakedLBTCConverter is IAssetConverter {
     function toBaseUnits(
         uint256 tokenAmount,
         Math.Rounding rounding
-    ) external view override returns (uint256 baseOut) {
+    ) external view override returns (uint256) {
         uint256 ratio_ = oracle.ratio();
         if (ratio_ == 0) revert StakedLBTCConverter_ZeroRatio();
         return Math.mulDiv(tokenAmount, 1e18, ratio_, rounding);
@@ -44,7 +44,7 @@ contract StakedLBTCConverter is IAssetConverter {
     function fromBaseUnits(
         uint256 baseUnits,
         Math.Rounding rounding
-    ) external view override returns (uint256 tokenOut) {
+    ) external view override returns (uint256) {
         return Math.mulDiv(baseUnits, oracle.ratio(), 1e18, rounding);
     }
 }
