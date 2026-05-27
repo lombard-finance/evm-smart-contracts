@@ -106,6 +106,26 @@ For calls with **dynamic** args (`bytes`, `string`, arrays), argument layout is 
 
 Static ABI encoding uses **one 32-byte word per argument** after the selector (`uint16`, `bool`, etc. are still right-aligned inside that word).
 
+### Dynamic arguments — soundness (required)
+
+The validator compares **independent** 32-byte windows; it does **not** check that ABI head words (offset/length) point at the same tail bytes you constrained. Solidity decoders accept in-bounds but non-canonical dynamic offsets, so a rule that only pins bytes **inside** a dynamic payload can still pass `isAllowed` while the callee decodes that argument from **elsewhere** in calldata.
+
+**When you constrain any byte inside a dynamic argument, you must also:**
+
+1. **Pin the ABI head word(s)** for that argument — the dynamic **offset** (and **length** where the type has one, e.g. array length or `bytes`/`string` length prefix).
+2. **Pin `dataLength`** when the allowed call has a fixed total calldata size (recommended whenever the encoding shape is known).
+
+Offset math from `encodeFunctionData` tells you _where_ to place constraints; it does **not** replace pinning heads. See `docs/spec/001-merkle-call-data-allowlist.md` §5.1 and `MerkleAllowlistValidator` NatSpec.
+
+**Example sketch** — `foo(bytes calldata x)` with canonical encoding; you want to allow only `x = 0xabcd`:
+
+- Pin `dataLength` to the full encoded length.
+- Pin the head at the argument’s offset word (points to the tail).
+- Pin the tail length word and the constrained payload bytes (or mask only the bytes you care about).
+- Do **not** rely on tail constraints alone.
+
+Re-verify with `findRule.ts` using the **exact** calldata you intend to execute, not a hand-edited hex fragment.
+
 ### Common selectors (cross-check before using)
 
 The ruleset file uses the **signature string**; tooling hashes it to `bytes4` (same as Solidity). Examples:
@@ -258,6 +278,7 @@ Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'])` from `@openze
 
 ## Pitfalls
 
+- **Dynamic args: tail-only constraints** — pinning payload bytes without the ABI offset/length head words does not bind what the callee decodes. Always add head constraints and `dataLength` when the call shape is fixed (§ **Dynamic arguments — soundness** above).
 - **`mask` / `expected` hex length** — off-chain `encodeRule` packs them as Solidity `bytes32`. Each must be **`0x` + exactly 64 hex characters** (32 bytes). If `merkleTreeBuilder` fails with `invalid value for bytes32`, you are one or more nibbles short — pad with trailing `0` until the string is 64 hex digits (same layout as the **selector row** in the table above).
 - **`findRule` / calldata length** — `txMatchesRule` requires `calldata.length === dataLength` when the rule pins length. A common mistake is pasting **partial** calldata (wrong byte count). Symptom: “no rule matches” with no other error. Fix: full ABI-encoded call, or drop `dataLength` from the rule if policy allows (usually avoid).
 - **`value: 0` vs `value: "0"`** — both work (the encoder coerces with `BigInt`), but `value: ""` means _wildcard_. Be deliberate.

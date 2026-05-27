@@ -9,6 +9,12 @@ import {IShardExecValidator} from "../interfaces/IShardExecValidator.sol";
 /// @title MerkleAllowlistValidator
 /// @notice On-chain Merkle-based allowlist for shard `exec`: proves an encoded rule leaf is under `allowlistRoot`, then checks calldata constraints.
 /// @dev Implements both `IMerkleCallAllowlist` (typed struct proofs) and `IShardExecValidator` (ABI-encoded struct calldata). Owner rotates the Merkle root.
+///
+/// **Dynamic ABI arguments (rule authoring):** each constraint compares one 32-byte window at `data[4 + offset ..]` via mask/expected.
+/// The validator does **not** verify relationships between ABI head words and dynamic tails (offset/length pairs for `bytes`, `string`, arrays, etc.).
+/// Solidity decoders accept in-bounds but non-canonical dynamic offsets; calldata can therefore satisfy constraints on bytes inside a dynamic payload
+/// while the callee decodes that argument from a different region. For sound policy, any rule that pins bytes inside a dynamic argument MUST also pin
+/// the corresponding head word(s) — typically the dynamic offset and length — and SHOULD pin exact `data.length` (`FLAG_DATA_LENGTH`) when feasible.
 contract MerkleAllowlistValidator is
     Ownable2Step,
     IMerkleCallAllowlist,
@@ -31,6 +37,10 @@ contract MerkleAllowlistValidator is
     /// Use this to validate the total length of an encoded rule:
     /// Constraint offsets are relative to calldata after the function selector (`data[_SELECTOR_LENGTH:]`).
     /// `ruleEncoded.length == _RULE_HEADER_SIZE + CONSTRAINT_SIZE * constraintCount`
+    ///
+    /// Constraints are independent 32-byte windows; they do not enforce ABI head/tail consistency for dynamic types.
+    /// Rules that constrain payload bytes inside a dynamic argument must also constrain the ABI head offset and length
+    /// (and should set `FLAG_DATA_LENGTH` when the allowed call shape is fixed).
     uint256 public constant CONSTRAINT_SIZE = 66;
     /// @dev Length of the EVM call selector prefix; constraints index into the bytes that follow.
     uint256 private constant _SELECTOR_LENGTH = 4;
@@ -357,6 +367,7 @@ contract MerkleAllowlistValidator is
         return _constraintsMatchCalldata(r, h.cCount, data);
     }
 
+    /// @dev Applies `(wordAt(4 + offset) & mask) == expected` for each constraint. Does not relate head words to dynamic tails.
     function _constraintsMatchCalldata(
         bytes calldata r,
         uint256 cCount,
