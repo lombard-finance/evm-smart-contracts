@@ -13,7 +13,7 @@ library PriceRateLimiter {
     /// @dev Consumption exceeded refill-adjusted remaining bucket capacity for the attempted PPS delta.
     /// @param requestedBps Relative PPS change (micro-bps scale) that could not be consumed.
     /// @param availableBps Remaining bucket capacity after virtual refill, before the attempted consume.
-    error PriceRateLimiter_RateLimitExceeded(
+    error PriceRateLimiterRateLimitExceeded(
         uint256 requestedBps,
         uint256 availableBps
     );
@@ -70,7 +70,7 @@ library PriceRateLimiter {
         if (
             changeBps > type(uint32).max || uint256(s.capacityBps) < changeBps
         ) {
-            revert PriceRateLimiter_RateLimitExceeded(
+            revert PriceRateLimiterRateLimitExceeded(
                 changeBps,
                 uint256(s.capacityBps)
             );

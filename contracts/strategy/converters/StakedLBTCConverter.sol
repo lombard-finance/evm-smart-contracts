@@ -20,13 +20,13 @@ import {IOracle} from "../../LBTC/interfaces/IOracle.sol";
 ///
 ///      Invariant: `IOracle.ratio()` MUST be strictly positive (enforced in `StakedLBTCOracle`; defensive check here).
 contract StakedLBTCConverter is IAssetConverter {
-    error StakedLBTCConverter_ZeroOracle();
-    error StakedLBTCConverter_ZeroRatio();
+    error StakedLBTCConverterZeroOracle();
+    error StakedLBTCConverterZeroRatio();
 
     IOracle public immutable oracle;
 
     constructor(address oracle_) {
-        if (oracle_ == address(0)) revert StakedLBTCConverter_ZeroOracle();
+        if (oracle_ == address(0)) revert StakedLBTCConverterZeroOracle();
         oracle = IOracle(oracle_);
     }
 
@@ -36,7 +36,7 @@ contract StakedLBTCConverter is IAssetConverter {
         Math.Rounding rounding
     ) external view override returns (uint256 baseOut) {
         uint256 ratio_ = oracle.ratio();
-        if (ratio_ == 0) revert StakedLBTCConverter_ZeroRatio();
+        if (ratio_ == 0) revert StakedLBTCConverterZeroRatio();
         return Math.mulDiv(tokenAmount, 1e18, ratio_, rounding);
     }
 
