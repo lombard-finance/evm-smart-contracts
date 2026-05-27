@@ -9,6 +9,7 @@ import {IShardExecValidator} from "../interfaces/IShardExecValidator.sol";
 /// @title MerkleAllowlistValidator
 /// @notice On-chain Merkle-based allowlist for shard `exec`: proves an encoded rule leaf is under `allowlistRoot`, then checks calldata constraints.
 /// @dev Implements both `IMerkleCallAllowlist` (typed struct proofs) and `IShardExecValidator` (ABI-encoded struct calldata). Owner rotates the Merkle root.
+/// @custom:security-contact legal@lombard.finance
 contract MerkleAllowlistValidator is
     Ownable2Step,
     IMerkleCallAllowlist,

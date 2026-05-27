@@ -12,6 +12,7 @@ import {IShard} from "../interfaces/IShard.sol";
 /// @dev Validator lives in ERC-7201 namespaced storage (`ShardBaseStorage`); one implementation
 /// can serve many BeaconProxy instances. Values are set once in `initializer` and never changed.
 /// Plain ETH may be received via {receive} to build balance for `exec` forwards; `msg.value` on `exec` also credits the contract.
+/// @custom:security-contact legal@lombard.finance
 abstract contract ShardBaseUpgradeable is
     IShard,
     AccessControlUpgradeable,

@@ -12,6 +12,7 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
 /// @dev Linearization: `AsyncRedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__StrategyBase_init` + module inits in C3 order.
+/// @custom:security-contact legal@lombard.finance
 contract MultiAssetWithAsyncRedemptionStrategy is
     MultiAssetDepositUpgradeable,
     AsyncRedemptionUpgradeable

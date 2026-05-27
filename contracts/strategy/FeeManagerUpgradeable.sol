@@ -9,6 +9,7 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 /// @title FeeManagerUpgradeable
 /// @notice Management and performance fee module minting fee shares to treasury; see `IFeeManager` for economics.
 /// @dev Expects `__FeeManager_init` after `__StrategyBase_init` so `pricePerShare` and time basis are initialised.
+/// @custom:security-contact legal@lombard.finance
 abstract contract FeeManagerUpgradeable is
     StrategyBaseUpgradeable,
     IFeeManager

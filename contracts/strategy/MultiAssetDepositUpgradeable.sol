@@ -13,6 +13,7 @@ import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 /// @title MultiAssetDepositUpgradeable
 /// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into strategy base units, then into shares; optional per-asset deposit fees route immediately to the strategy fee treasury (`feeTreasury` / `setFeeTreasury`).
 /// @dev Composes `FeeManagerUpgradeable`; deposit paths pull ERC-20 **before** minting shares. Extend `_deposit` / previews in subclasses if accounting changes.
+/// @custom:security-contact legal@lombard.finance
 abstract contract MultiAssetDepositUpgradeable is
     FeeManagerUpgradeable,
     IMultiAssetDeposit

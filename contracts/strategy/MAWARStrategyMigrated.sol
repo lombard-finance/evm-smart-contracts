@@ -14,6 +14,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 import {MultiAssetWithAsyncRedemptionStrategy} from "./MultiAssetWithAsyncRedemptionStrategy.sol";
 
+/// @custom:security-contact legal@lombard.finance
 contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     error ZeroDecimals();
 

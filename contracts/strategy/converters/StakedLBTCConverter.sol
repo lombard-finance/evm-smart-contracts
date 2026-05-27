@@ -19,6 +19,7 @@ import {IOracle} from "../../LBTC/interfaces/IOracle.sol";
 ///        toTokenAmount: tokenOut = btcUnits   * ratio / 1e18  (Ceil  — caller pays more, protects strategy)
 ///
 ///      Invariant: `IOracle.ratio()` MUST be strictly positive (enforced in `StakedLBTCOracle`; defensive check here).
+/// @custom:security-contact legal@lombard.finance
 contract StakedLBTCConverter is IAssetConverter {
     error StakedLBTCConverter_ZeroOracle();
     error StakedLBTCConverter_ZeroRatio();
