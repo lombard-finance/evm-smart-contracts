@@ -21,7 +21,7 @@
       "IBCVoucher": "0x8f2403f14d0ca553273b7d55013e499194f9ec78",
       "SmartAccountsRegistry": "0x5C4B71133d028dab1e6203bb9DcCA05D1DDD2895",
       "SarConfig": "0x01054119883490a39DD3C90057720682EB8ae377",
-      "BsaAssets": "0xaf4DcA4f1d0BC402367f0D934212E11334c0c8B1"
+      "BsaAssets": "0x50C17c78300C94a68cc0265114370936E4A07f57"
     },
     "chainlink": {
       "ChainSelector": "16015286601757825753",
