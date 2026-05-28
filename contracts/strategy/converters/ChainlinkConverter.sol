@@ -42,14 +42,14 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 ///      `baseDecimals` must equal the strategy underlying asset's decimal count
 ///      (e.g. 8 for BTC/LBTC, 18 for WETH).
 contract ChainlinkConverter is IAssetConverter {
-    error ChainlinkConverter_StaleAnswer();
-    error ChainlinkConverter_FutureAnswer();
-    error ChainlinkConverter_InvalidAnswer();
-    error ChainlinkConverter_SequencerDown();
-    error ChainlinkConverter_GracePeriodNotOver();
-    error ChainlinkConverter_ZeroFeed();
-    error ChainlinkConverter_ZeroHeartbeat();
-    error ChainlinkConverter_DecimalsUnderflow();
+    error ChainlinkConverterStaleAnswer();
+    error ChainlinkConverterFutureAnswer();
+    error ChainlinkConverterInvalidAnswer();
+    error ChainlinkConverterSequencerDown();
+    error ChainlinkConverterGracePeriodNotOver();
+    error ChainlinkConverterZeroFeed();
+    error ChainlinkConverterZeroHeartbeat();
+    error ChainlinkConverterDecimalsUnderflow();
 
     AggregatorV3Interface public immutable feed;
     /// @dev Normalisation factor; exponent depends on `inverted` (see contract-level @dev).
@@ -81,20 +81,20 @@ contract ChainlinkConverter is IAssetConverter {
         uint256 gracePeriod_,
         bool inverted_
     ) {
-        if (feed_ == address(0)) revert ChainlinkConverter_ZeroFeed();
-        if (heartbeat_ == 0) revert ChainlinkConverter_ZeroHeartbeat();
+        if (feed_ == address(0)) revert ChainlinkConverterZeroFeed();
+        if (heartbeat_ == 0) revert ChainlinkConverterZeroHeartbeat();
         feed = AggregatorV3Interface(feed_);
         uint8 feedDec = feed.decimals();
         baseDecimals = baseDecimals_;
         inverted = inverted_;
         if (inverted_) {
             if (uint256(feedDec) + baseDecimals_ < tokenDecimals_)
-                revert ChainlinkConverter_DecimalsUnderflow();
+                revert ChainlinkConverterDecimalsUnderflow();
             scalingFactor =
                 10 ** (uint256(feedDec) + baseDecimals_ - tokenDecimals_);
         } else {
             if (uint256(feedDec) + tokenDecimals_ < baseDecimals_)
-                revert ChainlinkConverter_DecimalsUnderflow();
+                revert ChainlinkConverterDecimalsUnderflow();
             scalingFactor =
                 10 ** (uint256(feedDec) + tokenDecimals_ - baseDecimals_);
         }
@@ -130,11 +130,11 @@ contract ChainlinkConverter is IAssetConverter {
     function _getAnswer() private view returns (uint256) {
         _checkSequencer();
         (, int256 answer, , uint256 updatedAt, ) = feed.latestRoundData();
-        if (answer <= 0) revert ChainlinkConverter_InvalidAnswer();
+        if (answer <= 0) revert ChainlinkConverterInvalidAnswer();
         if (updatedAt > block.timestamp)
-            revert ChainlinkConverter_FutureAnswer();
+            revert ChainlinkConverterFutureAnswer();
         if (block.timestamp - updatedAt > heartbeat)
-            revert ChainlinkConverter_StaleAnswer();
+            revert ChainlinkConverterStaleAnswer();
         return uint256(answer);
     }
 
@@ -145,10 +145,10 @@ contract ChainlinkConverter is IAssetConverter {
         // answer == 0: sequencer up; answer == 1: sequencer down
         (, int256 answer, uint256 startedAt, , ) = sequencerUptimeFeed
             .latestRoundData();
-        if (answer == 1) revert ChainlinkConverter_SequencerDown();
+        if (answer == 1) revert ChainlinkConverterSequencerDown();
         // startedAt == 0 would make block.timestamp - 0 silently pass any grace period.
-        if (startedAt == 0) revert ChainlinkConverter_SequencerDown();
+        if (startedAt == 0) revert ChainlinkConverterSequencerDown();
         if (block.timestamp - startedAt < gracePeriod)
-            revert ChainlinkConverter_GracePeriodNotOver();
+            revert ChainlinkConverterGracePeriodNotOver();
     }
 }

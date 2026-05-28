@@ -209,7 +209,7 @@ abstract contract StrategyBaseUpgradeable is
             return;
         }
         if (revertOnRateLimit) {
-            revert PriceRateLimiter.PriceRateLimiter_RateLimitExceeded(
+            revert PriceRateLimiter.PriceRateLimiterRateLimitExceeded(
                 changeBps,
                 $.ppsRateLimiter._availableAfterRefill()
             );

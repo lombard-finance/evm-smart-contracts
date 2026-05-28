@@ -155,7 +155,7 @@ shares = gainShares * feeBps / 10_000
 - **`postPricePerShare(uint256 newPricePerShare, bool revertOnRateLimit)`** — Updates `pricePerShare`. Requires `PRICE_SETTER_ROLE`. Reverts if `newPricePerShare == 0` (`Strategy_ZeroPricePerShare`). Reverts if strategy operations are paused.
 - Subject to a **`PriceRateLimiter` bucket** (micro-bps capacity / refill model). The limiter measures the relative price move as bps and compares to remaining bucket capacity:
   - If the move fits within capacity: consume capacity, set price, emit `PricePerShareUpdated`.
-  - If the move exceeds capacity and `revertOnRateLimit == true`: revert (`PriceRateLimiter_RateLimitExceeded`).
+  - If the move exceeds capacity and `revertOnRateLimit == true`: revert (`PriceRateLimiterRateLimitExceeded`).
   - If the move exceeds capacity and `revertOnRateLimit == false`: drain the bucket, set the price, **pause strategy operations** (`_pauseStrategy`), emit `PricePerShareUpdated` and `StrategyOperationsPaused`.
 - **`setPricePerShareRateLimit(uint32 maxBucketBps, uint64 refillRate)`** — Configures the rate-limiter bucket. Requires `MANAGER_ROLE`. This is a safety catch controlled by a separate role from `PRICE_SETTER_ROLE`, with the intent that different parties perform each operation — reducing single-point-of-failure risk.
 - **`pricePerShareRateLimiterState()`** — View: returns current bucket state with refill virtually applied.
