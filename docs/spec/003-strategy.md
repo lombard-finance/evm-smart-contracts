@@ -92,7 +92,7 @@ All deposit/mint paths require the strategy to not be paused (`whenStrategyNotPa
 **Converter previews (no fee):**
 
 - `convertToShares(depositAsset, assets)` → shares equivalent to `assets` (using converter, no deposit fee).
-- `convertToAssets(depositAsset, shares)` → asset units equivalent to `shares` (using converter, ceiling rounding).
+- `convertToAssets(depositAsset, shares)` → asset units equivalent to `shares` (using converter, floor rounding).
 
 ### Default shard
 

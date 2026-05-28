@@ -374,7 +374,7 @@ abstract contract MultiAssetDepositUpgradeable is
         return
             $.converters[depositAsset].fromBaseUnits(
                 assetsIn,
-                Math.Rounding.Ceil
+                Math.Rounding.Floor
             );
     }
 
