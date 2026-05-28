@@ -11,7 +11,6 @@ import type {
   WBTCMock,
   MultiAssetWithAsyncRedemptionStrategy,
   RatioFeedMock,
-  StakedLBTCConverter,
   StakedLBTCMock,
   TokenMock
 } from '../../typechain-types';
@@ -1110,6 +1109,7 @@ describe('StakedLBTC as deposit token', function () {
   // All amounts in 8-decimal satoshi units (1 LBTC = 1e8).
   const ONE_LBTC = 10n ** 8n;
   const ONE_ETHER = e18; // oracle ratio scale
+  const HEARTBEAT = 3600n;
 
   let admin: Signer;
   let strategyDeployer: Signer;
@@ -1121,7 +1121,7 @@ describe('StakedLBTC as deposit token', function () {
   let lbtcUnderlying: WBTCMock;
   let stakedToken: StakedLBTCMock;
   let oracle: RatioFeedMock;
-  let stakedConverter: StakedLBTCConverter;
+  let stakedConverter: ChainlinkConverter;
   let stakedStrategy: MultiAssetWithAsyncRedemptionStrategy;
 
   let snap: SnapshotRestorer;
@@ -1144,10 +1144,18 @@ describe('StakedLBTC as deposit token', function () {
     oracle = (await oracleFactory.deploy()) as RatioFeedMock;
     await oracle.waitForDeployment();
 
-    const convFactory = await ethers.getContractFactory('StakedLBTCConverter');
-    stakedConverter = (await convFactory.deploy(await oracle.getAddress())) as StakedLBTCConverter;
+    const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+    stakedConverter = (await convFactory.deploy(
+      await oracle.getAddress(),
+      8,
+      8,
+      HEARTBEAT,
+      ethers.ZeroAddress,
+      0,
+      false
+    )) as ChainlinkConverter;
     await stakedConverter.waitForDeployment();
-    (stakedConverter as StakedLBTCConverter & { address: string }).address = await stakedConverter.getAddress();
+    (stakedConverter as ChainlinkConverter & { address: string }).address = await stakedConverter.getAddress();
 
     const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
 
@@ -1180,7 +1188,7 @@ describe('StakedLBTC as deposit token', function () {
     await snap.restore();
   });
 
-  describe('StakedLBTCConverter', function () {
+  describe('ChainlinkConverter (ratio feed)', function () {
     it('at-par ratio (1e18): toBaseUnits and fromBaseUnits are 1:1', async function () {
       expect(await stakedConverter.toBaseUnits(ONE_LBTC, 0)).to.equal(ONE_LBTC);
       expect(await stakedConverter.fromBaseUnits(ONE_LBTC, 1)).to.equal(ONE_LBTC);
