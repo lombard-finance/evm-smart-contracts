@@ -189,6 +189,10 @@ abstract contract StrategyBaseUpgradeable is
     ///      reconciliation produces a stored PPS for which on-chain `totalAssets()` equals real backing — i.e. a frontrunning
     ///      deposit at stale PPS cannot inflate the post-update NAV. Async redemption *fulfillments* don't change supply or
     ///      active-share NAV and need no adjustment.
+    ///      Management and performance fee share mints (`FeeManagerUpgradeable`) increase `totalSupply` without asset inflow, so
+    ///      `totalAssets()` may overstate economic NAV until the next post. Operators SHOULD snapshot `supplyAtSnapshot` at
+    ///      NAV observation time and post true backing `navAtSnapshot`; the reconciled PPS on that update corrects for any
+    ///      fee-minted supply since the prior snapshot.
     ///      The rate limiter gates on the *declared* PPS move (`old → navAtSnapshot * oneShare / supplyAtSnapshot`), not the
     ///      reconciled move, so mid-epoch flow cannot mask a large declared NAV swing.
     /// @param navAtSnapshot Total NAV (asset units) the operator observed at snapshot time; must imply non-zero PPS.
@@ -311,6 +315,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
+    /// @dev May exceed economic backing between fee share mints and the next `postPricePerShare` that reconciles supply.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }

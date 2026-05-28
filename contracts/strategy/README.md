@@ -48,6 +48,8 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 Updating **management** fee bps resets the accrual clock; updating **performance** fee bps resets the high-water mark to the current NAV — worth coordinating off-chain before changing parameters.
 
+**Fee mints and `postPricePerShare`** — Management and performance fees mint strategy shares without transferring underlying assets. Until the next `postPricePerShare`, `totalAssets()` (`totalSupply × pricePerShare`) may **overstate** economic backing because supply includes fee shares priced at the still-stored PPS. Operators SHOULD snapshot `supplyAtSnapshot` at NAV observation time and post true backing `navAtSnapshot`; the reconciled PPS on that update accounts for fee-minted supply (alongside deposits and async redeem requests priced at stale PPS). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+
 ```text
 depositFee      = assets × depositFeeBps / 10_000
 mgmtFeeShares   ≈ totalSupply × (managementFeeBps × Δseconds) / (10_000 × 365 days)
