@@ -6,6 +6,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 /// @title IMultiAssetDeposit
 /// @notice ERC-165 extension: deposit or mint strategy shares against **multiple** listed ERC-20 assets via per-token `IAssetConverter` pricing.
 /// @dev Adds `depositAsset` and optional slippage guards (`minSharesOut`, `maxAssetsIn`). Deposit fees transfer immediately to the strategy fee treasury (`feeTreasury` / `setFeeTreasury` on the concrete strategy).
+/// @custom:security-contact legal@lombard.finance
 interface IMultiAssetDeposit is IERC165 {
     /// @notice An admin listed `token` as an accepted deposit asset.
     event DepositAssetAdded(address indexed sender, address indexed token);

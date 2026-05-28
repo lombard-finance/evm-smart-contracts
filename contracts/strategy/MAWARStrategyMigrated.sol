@@ -14,6 +14,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 import {MultiAssetWithAsyncRedemptionStrategy} from "./MultiAssetWithAsyncRedemptionStrategy.sol";
 
+/// @custom:security-contact legal@lombard.finance
 contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     error ZeroDecimals();
 
@@ -21,7 +22,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     uint256 private constant ENTERED = 2;
 
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ReentrancyGuard")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ReentrancyGuardStorageLocation =
+    bytes32 private constant REENTRANCY_GUARD_STORAGE_LOCATION =
         0x9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f00;
 
     function _getReentrancyGuardInheritedStorage()
@@ -30,7 +31,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
         returns (ReentrancyGuardStorage storage $)
     {
         assembly {
-            $.slot := ReentrancyGuardStorageLocation
+            $.slot := REENTRANCY_GUARD_STORAGE_LOCATION
         }
     }
 
@@ -43,11 +44,13 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     /// @param asset_ Underlying asset address.
     /// @param decimals_ Underlying asset decimals.
     /// @param managementFeeTreasury_ Management fee treasury address.
+    /// @param initialPPS_ Initial price per share.
     function migrate(
         address blocklistOracle_,
         IERC20 asset_,
         uint8 decimals_,
-        address managementFeeTreasury_
+        address managementFeeTreasury_,
+        uint256 initialPPS_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (blocklistOracle_ == address(0)) revert Strategy_ZeroAddress();
         if (address(asset_) == address(0)) revert Strategy_ZeroAddress();
@@ -68,7 +71,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
         baseStorage.asset = asset_;
 
         _setBlocklistOracle(baseStorage, blocklistOracle_);
-        _setPricePerShare(baseStorage, 10 ** decimals());
+        _setPricePerShare(baseStorage, initialPPS_);
         baseStorage.ppsRateLimiter = PriceRateLimiter.Bucket({
             lastRefill: uint48(block.timestamp),
             capacityBps: 0,

@@ -13,6 +13,7 @@ import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 /// @title MultiAssetDepositUpgradeable
 /// @notice Multi-asset deposits and mints: listed ERC-20s convert via `IAssetConverter` into strategy base units, then into shares; optional per-asset deposit fees route immediately to the strategy fee treasury (`feeTreasury` / `setFeeTreasury`).
 /// @dev Composes `FeeManagerUpgradeable`; deposit paths pull ERC-20 **before** minting shares. Extend `_deposit` / previews in subclasses if accounting changes.
+/// @custom:security-contact legal@lombard.finance
 abstract contract MultiAssetDepositUpgradeable is
     FeeManagerUpgradeable,
     IMultiAssetDeposit
@@ -75,7 +76,7 @@ abstract contract MultiAssetDepositUpgradeable is
     function setAssetConverter(
         address depositAsset,
         IAssetConverter assetConverter_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
             revert StrategyDeposit_AssetNotListed(depositAsset);
@@ -275,7 +276,9 @@ abstract contract MultiAssetDepositUpgradeable is
         if (
             !_getMultiAssetDepositStorage().depositAssets.contains(
                 depositAsset
-            ) || depositPaused()
+            ) ||
+            depositPaused() ||
+            paused()
         ) return 0;
         return type(uint256).max;
     }
@@ -285,9 +288,12 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
-        if (depositPaused()) return 0;
         if (
-            !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
+            !_getMultiAssetDepositStorage().depositAssets.contains(
+                depositAsset
+            ) ||
+            depositPaused() ||
+            paused()
         ) return 0;
         return type(uint256).max;
     }
@@ -368,7 +374,7 @@ abstract contract MultiAssetDepositUpgradeable is
         return
             $.converters[depositAsset].fromBaseUnits(
                 assetsIn,
-                Math.Rounding.Ceil
+                Math.Rounding.Floor
             );
     }
 

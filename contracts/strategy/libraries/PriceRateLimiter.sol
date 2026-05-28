@@ -7,13 +7,14 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @notice Rate limit on how large a single relative `pricePerShare` move may be (micro-basis-point units), using configurable capacity and refill.
 /// @dev Attach with `using PriceRateLimiter for PriceRateLimiter.Bucket` and call `_consume`, `_setConfig`, etc. on storage buckets.
 ///      **Micro-bps**: internal scale uses `BPS_DENOMINATOR = 1_000_000` (not 10_000).
+/// @custom:security-contact legal@lombard.finance
 library PriceRateLimiter {
     using Math for uint256;
 
     /// @dev Consumption exceeded refill-adjusted remaining bucket capacity for the attempted PPS delta.
     /// @param requestedBps Relative PPS change (micro-bps scale) that could not be consumed.
     /// @param availableBps Remaining bucket capacity after virtual refill, before the attempted consume.
-    error PriceRateLimiter_RateLimitExceeded(
+    error PriceRateLimiterRateLimitExceeded(
         uint256 requestedBps,
         uint256 availableBps
     );
@@ -70,7 +71,7 @@ library PriceRateLimiter {
         if (
             changeBps > type(uint32).max || uint256(s.capacityBps) < changeBps
         ) {
-            revert PriceRateLimiter_RateLimitExceeded(
+            revert PriceRateLimiterRateLimitExceeded(
                 changeBps,
                 uint256(s.capacityBps)
             );

@@ -247,6 +247,29 @@ describe('MerkleAllowlistValidator', function () {
     ).to.equal(true);
   });
 
+  it('rejects truncated calldata when past-end constraint has zero expected', async function () {
+    const to = await c.getAddress();
+    const iface = ERC20__factory.createInterface();
+    const fullMask = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const rule = encodeMerkleRule({
+      flags: 0x16,
+      selector: 'transfer(address,uint256)',
+      sender: ethers.ZeroAddress,
+      to,
+      value: 0n,
+      dataLength: 0,
+      constraints: [{ offset: 64, mask: fullMask, expected: ethers.ZeroHash }]
+    });
+    const tree = await treeWithRule(c, rule);
+    await c.setAllowlistRoot(tree.root);
+    const ds = await c.domainSeparator();
+    const proof = tree.getProof([0n, ds, ethers.getBytes(rule)] as [bigint, string, Uint8Array]);
+    const input = { ruleEncoded: rule, merkleProof: proof };
+    const selectorOnly = iface.encodeFunctionData('transfer', [signer.address, 1n]).slice(0, 10);
+
+    expect(await merkleIsAllowed(c, signer.address, to, 0n, selectorOnly, input)).to.equal(false);
+  });
+
   it('rejects non-canonical rules before Merkle (nonzero root)', async function () {
     await c.setAllowlistRoot(ethers.hexlify(ethers.randomBytes(32)));
 

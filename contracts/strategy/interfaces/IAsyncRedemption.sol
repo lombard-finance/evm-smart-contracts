@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 /// @title IAsyncRedemption
 /// @notice Asynchronous redemption: optional redeem fee in shares, pending requests, and operator-settled fulfillment.
 /// @dev This implementation does not use ERC-4626 `withdraw` / `redeem` for settlement; underlying is paid on `fulfillRedeemRequests`.
+/// @custom:security-contact legal@lombard.finance
 interface IAsyncRedemption {
     /// @dev Per `requestRedeem` ticket; global totals mirror open requests.
     struct RedeemRequest {
@@ -66,4 +67,6 @@ interface IAsyncRedemption {
         uint256 feeShares,
         uint256 shares
     );
+
+    error AsyncRedemption_ZeroAssets(uint256 shares);
 }
