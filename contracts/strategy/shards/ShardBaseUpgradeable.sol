@@ -10,8 +10,11 @@ import {IShard} from "../interfaces/IShard.sol";
 /// @title ShardBaseUpgradeable
 /// @notice Shared validator-gated `exec` for Shard and RemoteShard.
 /// @dev Validator lives in ERC-7201 namespaced storage (`ShardBaseStorage`); one implementation
-/// can serve many BeaconProxy instances. Values are set once in `initializer` and never changed.
+/// can serve many BeaconProxy instances. The validator is set in `initializer` and may be replaced
+/// later via {setValidator} by `DEFAULT_ADMIN_ROLE`. `exec` reads the current validator on every
+/// call, so a replacement can take effect between off-chain proof generation and on-chain execution.
 /// Plain ETH may be received via {receive} to build balance for `exec` forwards; `msg.value` on `exec` also credits the contract.
+/// @custom:security-contact legal@lombard.finance
 abstract contract ShardBaseUpgradeable is
     IShard,
     AccessControlUpgradeable,
@@ -35,6 +38,7 @@ abstract contract ShardBaseUpgradeable is
     }
 
     /// @notice Replace the exec validator. Only `DEFAULT_ADMIN_ROLE`.
+    /// @dev Takes effect on the next `exec`; proofs prepared against the prior validator are not guaranteed to remain valid.
     function setValidator(
         IShardExecValidator newValidator
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -46,7 +50,7 @@ abstract contract ShardBaseUpgradeable is
 
     /// @notice Validator-governed external call.
     /// @param validatorArgs Encoding is defined by the configured `IShardExecValidator` (e.g. Merkle `CallVerificationInput`).
-    /// @dev ETH: requires `address(this).balance >= value` after receiving `msg.value`.
+    /// @dev Uses the validator current at call time (see {setValidator}). ETH: requires `address(this).balance >= value` after receiving `msg.value`.
     ///      `to` cannot be this contract; admin changes use dedicated flows, not `exec` self-calls.
     function exec(
         address to,

@@ -7,6 +7,7 @@ import {IAssetConverter} from "../interfaces/IAssetConverter.sol";
 /// @title DirectConverter
 /// @notice `IAssetConverter` identity mapping: deposit token units equal strategy base accounting units (no oracle).
 /// @dev Use when the deposit asset **is** the underlying NAV denomination (e.g. native LBTC into an LBTC-accounted strategy).
+/// @custom:security-contact legal@lombard.finance
 contract DirectConverter is IAssetConverter {
     /// @inheritdoc IAssetConverter
     function toBaseUnits(

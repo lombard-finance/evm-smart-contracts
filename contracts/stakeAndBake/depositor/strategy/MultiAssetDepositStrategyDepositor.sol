@@ -15,11 +15,7 @@ import {IMultiAssetDeposit} from "../../../strategy/interfaces/IMultiAssetDeposi
 contract MultiAssetDepositStrategyDepositor is IDepositor, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    /// @dev error thrown when the passed depositAmount is zero
-    error ZeroAssets();
-    error ApproveFailed();
     error UnauthorizedAccount(address account);
-    error MinimumMintNotMet(uint256 minimumMint, uint256 shares);
 
     IMultiAssetDeposit public immutable strategy;
     IERC20 public immutable depositAsset;

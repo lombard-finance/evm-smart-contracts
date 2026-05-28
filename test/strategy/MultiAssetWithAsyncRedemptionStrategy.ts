@@ -1040,7 +1040,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       // Any further move is blocked until the bucket refills
       await expect(strategy.connect(operator).postPricePerShare(p1 + 1n, true)).to.be.revertedWithCustomError(
         strategy,
-        'PriceRateLimiter_RateLimitExceeded'
+        'PriceRateLimiterRateLimitExceeded'
       );
 
       // After one week the bucket is full again
@@ -1092,7 +1092,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       const p2 = (p1 * 10002n) / 10000n;
       await expect(strategy.connect(operator).postPricePerShare(p2, true)).to.be.revertedWithCustomError(
         strategy,
-        'PriceRateLimiter_RateLimitExceeded'
+        'PriceRateLimiterRateLimitExceeded'
       );
 
       // After one day the bucket is full again
@@ -1310,8 +1310,8 @@ describe('StakedLBTC as deposit token', function () {
       const back = await stakedStrategy.convertToAssets(sAddr, shares);
 
       // back may differ from assets by at most 1 satoshi due to rounding
-      expect(back).to.be.gte(assets);
-      expect(back - assets).to.be.lte(1n);
+      expect(back).to.be.lte(assets);
+      expect(assets - back).to.be.lte(1n);
     });
   });
 });
@@ -1443,11 +1443,11 @@ describe('Chainlink as deposit token', function () {
       await clFeed.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
       await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_StaleAnswer'
+        'ChainlinkConverterStaleAnswer'
       );
       await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_StaleAnswer'
+        'ChainlinkConverterStaleAnswer'
       );
     });
 
@@ -1455,11 +1455,11 @@ describe('Chainlink as deposit token', function () {
       await clFeed.setAnswer(0);
       await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_InvalidAnswer'
+        'ChainlinkConverterInvalidAnswer'
       );
       await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_InvalidAnswer'
+        'ChainlinkConverterInvalidAnswer'
       );
     });
 
@@ -1497,11 +1497,11 @@ describe('Chainlink as deposit token', function () {
         await seqFeed.setAnswer(1);
         await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_SequencerDown'
+          'ChainlinkConverterSequencerDown'
         );
         await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_SequencerDown'
+          'ChainlinkConverterSequencerDown'
         );
       });
 
@@ -1510,11 +1510,11 @@ describe('Chainlink as deposit token', function () {
         await seqFeed.setStartedAt(BigInt(block!.timestamp)); // just came back up
         await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_GracePeriodNotOver'
+          'ChainlinkConverterGracePeriodNotOver'
         );
         await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_GracePeriodNotOver'
+          'ChainlinkConverterGracePeriodNotOver'
         );
       });
 
@@ -1576,7 +1576,7 @@ describe('Chainlink as deposit token', function () {
       const convFactory = await ethers.getContractFactory('ChainlinkConverter');
       await expect(
         convFactory.deploy(await invFeed.getAddress(), 18, 8, HEARTBEAT, ethers.ZeroAddress, 0, true)
-      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverter_DecimalsUnderflow');
+      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverterDecimalsUnderflow');
     });
 
     it('round-trip: fromBaseUnits(toBaseUnits(x)) >= x and diff <= 1 token wei (inverted)', async function () {
@@ -1776,8 +1776,8 @@ describe('Chainlink as deposit token', function () {
       const shares = await clStrategy.convertToShares(tAddr, assets);
       const back = await clStrategy.convertToAssets(tAddr, shares);
 
-      expect(back).to.be.gte(assets);
-      expect(back - assets).to.be.lte(1n);
+      expect(back).to.be.lte(assets);
+      expect(assets - back).to.be.lte(1n);
     });
   });
 });

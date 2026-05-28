@@ -5,6 +5,7 @@ import {IShardExecValidator} from "./IShardExecValidator.sol";
 
 /// @title IShard
 /// @notice Errors and events shared by Shard and RemoteShard.
+/// @custom:security-contact legal@lombard.finance
 interface IShard {
     /// @dev Validator rejected `exec` for `(msg.sender, to, value, data, input)`.
     error Shard_CallNotAllowed();
