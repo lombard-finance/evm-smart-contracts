@@ -51,23 +51,6 @@ task('deploy-chainlink-converter', 'Deploys ChainlinkConverter (IAssetConverter 
     });
   });
 
-task('deploy-staked-lbtc-converter', 'Deploys StakedLBTCConverter (IAssetConverter via StakedLBTCOracle ratio)')
-  .addParam('oracle', 'StakedLBTCOracle (IOracle) address')
-  .setAction(async (taskArgs, hre) => {
-    const { oracle } = taskArgs;
-    const args = [oracle];
-
-    const converter = await hre.ethers.deployContract('StakedLBTCConverter', args);
-    await converter.waitForDeployment();
-
-    const address = await converter.getAddress();
-    console.log(`StakedLBTCConverter: ${address}`);
-
-    await verify(hre.run, address, {
-      constructorArguments: [...args]
-    });
-  });
-
 /**
  * Deploy ChainlinkCompositeConverter (two Chainlink feeds as numerator/denominator ratio).
  *

@@ -15,6 +15,7 @@ import {IShardExecValidator} from "../interfaces/IShardExecValidator.sol";
 /// Solidity decoders accept in-bounds but non-canonical dynamic offsets; calldata can therefore satisfy constraints on bytes inside a dynamic payload
 /// while the callee decodes that argument from a different region. For sound policy, any rule that pins bytes inside a dynamic argument MUST also pin
 /// the corresponding head word(s) — typically the dynamic offset and length — and SHOULD pin exact `data.length` (`FLAG_DATA_LENGTH`) when feasible.
+/// @custom:security-contact legal@lombard.finance
 contract MerkleAllowlistValidator is
     Ownable2Step,
     IMerkleCallAllowlist,
@@ -197,7 +198,7 @@ contract MerkleAllowlistValidator is
     function _wordAt(
         bytes calldata data,
         uint256 offset
-    ) private pure returns (bytes32 word) {
+    ) private pure returns (bytes32) {
         uint256 len = data.length;
         if (offset >= len) {
             return bytes32(0);
@@ -300,7 +301,7 @@ contract MerkleAllowlistValidator is
         uint16 prevOffset;
         bool havePrev;
 
-        for (uint256 i = 0; i < cCount; ) {
+        for (uint256 i; i < cCount; ) {
             uint16 cOff = _readUint16BE(r, base);
             bytes32 mask = _readBytes32(r, base + _CONSTRAINT_OFFSET_MASK);
             bytes32 expected = _readBytes32(
@@ -381,10 +382,13 @@ contract MerkleAllowlistValidator is
                 r,
                 base + _CONSTRAINT_OFFSET_EXPECTED
             );
-            if (
-                (_wordAt(data, uint256(cOff) + _SELECTOR_LENGTH) & mask) !=
-                expected
-            ) {
+            uint256 offset = uint256(cOff) + _SELECTOR_LENGTH;
+            // Reject offsets past calldata: _wordAt right-pads with zero, so
+            // expected == 0 would spuriously match truncated payloads.
+            if (offset >= data.length) {
+                return false;
+            }
+            if ((_wordAt(data, offset) & mask) != expected) {
                 return false;
             }
             unchecked {
