@@ -46,6 +46,7 @@ contract StakedLBTCOracle is
         address token;
     }
 
+    /// @custom:storage-location erc7201:lombardfinance.storage.StakedLBTCOracle
     struct StakedLBTCOracleStorage {
         INotaryConsortium consortium;
         TokenDetails tokenDetails;
@@ -67,6 +68,7 @@ contract StakedLBTCOracle is
     constructor() {
         _disableInitializers();
     }
+
     function initialize(
         address owner_,
         address consortium_,
@@ -275,6 +277,7 @@ contract StakedLBTCOracle is
         }
         return ($.prevRatio, $.prevSwitchTime);
     }
+
     /// @dev not zero
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);

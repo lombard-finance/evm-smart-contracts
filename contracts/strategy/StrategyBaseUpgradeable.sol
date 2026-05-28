@@ -18,6 +18,7 @@ import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 /// @title StrategyBaseUpgradeable
 /// @notice Upgradeable ERC-20 strategy share with NAV (`pricePerShare`), registered shards, and independent deposit/redeem pauses distinct from ERC-20 `Pausable`.
 /// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate deposit/redeem pauses for entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
+/// @custom:security-contact legal@lombard.finance
 abstract contract StrategyBaseUpgradeable is
     IERC20Metadata,
     IStrategy,
@@ -209,7 +210,7 @@ abstract contract StrategyBaseUpgradeable is
             return;
         }
         if (revertOnRateLimit) {
-            revert PriceRateLimiter.PriceRateLimiter_RateLimitExceeded(
+            revert PriceRateLimiter.PriceRateLimiterRateLimitExceeded(
                 changeBps,
                 $.ppsRateLimiter._availableAfterRefill()
             );
@@ -433,16 +434,6 @@ abstract contract StrategyBaseUpgradeable is
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
         $.redeemPaused = true;
-        emit RedeemPaused(_msgSender());
-    }
-
-    /// @dev PPS soft overflow: set both pauses independently (two storage writes, two events).
-    function _pauseDepositAndRedeemForRateLimit() internal virtual {
-        StrategyBaseUpgradeableStorage
-            storage $ = _getStrategyBaseUpgradeableStorage();
-        $.depositPaused = true;
-        $.redeemPaused = true;
-        emit DepositPaused(_msgSender());
         emit RedeemPaused(_msgSender());
     }
 
