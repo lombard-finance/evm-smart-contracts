@@ -11,6 +11,7 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 /// @dev Expects `__FeeManager_init` after `__StrategyBase_init` so `pricePerShare` and time basis are initialised.
 ///      Management fee accrual uses `totalSupply()` as the share base, so prior management-fee mints held by
 ///      `managementFeeTreasury` compound into later accruals (intended; treasury balance is not excluded).
+/// @custom:security-contact legal@lombard.finance
 abstract contract FeeManagerUpgradeable is
     StrategyBaseUpgradeable,
     IFeeManager

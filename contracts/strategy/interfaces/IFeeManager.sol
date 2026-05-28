@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 /// @title IFeeManager
 /// @notice Management fee (time-based, dilution) and performance fee (high-water-mark on `pricePerShare`) harvested as newly minted strategy shares.
 /// @dev Basis points use `10_000 = 100%`. Fees mint shares to `to` without pulling underlying assets.
+/// @custom:security-contact legal@lombard.finance
 ///      Management fee share math uses full `totalSupply()`; treasury-held fee shares compound into later accruals.
 interface IFeeManager {
     /// @notice Annual management fee rate was updated (bps).

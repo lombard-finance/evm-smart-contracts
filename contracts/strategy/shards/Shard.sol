@@ -10,6 +10,7 @@ import {ShardBaseUpgradeable} from "./ShardBaseUpgradeable.sol";
 
 /// @title Shard
 /// @notice Strategy-linked shard with funding pipe and validator-governed `exec`.
+/// @custom:security-contact legal@lombard.finance
 contract Shard is ShardBaseUpgradeable {
     using SafeERC20 for IERC20;
 
