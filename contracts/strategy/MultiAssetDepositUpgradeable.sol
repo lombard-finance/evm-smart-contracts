@@ -276,7 +276,9 @@ abstract contract MultiAssetDepositUpgradeable is
         if (
             !_getMultiAssetDepositStorage().depositAssets.contains(
                 depositAsset
-            ) || depositPaused()
+            ) ||
+            depositPaused() ||
+            paused()
         ) return 0;
         return type(uint256).max;
     }
@@ -286,9 +288,12 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset,
         address
     ) public view virtual returns (uint256) {
-        if (depositPaused()) return 0;
         if (
-            !_getMultiAssetDepositStorage().depositAssets.contains(depositAsset)
+            !_getMultiAssetDepositStorage().depositAssets.contains(
+                depositAsset
+            ) ||
+            depositPaused() ||
+            paused()
         ) return 0;
         return type(uint256).max;
     }
