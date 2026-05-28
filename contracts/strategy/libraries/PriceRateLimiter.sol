@@ -7,6 +7,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @notice Rate limit on how large a single relative `pricePerShare` move may be (micro-basis-point units), using configurable capacity and refill.
 /// @dev Attach with `using PriceRateLimiter for PriceRateLimiter.Bucket` and call `_consume`, `_setConfig`, etc. on storage buckets.
 ///      **Micro-bps**: internal scale uses `BPS_DENOMINATOR = 1_000_000` (not 10_000).
+/// @custom:security-contact legal@lombard.finance
 library PriceRateLimiter {
     using Math for uint256;
 

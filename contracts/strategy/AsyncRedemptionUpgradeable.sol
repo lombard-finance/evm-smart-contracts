@@ -10,6 +10,7 @@ import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title AsyncRedemptionUpgradeable
 /// @notice Asynchronous redemption: burns shares on `requestRedeem`, pays underlying on `fulfillRedeemRequests` by accounts with `PAY_REDEMPTIONS_ROLE`, optional redeem fee in shares.
+/// @custom:security-contact legal@lombard.finance
 abstract contract AsyncRedemptionUpgradeable is
     FeeManagerUpgradeable,
     IAsyncRedemption

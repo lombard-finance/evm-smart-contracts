@@ -18,6 +18,7 @@ import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 /// @title StrategyBaseUpgradeable
 /// @notice Upgradeable ERC-20 strategy share with NAV (`pricePerShare`), registered shards, and independent deposit/redeem pauses distinct from ERC-20 `Pausable`.
 /// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate deposit/redeem pauses for entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
+/// @custom:security-contact legal@lombard.finance
 abstract contract StrategyBaseUpgradeable is
     IERC20Metadata,
     IStrategy,
