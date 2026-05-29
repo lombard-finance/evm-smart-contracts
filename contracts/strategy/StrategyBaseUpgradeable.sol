@@ -260,6 +260,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
+    /// @dev After dilution-fee share mints, this can exceed custody until `postPricePerShare` realigns the rate.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }
