@@ -197,6 +197,26 @@ Implementations and off-chain builders MUST align `mask` / `expected` with the s
 
 **Note:** Comparison to EVM `calldataload` is **informative only**: matching applies to the `data` bytes passed into `isAllowed`, not to the outer transaction calldata of the `isAllowed` invocation.
 
+#### 5.1 Dynamic ABI arguments — soundness requirement (normative for rule authors)
+
+Constraint matching is **byte-local**: each constraint inspects one 32-byte window at `4 + offset` and does **not** validate ABI relationships between head words and dynamic tails.
+
+For dynamic Solidity types (`bytes`, `string`, dynamic arrays, tuple members containing them, etc.), the ABI places **head** words (offset, and for arrays often length) in the static argument region and **tail** bytes at the offset those heads point to. A callee that ABI-decodes `data` follows those head values.
+
+Solidity ABI decoding accepts **in-bounds but non-canonical** dynamic offsets and lengths (e.g. an offset that points to a different tail than the bytes a rule author assumed when choosing constraint offsets). Therefore:
+
+- A rule that pins only bytes **inside** a dynamic argument’s tail, without also pinning the corresponding **head** word(s), MAY be satisfied by calldata in which the integrating contract’s decoder reads the dynamic value from a **different** region than the rule author intended.
+- Such a rule does **not** by itself guarantee that the value the callee decodes equals the value implied by the pinned tail bytes.
+
+**Soundness requirement:** when a rule constrains bytes inside a dynamic argument (or any region reached only via an ABI offset/length head), the rule MUST **also** constrain:
+
+1. The **ABI head word(s)** for that dynamic value — at minimum the dynamic **offset** word and, where applicable, the **length** word (e.g. dynamic array length, or the length prefix for `bytes`/`string` tails); and
+2. **`data.length`** via flag `0x08` when the allowed call’s total calldata size is fixed or bounded tightly enough to exclude alternate encodings.
+
+Rule authors MUST compute constraint `offset` values from the **full** intended canonical encoding (e.g. `encodeFunctionData`) and treat offset arithmetic as a **computation aid only**; pinning tail bytes alone is insufficient for policy soundness.
+
+Integrators SHOULD document, per rule, which head words were pinned alongside any tail constraints. Off-chain tooling (`scripts/strategy/AGENTS.md`) mirrors this requirement at the point of use.
+
 ---
 
 ### 6. Data length semantics
@@ -549,6 +569,11 @@ MAX_CONSTRAINTS = 64
 
 - matching uses the zero-padded word semantics in §5
 - constraints on absent bytes can still match only if expected masked bits are zero
+
+### Dynamic arguments without head constraints
+
+- constraints on tail bytes alone do not bind the value a Solidity ABI decoder reads; non-canonical in-bounds offsets can satisfy tail pins while heads point elsewhere (§5.1)
+- rule authors MUST pin dynamic offset/length head words (and SHOULD pin `data.length`) when constraining dynamic payloads
 
 ### Exact length plus sparse constraints
 

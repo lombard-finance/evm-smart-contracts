@@ -382,6 +382,8 @@ const config: HardhatUserConfig = {
       gas: 8_000_000
     },
     hardhat: {
+      // Must match test/helpers CHAIN_ID (bytes32(1)) and LChainId.get() in contracts.
+      chainId: 1,
       initialBaseFeePerGas: 0,
       blockGasLimit: 60_000_000,
       // Forking is only supported on the network named "hardhat" (in-process).
@@ -389,7 +391,6 @@ const config: HardhatUserConfig = {
       // it does not enable local fork simulation.
       ...(process.env.HARDHAT_FORK === '1'
         ? {
-            chainId: 1,
             forking: {
               url: vars.get('MAINNET_RPC', 'https://eth-mainnet.public.blastapi.io'),
               blockNumber: Number(vars.get('FORKING_BLOCK', '23983296'))
