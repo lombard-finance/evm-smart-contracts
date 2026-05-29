@@ -1732,6 +1732,74 @@ describe('Chainlink as deposit token', function () {
         }
       }
     });
+
+    it('mismatched feed decimals (6-dec num, 18-dec den) do not truncate to zero', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // Both feeds report a 1:1 price, but with very different decimals.
+      // num: 6-dec feed, answer 1e6 (price 1.0)
+      // den: 18-dec feed, answer 1e18 (price 1.0)
+      const feedNum = (await feedFactory.deploy(6, 10n ** 6n)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        6, // tokenDecimals
+        6, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // 100,000 USDC (6 decimals). With the old two-step computation the
+      // intermediate ratio mulDiv(1e11, 1e6, 1e18) floored to 0, losing the
+      // entire amount. A single fused mulDiv preserves the 1:1 conversion.
+      const amount = 100_000n * 10n ** 6n; // 1e11
+      expect(await conv.toBaseUnits(amount, 0)).to.equal(amount);
+      expect(await conv.fromBaseUnits(amount, 1)).to.equal(amount);
+    });
+
+    it('scaleFwdDen > scaleFwdNum (18-dec token/num, 8-dec base/den) stays exact', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // num: 18-dec feed, answer 1e18 (price 1.0)
+      // den: 8-dec feed, answer 1e8 (price 1.0)
+      // => scaleFwdNum = 10^(8+8) = 1e16, scaleFwdDen = 10^(18+18) = 1e36 (den >> num)
+      const feedNum = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, 10n ** 8n)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        18, // tokenDecimals
+        8, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // 1 token (1e18) at a 1:1 price is exactly 1 base unit (1e8), regardless
+      // of scaleFwdDen being 20 orders of magnitude larger than scaleFwdNum.
+      const oneToken = 10n ** 18n;
+      const oneBase = 10n ** 8n;
+      expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneBase);
+      expect(await conv.fromBaseUnits(oneBase, 1)).to.equal(oneToken);
+
+      // Sub-base-unit dust (true value < 1 base unit) legitimately floors to 0
+      // with Floor rounding, and ceils to 1 with Ceil rounding — not a bug.
+      const dust = 10n ** 9n; // 1e9 token wei = 1e-9 token => well below 1 base unit
+      expect(await conv.toBaseUnits(dust, 0)).to.equal(0n); // Floor
+      expect(await conv.toBaseUnits(dust, 1)).to.equal(1n); // Ceil
+    });
   });
 
   describe('strategy deposit / mint integration', function () {

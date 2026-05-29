@@ -100,12 +100,27 @@ contract ChainlinkCompositeConverter is IAssetConverter {
         Math.Rounding rounding
     ) external view override returns (uint256) {
         (uint256 num, uint256 den) = _readAnswers();
+        // Fold the feed ratio and the decimal scaling into a single mulDiv so the
+        // only rounding happens on the final result. Splitting this into two
+        // mulDivs (ratio first, scaling second) lets the intermediate value
+        // truncate to a tiny number — or zero — before being scaled back up,
+        // which can silently lose a large fraction of the converted amount.
         if (!inverted) {
-            uint256 cross = Math.mulDiv(tokenAmount, num, den, rounding);
-            return Math.mulDiv(cross, scaleFwdNum, scaleFwdDen, rounding);
+            return
+                Math.mulDiv(
+                    tokenAmount,
+                    num * scaleFwdNum,
+                    den * scaleFwdDen,
+                    rounding
+                );
         } else {
-            uint256 cross = Math.mulDiv(tokenAmount, den, num, rounding);
-            return Math.mulDiv(cross, scaleInvNum, scaleInvDen, rounding);
+            return
+                Math.mulDiv(
+                    tokenAmount,
+                    den * scaleInvNum,
+                    num * scaleInvDen,
+                    rounding
+                );
         }
     }
 
@@ -115,12 +130,24 @@ contract ChainlinkCompositeConverter is IAssetConverter {
         Math.Rounding rounding
     ) external view override returns (uint256) {
         (uint256 num, uint256 den) = _readAnswers();
+        // Single mulDiv (inverse of `toBaseUnits`) to avoid intermediate
+        // truncation; see the note in `toBaseUnits`.
         if (!inverted) {
-            uint256 cross = Math.mulDiv(baseUnits, den, num, rounding);
-            return Math.mulDiv(cross, scaleFwdDen, scaleFwdNum, rounding);
+            return
+                Math.mulDiv(
+                    baseUnits,
+                    den * scaleFwdDen,
+                    num * scaleFwdNum,
+                    rounding
+                );
         } else {
-            uint256 cross = Math.mulDiv(baseUnits, num, den, rounding);
-            return Math.mulDiv(cross, scaleInvDen, scaleInvNum, rounding);
+            return
+                Math.mulDiv(
+                    baseUnits,
+                    num * scaleInvDen,
+                    den * scaleInvNum,
+                    rounding
+                );
         }
     }
 
