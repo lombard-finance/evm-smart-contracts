@@ -269,6 +269,35 @@ describe('MerkleAllowlistValidator', function () {
     expect(await merkleIsAllowed(c, signer.address, to, 0n, selectorOnly, input)).to.equal(false);
   });
 
+  it('rejects partial-word calldata when constraint reads past the end (zero expected)', async function () {
+    // The constraint reads the word at calldata offset 0 (i.e. byte 4 after the
+    // selector) and requires it to be zero. Calldata is selector + 16 zero bytes,
+    // so only a partial word is present at the constraint offset. _wordAt would
+    // right-pad the missing 16 bytes with zero and spuriously match expected==0;
+    // the full-word check must reject this even though the offset is in-bounds.
+    const to = await c.getAddress();
+    const fullMask = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const selector = ethers.id('transfer(address,uint256)').slice(0, 10);
+    const rule = encodeMerkleRule({
+      flags: 0x16,
+      selector: 'transfer(address,uint256)',
+      sender: ethers.ZeroAddress,
+      to,
+      value: 0n,
+      dataLength: 0,
+      constraints: [{ offset: 0, mask: fullMask, expected: ethers.ZeroHash }]
+    });
+    const tree = await treeWithRule(c, rule);
+    await c.setAllowlistRoot(tree.root);
+    const ds = await c.domainSeparator();
+    const proof = tree.getProof([0n, ds, ethers.getBytes(rule)] as [bigint, string, Uint8Array]);
+    const input = { ruleEncoded: rule, merkleProof: proof };
+    // selector + 16 zero bytes: in-bounds at offset 4 but fewer than 32 bytes remain.
+    const partial = selector + '00'.repeat(16);
+
+    expect(await merkleIsAllowed(c, signer.address, to, 0n, partial, input)).to.equal(false);
+  });
+
   it('rejects non-canonical rules before Merkle (nonzero root)', async function () {
     await c.setAllowlistRoot(ethers.hexlify(ethers.randomBytes(32)));
 
