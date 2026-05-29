@@ -1438,6 +1438,34 @@ describe('Chainlink as deposit token', function () {
       }
     });
 
+    it('forward: negative exponent (feedDec + tokenDec < baseDec) converts instead of reverting', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // base-per-token feed at peg: answer/1e8 = 1 base natural per 1 token natural
+      const feed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      // token 6 dec, base 18 dec, feed 8 dec → exponent = 8 + 6 - 18 = -4 (would previously underflow-revert)
+      const conv = (await convFactory.deploy(
+        await feed.getAddress(),
+        6,
+        18,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+
+      // scale = 10^-4 → scaleNumerator = 1, scaleDenominator = 10000
+      expect(await conv.scaleNumerator()).to.equal(1n);
+      expect(await conv.scaleDenominator()).to.equal(10_000n);
+
+      const ONE_TOKEN = 10n ** 6n;
+      const ONE_BASE = 10n ** 18n;
+      expect(await conv.toBaseUnits(ONE_TOKEN, 0)).to.equal(ONE_BASE);
+      expect(await conv.fromBaseUnits(ONE_BASE, 1)).to.equal(ONE_TOKEN);
+    });
+
     it('stale answer reverts with StaleAnswer', async function () {
       const block = await ethers.provider.getBlock('latest');
       await clFeed.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
@@ -1569,14 +1597,63 @@ describe('Chainlink as deposit token', function () {
       expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(usdcIn);
     });
 
-    it('inverted: decimals underflow when feedDec + baseDec < tokenDec', async function () {
+    it('inverted: negative exponent (feedDec + baseDec < tokenDec) converts instead of reverting', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // token-per-base feed at peg: answer/1e8 = 1 token natural per 1 base natural
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      // token 18 dec, base 8 dec, feed 8 dec → exponent = 8 + 8 - 18 = -2 (would previously underflow-revert)
+      const conv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        18,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+
+      // scale = 10^-2 → scaleNumerator = 1, scaleDenominator = 100
+      expect(await conv.scaleNumerator()).to.equal(1n);
+      expect(await conv.scaleDenominator()).to.equal(100n);
+
+      // 1 token (1e18) at peg → 1 base natural → 1e8 base units; and back.
+      const ONE_TOKEN = 10n ** 18n;
+      expect(await conv.toBaseUnits(ONE_TOKEN, 0)).to.equal(ONE_BTC);
+      expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_TOKEN);
+    });
+
+    it('inverted: negative-exponent round-trip stays within 1 base wei', async function () {
       const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
       const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
       await invFeed.waitForDeployment();
       const convFactory = await ethers.getContractFactory('ChainlinkConverter');
-      await expect(
-        convFactory.deploy(await invFeed.getAddress(), 18, 8, HEARTBEAT, ethers.ZeroAddress, 0, true)
-      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverterDecimalsUnderflow');
+      const conv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        18,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+
+      // Round-trip in the precision-preserving direction: base -> token -> base. (token has 18 dec, base 8,
+      // so token -> base -> token would shed sub-base dust; that is decimal truncation, not a converter bug.)
+      const answers = [(ONE_BTC * 95n) / 100n, (ONE_BTC * 99n) / 100n, ONE_BTC];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+      for (const answer of answers) {
+        await invFeed.setAnswer(answer);
+        for (const amt of amounts) {
+          const tokenOut = await conv.fromBaseUnits(amt, 1);
+          const baseOut = await conv.toBaseUnits(tokenOut, 0);
+          expect(baseOut).to.be.gte(amt);
+          expect(baseOut - amt).to.be.lte(1n);
+        }
+      }
     });
 
     it('round-trip: fromBaseUnits(toBaseUnits(x)) >= x and diff <= 1 token wei (inverted)', async function () {
