@@ -187,6 +187,14 @@ abstract contract StrategyBaseUpgradeable is
     /// @notice Updates `pricePerShare` subject to the configured `PriceRateLimiter` capacity and refill rules.
     /// @param newPricePerShare Next asset wei per share unit; must be non-zero.
     /// @param revertOnRateLimit If the move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
+    /// @dev Reverts with {Strategy_PricePerSharePaused} when both deposits and redemptions are
+    ///      paused. This is the exact state produced by the rate-limit auto-pause path (the
+    ///      `revertOnRateLimit == false` branch below pauses both sides), so the check intentionally
+    ///      blocks a new PPS post until the strategy is unpaused. This is by design: the multisig
+    ///      that owns both MANAGER and PRICE_SETTER_ROLE is expected to unpause and post a corrected
+    ///      PPS atomically in a single transaction, ensuring a PPS correction is never applied while
+    ///      the strategy remains in the auto-paused state. A one-sided pause (only deposits or only
+    ///      redemptions) still permits PPS updates.
     function postPricePerShare(
         uint256 newPricePerShare,
         bool revertOnRateLimit
