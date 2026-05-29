@@ -38,6 +38,6 @@ contract ChainlinkFeedMock is AggregatorV3Interface {
         view
         returns (uint80, int256, uint256, uint256, uint80)
     {
-        return (0, _answer, _startedAt, _updatedAt, 0);
+        return (1, _answer, _startedAt, _updatedAt, 1);
     }
 }

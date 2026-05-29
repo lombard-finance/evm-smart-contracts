@@ -19,7 +19,6 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     error ZeroDecimals();
 
     uint256 private constant NOT_ENTERED = 1;
-    uint256 private constant ENTERED = 2;
 
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ReentrancyGuard")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant REENTRANCY_GUARD_STORAGE_LOCATION =

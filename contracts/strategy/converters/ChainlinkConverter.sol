@@ -130,7 +130,9 @@ contract ChainlinkConverter is IAssetConverter {
 
     function _getAnswer() private view returns (uint256) {
         _checkSequencer();
-        (, int256 answer, , uint256 updatedAt, ) = feed.latestRoundData();
+        (uint80 roundId, int256 answer, , uint256 updatedAt, ) = feed
+            .latestRoundData();
+        if (roundId == 0) revert ChainlinkConverterInvalidAnswer();
         if (answer <= 0) revert ChainlinkConverterInvalidAnswer();
         if (updatedAt > block.timestamp)
             revert ChainlinkConverterFutureAnswer();
