@@ -122,6 +122,8 @@ abstract contract AsyncRedemptionUpgradeable is
         rq.pendingShares = netShares;
         rq.pendingAssets = assets;
         rq.owner = owner;
+        // block.number fits in uint96 for any realistic chain lifetime.
+        rq.requestBlock = uint96(block.number);
 
         $.totalPendingShares += netShares;
         $.totalPendingAssets += assets;
@@ -156,9 +158,18 @@ abstract contract AsyncRedemptionUpgradeable is
             uint256 assets = e.pendingAssets;
             uint256 shares = e.pendingShares;
             address owner = e.owner;
+            uint96 requestBlock = e.requestBlock;
 
             if (assets == 0) {
                 revert AsyncRedemption_NothingToFulfill(rid);
+            }
+
+            // Enforce a minimum one-block delay between request and fulfillment.
+            // This prevents same-block (flash-loan) cycles of deposit ->
+            // requestRedeem -> fulfill that could be used to manipulate the
+            // fee share base while paying out atomically.
+            if (block.number <= requestBlock) {
+                revert AsyncRedemption_FulfillTooEarly(rid, requestBlock);
             }
 
             $.totalPendingShares -= shares;

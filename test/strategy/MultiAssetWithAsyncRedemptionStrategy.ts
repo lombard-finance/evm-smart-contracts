@@ -808,6 +808,47 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       // Strategy holds no underlying — fulfillment must revert (transfer fails).
       await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid])).to.be.reverted;
     });
+
+    it('fulfillRedeemRequests: reverts when fulfilled in the same block as the request', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const depositAmt = e18;
+      await altDeposit.mint(user.address, depositAmt);
+      await altDeposit.connect(user).approve(strategy.address, depositAmt);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
+
+      const shares = await strategy.balanceOf(user.address);
+      await underlying.mint(strategy.address, shares);
+
+      const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
+
+      // Force the request and the fulfillment into the same block.
+      await ethers.provider.send('evm_setAutomine', [false]);
+      let fulfillStatus: number | undefined;
+      try {
+        await strategy.connect(user).requestRedeem(shares, user.address, { gasLimit: 1_000_000 });
+        const fulfillTx = await strategy
+          .connect(redeemOperator)
+          .fulfillRedeemRequests([rid], { gasLimit: 1_000_000 });
+        await ethers.provider.send('evm_mine', []);
+        const receipt = await ethers.provider.getTransactionReceipt(fulfillTx.hash);
+        fulfillStatus = receipt!.status ?? undefined;
+      } finally {
+        await ethers.provider.send('evm_setAutomine', [true]);
+      }
+      // Fulfillment in the same block must have reverted.
+      expect(fulfillStatus).to.equal(0);
+
+      // The request remains open and is fulfillable from the next block onward.
+      const pending = await strategy.pendingRedeemRequest(rid);
+      expect(pending.pendingShares).to.equal(shares);
+
+      await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
+        .to.emit(strategy, 'Redeem')
+        .withArgs(redeemOperator.address, user.address, shares, shares)
+        .and.to.emit(strategy, 'RedeemRequestsFulfilled')
+        .withArgs([rid]);
+    });
   });
 
   describe('harvestPerformanceFee at different pps', function () {
