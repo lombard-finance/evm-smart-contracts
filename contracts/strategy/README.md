@@ -69,9 +69,11 @@ This is **intentional**. Dilution fees transfer economics via new shares to the 
 
 ```text
 depositFee      = assets × depositFeeBps / 10_000
-mgmtFeeShares   ≈ totalSupply × (managementFeeBps × Δseconds) / (10_000 × 365 days)
+mgmtFeeShares   = totalSupply × num / (10_000 × 365 days − num),   num = managementFeeBps × min(Δseconds, 365 days)
 perfFeeShares   ≈ (totalSupply × (pricePerShare − HWM) / HWM) × performanceFeeBps / 10_000   when pricePerShare > HWM
 ```
+
+The management fee is **grossed up** for self-dilution: minting `num/den` of supply would leave the treasury owning only `f/(1+f)` of the post-mint supply, so the mint solves `x/(totalSupply+x)=f` and uses `num/(den−num)`, making the treasury own exactly the configured fraction `f`. The charged interval is **capped at one year** (`min(Δseconds, 365 days)`), so a dormant vault cannot accrue past 100% and the gross-up cannot diverge.
 
 ```solidity
 // Treasury-configured address for deposit skims, redeem-fee shares, and harvest mint targets
