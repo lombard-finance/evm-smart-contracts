@@ -41,6 +41,9 @@ interface IStrategy {
     /// @dev `postPricePerShare` was called with `newPricePerShare == 0`.
     error Strategy_ZeroPricePerShare();
 
+    /// @dev Strategy initialized with a zero fallback decimals argument.
+    error Strategy_ZeroDecimals();
+
     /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
     event DepositPaused(address indexed account);
 

@@ -102,6 +102,7 @@ abstract contract StrategyBaseUpgradeable is
     /// @param initialDefaultAdminDelay_ Admin delay for `AccessControlDefaultAdminRules`.
     /// @param defaultAdmin_ Default admin for roles.
     /// @param asset_ Strategy underlying ERC-20 (`asset()`).
+    /// @param decimals_ Fallback decimals used only when `asset_` does not expose a valid `decimals()`; must not be zero.
     /// @param blocklistOracle_ Compliance oracle (`IBlocklistOracle`); must not be zero.
     function __StrategyBase_init(
         string memory name_,
@@ -109,6 +110,7 @@ abstract contract StrategyBaseUpgradeable is
         uint48 initialDefaultAdminDelay_,
         address defaultAdmin_,
         IERC20 asset_,
+        uint8 decimals_,
         address blocklistOracle_
     ) internal onlyInitializing {
         __AccessControl_init();
@@ -120,10 +122,11 @@ abstract contract StrategyBaseUpgradeable is
         __ERC20_init(name_, symbol_);
         __ERC20Pausable_init();
 
+        if (decimals_ == 0) revert Strategy_ZeroDecimals();
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(asset_);
-        $.underlyingDecimals = success ? assetDecimals : 18;
+        $.underlyingDecimals = success ? assetDecimals : decimals_;
         $.asset = asset_;
         _setBlocklistOracle($, blocklistOracle_);
         // Initial price per share is 1 asset per share.

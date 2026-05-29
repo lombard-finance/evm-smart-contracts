@@ -67,6 +67,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       'Multi Strategy Shares',
       'mSTRAT',
       await underlying.getAddress(),
+      18,
       admin.address,
       0,
       treasury.address,
@@ -280,6 +281,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         'Tmp',
         'TMP',
         await underlying.getAddress(),
+        18,
         admin.address,
         0,
         ethers.ZeroAddress,
@@ -295,12 +297,30 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         'Tmp',
         'TMP',
         await underlying.getAddress(),
+        18,
         admin.address,
         0,
         treasury.address,
         ethers.ZeroAddress
       ])
     ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAddress');
+  });
+
+  it('initialize reverts when fallback decimals is zero', async function () {
+    const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
+    const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
+    await expect(
+      upgrades.deployProxy(factory, [
+        'Tmp',
+        'TMP',
+        await underlying.getAddress(),
+        0,
+        admin.address,
+        0,
+        treasury.address,
+        blocklistOracleAddr
+      ])
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroDecimals');
   });
 
   it('lists a deposit asset and records converter + fee', async function () {
@@ -1165,6 +1185,7 @@ describe('StakedLBTC as deposit token', function () {
         'Lombard BTC Strategy',
         'LBTCSTR',
         await lbtcUnderlying.getAddress(),
+        8,
         admin.address,
         0,
         treasury.address,
@@ -1370,6 +1391,7 @@ describe('Chainlink as deposit token', function () {
         'Chainlink BTC Strategy',
         'clSTRAT',
         await depositToken.getAddress(),
+        8,
         admin.address,
         0,
         admin.address,
