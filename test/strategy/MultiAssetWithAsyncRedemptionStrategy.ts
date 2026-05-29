@@ -1174,6 +1174,124 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         'PricePerShareUpdated'
       );
     });
+
+    it('gates on the declared NAV move, not the reconciled move (mid-epoch mint cannot mask a swing)', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+      expect(supplyAtSnapshot).to.equal(baseDeposit);
+
+      // Bucket allows a +60% move (600_000 micro-bps); refillRate 0 keeps it full for the test.
+      await strategy.connect(admin).setPricePerShareRateLimit(600_000, 0);
+
+      // Frontrun: mint 100 more shares at the stale PPS = 1.0 before the post lands → supply doubles to 200.
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      expect(await strategy.totalSupply()).to.equal(200n * e18);
+
+      // Operator declares NAV = 200 for the 100 snapshot shares → declared PPS = 2.0, a +100% move.
+      // The reconciled move is only +50% (priceToSet = 300/200 = 1.5), which would slip under the 60% cap.
+      // The limiter must measure the declared +100% (1_000_000 micro-bps) and reject it.
+      const navAtSnapshot = 200n * e18;
+      await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true))
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiter_RateLimitExceeded')
+        .withArgs(1_000_000n, 600_000n);
+    });
+
+    it('consumes the declared move from the bucket but stores the reconciled price', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Bucket allows a +150% move (1_500_000 micro-bps), so the declared +100% clears it; refillRate 0.
+      await strategy.connect(admin).setPricePerShareRateLimit(1_500_000, 0);
+
+      // Frontrun mint at stale PPS → supply 200.
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      // Declared PPS = 2.0 (+100%); reconciled priceToSet = 300/200 = 1.5.
+      const navAtSnapshot = 200n * e18;
+      await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
+
+      // Stored price is the reconciled 1.5, but the bucket was drained by the declared +100% (1_000_000),
+      // not the reconciled +50% — leaving 1_500_000 - 1_000_000 = 500_000 of capacity.
+      expect(await strategy.pricePerShare()).to.equal((3n * e18) / 2n);
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(500_000n);
+    });
+
+    it('pauses on a declared NAV decrease masked by a mid-epoch deposit (soft overflow)', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Bucket allows a -40% move (400_000 micro-bps); refillRate 0.
+      await strategy.connect(admin).setPricePerShareRateLimit(400_000, 0);
+
+      // Frontrun: deposit 100 more at the stale PPS = 1.0 → supply 200. Depositing at the (now too-high)
+      // stale PPS props the reconciled NAV up and shrinks the apparent loss.
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      // Operator declares NAV = 50 for the 100 snapshot shares → declared PPS = 0.5, a -50% move (500_000).
+      // Reconciled priceToSet = 150/200 = 0.75, only a -25% move — under the 40% cap. The limiter must
+      // measure the declared -50%, exhaust the bucket, store the reconciled 0.75, and pause both paths.
+      const navAtSnapshot = 50n * e18;
+      await strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      expect(await strategy.pricePerShare()).to.equal((3n * e18) / 4n);
+      expect(await strategy.depositPaused()).to.be.true;
+      expect(await strategy.redeemPaused()).to.be.true;
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
+    });
+
+    it('rejects a declared NAV decrease on the declared move even when a redemption amplifies it', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Bucket allows a -55% move (550_000 micro-bps); refillRate 0.
+      await strategy.connect(admin).setPricePerShareRateLimit(550_000, 0);
+
+      // Mid-epoch redeem request burns 30 shares at the stale PPS = 1.0 → supply 70. Redemptions at the
+      // stale (too-high) PPS *amplify* the reconciled loss rather than mask it.
+      await strategy.connect(user).requestRedeem(30n * e18, user.address);
+      expect(await strategy.totalSupply()).to.equal(70n * e18);
+
+      // Operator declares NAV = 40 for the 100 snapshot shares → declared PPS = 0.4, a -60% move (600_000).
+      // Reconciled priceToSet = (40 - 30)/70 ≈ 0.143, a steeper ~-85.7% move. Either move trips the 55% cap,
+      // but the limiter must report the *declared* 600_000 (not the reconciled ~857_143) as the requested move.
+      const navAtSnapshot = 40n * e18;
+      await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true))
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiter_RateLimitExceeded')
+        .withArgs(600_000n, 550_000n);
+    });
   });
 });
 

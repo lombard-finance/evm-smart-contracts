@@ -218,14 +218,18 @@ abstract contract StrategyBaseUpgradeable is
         uint256 currentSupply = totalSupply();
         uint256 oneShare = 10 ** decimals();
 
+        // Operator-declared PPS implied purely by the NAV snapshot, before reconciling any mid-epoch
+        // supply changes. The rate limiter gates on the move to *this* value (see below).
+        uint256 declaredPricePerShare = navAtSnapshot.mulDiv(
+            oneShare,
+            supplyAtSnapshot,
+            Math.Rounding.Floor
+        );
+
         uint256 priceToSet;
         if (currentSupply == 0) {
             // No active shares to reconcile against — adopt the declared PPS directly; totalAssets() is 0 either way.
-            priceToSet = navAtSnapshot.mulDiv(
-                oneShare,
-                supplyAtSnapshot,
-                Math.Rounding.Floor
-            );
+            priceToSet = declaredPricePerShare;
         } else {
             uint256 reconciledNav;
             if (currentSupply >= supplyAtSnapshot) {
@@ -255,9 +259,13 @@ abstract contract StrategyBaseUpgradeable is
             );
         }
 
+        // Same-epoch mints/burns priced at the stale PPS shift `currentSupply`
+        // and shrink the reconciled move, so measuring the reconciled move would let an attacker or
+        // opportunistic depositor mask a large declared NAV swing from the circuit breaker. The
+        // reconciled `priceToSet` is still what gets stored once the declared move clears the limit.
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
             $.pricePerShare,
-            priceToSet
+            declaredPricePerShare
         );
         if (!$.ppsRateLimiter._wouldExceedLimit(changeBps)) {
             $.ppsRateLimiter._consume(changeBps);
