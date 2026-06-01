@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title IStrategy
 /// @notice Core strategy surface: NAV (`pricePerShare`), shard registry, funding, and independent deposit/redeem pause semantics.
 /// @dev Underlying ERC-20 matches ERC-4626-style `asset()`. Price-per-share rate-limit **errors and events** live on `PriceRateLimiter` only (not re-declared here).
+/// @custom:security-contact legal@lombard.finance
 interface IStrategy {
     /// @notice Posted strategy exchange rate and NAV snapshot after an operator update.
     /// @param pricePerShare Asset wei per `10 ** decimals()` share unit.
@@ -70,6 +71,9 @@ interface IStrategy {
 
     /// @dev Redeem operation invoked while redeem pause is active.
     error Strategy_EnforcedRedeemPause();
+
+    /// @dev Price per share post called while deposit and redeem pause is active.
+    error Strategy_PricePerSharePaused();
 
     /// @dev Unpause deposit called while deposits were not paused.
     error Strategy_ExpectedDepositPause();

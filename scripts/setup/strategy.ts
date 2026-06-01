@@ -1,6 +1,68 @@
 import { task } from 'hardhat/config';
 
 /**
+ * Configures PPS rate limiter on a strategy.
+ * Accepts a human-readable percent change over a time window and computes the
+ * on-chain micro-bps / refill-rate parameters automatically.
+ *
+ * Example – allow 0.5 % change per day:
+ *   yarn hardhat setup-strategy-pps-rate-limit <strategy> --percent 0.5 --window 86400
+ *
+ * Requires MANAGER_ROLE on the strategy.
+ */
+task('setup-strategy-pps-rate-limit', 'Configure PPS rate limiter from a human-readable percent/window pair')
+  .addPositionalParam('strategy', 'Strategy proxy address')
+  .addParam('percent', 'Allowed percent change (e.g. 0.5 for 0.5%)')
+  .addParam('window', 'Time window in seconds over which the percent is allowed (e.g. 86400 for 1 day)')
+  .addFlag('populate', 'Show transaction data and do not broadcast')
+  .setAction(async (taskArgs, hre) => {
+    const { ethers } = hre;
+    const { strategy: strategyAddr, percent, window: windowStr, populate } = taskArgs;
+
+    const pct = Number(percent);
+    const windowSec = Number(windowStr);
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+      throw new Error(`percent must be in (0, 100]; got ${percent}`);
+    }
+    if (!Number.isFinite(windowSec) || windowSec <= 0 || !Number.isInteger(windowSec)) {
+      throw new Error(`window must be a positive integer (seconds); got ${windowStr}`);
+    }
+
+    // micro-bps: 1 unit = 0.0001 %, so 1 % = 10_000 micro-bps
+    const maxBucketBps = Math.round(pct * 10_000);
+    if (maxBucketBps === 0 || maxBucketBps > 0xffff_ffff) {
+      throw new Error(`Computed maxBucketBps=${maxBucketBps} out of uint32 range`);
+    }
+
+    // refillRate: contract uses `(elapsed * refillRate) >> 32`
+    // To refill the full bucket in windowSec: refillRate = (maxBucketBps << 32) / windowSec
+    const refillRate = (BigInt(maxBucketBps) * (1n << 32n)) / BigInt(windowSec);
+    if (refillRate === 0n) {
+      throw new Error('Computed refillRate is 0 – increase percent or decrease window');
+    }
+    if (refillRate > 0xffff_ffff_ffff_ffffn) {
+      throw new Error(`Computed refillRate=${refillRate} overflows uint64`);
+    }
+
+    console.log('setPricePerShareRateLimit');
+    console.log(`  strategy:     ${strategyAddr}`);
+    console.log(`  percent:      ${pct}% over ${windowSec}s`);
+    console.log(`  maxBucketBps: ${maxBucketBps} (micro-bps)`);
+    console.log(`  refillRate:   ${refillRate}`);
+
+    const strategy = await ethers.getContractAt('StrategyBaseUpgradeable', strategyAddr);
+
+    if (populate) {
+      const txData = await strategy.setPricePerShareRateLimit.populateTransaction(maxBucketBps, refillRate);
+      console.log(`setPricePerShareRateLimit: ${JSON.stringify(txData, null, 2)}`);
+    } else {
+      const tx = await strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
+      console.log(`tx: ${tx.hash}`);
+      await tx.wait();
+    }
+  });
+
+/**
  * Calls `addDepositAsset` on `MultiAssetWithAsyncRedemptionStrategy` (or any contract implementing it).
  * Requires `DEFAULT_ADMIN_ROLE` on the strategy.
  */

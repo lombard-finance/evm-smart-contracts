@@ -18,6 +18,7 @@ import {PriceRateLimiter} from "./libraries/PriceRateLimiter.sol";
 /// @title StrategyBaseUpgradeable
 /// @notice Upgradeable ERC-20 strategy share with NAV (`pricePerShare`), registered shards, and independent deposit/redeem pauses distinct from ERC-20 `Pausable`.
 /// @dev Inherits OpenZeppelin `ERC20Pausable` for share transfers while using separate deposit/redeem pauses for entrypoints. Storage is ERC-7201 namespaced — extend via new structs only.
+/// @custom:security-contact legal@lombard.finance
 abstract contract StrategyBaseUpgradeable is
     IERC20Metadata,
     IStrategy,
@@ -35,11 +36,13 @@ abstract contract StrategyBaseUpgradeable is
     /// @notice Price setter role is used to set the price per share; may pause the strategy operations.
     bytes32 public constant PRICE_SETTER_ROLE = keccak256("PRICE_SETTER_ROLE");
 
-    /// @notice Soft pauser role is used to pause the strategy operations without pausing the ERC-20 transfers.
-    bytes32 public constant SOFT_PAUSER_ROLE = keccak256("SOFT_PAUSER_ROLE");
+    /// @notice Strategy pauser role is used to pause the strategy operations without pausing the ERC-20 transfers.
+    bytes32 public constant STRATEGY_PAUSER_ROLE =
+        keccak256("STRATEGY_PAUSER_ROLE");
 
-    /// @notice Hard pauser role is used to pause the strategy operations and the ERC-20 transfers.
-    bytes32 public constant HARD_PAUSER_ROLE = keccak256("HARD_PAUSER_ROLE");
+    /// @notice Transfers pauser role is used to pause the ERC-20 transfers.
+    bytes32 public constant TRANSFERS_PAUSER_ROLE =
+        keccak256("TRANSFERS_PAUSER_ROLE");
 
     /// @notice The role is used to fulfill the redemption requests.
     bytes32 public constant PAY_REDEMPTIONS_ROLE =
@@ -135,9 +138,7 @@ abstract contract StrategyBaseUpgradeable is
 
     /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) redeem fee shares.
     /// @param treasury_ Must not be zero.
-    function setFeeTreasury(
-        address treasury_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeTreasury(address treasury_) external onlyRole(MANAGER_ROLE) {
         if (treasury_ == address(0)) revert Strategy_ZeroAddress();
         _getStrategyBaseUpgradeableStorage().feeTreasury = treasury_;
         emit FeeTreasurySet(treasury_);
@@ -195,6 +196,10 @@ abstract contract StrategyBaseUpgradeable is
     ///      fee-minted supply since the prior snapshot.
     ///      The rate limiter gates on the *declared* PPS move (`old → navAtSnapshot * oneShare / supplyAtSnapshot`), not the
     ///      reconciled move, so mid-epoch flow cannot mask a large declared NAV swing.
+    ///      Reverts with {Strategy_PricePerSharePaused} when both deposits and redemptions are paused — the exact state
+    ///      produced by the rate-limit auto-pause path (`revertOnRateLimit == false` drains the bucket, sets price, and pauses
+    ///      both sides). The multisig owning MANAGER and PRICE_SETTER_ROLE is expected to unpause and post atomically.
+    ///      One-sided pause (only deposits or only redemptions) still permits PPS updates.
     /// @param navAtSnapshot Total NAV (asset units) the operator observed at snapshot time; must imply non-zero PPS.
     /// @param supplyAtSnapshot `totalSupply()` observed at the moment the off-chain NAV was computed; must be non-zero.
     /// @param revertOnRateLimit If the declared move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
@@ -205,13 +210,15 @@ abstract contract StrategyBaseUpgradeable is
     )
         external
         onlyRole(PRICE_SETTER_ROLE)
-        whenDepositNotPaused
-        whenRedeemNotPaused
         whenNotPaused
     {
+
+        if (depositPaused() && redeemPaused()) {
+            revert Strategy_PricePerSharePaused();
+        }
+
         if (navAtSnapshot == 0) revert Strategy_ZeroNavAtSnapshot();
         if (supplyAtSnapshot == 0) revert Strategy_ZeroSharesAtSnapshot();
-
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
 
@@ -265,7 +272,7 @@ abstract contract StrategyBaseUpgradeable is
             return;
         }
         if (revertOnRateLimit) {
-            revert PriceRateLimiter.PriceRateLimiter_RateLimitExceeded(
+            revert PriceRateLimiter.PriceRateLimiterRateLimitExceeded(
                 changeBps,
                 $.ppsRateLimiter._availableAfterRefill()
             );
@@ -282,7 +289,7 @@ abstract contract StrategyBaseUpgradeable is
     function setPricePerShareRateLimit(
         uint32 maxBucketBps_,
         uint64 refillRate_
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         PriceRateLimiter.Config memory config = PriceRateLimiter.Config({
             maxBps: maxBucketBps_,
             refillRate: refillRate_
@@ -315,7 +322,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
-    /// @dev May exceed economic backing between fee share mints and the next `postPricePerShare` that reconciles supply.
+    /// @dev After dilution-fee share mints, may exceed economic backing until `postPricePerShare` reconciles supply.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }
@@ -437,12 +444,12 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Pauses deposit/mint entrypoints; distinct from ERC-20 transfer pause.
-    function pauseDeposit() external onlyRole(SOFT_PAUSER_ROLE) {
+    function pauseDeposit() external onlyRole(STRATEGY_PAUSER_ROLE) {
         _pauseDeposit();
     }
 
     /// @notice Pauses redemption request entrypoints; distinct from ERC-20 transfer pause.
-    function pauseRedeem() external onlyRole(SOFT_PAUSER_ROLE) {
+    function pauseRedeem() external onlyRole(STRATEGY_PAUSER_ROLE) {
         _pauseRedeem();
     }
 
@@ -492,16 +499,6 @@ abstract contract StrategyBaseUpgradeable is
         emit RedeemPaused(_msgSender());
     }
 
-    /// @dev PPS soft overflow: set both pauses independently (two storage writes, two events).
-    function _pauseDepositAndRedeemForRateLimit() internal virtual {
-        StrategyBaseUpgradeableStorage
-            storage $ = _getStrategyBaseUpgradeableStorage();
-        $.depositPaused = true;
-        $.redeemPaused = true;
-        emit DepositPaused(_msgSender());
-        emit RedeemPaused(_msgSender());
-    }
-
     function _unpauseDeposit() internal virtual {
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
@@ -522,7 +519,7 @@ abstract contract StrategyBaseUpgradeable is
         emit RedeemUnpaused(_msgSender());
     }
 
-    function pause() external onlyRole(HARD_PAUSER_ROLE) {
+    function pause() external onlyRole(TRANSFERS_PAUSER_ROLE) {
         _pause();
     }
 

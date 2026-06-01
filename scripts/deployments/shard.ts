@@ -1,125 +1,73 @@
 import { task } from 'hardhat/config';
-import { getOwnersOrDefault, verify } from '../helpers';
+import { DEFAULT_STRATEGY_FACTORY } from '../helpers/constants';
+import { deployProxyWithCreate3 } from '../helpers/create3Deployment';
+import { getOwnersOrDefault } from '../helpers';
+import { CustomRuntimeEnvironment } from '../cre';
 
-/*
- * Pre-requisites:
- * 1. Deploy Shard implementation + beacon via `deploy-beacon Shard ...`
- * 2. Register the beacon in BeaconHub: `hub.setBeacon(keccak256("Shard"), beaconAddr)`
- *    (done automatically if `deploy-beacon` was run with `--beacon-hub <addr>`)
- * 3. Grant DEPLOYER_ROLE on BeaconHub to the deploying account
- *
- * After deployment:
- * 1. Optionally grant PRIVILEGED_EXECUTOR_ROLE for validator-bypass exec paths
- * 2. If using MerkleAllowlistValidator, call setAllowlistRoot() on the validator
- */
+task('deploy-shard-impl', 'Deploys a Shard implementation').setAction(async (_, hre) => {
+  const cre = new CustomRuntimeEnvironment(hre);
+  const impl = await cre.deployImplementation('Shard');
 
-task('deploy-shard', 'Deploys a Shard BeaconProxy via BeaconHub')
-  .addParam('beaconHub', 'BeaconHub address')
+  console.log(`Shard implementation deployed at ${impl}`);
+});
+
+task('deploy-shard-proxy', 'Deploys a Shard proxy via ProxyFactory (CREATE3)')
   .addParam('strategy', 'IStrategy (share token) address')
   .addParam('validator', 'IShardExecValidator address (e.g. MerkleAllowlistValidator)')
-  .addParam('admin', 'Receives DEFAULT_ADMIN_ROLE', 'self')
+  .addParam('defaultAdmin', 'Default admin address', 'self')
   .addParam('liquidityRoleHolder', 'Receives STRATEGY_TOKEN_LIQUIDITY_ROLE', 'self')
+  .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_STRATEGY_FACTORY)
+  .addParam('purpose', 'The purpose of the shard')
+  .addParam('implementation', 'The implementation address')
   .setAction(async (taskArgs, hre) => {
     const {
-      beaconHub: beaconHubAddr,
-      strategy: strategyAddr,
-      validator: validatorAddr,
-      admin,
-      liquidityRoleHolder: liquidityArg
+      strategy,
+      validator,
+      liquidityRoleHolder: liquidityArg,
+      proxyFactoryAddr,
+      purpose,
+      implementation
     } = taskArgs;
 
-    const { owner } = await getOwnersOrDefault(hre, admin, admin);
-    const { owner: liquidityRoleHolder } = await getOwnersOrDefault(hre, liquidityArg, liquidityArg);
+    const { owner, upgradeAdmin } = await getOwnersOrDefault(hre, taskArgs.defaultAdmin, taskArgs.defaultAdmin);
 
-    const shard = await hre.ethers.getContractFactory('Shard');
-    const initData = shard.interface.encodeFunctionData('initialize', [
-      strategyAddr,
-      validatorAddr,
-      owner,
-      liquidityRoleHolder
-    ]);
-
-    const beaconId = hre.ethers.id('Shard');
-    const hub = await hre.ethers.getContractAt('BeaconHub', beaconHubAddr);
-    const beaconAddr = await hub.beacon(beaconId);
-    const receipt = await (await hub.deploy(beaconId, initData)).wait(5);
-
-    const deployedEvent = receipt!.logs
-      .map((log: any) => {
-        try {
-          return hub.interface.parseLog(log);
-        } catch {
-          return null;
-        }
-      })
-      .find((e: any) => e?.name === 'Deployed');
-
-    const proxyAddr = deployedEvent?.args.proxy;
-    if (!proxyAddr) {
-      throw new Error('Shard proxy not found');
+    let liquidityRoleHolder = owner;
+    if (hre.ethers.isAddress(liquidityArg)) {
+      liquidityRoleHolder = liquidityArg;
     }
-    console.log('Shard proxy:', proxyAddr);
 
-    await verify(
-      hre.run,
-      proxyAddr,
-      {
-        contract: '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy',
-        constructorArguments: [beaconAddr, initData]
-      },
-      60_000
-    );
+    const saltHash = hre.ethers.id(`finance.lombard.v1.Shard.${purpose}`);
+
+    const impl = await hre.ethers.getContractAt('Shard', implementation);
+
+    const data = impl.interface.encodeFunctionData('initialize', [strategy, validator, owner, liquidityRoleHolder]);
+
+    await deployProxyWithCreate3(impl, data, proxyFactoryAddr, saltHash, upgradeAdmin, hre);
   });
 
-/*
- * Pre-requisites:
- * 1. Deploy RemoteShard implementation + beacon via `deploy-beacon RemoteShard ...`
- * 2. Register the beacon in BeaconHub: `hub.setBeacon(keccak256("RemoteShard"), beaconAddr)`
- *    (done automatically if `deploy-beacon` was run with `--beacon-hub <addr>`)
- * 3. Grant DEPLOYER_ROLE on BeaconHub to the deploying account
- *
- * After deployment:
- * 1. Optionally grant PRIVILEGED_EXECUTOR_ROLE for validator-bypass exec paths
- * 2. If using MerkleAllowlistValidator, call setAllowlistRoot() on the validator
- */
+task('deploy-remote-shard-impl', 'Deploys a RemoteShard implementation').setAction(async (_, hre) => {
+  const cre = new CustomRuntimeEnvironment(hre);
+  const impl = await cre.deployImplementation('RemoteShard');
 
-task('deploy-remote-shard', 'Deploys a RemoteShard BeaconProxy via BeaconHub')
-  .addParam('beaconHub', 'BeaconHub address')
+  console.log(`RemoteShard implementation deployed at ${impl}`);
+});
+
+task('deploy-remote-shard-proxy', 'Deploys a RemoteShard proxy via ProxyFactory (CREATE3)')
   .addParam('validator', 'IShardExecValidator address (e.g. MerkleAllowlistValidator)')
-  .addParam('defaultAdmin', 'Receives DEFAULT_ADMIN_ROLE', 'self')
+  .addParam('defaultAdmin', 'Default admin address', 'self')
+  .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_STRATEGY_FACTORY)
+  .addParam('implementation', 'The implementation address')
+  .addParam('purpose', 'The purpose of the remote shard')
   .setAction(async (taskArgs, hre) => {
-    const { beaconHub: beaconHubAddr, validator: validatorAddr } = taskArgs;
+    const { validator, proxyFactoryAddr, implementation, purpose } = taskArgs;
 
-    const { owner: defaultAdmin } = await getOwnersOrDefault(hre, taskArgs.defaultAdmin, taskArgs.defaultAdmin);
+    const { owner, upgradeAdmin } = await getOwnersOrDefault(hre, taskArgs.defaultAdmin, taskArgs.defaultAdmin);
 
-    const remote = await hre.ethers.getContractFactory('RemoteShard');
-    const initData = remote.interface.encodeFunctionData('initialize', [validatorAddr, defaultAdmin]);
+    const saltHash = hre.ethers.id(`finance.lombard.v1.RemoteShard.${purpose}`);
 
-    const beaconId = hre.ethers.id('RemoteShard');
-    const hub = await hre.ethers.getContractAt('BeaconHub', beaconHubAddr);
-    const beaconAddr = await hub.beacon(beaconId);
-    const receipt = await (await hub.deploy(beaconId, initData)).wait(5);
+    const impl = await hre.ethers.getContractAt('RemoteShard', implementation);
 
-    const deployedEvent = receipt!.logs
-      .map((log: any) => {
-        try {
-          return hub.interface.parseLog(log);
-        } catch {
-          return null;
-        }
-      })
-      .find((e: any) => e?.name === 'Deployed');
+    const data = impl.interface.encodeFunctionData('initialize', [validator, owner]);
 
-    const proxyAddr = deployedEvent?.args.proxy;
-    console.log('RemoteShard proxy:', proxyAddr);
-
-    await verify(
-      hre.run,
-      proxyAddr,
-      {
-        contract: '@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol:BeaconProxy',
-        constructorArguments: [beaconAddr, initData]
-      },
-      60_000
-    );
+    await deployProxyWithCreate3(impl, data, proxyFactoryAddr, saltHash, upgradeAdmin, hre);
   });

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+/// @custom:security-contact legal@lombard.finance
 interface IBlocklistOracle {
     /// @dev Why {check} rejected the account.
     enum DenialReason {
@@ -42,6 +43,7 @@ interface IBlocklistOracle {
     function unblockAccount(address account) external;
 
     function addSanctionList(address sanctionList) external;
+
     function removeSanctionList(address sanctionList) external;
 
     function isSanctioned(address account) external view returns (bool);

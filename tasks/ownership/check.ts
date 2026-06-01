@@ -10,7 +10,8 @@ const IGNORE_SCOPE_LIST: string[] = [
   'admin', // ignored, because used as source of possible admins
   'deprecated',
   'mocks',
-  'strategies'
+  'strategies',
+  'implementations'
 ];
 const IGNORE_CONTRACT_LIST = [
   'ThresholdKey',

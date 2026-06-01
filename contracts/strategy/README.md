@@ -27,15 +27,18 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 **Roles**
 
-| Role                   | Controls                                                                                                                                                   |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`   | Deposit asset list / converters, fee treasury + fee bps config, redemption cap config, `pricePerShare` rate-limit config, **register shards**, grant roles |
-| `MGMT_FEE_CLAIM_ROLE`  | `harvestManagementFee`                                                                                                                                     |
-| `PERF_FEE_CLAIM_ROLE`  | `harvestPerformanceFee`                                                                                                                                    |
-| `PRICE_SETTER_ROLE`    | `postPricePerShare` within the configured rate limit                                                                                                       |
-| `SOFT_PAUSER_ROLE`     | `pauseStrategyOperations`                                                                                                                                  |
-| `PAY_REDEMPTIONS_ROLE` | `fulfillRedeemRequests`                                                                                                                                    |
-| `MANAGER_ROLE`         | **Deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause                                                                     |
+| Role                    | Controls                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`    | Deposit asset list / converters, redemption cap config, **register shards**, grant roles                                              |
+| `MGMT_FEE_CLAIM_ROLE`   | `harvestManagementFee`                                                                                                                |
+| `PERF_FEE_CLAIM_ROLE`   | `harvestPerformanceFee`                                                                                                               |
+| `PRICE_SETTER_ROLE`     | `postPricePerShare` within the configured rate limit                                                                                  |
+| `STRATEGY_PAUSER_ROLE`  | `pauseDeposit`, `pauseRedeem` (strategy operations pause only; not ERC-20 transfer pause)                                             |
+| `TRANSFERS_PAUSER_ROLE` | ERC-20 transfer pause (`pause`)                                                                                                       |
+| `PAY_REDEMPTIONS_ROLE`  | `fulfillRedeemRequests`                                                                                                               |
+| `MANAGER_ROLE`          | `setPricePerShareRateLimit`, `setFeeTreasury`, **deregister shards**, `setDefaultShard`, unpause strategy operations / ERC-20 unpause |
+
+> **Design note — role separation for `pricePerShare`:** The rate-limit configuration (`MANAGER_ROLE`) and the price posting itself (`PRICE_SETTER_ROLE`) are deliberately held by different parties. This is a safety catch: compromising one key alone cannot both widen the allowed price band _and_ post an out-of-range price.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares to the treasury on harvest). All treasury-directed flows share one **`feeTreasury`** (`setFeeTreasury`); governance sets rates via admin and fee-harvest execution is delegated to **`MGMT_FEE_CLAIM_ROLE`** / **`PERF_FEE_CLAIM_ROLE`**.
 
@@ -48,7 +51,21 @@ strategy.fulfillRedeemRequests([requestId1, requestId2]);
 
 Updating **management** fee bps resets the accrual clock; updating **performance** fee bps resets the high-water mark to the current NAV — worth coordinating off-chain before changing parameters.
 
-**Fee mints and `postPricePerShare`** — Management and performance fees mint strategy shares without transferring underlying assets. Until the next `postPricePerShare`, `totalAssets()` (`totalSupply × pricePerShare`) may **overstate** economic backing because supply includes fee shares priced at the still-stored PPS. Operators SHOULD snapshot `supplyAtSnapshot` at NAV observation time and post true backing `navAtSnapshot`; the reconciled PPS on that update accounts for fee-minted supply (alongside deposits and async redeem requests priced at stale PPS). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+### Posted NAV vs dilution fees
+
+`pricePerShare` is the **posted** exchange rate. It changes only through `postPricePerShare` (subject to `PriceRateLimiter`), not when management or performance fees mint shares.
+
+Fee harvests increase `totalSupply` but leave `pricePerShare` unchanged, so `totalAssets()` (= `totalSupply × pricePerShare`) can read **slightly above** custodied underlying immediately after a harvest. Example: `totalSupply = 100`, `pricePerShare = 1.10`, performance fee mints `2` shares → posted NAV is `102 × 1.10 = 112.2` while underlying value is still `110`.
+
+This is **intentional**. Dilution fees transfer economics via new shares to the treasury; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
+
+**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare`. Operators SHOULD snapshot `supplyAtSnapshot` at NAV observation time and post true backing `navAtSnapshot`; reconciliation accounts for fee-minted supply (and same-epoch deposits / async redeem requests priced at stale PPS). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+
+**Operational expectations:**
+
+- Configure total fees (flow + management + performance) so they remain **below** yield/rewards accruing to remaining holders.
+- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics.
+- Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
 
 ```text
 depositFee      = assets × depositFeeBps / 10_000

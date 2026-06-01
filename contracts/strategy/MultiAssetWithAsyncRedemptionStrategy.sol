@@ -5,14 +5,13 @@ import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {AsyncRedemptionUpgradeable} from "./AsyncRedemptionUpgradeable.sol";
-import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
-import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
 /// @dev Linearization: `AsyncRedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__StrategyBase_init` + module inits in C3 order.
 ///      Fee share mints may overstate `totalAssets()` until the next `postPricePerShare`; see `StrategyBaseUpgradeable` / `IFeeManager` NatSpec.
+/// @custom:security-contact legal@lombard.finance
 contract MultiAssetWithAsyncRedemptionStrategy is
     MultiAssetDepositUpgradeable,
     AsyncRedemptionUpgradeable

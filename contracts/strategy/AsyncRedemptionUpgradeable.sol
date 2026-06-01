@@ -10,6 +10,7 @@ import {FeeManagerUpgradeable} from "./FeeManagerUpgradeable.sol";
 
 /// @title AsyncRedemptionUpgradeable
 /// @notice Asynchronous redemption: burns shares on `requestRedeem`, pays underlying on `fulfillRedeemRequests` by accounts with `PAY_REDEMPTIONS_ROLE`, optional redeem fee in shares.
+/// @custom:security-contact legal@lombard.finance
 abstract contract AsyncRedemptionUpgradeable is
     FeeManagerUpgradeable,
     IAsyncRedemption
@@ -59,19 +60,13 @@ abstract contract AsyncRedemptionUpgradeable is
     /// @notice Pending shares and underlying assets across all open redemption requests.
     /// @return totalPendingShares Aggregate burned shares not yet fulfilled.
     /// @return totalPendingAssets Aggregate underlying amount owed for open requests.
-    function totalPending()
-        external
-        view
-        returns (uint256 totalPendingShares, uint256 totalPendingAssets)
-    {
+    function totalPending() external view returns (uint256, uint256) {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         return ($.totalPendingShares, $.totalPendingAssets);
     }
 
     /// @inheritdoc IAsyncRedemption
-    function pendingAssetsOf(
-        address owner
-    ) external view returns (uint256 assets) {
+    function pendingAssetsOf(address owner) external view returns (uint256) {
         return _getAsyncRedemptionStorage().ownerPendingAssets[owner];
     }
 
@@ -79,13 +74,7 @@ abstract contract AsyncRedemptionUpgradeable is
     function requestRedeem(
         uint256 shares,
         address owner
-    )
-        external
-        override
-        nonReentrant
-        whenRedeemNotPaused
-        returns (uint256 requestId)
-    {
+    ) external override nonReentrant whenRedeemNotPaused returns (uint256) {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
 
         address caller = _msgSender();
@@ -106,7 +95,6 @@ abstract contract AsyncRedemptionUpgradeable is
         _requireBlocklistAllows(owner);
         _accrueManagementFee();
 
-
         address treasury_ = feeTreasury();
         uint256 feeShares;
         uint16 feeBps = $.redeemFeeBps;
@@ -126,6 +114,9 @@ abstract contract AsyncRedemptionUpgradeable is
         }
         uint256 netShares = shares - feeShares;
         uint256 assets = _convertToAssets(netShares, Math.Rounding.Floor);
+        if (assets == 0) {
+            revert AsyncRedemption_ZeroAssets(netShares);
+        }
         requestId = ++$.nextRequestId;
         RedeemRequest storage rq = $.redeemRequestById[requestId];
         rq.pendingShares = netShares;

@@ -1,0 +1,31 @@
+# Shard: N/A
+approve_lbtcv_to_atomic_solver:
+  sender: "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892"
+  to: "0x5401b8620e5fb570064ca9114fd1e135fd77d57c"
+  value: "0"
+  dataLength: 68
+  selector: "approve(address,uint256)"
+  constraints:
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000370d253f2e3d1d23c6f900928920a470eed8f876"
+
+redeem_lbtcv_in_atomic_queue:
+  sender: "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892"
+  to: "0x3b4aCd8879fb60586cCd74bC2F831A4C5E7DbBf8"
+  value: "0"
+  dataLength: 260
+  selector: "safeUpdateAtomicRequest(address,address,tuple,address,uint256)"
+  constraints:
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000005401b8620e5fb570064ca9114fd1e135fd77d57c"
+    - offset: 32
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008236a87084f8b84306f72007f36f2618a5634494"
+    - offset: 192
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x00000000000000000000000028634d0c5edc67cf2450e74dea49b90a4ff93dce"
+    - offset: 224
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000064"

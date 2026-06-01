@@ -117,6 +117,7 @@ describe('NativeLBTC', function () {
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn.address);
+    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<BasculeV3>(
       'BasculeV3',
@@ -429,13 +430,13 @@ describe('NativeLBTC', function () {
           );
         });
 
-        it('unpauseMintBurn() reverts when called by not DEFAULT_ADMIN_ROLE', async function () {
+        it('unpauseMintBurn() reverts when called by not MANAGER_ROLE', async function () {
           await expect(nativeLbtc.connect(pauserMintBurn).unpauseMintBurn())
             .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
-            .withArgs(pauserMintBurn.address, await nativeLbtc.DEFAULT_ADMIN_ROLE());
+            .withArgs(pauserMintBurn.address, await nativeLbtc.MANAGER_ROLE());
         });
 
-        it('unpauseMintBurn() DEFAULT_ADMIN_ROLE can unpause', async function () {
+        it('unpauseMintBurn() MANAGER_ROLE can unpause', async function () {
           await expect(nativeLbtc.connect(owner).unpauseMintBurn())
             .to.emit(nativeLbtc, 'MintBurnPauseChanged')
             .withArgs(false);

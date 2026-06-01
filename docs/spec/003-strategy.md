@@ -21,15 +21,16 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 
 ## Roles
 
-| Role                   | Constant                            | Capabilities                                                                                                                              |
-| ---------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`   | OZ standard                         | Grant/revoke roles; `registerShard`; `setPricePerShareRateLimit`; add/remove deposit assets; set asset converters; other admin-only hooks |
-| `LIMITED_ADMIN_ROLE`   | `keccak256("LIMITED_ADMIN_ROLE")`   | `deregisterShard`; `unpauseStrategyOperations`                                                                                            |
-| `PRICE_SETTER_ROLE`    | `keccak256("PRICE_SETTER_ROLE")`    | `postPricePerShare`                                                                                                                       |
-| `SOFT_PAUSER_ROLE`     | `keccak256("PAUSER_ROLE")`          | `pauseStrategyOperations` (strategy operations pause only; not ERC-20 transfer pause)                                                     |
-| `HARD_PAUSER_ROLE`     | `keccak256("HARD_PAUSER_ROLE")`     | ERC-20 transfer pause (inherits OpenZeppelin `Pausable` patterns where enabled)                                                           |
-| `TREASURY_ROLE`        | `keccak256("TREASURY_ROLE")`        | `setFeeTreasury`; set/harvest management and performance fees; set deposit fee bps                                                        |
-| `PAY_REDEMPTIONS_ROLE` | `keccak256("PAY_REDEMPTIONS_ROLE")` | `fulfillRedeemRequests`                                                                                                                   |
+| Role                    | Constant                             | Capabilities                                                                                                                      |
+| ----------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`    | OZ standard                          | Grant/revoke roles; `registerShard`; add/remove deposit assets; set asset converters; other admin-only hooks                      |
+| `LIMITED_ADMIN_ROLE`    | `keccak256("LIMITED_ADMIN_ROLE")`    | `deregisterShard`; `unpauseStrategyOperations`                                                                                    |
+| `PRICE_SETTER_ROLE`     | `keccak256("PRICE_SETTER_ROLE")`     | `postPricePerShare`                                                                                                               |
+| `STRATEGY_PAUSER_ROLE`  | `keccak256("STRATEGY_PAUSER_ROLE")`  | `pauseDeposit`, `pauseRedeem` (strategy operations pause only; not ERC-20 transfer pause)                                         |
+| `TRANSFERS_PAUSER_ROLE` | `keccak256("TRANSFERS_PAUSER_ROLE")` | ERC-20 transfer pause (`pause`)                                                                                                   |
+| `TREASURY_ROLE`         | `keccak256("TREASURY_ROLE")`         | `setFeeTreasury`; set/harvest management and performance fees; set deposit fee bps                                                |
+| `PAY_REDEMPTIONS_ROLE`  | `keccak256("PAY_REDEMPTIONS_ROLE")`  | `fulfillRedeemRequests`                                                                                                           |
+| `MANAGER_ROLE`          | `keccak256("MANAGER_ROLE")`          | `setPricePerShareRateLimit`; `setFeeTreasury`; `deregisterShard`; `setDefaultShard`; unpause strategy operations / ERC-20 unpause |
 
 `DEFAULT_ADMIN_ROLE` is the access-control super-admin per OpenZeppelin; capabilities above reflect **intended** assignments (see source `StrategyBaseUpgradeable` / modules for exact `onlyRole` wiring).
 
@@ -39,7 +40,7 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 
 The strategy has an **operations pause** (deposit / redemption / price post paths) separate from optional ERC-20 **transfer** pause:
 
-- `SOFT_PAUSER_ROLE` calls **`pauseStrategyOperations()`** to block deposit and redemption entrypoints (`whenStrategyNotPaused` guard). Emits `StrategyOperationsPaused(account)`.
+- `STRATEGY_PAUSER_ROLE` calls **`pauseDeposit()`** / **`pauseRedeem()`** to block deposit and redemption entrypoints.
 - `LIMITED_ADMIN_ROLE` calls **`unpauseStrategyOperations()`**. Emits `StrategyOperationsUnpaused(account)`.
 - `strategyOperationsPaused()` view returns current pause state.
 - A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also triggers the strategy operations pause automatically (see **Cross-chain ratio**).
@@ -91,7 +92,7 @@ All deposit/mint paths require the strategy to not be paused (`whenStrategyNotPa
 **Converter previews (no fee):**
 
 - `convertToShares(depositAsset, assets)` → shares equivalent to `assets` (using converter, no deposit fee).
-- `convertToAssets(depositAsset, shares)` → asset units equivalent to `shares` (using converter, ceiling rounding).
+- `convertToAssets(depositAsset, shares)` → asset units equivalent to `shares` (using converter, floor rounding).
 
 ### Default shard
 
@@ -154,9 +155,9 @@ shares = gainShares * feeBps / 10_000
 - **`postPricePerShare(uint256 newPricePerShare, bool revertOnRateLimit)`** — Updates `pricePerShare`. Requires `PRICE_SETTER_ROLE`. Reverts if `newPricePerShare == 0` (`Strategy_ZeroPricePerShare`). Reverts if strategy operations are paused.
 - Subject to a **`PriceRateLimiter` bucket** (micro-bps capacity / refill model). The limiter measures the relative price move as bps and compares to remaining bucket capacity:
   - If the move fits within capacity: consume capacity, set price, emit `PricePerShareUpdated`.
-  - If the move exceeds capacity and `revertOnRateLimit == true`: revert (`PriceRateLimiter_RateLimitExceeded`).
+  - If the move exceeds capacity and `revertOnRateLimit == true`: revert (`PriceRateLimiterRateLimitExceeded`).
   - If the move exceeds capacity and `revertOnRateLimit == false`: drain the bucket, set the price, **pause strategy operations** (`_pauseStrategy`), emit `PricePerShareUpdated` and `StrategyOperationsPaused`.
-- **`setPricePerShareRateLimit(uint32 maxBucketBps, uint64 refillRate)`** — Configures the rate-limiter bucket. Requires `DEFAULT_ADMIN_ROLE`.
+- **`setPricePerShareRateLimit(uint32 maxBucketBps, uint64 refillRate)`** — Configures the rate-limiter bucket. Requires `MANAGER_ROLE`. This is a safety catch controlled by a separate role from `PRICE_SETTER_ROLE`, with the intent that different parties perform each operation — reducing single-point-of-failure risk.
 - **`pricePerShareRateLimiterState()`** — View: returns current bucket state with refill virtually applied.
 - Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, uint256 nav, uint64 postedAt)`** where `nav = totalAssets()` (computed with the new PPS) and `postedAt = block.timestamp`.
 
@@ -238,7 +239,7 @@ shares = gainShares * feeBps / 10_000
 3. **Fee system**: management fee (time-based, `TREASURY_ROLE` harvests) and performance fee (HWM, `TREASURY_ROLE` harvests); fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM resets on performance fee rate updates per implementation.
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `claimableRedeemRequest` always returns `0`.
 5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; transfers `asset` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
-6. **Strategy operations pause**: `SOFT_PAUSER_ROLE` pauses; `LIMITED_ADMIN_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
+6. **Strategy operations pause**: `STRATEGY_PAUSER_ROLE` pauses; `MANAGER_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
 7. **`postPricePerShare(uint256, bool)`**: rate-limiter bucket; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
 9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
@@ -252,7 +253,7 @@ shares = gainShares * feeBps / 10_000
 - Redemption fulfillment uses the strategy's live `asset()` balance at transfer time; the ERC-20 transfer reverts if insufficient. Shards MUST `pushToStrategy` before an operator calls `fulfillRedeemRequests` if off-strategy custody should fund settlements.
 - **Withdrawal fee of `0` bps** (or unset treasury): no shares are deducted; `netShares == shares`.
 - **Rounding** follows floor/ceiling discipline in each path; extreme ratios can produce `0` shares or assets.
-- **`pricePerShare` rate limiter at zero capacity** (initial state): the limiter's `_wouldExceedLimit` behavior with a zeroed bucket means the first `postPricePerShare` may succeed or trigger the limit depending on config. Operators MUST call `setPricePerShareRateLimit` before relying on the limiter.
+- **`pricePerShare` rate limiter at zero capacity** (initial state): the limiter's `_wouldExceedLimit` behavior with a zeroed bucket means the first `postPricePerShare` may succeed or trigger the limit depending on config. The `MANAGER_ROLE` holder MUST call `setPricePerShareRateLimit` before relying on the limiter.
 - **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`.
 
 ---

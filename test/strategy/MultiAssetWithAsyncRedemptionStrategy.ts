@@ -11,7 +11,6 @@ import type {
   WBTCMock,
   MultiAssetWithAsyncRedemptionStrategy,
   RatioFeedMock,
-  StakedLBTCConverter,
   StakedLBTCMock,
   TokenMock
 } from '../../typechain-types';
@@ -1082,6 +1081,17 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   });
 
   describe('price-per-share rate limit', function () {
+    it('setPricePerShareRateLimit requires MANAGER_ROLE', async function () {
+      await expect(strategy.connect(user).setPricePerShareRateLimit(500, 1n)).to.be.revertedWithCustomError(
+        strategy,
+        'AccessControlUnauthorizedAccount'
+      );
+      await expect(strategy.connect(operator).setPricePerShareRateLimit(500, 1n)).to.be.revertedWithCustomError(
+        strategy,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
     it('2.5% yearly allowed change with weekly bucket', async function () {
       // 2.5%/yr = 2_5000 bps/yr ÷ 52 weeks ≈ 500 bps/week
       const maxBps = 500;
@@ -1103,7 +1113,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       // Any further move is blocked until the bucket refills
       await expect(strategy.connect(operator).postPricePerShare(p1 + 1n, e18, true)).to.be.revertedWithCustomError(
         strategy,
-        'PriceRateLimiter_RateLimitExceeded'
+        'PriceRateLimiterRateLimitExceeded'
       );
 
       // After one week the bucket is full again
@@ -1161,7 +1171,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       const p2 = (p1 * 10002n) / 10000n;
       await expect(strategy.connect(operator).postPricePerShare(p2, e18, true)).to.be.revertedWithCustomError(
         strategy,
-        'PriceRateLimiter_RateLimitExceeded'
+        'PriceRateLimiterRateLimitExceeded'
       );
 
       // After one day the bucket is full again
@@ -1181,6 +1191,7 @@ describe('StakedLBTC as deposit token', function () {
   // All amounts in 8-decimal satoshi units (1 LBTC = 1e8).
   const ONE_LBTC = 10n ** 8n;
   const ONE_ETHER = e18; // oracle ratio scale
+  const HEARTBEAT = 3600n;
 
   let admin: Signer;
   let strategyDeployer: Signer;
@@ -1192,7 +1203,7 @@ describe('StakedLBTC as deposit token', function () {
   let lbtcUnderlying: WBTCMock;
   let stakedToken: StakedLBTCMock;
   let oracle: RatioFeedMock;
-  let stakedConverter: StakedLBTCConverter;
+  let stakedConverter: ChainlinkConverter;
   let stakedStrategy: MultiAssetWithAsyncRedemptionStrategy;
 
   let snap: SnapshotRestorer;
@@ -1215,10 +1226,18 @@ describe('StakedLBTC as deposit token', function () {
     oracle = (await oracleFactory.deploy()) as RatioFeedMock;
     await oracle.waitForDeployment();
 
-    const convFactory = await ethers.getContractFactory('StakedLBTCConverter');
-    stakedConverter = (await convFactory.deploy(await oracle.getAddress())) as StakedLBTCConverter;
+    const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+    stakedConverter = (await convFactory.deploy(
+      await oracle.getAddress(),
+      8,
+      8,
+      HEARTBEAT,
+      ethers.ZeroAddress,
+      0,
+      false
+    )) as ChainlinkConverter;
     await stakedConverter.waitForDeployment();
-    (stakedConverter as StakedLBTCConverter & { address: string }).address = await stakedConverter.getAddress();
+    (stakedConverter as ChainlinkConverter & { address: string }).address = await stakedConverter.getAddress();
 
     const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
 
@@ -1251,7 +1270,7 @@ describe('StakedLBTC as deposit token', function () {
     await snap.restore();
   });
 
-  describe('StakedLBTCConverter', function () {
+  describe('ChainlinkConverter (ratio feed)', function () {
     it('at-par ratio (1e18): toBaseUnits and fromBaseUnits are 1:1', async function () {
       expect(await stakedConverter.toBaseUnits(ONE_LBTC, 0)).to.equal(ONE_LBTC);
       expect(await stakedConverter.fromBaseUnits(ONE_LBTC, 1)).to.equal(ONE_LBTC);
@@ -1373,8 +1392,8 @@ describe('StakedLBTC as deposit token', function () {
       const back = await stakedStrategy.convertToAssets(sAddr, shares);
 
       // back may differ from assets by at most 1 satoshi due to rounding
-      expect(back).to.be.gte(assets);
-      expect(back - assets).to.be.lte(1n);
+      expect(back).to.be.lte(assets);
+      expect(assets - back).to.be.lte(1n);
     });
   });
 });
@@ -1506,11 +1525,11 @@ describe('Chainlink as deposit token', function () {
       await clFeed.setUpdatedAt(BigInt(block!.timestamp) - HEARTBEAT - 1n);
       await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_StaleAnswer'
+        'ChainlinkConverterStaleAnswer'
       );
       await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_StaleAnswer'
+        'ChainlinkConverterStaleAnswer'
       );
     });
 
@@ -1518,11 +1537,11 @@ describe('Chainlink as deposit token', function () {
       await clFeed.setAnswer(0);
       await expect(clConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_InvalidAnswer'
+        'ChainlinkConverterInvalidAnswer'
       );
       await expect(clConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
         clConverter,
-        'ChainlinkConverter_InvalidAnswer'
+        'ChainlinkConverterInvalidAnswer'
       );
     });
 
@@ -1560,11 +1579,11 @@ describe('Chainlink as deposit token', function () {
         await seqFeed.setAnswer(1);
         await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_SequencerDown'
+          'ChainlinkConverterSequencerDown'
         );
         await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_SequencerDown'
+          'ChainlinkConverterSequencerDown'
         );
       });
 
@@ -1573,11 +1592,11 @@ describe('Chainlink as deposit token', function () {
         await seqFeed.setStartedAt(BigInt(block!.timestamp)); // just came back up
         await expect(seqConverter.toBaseUnits(ONE_BTC, 0)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_GracePeriodNotOver'
+          'ChainlinkConverterGracePeriodNotOver'
         );
         await expect(seqConverter.fromBaseUnits(ONE_BTC, 1)).to.be.revertedWithCustomError(
           seqConverter,
-          'ChainlinkConverter_GracePeriodNotOver'
+          'ChainlinkConverterGracePeriodNotOver'
         );
       });
 
@@ -1639,7 +1658,7 @@ describe('Chainlink as deposit token', function () {
       const convFactory = await ethers.getContractFactory('ChainlinkConverter');
       await expect(
         convFactory.deploy(await invFeed.getAddress(), 18, 8, HEARTBEAT, ethers.ZeroAddress, 0, true)
-      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverter_DecimalsUnderflow');
+      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverterDecimalsUnderflow');
     });
 
     it('round-trip: fromBaseUnits(toBaseUnits(x)) >= x and diff <= 1 token wei (inverted)', async function () {
@@ -1839,8 +1858,8 @@ describe('Chainlink as deposit token', function () {
       const shares = await clStrategy.convertToShares(tAddr, assets);
       const back = await clStrategy.convertToAssets(tAddr, shares);
 
-      expect(back).to.be.gte(assets);
-      expect(back - assets).to.be.lte(1n);
+      expect(back).to.be.lte(assets);
+      expect(assets - back).to.be.lte(1n);
     });
   });
 });

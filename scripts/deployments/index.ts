@@ -28,5 +28,6 @@ export * from './bridge-token-adapter';
 export * from './erc4626-mock';
 export * from './defi-vault-token-wrapper';
 export * from './multi-asset-strategy';
+export * from './blocklist-oracle';
 export * from './merkle-allowlist-validator';
 export * from './shard';
