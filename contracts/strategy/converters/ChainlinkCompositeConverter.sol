@@ -40,13 +40,20 @@ contract ChainlinkCompositeConverter is IAssetConverter {
 
     AggregatorV3Interface public immutable feedNumerator;
     AggregatorV3Interface public immutable feedDenominator;
-    /// @dev `10^(feedDenDecimals + baseDecimals)` for forward (`!inverted`) outer scale.
+    /// @dev Forward (`!inverted`) decimal scale, **netted** so exactly one of the
+    ///      pair is `1` and the other is `10^|fwdExp|` where
+    ///      `fwdExp = (feedDenDecimals + baseDecimals) - (feedNumDecimals + tokenDecimals)`.
+    ///      `scaleFwdNum` multiplies the numerator answer, `scaleFwdDen` the denominator answer.
+    ///      Netting (vs. the raw `10^(decA+decB)` factors) keeps `answer * scale` far below
+    ///      the `uint256` ceiling, so legitimate feed answers cannot overflow and revert.
     uint256 public immutable scaleFwdNum;
-    /// @dev `10^(feedNumDecimals + tokenDecimals)` for forward outer scale.
+    /// @dev See {scaleFwdNum}. `1` when `fwdExp >= 0`, else `10^(-fwdExp)`.
     uint256 public immutable scaleFwdDen;
-    /// @dev `10^(feedNumDecimals + baseDecimals)` for inverted outer scale.
+    /// @dev Inverted decimal scale, **netted** like {scaleFwdNum} but with
+    ///      `invExp = (feedNumDecimals + baseDecimals) - (feedDenDecimals + tokenDecimals)`.
+    ///      `scaleInvNum` multiplies the denominator answer (numerator of the inverted ratio).
     uint256 public immutable scaleInvNum;
-    /// @dev `10^(feedDenDecimals + tokenDecimals)` for inverted outer scale.
+    /// @dev See {scaleInvNum}. `1` when `invExp >= 0`, else `10^(-invExp)`.
     uint256 public immutable scaleInvDen;
     uint256 public immutable heartbeat;
     AggregatorV3Interface public immutable sequencerUptimeFeed;
@@ -84,10 +91,31 @@ contract ChainlinkCompositeConverter is IAssetConverter {
         baseDecimals = baseDecimals_;
         inverted = inverted_;
 
-        scaleFwdNum = 10 ** (uint256(denDec) + baseDecimals_);
-        scaleFwdDen = 10 ** (uint256(numDec) + tokenDecimals_);
-        scaleInvNum = 10 ** (uint256(numDec) + baseDecimals_);
-        scaleInvDen = 10 ** (uint256(denDec) + tokenDecimals_);
+        // Net each pair of decimal exponents so only the *difference* in scale is
+        // applied, and only to one side of the ratio. The combined price uses
+        // `10^(denDec+baseDec)` over `10^(numDec+tokenDec)` (forward); both are powers
+        // of ten, so cancelling their common factor is exact and leaves a single
+        // `10^|exp|`. This keeps `answer * scale` orders of magnitude below 2^256, so a
+        // large-but-legitimate feed answer cannot overflow the fused mulDiv and revert.
+        int256 fwdExp = int256(uint256(denDec) + baseDecimals_) -
+            int256(uint256(numDec) + tokenDecimals_);
+        if (fwdExp >= 0) {
+            scaleFwdNum = 10 ** uint256(fwdExp);
+            scaleFwdDen = 1;
+        } else {
+            scaleFwdNum = 1;
+            scaleFwdDen = 10 ** uint256(-fwdExp);
+        }
+
+        int256 invExp = int256(uint256(numDec) + baseDecimals_) -
+            int256(uint256(denDec) + tokenDecimals_);
+        if (invExp >= 0) {
+            scaleInvNum = 10 ** uint256(invExp);
+            scaleInvDen = 1;
+        } else {
+            scaleInvNum = 1;
+            scaleInvDen = 10 ** uint256(-invExp);
+        }
 
         heartbeat = heartbeat_;
         sequencerUptimeFeed = AggregatorV3Interface(sequencerUptimeFeed_);

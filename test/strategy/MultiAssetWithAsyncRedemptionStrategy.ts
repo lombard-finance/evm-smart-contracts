@@ -1768,7 +1768,8 @@ describe('Chainlink as deposit token', function () {
       const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
       // num: 18-dec feed, answer 1e18 (price 1.0)
       // den: 8-dec feed, answer 1e8 (price 1.0)
-      // => scaleFwdNum = 10^(8+8) = 1e16, scaleFwdDen = 10^(18+18) = 1e36 (den >> num)
+      // fwdExp = (denDec+baseDec) - (numDec+tokenDec) = (8+8) - (18+18) = -20,
+      // so the netted scales are scaleFwdNum = 1 and scaleFwdDen = 10^20 (den >> num).
       const feedNum = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
       const feedDen = (await feedFactory.deploy(8, 10n ** 8n)) as ChainlinkFeedMock;
       await feedNum.waitForDeployment();
@@ -1788,7 +1789,7 @@ describe('Chainlink as deposit token', function () {
       await conv.waitForDeployment();
 
       // 1 token (1e18) at a 1:1 price is exactly 1 base unit (1e8), regardless
-      // of scaleFwdDen being 20 orders of magnitude larger than scaleFwdNum.
+      // of scaleFwdDen (1e20) being 20 orders of magnitude larger than scaleFwdNum (1).
       const oneToken = 10n ** 18n;
       const oneBase = 10n ** 8n;
       expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneBase);
@@ -1799,6 +1800,66 @@ describe('Chainlink as deposit token', function () {
       const dust = 10n ** 9n; // 1e9 token wei = 1e-9 token => well below 1 base unit
       expect(await conv.toBaseUnits(dust, 0)).to.equal(0n); // Floor
       expect(await conv.toBaseUnits(dust, 1)).to.equal(1n); // Ceil
+    });
+
+    it('large feed answers do not overflow the fused mulDiv (netted scaling)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // 18-dec feeds, 18-dec token, 18-dec base => fwd/inv net exponents are 0,
+      // so the applied scale is 1. With the *un-netted* scaling the converter would
+      // multiply the answer by 10^(18+18)=10^36; an answer of 1e42 would then form
+      // 1e78 > 2^256 and revert, blocking a legitimate price. Netting avoids this.
+      const bigAnswer = 10n ** 42n;
+      const feedNum = (await feedFactory.deploy(18, bigAnswer)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(18, bigAnswer)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        18, // tokenDecimals
+        18, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // num == den (1:1) at equal decimals => 1 token maps to 1 base unit, no revert.
+      const oneToken = 10n ** 18n;
+      expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneToken);
+      expect(await conv.fromBaseUnits(oneToken, 1)).to.equal(oneToken);
+    });
+
+    it('inverted mode is unchanged by netting (ETH/USD ÷ BTC/USD style)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // Same economic setup as the forward cross test but deployed inverted with the
+      // feeds swapped, which must yield identical results.
+      const ethUsd = (await feedFactory.deploy(8, 2500n * ONE_BTC)) as ChainlinkFeedMock;
+      const btcUsd = (await feedFactory.deploy(8, 50_000n * ONE_BTC)) as ChainlinkFeedMock;
+      await ethUsd.waitForDeployment();
+      await btcUsd.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      // inverted = true with (num=BTC/USD, den=ETH/USD): ratio is den/num = ETH/BTC.
+      const conv = (await convFactory.deploy(
+        await btcUsd.getAddress(),
+        await ethUsd.getAddress(),
+        18, // tokenDecimals (ETH)
+        8, // baseDecimals (BTC)
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const oneEth = 10n ** 18n;
+      const expectedSat = 5n * 10n ** 6n; // 0.05 BTC
+      expect(await conv.toBaseUnits(oneEth, 0)).to.equal(expectedSat);
+      expect(await conv.fromBaseUnits(expectedSat, 1)).to.equal(oneEth);
     });
   });
 
