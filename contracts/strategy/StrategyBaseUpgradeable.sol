@@ -98,7 +98,11 @@ abstract contract StrategyBaseUpgradeable is
     bytes32 private constant ERC20StorageLocation =
         0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
 
-    function _getERC20InheritedStorage() private pure returns (ERC20Storage storage $) {
+    function _getERC20InheritedStorage()
+        private
+        pure
+        returns (ERC20Storage storage $)
+    {
         assembly {
             $.slot := ERC20StorageLocation
         }
@@ -227,12 +231,7 @@ abstract contract StrategyBaseUpgradeable is
         uint256 navAtSnapshot,
         uint256 supplyAtSnapshot,
         bool revertOnRateLimit
-    )
-        external
-        onlyRole(PRICE_SETTER_ROLE)
-        whenNotPaused
-    {
-
+    ) external onlyRole(PRICE_SETTER_ROLE) whenNotPaused {
         if (depositPaused() && redeemPaused()) {
             revert Strategy_PricePerSharePaused();
         }

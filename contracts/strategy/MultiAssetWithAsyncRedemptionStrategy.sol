@@ -55,17 +55,4 @@ contract MultiAssetWithAsyncRedemptionStrategy is
     function version() external pure override returns (string memory) {
         return "MultiAssetWithAsyncRedemptionStrategy-0.0.1";
     }
-
-    /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(AccessControlDefaultAdminRulesUpgradeable, IERC165)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
-    }
 }

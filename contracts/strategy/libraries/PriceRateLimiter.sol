@@ -101,7 +101,10 @@ library PriceRateLimiter {
     function _refill(Bucket memory b) internal view returns (Bucket memory) {
         uint48 ts = uint48(block.timestamp);
         if (ts <= b.lastRefill) return b;
-        uint256 elapsed = uint256(ts) - uint256(b.lastRefill);
+        uint256 elapsed;
+        unchecked {
+            elapsed = uint256(ts) - uint256(b.lastRefill);
+        }
         uint256 added = (elapsed * uint256(b.refillRate)) >> 32;
         uint256 newLevel = uint256(b.capacityBps) + added;
         b.capacityBps = newLevel > uint256(b.maxBps)
