@@ -94,6 +94,16 @@ abstract contract StrategyBaseUpgradeable is
         }
     }
 
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC20StorageLocation =
+        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+
+    function _getERC20InheritedStorage() private pure returns (ERC20Storage storage $) {
+        assembly {
+            $.slot := ERC20StorageLocation
+        }
+    }
+
     /// @dev Shared initializer: access control, reentrancy guard, ERC-20 share metadata + pausable ERC-20, underlying asset,
     ///      mandatory blocklist oracle, initial `pricePerShare`, and zeroed rate-limiter bucket.
     ///      Parent initializers run in C3 linear order (OZ upgrades validator).
@@ -134,6 +144,16 @@ abstract contract StrategyBaseUpgradeable is
             maxBps: 0,
             refillRate: 0
         });
+    }
+
+    function changeNameAndSymbol(
+        string memory name_,
+        string memory symbol_
+    ) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
+        ERC20Storage storage $ = _getERC20InheritedStorage();
+        $._name = name_;
+        $._symbol = symbol_;
+        emit NameAndSymbolChanged(name_, symbol_);
     }
 
     /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) redeem fee shares.

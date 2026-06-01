@@ -66,6 +66,8 @@ interface IStrategy {
     /// @notice Compliance oracle (`IBlocklistOracle.check`) — wired via `initialize` / `setBlocklistOracle`.
     event BlocklistOracleSet(address indexed oracle);
 
+    event NameAndSymbolChanged(string name, string symbol);
+
     /// @dev Deposit operation invoked while deposit pause is active.
     error Strategy_EnforcedDepositPause();
 

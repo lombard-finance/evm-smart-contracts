@@ -93,6 +93,27 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.blocklistOracle()).to.equal(blocklistOracleAddr);
   });
 
+  it('changeNameAndSymbol updates name and symbol and emits NameAndSymbolChanged', async function () {
+    const newName = 'Renamed Strategy Shares';
+    const newSymbol = 'rSTRAT';
+
+    await expect(strategy.connect(admin).changeNameAndSymbol(newName, newSymbol))
+      .to.emit(strategy, 'NameAndSymbolChanged')
+      .withArgs(newName, newSymbol);
+
+    expect(await strategy.name()).to.equal(newName);
+    expect(await strategy.symbol()).to.equal(newSymbol);
+  });
+
+  it('changeNameAndSymbol reverts for non-admin', async function () {
+    const newName = 'Renamed Strategy Shares';
+    const newSymbol = 'rSTRAT';
+
+    await expect(strategy.connect(user).changeNameAndSymbol(newName, newSymbol))
+      .to.be.revertedWithCustomError(strategy, 'AccessControlUnauthorizedAccount')
+      .withArgs(user.address, await strategy.DEFAULT_ADMIN_ROLE());
+  });
+
   it('admin can setBlocklistOracle to a new address', async function () {
     const newOracle = await deployBlocklistOracle(admin.address);
     await expect(strategy.connect(admin).setBlocklistOracle(newOracle))
