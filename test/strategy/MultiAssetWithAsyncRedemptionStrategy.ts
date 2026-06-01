@@ -1835,6 +1835,135 @@ describe('Chainlink as deposit token', function () {
         }
       }
     });
+
+    it('mismatched feed decimals (6-dec num, 18-dec den) do not truncate to zero', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // Both feeds report a 1:1 price, but with very different decimals.
+      // num: 6-dec feed, answer 1e6 (price 1.0)
+      // den: 18-dec feed, answer 1e18 (price 1.0)
+      const feedNum = (await feedFactory.deploy(6, 10n ** 6n)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        6, // tokenDecimals
+        6, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // 100,000 USDC (6 decimals). With the old two-step computation the
+      // intermediate ratio mulDiv(1e11, 1e6, 1e18) floored to 0, losing the
+      // entire amount. A single fused mulDiv preserves the 1:1 conversion.
+      const amount = 100_000n * 10n ** 6n; // 1e11
+      expect(await conv.toBaseUnits(amount, 0)).to.equal(amount);
+      expect(await conv.fromBaseUnits(amount, 1)).to.equal(amount);
+    });
+
+    it('scaleFwdDen > scaleFwdNum (18-dec token/num, 8-dec base/den) stays exact', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // num: 18-dec feed, answer 1e18 (price 1.0)
+      // den: 8-dec feed, answer 1e8 (price 1.0)
+      // fwdExp = (denDec+baseDec) - (numDec+tokenDec) = (8+8) - (18+18) = -20,
+      // so the netted scales are scaleFwdNum = 1 and scaleFwdDen = 10^20 (den >> num).
+      const feedNum = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, 10n ** 8n)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        18, // tokenDecimals
+        8, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // 1 token (1e18) at a 1:1 price is exactly 1 base unit (1e8), regardless
+      // of scaleFwdDen (1e20) being 20 orders of magnitude larger than scaleFwdNum (1).
+      const oneToken = 10n ** 18n;
+      const oneBase = 10n ** 8n;
+      expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneBase);
+      expect(await conv.fromBaseUnits(oneBase, 1)).to.equal(oneToken);
+
+      // Sub-base-unit dust (true value < 1 base unit) legitimately floors to 0
+      // with Floor rounding, and ceils to 1 with Ceil rounding — not a bug.
+      const dust = 10n ** 9n; // 1e9 token wei = 1e-9 token => well below 1 base unit
+      expect(await conv.toBaseUnits(dust, 0)).to.equal(0n); // Floor
+      expect(await conv.toBaseUnits(dust, 1)).to.equal(1n); // Ceil
+    });
+
+    it('large feed answers do not overflow the fused mulDiv (netted scaling)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // 18-dec feeds, 18-dec token, 18-dec base => fwd/inv net exponents are 0,
+      // so the applied scale is 1. With the *un-netted* scaling the converter would
+      // multiply the answer by 10^(18+18)=10^36; an answer of 1e42 would then form
+      // 1e78 > 2^256 and revert, blocking a legitimate price. Netting avoids this.
+      const bigAnswer = 10n ** 42n;
+      const feedNum = (await feedFactory.deploy(18, bigAnswer)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(18, bigAnswer)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        18, // tokenDecimals
+        18, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // num == den (1:1) at equal decimals => 1 token maps to 1 base unit, no revert.
+      const oneToken = 10n ** 18n;
+      expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneToken);
+      expect(await conv.fromBaseUnits(oneToken, 1)).to.equal(oneToken);
+    });
+
+    it('inverted mode is unchanged by netting (ETH/USD ÷ BTC/USD style)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // Same economic setup as the forward cross test but deployed inverted with the
+      // feeds swapped, which must yield identical results.
+      const ethUsd = (await feedFactory.deploy(8, 2500n * ONE_BTC)) as ChainlinkFeedMock;
+      const btcUsd = (await feedFactory.deploy(8, 50_000n * ONE_BTC)) as ChainlinkFeedMock;
+      await ethUsd.waitForDeployment();
+      await btcUsd.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      // inverted = true with (num=BTC/USD, den=ETH/USD): ratio is den/num = ETH/BTC.
+      const conv = (await convFactory.deploy(
+        await btcUsd.getAddress(),
+        await ethUsd.getAddress(),
+        18, // tokenDecimals (ETH)
+        8, // baseDecimals (BTC)
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const oneEth = 10n ** 18n;
+      const expectedSat = 5n * 10n ** 6n; // 0.05 BTC
+      expect(await conv.toBaseUnits(oneEth, 0)).to.equal(expectedSat);
+      expect(await conv.fromBaseUnits(expectedSat, 1)).to.equal(oneEth);
+    });
   });
 
   describe('strategy deposit / mint integration', function () {
