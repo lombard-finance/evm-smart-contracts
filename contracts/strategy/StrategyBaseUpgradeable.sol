@@ -185,37 +185,90 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseUpgradeableStorage().pricePerShare;
     }
 
-    /// @notice Updates `pricePerShare` subject to the configured `PriceRateLimiter` capacity and refill rules.
-    /// @param newPricePerShare Next asset wei per share unit; must be non-zero.
-    /// @param revertOnRateLimit If the move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
-    /// @dev Reverts with {Strategy_PricePerSharePaused} when both deposits and redemptions are
-    ///      paused. This is the exact state produced by the rate-limit auto-pause path (the
-    ///      `revertOnRateLimit == false` branch below pauses both sides), so the check intentionally
-    ///      blocks a new PPS post until the strategy is unpaused. This is by design: the multisig
-    ///      that owns both MANAGER and PRICE_SETTER_ROLE is expected to unpause and post a corrected
-    ///      PPS atomically in a single transaction, ensuring a PPS correction is never applied while
-    ///      the strategy remains in the auto-paused state. A one-sided pause (only deposits or only
-    ///      redemptions) still permits PPS updates.
+    /// @notice Posts a new `pricePerShare` reconciled against mints/burns that occurred between the operator's NAV snapshot and this call.
+    /// @dev Same-epoch deposits and async redeem *requests* are priced at the still-stored `pricePerShare`, so the
+    ///      reconciliation produces a stored PPS for which on-chain `totalAssets()` equals real backing — i.e. a frontrunning
+    ///      deposit at stale PPS cannot inflate the post-update NAV. Async redemption *fulfillments* don't change supply or
+    ///      active-share NAV and need no adjustment.
+    ///      Management and performance fee share mints (`FeeManagerUpgradeable`) increase `totalSupply` without asset inflow, so
+    ///      `totalAssets()` may overstate economic NAV until the next post. Operators SHOULD snapshot `supplyAtSnapshot` at
+    ///      NAV observation time and post true backing `navAtSnapshot`; the reconciled PPS on that update corrects for any
+    ///      fee-minted supply since the prior snapshot.
+    ///      The rate limiter gates on the *declared* PPS move (`old → navAtSnapshot * oneShare / supplyAtSnapshot`), not the
+    ///      reconciled move, so mid-epoch flow cannot mask a large declared NAV swing.
+    ///      Reverts with {Strategy_PricePerSharePaused} when both deposits and redemptions are paused — the exact state
+    ///      produced by the rate-limit auto-pause path (`revertOnRateLimit == false` drains the bucket, sets price, and pauses
+    ///      both sides). The multisig owning MANAGER and PRICE_SETTER_ROLE is expected to unpause and post atomically.
+    ///      One-sided pause (only deposits or only redemptions) still permits PPS updates.
+    /// @param navAtSnapshot Total NAV (asset units) the operator observed at snapshot time; must imply non-zero PPS.
+    /// @param supplyAtSnapshot `totalSupply()` observed at the moment the off-chain NAV was computed; must be non-zero.
+    /// @param revertOnRateLimit If the declared move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
     function postPricePerShare(
-        uint256 newPricePerShare,
+        uint256 navAtSnapshot,
+        uint256 supplyAtSnapshot,
         bool revertOnRateLimit
     )
         external
         onlyRole(PRICE_SETTER_ROLE)
         whenNotPaused
     {
+
         if (depositPaused() && redeemPaused()) {
             revert Strategy_PricePerSharePaused();
         }
+
+        if (navAtSnapshot == 0) revert Strategy_ZeroNavAtSnapshot();
+        if (supplyAtSnapshot == 0) revert Strategy_ZeroSharesAtSnapshot();
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
+
+        uint256 currentSupply = totalSupply();
+        uint256 oneShare = 10 ** decimals();
+
+        uint256 priceToSet;
+        if (currentSupply == 0) {
+            // No active shares to reconcile against — adopt the declared PPS directly; totalAssets() is 0 either way.
+            priceToSet = navAtSnapshot.mulDiv(
+                oneShare,
+                supplyAtSnapshot,
+                Math.Rounding.Floor
+            );
+        } else {
+            uint256 reconciledNav;
+            if (currentSupply >= supplyAtSnapshot) {
+                uint256 sharesAdded = currentSupply - supplyAtSnapshot;
+                reconciledNav =
+                    navAtSnapshot +
+                    sharesAdded.mulDiv(
+                        $.pricePerShare,
+                        oneShare,
+                        Math.Rounding.Floor
+                    );
+            } else {
+                uint256 sharesRemoved = supplyAtSnapshot - currentSupply;
+                reconciledNav =
+                    navAtSnapshot -
+                    sharesRemoved.mulDiv(
+                        $.pricePerShare,
+                        oneShare,
+                        Math.Rounding.Ceil
+                    );
+            }
+
+            priceToSet = reconciledNav.mulDiv(
+                oneShare,
+                currentSupply,
+                Math.Rounding.Floor
+            );
+        }
+
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
             $.pricePerShare,
-            newPricePerShare
+            priceToSet
         );
         if (!$.ppsRateLimiter._wouldExceedLimit(changeBps)) {
             $.ppsRateLimiter._consume(changeBps);
-            _setPricePerShare($, newPricePerShare);
+            _setPricePerShare($, priceToSet);
             return;
         }
         if (revertOnRateLimit) {
@@ -225,7 +278,7 @@ abstract contract StrategyBaseUpgradeable is
             );
         }
         $.ppsRateLimiter._drainRemaining();
-        _setPricePerShare($, newPricePerShare);
+        _setPricePerShare($, priceToSet);
         _pauseDeposit();
         _pauseRedeem();
     }
@@ -269,7 +322,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
-    /// @dev After dilution-fee share mints, this can exceed custody until `postPricePerShare` realigns the rate.
+    /// @dev After dilution-fee share mints, may exceed economic backing until `postPricePerShare` reconciles supply.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }

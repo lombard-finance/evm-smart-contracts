@@ -59,7 +59,7 @@ Fee harvests increase `totalSupply` but leave `pricePerShare` unchanged, so `tot
 
 This is **intentional**. Dilution fees transfer economics via new shares to the treasury; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
 
-**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare`.
+**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare`. Operators SHOULD snapshot `supplyAtSnapshot` at NAV observation time and post true backing `navAtSnapshot`; reconciliation accounts for fee-minted supply (and same-epoch deposits / async redeem requests priced at stale PPS). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
 
 **Operational expectations:**
 

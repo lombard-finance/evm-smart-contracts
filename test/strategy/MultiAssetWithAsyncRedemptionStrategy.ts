@@ -608,7 +608,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       it(`convertToShares ${arg.name}`, async () => {
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        await strategy.connect(admin).postPricePerShare(arg.pps, e18, false);
 
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const amount = arg.amount;
@@ -621,7 +621,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       it(`convertToAssets ${arg.name}`, async () => {
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        await strategy.connect(admin).postPricePerShare(arg.pps, e18, false);
 
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const amount = arg.amount;
@@ -635,7 +635,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        await strategy.connect(admin).postPricePerShare(arg.pps, e18, false);
         if (await strategy.depositPaused()) {
           await strategy.connect(admin).unpauseDeposit();
         }
@@ -941,7 +941,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const newRate = arg.newRate(defaultRate);
 
         if (newRate !== defaultRate) {
-          await strategy.connect(admin).postPricePerShare(newRate, false);
+          const supplyAtSnapshot = await strategy.totalSupply();
+          const navAtSnapshot = (newRate * supplyAtSnapshot) / e18;
+          await strategy.connect(admin).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
           if (await strategy.depositPaused()) {
             await strategy.connect(admin).unpauseDeposit();
           }
@@ -1010,6 +1012,74 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.converterOf(altDeposit.address)).to.equal(nextAddr);
   });
 
+  describe('postPricePerShare reconciliation', function () {
+    it('reconciles down for mid-epoch deposit (frontrun protection)', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+      expect(supplyAtSnapshot).to.equal(baseDeposit);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Operator off-chain: NAV = 101, supply = 100 → declared PPS = 1.01.
+      const navAtSnapshot = 101n * e18;
+
+      // Frontrun: 50-asset deposit at the still-stored PPS = 1.0 mints 50 shares before the post lands.
+      const frontrunAmt = 50n * e18;
+      await altDeposit.mint(user.address, frontrunAmt);
+      await altDeposit.connect(user).approve(strategy.address, frontrunAmt);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, frontrunAmt, user.address);
+
+      expect(await strategy.totalSupply()).to.equal(150n * e18);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Post: reconciledNav = 101 + 50 * 1.0 = 151, stored PPS = 151/150 (Floor) — not the declared 1.01.
+      await strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      const expectedPPS = (151n * e18) / 150n;
+      const declaredPPS = (101n * e18) / 100n;
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+      expect(await strategy.pricePerShare()).to.be.lessThan(declaredPPS);
+
+      // totalAssets() matches real backing (151), modulo Floor truncation in the round-trip.
+      expect(await strategy.totalAssets()).to.equal((150n * e18 * expectedPPS) / e18);
+    });
+
+    it('reconciles up for mid-epoch redeem request', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Operator snapshot: NAV = 101, supply = 100 → declared PPS = 1.01.
+      const navAtSnapshot = 101n * e18;
+
+      // Mid-epoch redeem request burns 30 shares at stale PPS = 1.0; active supply drops to 70.
+      const redeemShares = 30n * e18;
+      await strategy.connect(user).requestRedeem(redeemShares, user.address);
+      expect(await strategy.totalSupply()).to.equal(70n * e18);
+
+      // Post: navRemoved = 30 * 1.0 = 30, reconciledNav = 71, stored PPS = 71/70 (Floor) — above declared 1.01.
+      await strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      const expectedPPS = (71n * e18) / 70n;
+      const declaredPPS = (101n * e18) / 100n;
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+      expect(await strategy.pricePerShare()).to.be.greaterThan(declaredPPS);
+
+      expect(await strategy.totalAssets()).to.equal((70n * e18 * expectedPPS) / e18);
+    });
+  });
+
   describe('price-per-share rate limit', function () {
     it('setPricePerShareRateLimit requires MANAGER_ROLE', async function () {
       await expect(strategy.connect(user).setPricePerShareRateLimit(500, 1n)).to.be.revertedWithCustomError(
@@ -1034,11 +1104,14 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       const p0 = await strategy.pricePerShare();
       // +0.05% (500 bps) — consumes the entire weekly budget
       const p1 = (p0 * 10005n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p1, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p1, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
 
       // Any further move is blocked until the bucket refills
-      await expect(strategy.connect(operator).postPricePerShare(p1 + 1n, true)).to.be.revertedWithCustomError(
+      await expect(strategy.connect(operator).postPricePerShare(p1 + 1n, e18, true)).to.be.revertedWithCustomError(
         strategy,
         'PriceRateLimiterRateLimitExceeded'
       );
@@ -1048,7 +1121,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p2 = (p1 * 10005n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p2, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p2, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
     });
 
     it('soft overflow: applies price, drains bucket, and pauses deposit and redeem', async function () {
@@ -1060,10 +1136,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
       const p0 = await strategy.pricePerShare();
       const p1 = (p0 * 10005n) / 10000n;
-      await strategy.connect(operator).postPricePerShare(p1, true);
+      await strategy.connect(operator).postPricePerShare(p1, e18, true);
 
       const tinyBump = p1 + 1n;
-      await expect(strategy.connect(operator).postPricePerShare(tinyBump, false)).to.emit(
+      await expect(strategy.connect(operator).postPricePerShare(tinyBump, e18, false)).to.emit(
         strategy,
         'PricePerShareUpdated'
       );
@@ -1085,12 +1161,15 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       const p0 = await strategy.pricePerShare();
       // +0.13% (1300 bps) — within daily budget, leaving 100 bps
       const p1 = (p0 * 10013n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p1, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p1, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);
 
       // 2 bps exceeds the 1 bps remaining in the bucket
       const p2 = (p1 * 10002n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p2, true)).to.be.revertedWithCustomError(
+      await expect(strategy.connect(operator).postPricePerShare(p2, e18, true)).to.be.revertedWithCustomError(
         strategy,
         'PriceRateLimiterRateLimitExceeded'
       );
@@ -1100,7 +1179,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p3 = (p1 * 10013n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p3, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p3, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
     });
   });
 });
