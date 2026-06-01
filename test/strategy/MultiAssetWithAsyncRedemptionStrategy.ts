@@ -354,6 +354,30 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await altDeposit.balanceOf(v)).to.equal(assets);
   });
 
+  it('reverts deposit and mint for an unlisted asset (no spurious Deposit event)', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+
+    // altDeposit is intentionally NOT listed via addDepositAsset.
+    const assets = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    // Unlisted asset: previewDeposit returns 0 shares, caught by the zero guard.
+    await expect(
+      strategy.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address)
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAmount');
+
+    // mint of an unlisted asset: previewMint returns 0 assets, caught downstream.
+    await expect(
+      strategy.connect(user)['mint(address,uint256,address)'](alt, 1n, user.address)
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAmount');
+
+    // No tokens were pulled and no shares minted.
+    expect(await altDeposit.balanceOf(v)).to.equal(0n);
+    expect(await strategy.balanceOf(user.address)).to.equal(0n);
+  });
+
   it('optional defaultShard forwards net deposit tokens to a registered address', async function () {
     const sink = ethers.Wallet.createRandom().address;
 
