@@ -8,7 +8,8 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import { ERC20__factory, MerkleAllowlistValidator } from '../../typechain-types';
 import { e18, randomBigInt } from '../helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { packRuleSelector, packedSelectorToBytes4 } from '../../scripts/strategy/merkleUtils';
+import { packRuleSelector, packedSelectorToBytes4, buildTree, RulesFile } from '../../scripts/strategy/merkleUtils';
+import { KNOWN_DESTINATION_TYPES } from '../../scripts/strategy/destinationTypes';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
 async function merkleIsAllowed(
@@ -392,6 +393,9 @@ describe('MerkleAllowlistValidator', function () {
     dataLength?: string | number;
     selector?: string;
     constraints?: RuleConstraint[];
+    disabled?: boolean;
+    destinationType?: string;
+    [key: string]: unknown;
   }
 
   function encodeJsonRule(rule: RuleJsonEntry): string {
@@ -436,6 +440,7 @@ describe('MerkleAllowlistValidator', function () {
       const rows: TreeRow[] = [];
       encoded = {};
       for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
+        if (rule.disabled === true) continue;
         const ruleEncoded = encodeJsonRule(rule);
         encoded[name] = ruleEncoded;
         rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
@@ -575,6 +580,7 @@ describe('MerkleAllowlistValidator', function () {
       const rows: TreeRow[] = [];
       encoded = {};
       for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
+        if (rule.disabled === true) continue;
         const ruleEncoded = encodeJsonRule(rule);
         encoded[name] = ruleEncoded;
         rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
@@ -1126,5 +1132,114 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
         merkleProof: approveProof.merkleProof
       })
     ).to.equal(false, 'constrained approve proof accepted with wrong recipient');
+  });
+});
+
+// ─── disabled rules and destinationType ──────────────────────────────────────
+
+describe('buildTree: disabled rules and destinationType', function () {
+  const DS = '0x' + '11'.repeat(32);
+  const ADDR_A = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+  const ADDR_B = '0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892';
+
+  it('disabled rule is excluded from the tree and listed in skipped', function () {
+    const rules: RulesFile = {
+      active: { to: ADDR_A, value: '0' },
+      gone: { to: ADDR_B, value: '0', disabled: true }
+    };
+    const { encoded, skipped } = buildTree(rules, DS);
+    expect(Object.keys(encoded)).to.deep.equal(['active']);
+    expect(skipped).to.deep.equal(['gone']);
+  });
+
+  it('disabled: false leaves the rule active', function () {
+    const rules: RulesFile = {
+      present: { to: ADDR_A, value: '0', disabled: false }
+    };
+    const { encoded, skipped } = buildTree(rules, DS);
+    expect(Object.keys(encoded)).to.deep.equal(['present']);
+    expect(skipped).to.be.empty;
+  });
+
+  it('absent disabled field leaves the rule active', function () {
+    const rules: RulesFile = { r: { to: ADDR_A } };
+    const { encoded, skipped } = buildTree(rules, DS);
+    expect(Object.keys(encoded)).to.deep.equal(['r']);
+    expect(skipped).to.be.empty;
+  });
+
+  it('multiple disabled rules are all excluded', function () {
+    const rules: RulesFile = {
+      keep: { to: ADDR_A },
+      drop_a: { to: ADDR_B, disabled: true },
+      drop_b: { to: ADDR_B, disabled: true }
+    };
+    const { encoded, skipped } = buildTree(rules, DS);
+    expect(Object.keys(encoded)).to.deep.equal(['keep']);
+    expect(skipped).to.deep.equal(['drop_a', 'drop_b']);
+  });
+
+  it('all rules disabled throws empty-tree error', function () {
+    const rules: RulesFile = { r: { to: ADDR_A, disabled: true } };
+    expect(() => buildTree(rules, DS)).to.throw(/empty/i);
+  });
+
+  it('known destinationType is accepted for every vocabulary entry', function () {
+    for (const type of KNOWN_DESTINATION_TYPES) {
+      const rules: RulesFile = { r: { to: ADDR_A, destinationType: type } };
+      expect(() => buildTree(rules, DS), `type "${type}" should be accepted`).not.to.throw();
+    }
+  });
+
+  it('unknown destinationType throws with a helpful message', function () {
+    const rules: RulesFile = { r: { to: ADDR_A, destinationType: 'UnknownProtocol' } };
+    expect(() => buildTree(rules, DS))
+      .to.throw(Error)
+      .with.property('message')
+      .that.matches(/unknown destinationType.*UnknownProtocol/i);
+  });
+
+  it('unknown destinationType error names the offending rule', function () {
+    const rules: RulesFile = { my_rule: { to: ADDR_A, destinationType: 'BadType' } };
+    expect(() => buildTree(rules, DS))
+      .to.throw(Error)
+      .with.property('message')
+      .that.includes('"my_rule"');
+  });
+
+  it('disabled rule with unknown destinationType still throws', function () {
+    const rules: RulesFile = {
+      active: { to: ADDR_A },
+      bad_but_disabled: { to: ADDR_B, disabled: true, destinationType: 'UnknownProtocol' }
+    };
+    expect(() => buildTree(rules, DS))
+      .to.throw(Error)
+      .with.property('message')
+      .that.matches(/unknown destinationType.*UnknownProtocol/i);
+  });
+
+  it('script: build output lists skipped rules', async function () {
+    this.timeout(60_000);
+
+    const { execSync } = await import('child_process');
+    const { writeFileSync, unlinkSync } = await import('fs');
+    const { join } = await import('path');
+    const tmpFile = join(process.cwd(), 'test/strategy/fixtures/tmp-disabled-test.json');
+
+    const rules = {
+      active_rule: { to: ADDR_A, value: '0' },
+      skipped_rule: { to: ADDR_B, value: '0', disabled: true }
+    };
+    writeFileSync(tmpFile, JSON.stringify(rules));
+    try {
+      const out = execSync(
+        `npx ts-node scripts/strategy/merkleTreeBuilder.ts --rules ${tmpFile} --chain-id 1 --contract ${ADDR_A} --mode build`
+      ).toString();
+      expect(out).to.match(/Rules processed:.*active_rule/);
+      expect(out).to.match(/Rules skipped:.*skipped_rule/);
+      expect(out).not.to.match(/Rules processed:.*skipped_rule/);
+    } finally {
+      unlinkSync(tmpFile);
+    }
   });
 });

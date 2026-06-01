@@ -1,5 +1,6 @@
 # Shard: N/A
 approve_lbtcv_to_atomic_solver:
+  destinationType: "ERC20"
   sender: "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892"
   to: "0x5401b8620e5fb570064ca9114fd1e135fd77d57c"
   value: "0"
@@ -11,6 +12,7 @@ approve_lbtcv_to_atomic_solver:
       expected: "0x000000000000000000000000370d253f2e3d1d23c6f900928920a470eed8f876"
 
 redeem_lbtcv_in_atomic_queue:
+  destinationType: "BoringVault"
   sender: "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892"
   to: "0x3b4aCd8879fb60586cCd74bC2F831A4C5E7DbBf8"
   value: "0"

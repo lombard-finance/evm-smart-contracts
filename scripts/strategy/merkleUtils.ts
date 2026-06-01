@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as yaml from 'yaml';
 import { ethers } from 'ethers';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import { isKnownDestinationType, KNOWN_DESTINATION_TYPES } from './destinationTypes';
 
 // ─── Rule schema ──────────────────────────────────────────────────────────────
 
@@ -25,6 +26,18 @@ export interface RuleJson {
    */
   selector?: string;
   constraints?: RuleConstraint[];
+  /**
+   * When `true`, this rule is excluded from the Merkle tree entirely.
+   * Use to temporarily retire a rule without deleting it from the file.
+   */
+  disabled?: boolean;
+  /**
+   * Human-readable label describing what the `to` address is (e.g. `AAVE_v3`, `ERC20`).
+   * Not used in Merkle root calculation; always validated at build time (including disabled rules)
+   * against the known-types vocabulary in `destinationTypes.yaml`.
+   * Omit when the target is a wildcard or the type is not in the list.
+   */
+  destinationType?: string;
 }
 
 export type RulesFile = Record<string, RuleJson>;
@@ -124,16 +137,27 @@ export function computeDomainSeparator(chainId: bigint, contractAddress: string)
 export function buildTree(
   rules: RulesFile,
   domainSeparator: string
-): { tree: StandardMerkleTree<TreeRow>; encoded: Record<string, string> } {
+): { tree: StandardMerkleTree<TreeRow>; encoded: Record<string, string>; skipped: string[] } {
   const encoded: Record<string, string> = {};
   const rows: TreeRow[] = [];
+  const skipped: string[] = [];
   for (const [name, rule] of Object.entries(rules)) {
+    if (rule.destinationType !== undefined && !isKnownDestinationType(rule.destinationType)) {
+      throw new Error(
+        `Rule "${name}": unknown destinationType "${rule.destinationType}". ` +
+          `Known types: ${KNOWN_DESTINATION_TYPES.join(', ')}`
+      );
+    }
+    if (rule.disabled === true) {
+      skipped.push(name);
+      continue;
+    }
     const ruleEncoded = encodeRule(rule);
     encoded[name] = ruleEncoded;
     rows.push([0, domainSeparator, ethers.getBytes(ruleEncoded)]);
   }
   if (rows.length === 0) throw new Error('Rules file is empty — cannot build a Merkle tree with no leaves.');
-  return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']), encoded };
+  return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']), encoded, skipped };
 }
 
 // ─── Ruleset path resolution ──────────────────────────────────────────────────

@@ -56,12 +56,15 @@ function main() {
   const rulesetPath = resolveRulesetFromArgs(args);
   const rules = loadRulesFile(rulesetPath);
   const ds = computeDomainSeparator(chainId, contractAddress);
-  const { tree, encoded } = buildTree(rules, ds);
+  const { tree, encoded, skipped } = buildTree(rules, ds);
 
   if (mode === 'build') {
     console.log('Rulest path:', rulesetPath);
     console.log('Domain separator:', ds);
-    console.log('Rules processed: ', Object.keys(rules).join(', '));
+    console.log('Rules processed: ', Object.keys(encoded).join(', '));
+    if (skipped.length > 0) {
+      console.log('Rules skipped:   ', skipped.join(', '));
+    }
     console.log('Merkle root:     ', tree.root);
     return;
   }
