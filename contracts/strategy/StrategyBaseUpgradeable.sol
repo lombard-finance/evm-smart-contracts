@@ -379,6 +379,7 @@ abstract contract StrategyBaseUpgradeable is
     function registerShard(
         address shard
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (shard == address(0)) revert Strategy_ZeroAddress();
         if (!_getStrategyBaseUpgradeableStorage().shards.add(shard))
             revert Strategy_ShardAlreadyRegistered();
         emit ShardRegistered(shard, _msgSender());
