@@ -8,6 +8,7 @@ task('deploy-multi-asset-strategy-proxy', 'Deploys a MultiAssetWithAsyncRedempti
   .addParam('name', 'ERC20 token name for the strategy share')
   .addParam('symbol', 'ERC20 token symbol for the strategy share')
   .addParam('asset', 'Underlying ERC-20 asset address')
+  .addParam('decimals', 'Fallback share decimals, used only when the asset does not expose decimals(); cannot be zero')
   .addParam('defaultAdmin', 'Default admin address', 'self')
   .addParam('adminDelay', 'Initial default admin delay in seconds', '0')
   .addParam('managementFeeTreasury', 'Address receiving management fee share mints', 'self')
@@ -19,6 +20,7 @@ task('deploy-multi-asset-strategy-proxy', 'Deploys a MultiAssetWithAsyncRedempti
       name,
       symbol,
       asset,
+      decimals,
       adminDelay,
       managementFeeTreasury: managementFeeTreasuryArg,
       blocklist,
@@ -37,7 +39,7 @@ task('deploy-multi-asset-strategy-proxy', 'Deploys a MultiAssetWithAsyncRedempti
 
     const impl = await hre.ethers.getContractAt('MultiAssetWithAsyncRedemptionStrategy', implementation);
 
-    const args = [name, symbol, asset, owner, Number(adminDelay), managementFeeTreasury, blocklist];
+    const args = [name, symbol, asset, Number(decimals), owner, Number(adminDelay), managementFeeTreasury, blocklist];
 
     const data = impl.interface.encodeFunctionData('initialize', args);
 
