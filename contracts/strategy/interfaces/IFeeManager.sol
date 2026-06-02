@@ -17,8 +17,8 @@ interface IFeeManager {
     /// @notice Management fee shares were minted to `to`.
     /// @param shares Fee shares minted, grossed up for self-dilution so `to` ends up owning the configured value
     ///        fraction of the post-mint supply (mint `totalSupply * f / (1 - f)`, not `totalSupply * f`).
-    /// @param elapsed Accrual interval actually charged, in seconds, capped at one year. `shares` always correspond
-    ///        to exactly `elapsed`; for dormancy beyond a year this is less than the wall-clock gap since last harvest.
+    /// @param elapsed Accrual interval charged, in seconds: the wall-clock gap since the last harvest. `shares`
+    ///        correspond to exactly this interval.
     event ManagementFeeHarvested(
         address indexed to,
         uint256 shares,

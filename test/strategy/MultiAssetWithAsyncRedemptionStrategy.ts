@@ -45,10 +45,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
   let snapshot: SnapshotRestorer;
 
   // Mirrors FeeManagerUpgradeable._computeManagementFeeShares: gross-up so the treasury ends up owning
-  // f = num/den of the POST-mint supply (mint S*f/(1-f) = S*num/(den-num)), with the interval capped at 1 year.
+  // f = num/den of the POST-mint supply (mint S*f/(1-f) = S*num/(den-num)), over the full elapsed interval.
   function expectedManagementFeeShares(supply: bigint, elapsedSeconds: bigint): bigint {
-    const charged = elapsedSeconds < SECONDS_PER_YEAR ? elapsedSeconds : SECONDS_PER_YEAR;
-    const num = MGMT_FEE_BPS * charged;
+    const num = MGMT_FEE_BPS * elapsedSeconds;
     const den = BPS_DENOMINATOR * SECONDS_PER_YEAR;
     return (supply * num) / (den - num);
   }
@@ -315,7 +314,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(minted * den).to.be.lt(num * postSupply + den);
   });
 
-  it('caps the management fee accrual interval at one year (no revert, no over-mint, on multi-year dormancy)', async function () {
+  it('charges the full elapsed interval on multi-year dormancy (no cap)', async function () {
     const alt = await altDeposit.getAddress();
     const v = await strategy.getAddress();
     await strategy.connect(admin).addDepositAsset(alt, await directConverter.getAddress(), 0);
@@ -326,20 +325,27 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     await altDeposit.connect(user).approve(v, firstDeposit * 2n);
     await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
 
-    // Three years of dormancy: the linear annual rate would otherwise far exceed the period basis.
+    // Three years of dormancy: at 10%/yr the gross-up stays well below 100% (num/den = 0.3), so no revert,
+    // and the full ~3y interval is charged rather than being capped to one year.
     await ethers.provider.send('evm_increaseTime', [3 * 365 * 24 * 60 * 60]);
     await ethers.provider.send('evm_mine', []);
 
     const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
     const treasuryBefore = await strategy.balanceOf(treasury.address);
-    // Must not revert in the deposit hot path.
-    await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+    const tx = await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsed = BigInt(block!.timestamp) - BigInt(lastHarvest);
     const minted = (await strategy.balanceOf(treasury.address)) - treasuryBefore;
 
-    // Charged as if exactly one year, regardless of the true ~3y gap.
-    const num = MGMT_FEE_BPS * SECONDS_PER_YEAR;
+    // Charged over the true (~3y) interval — and strictly more than a one-year charge would mint.
     const den = BPS_DENOMINATOR * SECONDS_PER_YEAR;
+    const num = MGMT_FEE_BPS * elapsed;
+    expect(elapsed).to.be.gt(SECONDS_PER_YEAR);
     expect(minted).to.equal((supplyBefore * num) / (den - num));
+    const oneYearNum = MGMT_FEE_BPS * SECONDS_PER_YEAR;
+    expect(minted).to.be.gt((supplyBefore * oneYearNum) / (den - oneYearNum));
   });
 
   it('initialize reverts when management fee treasury is zero', async function () {
