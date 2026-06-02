@@ -160,4 +160,8 @@ interface IMultiAssetDeposit is IERC165 {
         address depositAsset,
         uint256 assets
     ) external view returns (uint256);
+
+    /// @notice Returns the list of all assets that can be accepted by the strategy.
+    /// @return addresses The list of assets.
+    function getAssets() external view returns (address[] memory);
 }

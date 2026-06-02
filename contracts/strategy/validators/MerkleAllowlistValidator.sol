@@ -30,8 +30,10 @@ contract MerkleAllowlistValidator is
     uint8 public constant RULE_VERSION = 0x01;
 
     /// @dev Byte size of the fixed rule header before the constraints array.
-    /// Layout: version(1) + flags(1) + selector(4) + sender(20) + to(20) + value(32)
-    ///         + dataLength(4) + constraintCount(2) = 84
+    /// Packed layout — each field occupies exactly the bytes shown, no padding:
+    ///   version(1) + flags(1) + selector(4) + sender(20) + to(20) + value(32)
+    ///   + dataLength(4) + constraintCount(2) = 84
+    /// `sender` and `to` are raw 20-byte addresses (no 12-byte left pad).
     uint256 private constant _RULE_HEADER_SIZE = 84;
 
     /// @notice Per-constraint byte size: calldataOffset(2) + mask(32) + expected(32) = 66.
@@ -48,7 +50,8 @@ contract MerkleAllowlistValidator is
     uint256 private constant _CONSTRAINT_OFFSET_MASK = 2;
     uint256 private constant _CONSTRAINT_OFFSET_EXPECTED = 34;
 
-    // Rule header field byte offsets (selector @ 2 follows flags @ 1)
+    // Rule header field byte offsets into the packed header.
+    // sender/to are raw 20-byte packed addresses at their offset.
     uint256 private constant _RULE_OFFSET_SELECTOR = 2;
     uint256 private constant _RULE_OFFSET_SENDER = 6;
     uint256 private constant _RULE_OFFSET_TO = 26;
@@ -410,6 +413,10 @@ contract MerkleAllowlistValidator is
         v = bytes4(w);
     }
 
+    /// @dev Reads a raw 20-byte packed address from `r[s : s+20]` (the high 20 bytes of the loaded word).
+    /// The rule header stores addresses packed, NOT in a 32-byte ABI slot: an ABI-encoded address
+    /// ([12 zero bytes][20-byte address]) would be read here as `address(0)` plus 8 stray bytes pulled
+    /// into the next field. Encoders must pack `sender`/`to` as raw 20-byte addresses.
     function _readAddress(
         bytes calldata r,
         uint256 s

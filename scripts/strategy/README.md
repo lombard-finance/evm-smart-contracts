@@ -35,26 +35,37 @@ The tree is bound to a specific chain and deployed validator address (via `domai
 
 ### Rule file format
 
-A JSON or YAML object mapping rule names to rule definitions. All rules contribute to the tree.
+A JSON or YAML object mapping rule names to rule definitions. All active rules contribute to the tree.
 
-```json
-{
-  "allow_transfer": {
-    "to": "0xTokenAddress",
-    "value": "0",
-    "selector": "transfer(address,uint256)",
-    "constraints": [
-      {
-        "offset": 32,
-        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        "expected": "0x0000000000000000000000000000000000000000000000000000000000000001"
-      }
-    ]
-  }
-}
+```yaml
+allow_transfer:
+  destinationType: "ERC20"   # optional — documents what `to` is; validated against vocabulary
+  to: "0xTokenAddress"
+  value: "0"
+  selector: "transfer(address,uint256)"
+  constraints:
+    - offset: 32
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000001"
+
+old_rule:
+  disabled: true             # excluded from the Merkle tree; keep the rule for reference
+  to: "0xOldAddress"
+  value: "0"
 ```
 
 Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `dataLength: 0` is a valid exact-length constraint and sets the flag. Optional **`selector`** pins `data[0:4]` and sets flag **`0x10`**. Write it as `name(types)` (`transfer(address,uint256)`), no `function` prefix, or hex `bytes4` (`0xa9059cbb`). Omit / `""` for wildcard; use literal **`0x00000000`** only when pinning an all-zero selector (distinct from wildcard in tooling). Constraint **`offset`** values are relative to **`data[4:]`** (ABI arguments).
+
+#### Optional metadata fields
+
+These two fields are never encoded into the Merkle leaf and have no effect on proofs or on-chain verification.
+
+| Field             | Type    | Description                                                                                      |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `disabled`        | boolean | When `true`, the rule is excluded from the tree entirely. Use to retire a rule without deleting it. Rules with `disabled: true` are listed separately in the build output. |
+| `destinationType` | string  | Human-readable label for the `to` address (e.g. `AAVE_v3`, `ERC20`). Validated at build time against the vocabulary in `scripts/strategy/destinationTypes.yaml`; the build fails if the value is not in the list. Omit when the target is a wildcard or the type is unknown. |
+
+Known `destinationType` values (from `destinationTypes.yaml`): `ERC20`, `AAVE_v3`, `AAVE_v4`, `Morpho`, `Uniswap_v2`, `Uniswap_v3`, `Compound_v2`, `Compound_v3`, `Curve`, `Balancer`, `BoringVault`. Add new entries to the vocabulary file when integrating a new protocol.
 
 ---
 
@@ -80,8 +91,11 @@ npx ts-node scripts/strategy/merkleTreeBuilder.ts \
 ```
 Domain separator: 0x99d4bf261afc133e9e1c2ba4707d41660dee6b305369cc98f67de614bd3f02c2
 Rules processed:  erc20_transfer, erc20_approve, erc20_transfer_to_fixed_recipient
+Rules skipped:    old_rule
 Merkle root:      0x34b12fa4bc360c2f9849795ba1002029a943bde5143c59ed971f861ec9b397a4
 ```
+
+The `Rules skipped` line is omitted when no rules have `disabled: true`.
 
 ---
 

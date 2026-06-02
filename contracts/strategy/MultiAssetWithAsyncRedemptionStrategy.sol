@@ -10,6 +10,7 @@ import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
 /// @dev Linearization: `AsyncRedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__StrategyBase_init` + module inits in C3 order.
+///      Fee share mints may overstate `totalAssets()` until the next `postPricePerShare`; see `StrategyBaseUpgradeable` / `IFeeManager` NatSpec.
 /// @custom:security-contact legal@lombard.finance
 contract MultiAssetWithAsyncRedemptionStrategy is
     MultiAssetDepositUpgradeable,
@@ -56,18 +57,5 @@ contract MultiAssetWithAsyncRedemptionStrategy is
     /// @notice Human-readable build label for off-chain integrations.
     function version() external pure override returns (string memory) {
         return "MultiAssetWithAsyncRedemptionStrategy-0.0.1";
-    }
-
-    /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(AccessControlDefaultAdminRulesUpgradeable, IERC165)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
     }
 }

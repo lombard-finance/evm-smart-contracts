@@ -10,7 +10,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IStrategy {
     /// @notice Posted strategy exchange rate and NAV snapshot after an operator update.
     /// @param pricePerShare Asset wei per `10 ** decimals()` share unit.
-    /// @param nav Posted `totalAssets()` (may differ from on-chain token balances).
+    /// @param nav Posted `totalAssets()` after reconciliation (may differ from on-chain token balances; may have been
+    ///            overstated before the post when fee shares were minted without asset inflow).
     /// @param postedAt Block timestamp of the update.
     event PricePerShareUpdated(
         uint256 pricePerShare,
@@ -43,6 +44,12 @@ interface IStrategy {
 
     /// @dev Strategy initialized with a zero fallback decimals argument.
     error Strategy_ZeroDecimals();
+    
+    /// @dev `postPricePerShare` was called with `sharesAtSnapshot == 0` while shares are outstanding.
+    error Strategy_ZeroSharesAtSnapshot();
+
+    /// @dev `postPricePerShare` was called with `navAtSnapshot == 0`.
+    error Strategy_ZeroNavAtSnapshot();
 
     /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
     event DepositPaused(address indexed account);
@@ -62,11 +69,16 @@ interface IStrategy {
     /// @notice Compliance oracle (`IBlocklistOracle.check`) — wired via `initialize` / `setBlocklistOracle`.
     event BlocklistOracleSet(address indexed oracle);
 
+    event NameAndSymbolChanged(string name, string symbol);
+
     /// @dev Deposit operation invoked while deposit pause is active.
     error Strategy_EnforcedDepositPause();
 
     /// @dev Redeem operation invoked while redeem pause is active.
     error Strategy_EnforcedRedeemPause();
+
+    /// @dev Price per share post called while deposit and redeem pause is active.
+    error Strategy_PricePerSharePaused();
 
     /// @dev Unpause deposit called while deposits were not paused.
     error Strategy_ExpectedDepositPause();

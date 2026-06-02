@@ -7,10 +7,12 @@ pragma solidity 0.8.24;
 /// @custom:security-contact legal@lombard.finance
 interface IAsyncRedemption {
     /// @dev Per `requestRedeem` ticket; global totals mirror open requests.
+    /// @dev `owner` and `requestBlock` pack into a single storage slot (160 + 96 bits).
     struct RedeemRequest {
         uint256 pendingShares;
         uint256 pendingAssets;
         address owner;
+        uint96 requestBlock;
     }
 
     /// @dev Emitted when `requestRedeem` is called.
@@ -69,4 +71,12 @@ interface IAsyncRedemption {
     );
 
     error AsyncRedemption_ZeroAssets(uint256 shares);
+
+    /// @notice A request cannot be fulfilled in the same block it was created in.
+    /// @param requestId The request whose fulfillment was attempted too early.
+    /// @param requestBlock Block in which the request was created.
+    error AsyncRedemption_FulfillTooEarly(
+        uint256 requestId,
+        uint256 requestBlock
+    );
 }

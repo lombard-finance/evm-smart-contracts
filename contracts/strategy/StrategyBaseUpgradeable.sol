@@ -94,6 +94,20 @@ abstract contract StrategyBaseUpgradeable is
         }
     }
 
+    // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ERC20StorageLocation =
+        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+
+    function _getERC20InheritedStorage()
+        private
+        pure
+        returns (ERC20Storage storage $)
+    {
+        assembly {
+            $.slot := ERC20StorageLocation
+        }
+    }
+
     /// @dev Shared initializer: access control, reentrancy guard, ERC-20 share metadata + pausable ERC-20, underlying asset,
     ///      mandatory blocklist oracle, initial `pricePerShare`, and zeroed rate-limiter bucket.
     ///      Parent initializers run in C3 linear order (OZ upgrades validator).
@@ -137,6 +151,16 @@ abstract contract StrategyBaseUpgradeable is
             maxBps: 0,
             refillRate: 0
         });
+    }
+
+    function changeNameAndSymbol(
+        string memory name_,
+        string memory symbol_
+    ) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
+        ERC20Storage storage $ = _getERC20InheritedStorage();
+        $._name = name_;
+        $._symbol = symbol_;
+        emit NameAndSymbolChanged(name_, symbol_);
     }
 
     /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) redeem fee shares.
@@ -188,28 +212,93 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseUpgradeableStorage().pricePerShare;
     }
 
-    /// @notice Updates `pricePerShare` subject to the configured `PriceRateLimiter` capacity and refill rules.
-    /// @param newPricePerShare Next asset wei per share unit; must be non-zero.
-    /// @param revertOnRateLimit If the move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
+    /// @notice Posts a new `pricePerShare` reconciled against mints/burns that occurred between the operator's NAV snapshot and this call.
+    /// @dev Same-epoch deposits and async redeem *requests* are priced at the still-stored `pricePerShare`, so the
+    ///      reconciliation produces a stored PPS for which on-chain `totalAssets()` equals real backing — i.e. a frontrunning
+    ///      deposit at stale PPS cannot inflate the post-update NAV. Async redemption *fulfillments* don't change supply or
+    ///      active-share NAV and need no adjustment.
+    ///      Management and performance fee share mints (`FeeManagerUpgradeable`) increase `totalSupply` without asset inflow, so
+    ///      `totalAssets()` may overstate economic NAV until the next post. Operators SHOULD snapshot `supplyAtSnapshot` at
+    ///      NAV observation time and post true backing `navAtSnapshot`; the reconciled PPS on that update corrects for any
+    ///      fee-minted supply since the prior snapshot.
+    ///      The rate limiter gates on the *declared* PPS move (`old → navAtSnapshot * oneShare / supplyAtSnapshot`), not the
+    ///      reconciled move, so mid-epoch flow cannot mask a large declared NAV swing.
+    ///      Reverts with {Strategy_PricePerSharePaused} when both deposits and redemptions are paused — the exact state
+    ///      produced by the rate-limit auto-pause path (`revertOnRateLimit == false` drains the bucket, sets price, and pauses
+    ///      both sides). The multisig owning MANAGER and PRICE_SETTER_ROLE is expected to unpause and post atomically.
+    ///      One-sided pause (only deposits or only redemptions) still permits PPS updates.
+    /// @param navAtSnapshot Total NAV (asset units) the operator observed at snapshot time; must imply non-zero PPS.
+    /// @param supplyAtSnapshot `totalSupply()` observed at the moment the off-chain NAV was computed; must be non-zero.
+    /// @param revertOnRateLimit If the declared move exceeds remaining capacity: revert (true), or drain the bucket, set the price, and pause strategy operations (false).
     function postPricePerShare(
-        uint256 newPricePerShare,
+        uint256 navAtSnapshot,
+        uint256 supplyAtSnapshot,
         bool revertOnRateLimit
-    )
-        external
-        onlyRole(PRICE_SETTER_ROLE)
-        whenDepositNotPaused
-        whenRedeemNotPaused
-        whenNotPaused
-    {
+    ) external onlyRole(PRICE_SETTER_ROLE) whenNotPaused {
+        if (depositPaused() && redeemPaused()) {
+            revert Strategy_PricePerSharePaused();
+        }
+
+        if (navAtSnapshot == 0) revert Strategy_ZeroNavAtSnapshot();
+        if (supplyAtSnapshot == 0) revert Strategy_ZeroSharesAtSnapshot();
         StrategyBaseUpgradeableStorage
             storage $ = _getStrategyBaseUpgradeableStorage();
+
+        uint256 currentSupply = totalSupply();
+        uint256 oneShare = 10 ** decimals();
+
+        // Operator-declared PPS implied purely by the NAV snapshot, before reconciling any mid-epoch
+        // supply changes. The rate limiter gates on the move to *this* value (see below).
+        uint256 declaredPricePerShare = navAtSnapshot.mulDiv(
+            oneShare,
+            supplyAtSnapshot,
+            Math.Rounding.Floor
+        );
+
+        uint256 priceToSet;
+        if (currentSupply == 0) {
+            // No active shares to reconcile against — adopt the declared PPS directly; totalAssets() is 0 either way.
+            priceToSet = declaredPricePerShare;
+        } else {
+            uint256 reconciledNav;
+            if (currentSupply >= supplyAtSnapshot) {
+                uint256 sharesAdded = currentSupply - supplyAtSnapshot;
+                reconciledNav =
+                    navAtSnapshot +
+                    sharesAdded.mulDiv(
+                        $.pricePerShare,
+                        oneShare,
+                        Math.Rounding.Floor
+                    );
+            } else {
+                uint256 sharesRemoved = supplyAtSnapshot - currentSupply;
+                reconciledNav =
+                    navAtSnapshot -
+                    sharesRemoved.mulDiv(
+                        $.pricePerShare,
+                        oneShare,
+                        Math.Rounding.Ceil
+                    );
+            }
+
+            priceToSet = reconciledNav.mulDiv(
+                oneShare,
+                currentSupply,
+                Math.Rounding.Floor
+            );
+        }
+
+        // Same-epoch mints/burns priced at the stale PPS shift `currentSupply`
+        // and shrink the reconciled move, so measuring the reconciled move would let an attacker or
+        // opportunistic depositor mask a large declared NAV swing from the circuit breaker. The
+        // reconciled `priceToSet` is still what gets stored once the declared move clears the limit.
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
             $.pricePerShare,
-            newPricePerShare
+            declaredPricePerShare
         );
         if (!$.ppsRateLimiter._wouldExceedLimit(changeBps)) {
             $.ppsRateLimiter._consume(changeBps);
-            _setPricePerShare($, newPricePerShare);
+            _setPricePerShare($, priceToSet);
             return;
         }
         if (revertOnRateLimit) {
@@ -219,7 +308,7 @@ abstract contract StrategyBaseUpgradeable is
             );
         }
         $.ppsRateLimiter._drainRemaining();
-        _setPricePerShare($, newPricePerShare);
+        _setPricePerShare($, priceToSet);
         _pauseDeposit();
         _pauseRedeem();
     }
@@ -263,7 +352,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
-    /// @dev After dilution-fee share mints, this can exceed custody until `postPricePerShare` realigns the rate.
+    /// @dev After dilution-fee share mints, may exceed economic backing until `postPricePerShare` reconciles supply.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }

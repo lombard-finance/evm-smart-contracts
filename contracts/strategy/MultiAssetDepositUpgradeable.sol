@@ -228,6 +228,12 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 assets,
         uint256 shares
     ) internal virtual {
+        // The preview functions return 0 shares for an unlisted deposit asset
+        // (and for a dust deposit of a listed asset that rounds down to 0).
+        // Reject those here so they cannot pull tokens, mint 0 shares and emit a
+        // spurious Deposit event.
+        if (shares == 0) revert Strategy_ZeroAmount();
+
         _requireBlocklistAllows(sender);
         _requireBlocklistAllows(receiver);
         _accrueManagementFee();
@@ -384,5 +390,11 @@ abstract contract MultiAssetDepositUpgradeable is
     ) private pure returns (uint256 fee, uint256 net) {
         fee = gross.mulDiv(bps, _BPS_DENOMINATOR, Math.Rounding.Ceil);
         net = gross - fee;
+    }
+
+    /// @inheritdoc IMultiAssetDeposit
+    function getAssets() public view virtual returns (address[] memory) {
+        MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
+        return $.depositAssets.values();
     }
 }
