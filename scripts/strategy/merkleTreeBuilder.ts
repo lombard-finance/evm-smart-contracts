@@ -38,7 +38,8 @@ import {
   buildTree,
   parseArgs,
   require_arg,
-  resolveRulesetFromArgs
+  resolveRulesetFromArgs,
+  validateForPPS
 } from './merkleUtils';
 
 function main() {
@@ -55,6 +56,21 @@ function main() {
 
   const rulesetPath = resolveRulesetFromArgs(args);
   const rules = loadRulesFile(rulesetPath);
+
+  // Optional PPS-completeness gate. Mirrors vault-manager's
+  // RULESET_KEEPER_VALIDATE (ruleset.ValidateForPPS): fails the build if any
+  // active rule lacks the per-venue information CalculatePPS needs, so
+  // misconfigurations don't silently zero balances at PPS time. The flag is
+  // off by default; passing `--validate-pps <any-value>` turns it on.
+  if (args['validate-pps'] !== undefined) {
+    const issues = validateForPPS(rules);
+    if (issues.length > 0) {
+      console.error('PPS-completeness validation failed:');
+      for (const issue of issues) console.error('  - ' + issue);
+      process.exit(1);
+    }
+  }
+
   const ds = computeDomainSeparator(chainId, contractAddress);
   const { tree, encoded, skipped } = buildTree(rules, ds);
 

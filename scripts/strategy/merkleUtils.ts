@@ -160,6 +160,118 @@ export function buildTree(
   return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']), encoded, skipped };
 }
 
+// ─── PPS-completeness validation (optional) ───────────────────────────────────
+
+/**
+ * Set of destinationType values whose rules must carry enough information for
+ * vault-manager's CalculatePPS to read their on-chain contribution. Keep in
+ * sync with `ppsVenueDestinationTypes` in
+ * `pkg/ruleset/validate.go` (vault-manager) and the adapter registrations in
+ * the vault-manager NodeManager resolver.
+ */
+const PPS_VENUE_DESTINATION_TYPES = new Set<string>([
+  'AAVE_v3',
+  'AAVE_v4',
+  'Morpho',
+  'Morpho_blue',
+  'CcipBridge'
+]);
+
+/**
+ * Constraint offsets for `CcipBridge` (Chainlink CCIP `Router.ccipSend`).
+ * Offsets are relative to `data[4:]` (after the function selector) and match
+ * the canonical layout documented in `pkg/ruleset/ccip_bridge.go`. The full
+ * 32-byte word at each offset is parsed by the off-chain extractor — for PPS
+ * completeness it's enough that a non-zero pin exists at each required
+ * offset (chainSelector, token, AND one of the two recipient slots).
+ */
+const CCIP_OFFSET_CHAIN_SELECTOR = 0;
+const CCIP_OFFSET_EVM_RECIPIENT = 256;
+const CCIP_OFFSET_TOKEN = 352;
+const CCIP_OFFSET_SVM_RECIPIENT = 580;
+
+/**
+ * Constraint offsets for `Morpho_blue` calls (every function that takes
+ * `MarketParams marketParams` as its first argument — supply / withdraw /
+ * borrow / repay / supplyCollateral / withdrawCollateral / accrueInterest /
+ * liquidate). MarketParams is a static struct (5 fixed-size fields) encoded
+ * inline at the start of the args head — no head-pointer indirection. Match
+ * `morphoBlueOffset*` in `pkg/ruleset/morpho_blue.go`.
+ */
+const MORPHO_BLUE_OFFSET_LOAN_TOKEN = 0;
+const MORPHO_BLUE_OFFSET_COLLATERAL_TOKEN = 32;
+const MORPHO_BLUE_OFFSET_ORACLE = 64;
+const MORPHO_BLUE_OFFSET_IRM = 96;
+const MORPHO_BLUE_OFFSET_LLTV = 128;
+
+/** A constraint counts as a pin when its `expected` has at least one non-zero nibble. */
+function hasNonzeroPin(constraints: RuleConstraint[] | undefined, offset: number): boolean {
+  if (!constraints) return false;
+  for (const c of constraints) {
+    if (c.offset !== offset) continue;
+    return /[1-9a-fA-F]/.test(c.expected);
+  }
+  return false;
+}
+
+/**
+ * Walks every active rule and reports any that lacks the per-venue
+ * information vault-manager's CalculatePPS needs to read its on-chain
+ * contribution. Returns an empty array when the ruleset is complete;
+ * otherwise returns one human-readable issue per gap.
+ *
+ * Per-venue requirements (mirror `ruleset.ValidateForPPS` in vault-manager):
+ *   - `AAVE_v3` / `AAVE_v4` / `Morpho` / `Morpho_blue` / `CcipBridge`:
+ *     non-wildcard `to`.
+ *   - `CcipBridge`: pinned chainSelector (offset 0), token (offset 352),
+ *     and recipient (EVM offset 256 OR SVM offset 580).
+ *   - `Morpho_blue`: pinned MarketParams — loanToken, collateralToken,
+ *     oracle, irm, lltv at offsets 0 / 32 / 64 / 96 / 128.
+ *
+ * Disabled rules are intentionally excluded (they don't contribute to PPS).
+ * Rules with no `destinationType` or a non-venue type (e.g. `ERC20`) are
+ * also skipped — they're not part of PPS accounting.
+ */
+export function validateForPPS(rules: RulesFile): string[] {
+  const issues: string[] = [];
+  for (const [name, rule] of Object.entries(rules)) {
+    if (rule.disabled === true) continue;
+    const dt = rule.destinationType;
+    if (!dt || !PPS_VENUE_DESTINATION_TYPES.has(dt)) continue;
+
+    if (!rule.to || rule.to === '') {
+      issues.push(`rule "${name}" (${dt}): wildcard 'to' — PPS can't pick a contract to read`);
+    }
+
+    if (dt === 'CcipBridge') {
+      const missing: string[] = [];
+      if (!hasNonzeroPin(rule.constraints, CCIP_OFFSET_CHAIN_SELECTOR)) missing.push('chainSelector');
+      if (!hasNonzeroPin(rule.constraints, CCIP_OFFSET_TOKEN)) missing.push('token');
+      const evmRecv = hasNonzeroPin(rule.constraints, CCIP_OFFSET_EVM_RECIPIENT);
+      const svmRecv = hasNonzeroPin(rule.constraints, CCIP_OFFSET_SVM_RECIPIENT);
+      if (!evmRecv && !svmRecv) {
+        missing.push(`recipient (EVM offset ${CCIP_OFFSET_EVM_RECIPIENT} or SVM offset ${CCIP_OFFSET_SVM_RECIPIENT})`);
+      }
+      if (missing.length > 0) {
+        issues.push(`rule "${name}" (CcipBridge): unpinned field(s): ${missing.join(', ')}`);
+      }
+    }
+
+    if (dt === 'Morpho_blue') {
+      const missing: string[] = [];
+      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_LOAN_TOKEN)) missing.push('loanToken');
+      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_COLLATERAL_TOKEN)) missing.push('collateralToken');
+      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_ORACLE)) missing.push('oracle');
+      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_IRM)) missing.push('irm');
+      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_LLTV)) missing.push('lltv');
+      if (missing.length > 0) {
+        issues.push(`rule "${name}" (Morpho_blue): unpinned MarketParams field(s): ${missing.join(', ')}`);
+      }
+    }
+  }
+  return issues;
+}
+
 // ─── Ruleset path resolution ──────────────────────────────────────────────────
 
 const DEFAULT_RULESET_ROOT = path.join(__dirname, 'ruleset');

@@ -25,13 +25,14 @@ The tree is bound to a specific chain and deployed validator address (via `domai
 
 ### Arguments
 
-| Argument      | Required                        | Description                                 |
-| ------------- | ------------------------------- | ------------------------------------------- |
-| `--chain-id`  | yes                             | Chain ID of the target network              |
-| `--contract`  | yes                             | Deployed `MerkleAllowlistValidator` address |
-| `--mode`      | yes                             | `build` or `proof`                          |
-| `--rules`     | one of `--rules` / `--contract` | Path to the ruleset file                    |
-| `--rule-name` | proof mode only                 | Name of the rule to prove                   |
+| Argument         | Required                        | Description                                 |
+| ---------------- | ------------------------------- | ------------------------------------------- |
+| `--chain-id`     | yes                             | Chain ID of the target network              |
+| `--contract`     | yes                             | Deployed `MerkleAllowlistValidator` address |
+| `--mode`         | yes                             | `build` or `proof`                          |
+| `--rules`        | one of `--rules` / `--contract` | Path to the ruleset file                    |
+| `--rule-name`    | proof mode only                 | Name of the rule to prove                   |
+| `--validate-pps` | optional                        | When present (any value), runs the PPS-completeness gate before building. Fails with exit code 1 if any active rule lacks the per-venue information vault-manager's `CalculatePPS` needs (wildcard `to` on a venue, unpinned `CcipBridge` chainSelector/recipient/token, unpinned `Morpho_blue` MarketParams). Mirrors vault-manager's `RULESET_KEEPER_VALIDATE` startup gate. |
 
 ### Rule file format
 
