@@ -13,18 +13,23 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 ///      **Forward (`inverted = false`)** — feed reports **strategy-base per 1 deposit-token** (“how much
 ///      base do I get per one token”). Example: ETH/BTC-style feed for an ETH deposit into a BTC-base
 ///      strategy — `answer / 10^feed.decimals()` ≈ BTC per 1 ETH (in natural units).
-///        scalingFactor = 10^(feedDecimals + tokenDecimals - baseDecimals)
-///        Requires: feedDecimals + tokenDecimals >= baseDecimals
-///        toBaseUnits:   baseOut  = mulDiv(tokenAmount, answer, scalingFactor, rounding)
-///        fromBaseUnits: tokenOut = mulDiv(baseUnits, scalingFactor, answer, rounding)
+///        scale = 10^(feedDecimals + tokenDecimals - baseDecimals)
+///        toBaseUnits:   baseOut  = mulDiv(tokenAmount, answer, scale, rounding)
+///        fromBaseUnits: tokenOut = mulDiv(baseUnits, scale, answer, rounding)
 ///
 ///      **Inverted (`inverted = true`)** — feed reports **deposit-token per 1 strategy-base** (“how much
 ///      token do I pay per one base unit”). Example: BTC/USD-style feed with USDC deposit and BTC-base
 ///      strategy — `answer / 10^feed.decimals()` ≈ USD (stable) per 1 BTC.
-///        scalingFactor = 10^(feedDecimals + baseDecimals - tokenDecimals)
-///        Requires: feedDecimals + baseDecimals >= tokenDecimals
-///        toBaseUnits:   baseOut  = mulDiv(tokenAmount, scalingFactor, answer, rounding)
-///        fromBaseUnits: tokenOut = mulDiv(baseUnits, answer, scalingFactor, rounding)
+///        scale = 10^(feedDecimals + baseDecimals - tokenDecimals)
+///        toBaseUnits:   baseOut  = mulDiv(tokenAmount, scale, answer, rounding)
+///        fromBaseUnits: tokenOut = mulDiv(baseUnits, answer, scale, rounding)
+///
+///      `scale` is a power of ten whose exponent may be **negative** (e.g. ETH deposit (18 dec) into a
+///      BTC-base (8 dec) strategy via an 8-dec BTC/ETH feed: `8 + 8 - 18 = -2`). Rather than reverting on
+///      such pairs, the exponent's magnitude is stored as `scaleDenominator` (the positive case is stored
+///      as `scaleNumerator`), so `scale = scaleNumerator / scaleDenominator`. Exactly one of the two is a
+///      power of ten and the other is 1; the factor is then folded into the appropriate side of the single
+///      `mulDiv`, preserving the caller-supplied rounding direction (no extra rounding step is introduced).
 ///
 ///      **BTC-denominated strategy** (`baseDecimals = 8`, `asset()` is BTC/BTC-pegged accounting):
 ///
@@ -50,11 +55,13 @@ contract ChainlinkConverter is IAssetConverter {
     error ChainlinkConverterGracePeriodNotOver();
     error ChainlinkConverterZeroFeed();
     error ChainlinkConverterZeroHeartbeat();
-    error ChainlinkConverterDecimalsUnderflow();
 
     AggregatorV3Interface public immutable feed;
-    /// @dev Normalisation factor; exponent depends on `inverted` (see contract-level @dev).
-    uint256 public immutable scalingFactor;
+    // Normalisation factor expressed as the rational `scaleNumerator / scaleDenominator`; the exponent's
+    // sign depends on the decimals and `inverted`. Exactly one of the two is a
+    // power of ten and the other is 1.
+    uint256 public immutable scaleNumerator;
+    uint256 public immutable scaleDenominator;
     uint256 public immutable heartbeat;
     /// @dev address(0) disables the sequencer check (mainnet deployments).
     AggregatorV3Interface public immutable sequencerUptimeFeed;
@@ -88,17 +95,23 @@ contract ChainlinkConverter is IAssetConverter {
         uint8 feedDec = feed.decimals();
         baseDecimals = baseDecimals_;
         inverted = inverted_;
-        if (inverted_) {
-            if (uint256(feedDec) + baseDecimals_ < tokenDecimals_)
-                revert ChainlinkConverterDecimalsUnderflow();
-            scalingFactor =
-                10 ** (uint256(feedDec) + baseDecimals_ - tokenDecimals_);
+
+        // Positive part of the scale exponent (added to the feed decimals) and negative part (subtracted).
+        // Forward: scale = 10^(feedDec + tokenDec - baseDec); inverted: scale = 10^(feedDec + baseDec - tokenDec).
+        uint256 positive = uint256(feedDec) +
+            (inverted_ ? baseDecimals_ : tokenDecimals_);
+        uint256 negative = inverted_ ? tokenDecimals_ : baseDecimals_;
+        if (positive >= negative) {
+            // Non-negative exponent: scale = 10^(positive - negative).
+            scaleNumerator = 10 ** (positive - negative);
+            scaleDenominator = 1;
         } else {
-            if (uint256(feedDec) + tokenDecimals_ < baseDecimals_)
-                revert ChainlinkConverterDecimalsUnderflow();
-            scalingFactor =
-                10 ** (uint256(feedDec) + tokenDecimals_ - baseDecimals_);
+            // Negative exponent: scale = 1 / 10^(negative - positive). Folding the magnitude into the
+            // denominator keeps every conversion a single rounded mulDiv instead of reverting on underflow.
+            scaleNumerator = 1;
+            scaleDenominator = 10 ** (negative - positive);
         }
+
         heartbeat = heartbeat_;
         sequencerUptimeFeed = AggregatorV3Interface(sequencerUptimeFeed_);
         gracePeriod = gracePeriod_;
@@ -110,10 +123,22 @@ contract ChainlinkConverter is IAssetConverter {
         Math.Rounding rounding
     ) external view override returns (uint256) {
         uint256 ans = _getAnswer();
+        // `scaleDenominator` is 1 unless the exponent is negative, in which case it carries the magnitude
+        // onto the `answer` side; `scaleNumerator` carries it otherwise. One reduces to the classic forms.
         return
             inverted
-                ? Math.mulDiv(tokenAmount, scalingFactor, ans, rounding)
-                : Math.mulDiv(tokenAmount, ans, scalingFactor, rounding);
+                ? Math.mulDiv(
+                    tokenAmount,
+                    scaleNumerator,
+                    ans * scaleDenominator,
+                    rounding
+                )
+                : Math.mulDiv(
+                    tokenAmount,
+                    ans * scaleDenominator,
+                    scaleNumerator,
+                    rounding
+                );
     }
 
     /// @inheritdoc IAssetConverter
@@ -124,13 +149,25 @@ contract ChainlinkConverter is IAssetConverter {
         uint256 ans = _getAnswer();
         return
             inverted
-                ? Math.mulDiv(baseUnits, ans, scalingFactor, rounding)
-                : Math.mulDiv(baseUnits, scalingFactor, ans, rounding);
+                ? Math.mulDiv(
+                    baseUnits,
+                    ans * scaleDenominator,
+                    scaleNumerator,
+                    rounding
+                )
+                : Math.mulDiv(
+                    baseUnits,
+                    scaleNumerator,
+                    ans * scaleDenominator,
+                    rounding
+                );
     }
 
     function _getAnswer() private view returns (uint256) {
         _checkSequencer();
-        (, int256 answer, , uint256 updatedAt, ) = feed.latestRoundData();
+        (uint80 roundId, int256 answer, , uint256 updatedAt, ) = feed
+            .latestRoundData();
+        if (roundId == 0) revert ChainlinkConverterInvalidAnswer();
         if (answer <= 0) revert ChainlinkConverterInvalidAnswer();
         if (updatedAt > block.timestamp)
             revert ChainlinkConverterFutureAnswer();

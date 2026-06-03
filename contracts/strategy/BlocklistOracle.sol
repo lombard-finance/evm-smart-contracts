@@ -102,6 +102,7 @@ contract BlocklistOracle is
     function removeSanctionList(
         address sanctionList
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (sanctionList == address(0)) revert BlocklistOracle_ZeroAddress();
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
         if (!$.sanctions.remove(sanctionList))
             revert BlocklistOracle_SanctionListNotFound();

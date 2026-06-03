@@ -67,6 +67,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       'Multi Strategy Shares',
       'mSTRAT',
       await underlying.getAddress(),
+      18,
       admin.address,
       0,
       treasury.address,
@@ -91,6 +92,27 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.asset()).to.equal(underlying.address);
     expect(await strategy.version()).to.equal('MultiAssetWithAsyncRedemptionStrategy-0.0.1');
     expect(await strategy.blocklistOracle()).to.equal(blocklistOracleAddr);
+  });
+
+  it('changeNameAndSymbol updates name and symbol and emits NameAndSymbolChanged', async function () {
+    const newName = 'Renamed Strategy Shares';
+    const newSymbol = 'rSTRAT';
+
+    await expect(strategy.connect(admin).changeNameAndSymbol(newName, newSymbol))
+      .to.emit(strategy, 'NameAndSymbolChanged')
+      .withArgs(newName, newSymbol);
+
+    expect(await strategy.name()).to.equal(newName);
+    expect(await strategy.symbol()).to.equal(newSymbol);
+  });
+
+  it('changeNameAndSymbol reverts for non-admin', async function () {
+    const newName = 'Renamed Strategy Shares';
+    const newSymbol = 'rSTRAT';
+
+    await expect(strategy.connect(user).changeNameAndSymbol(newName, newSymbol))
+      .to.be.revertedWithCustomError(strategy, 'AccessControlUnauthorizedAccount')
+      .withArgs(user.address, await strategy.DEFAULT_ADMIN_ROLE());
   });
 
   it('admin can setBlocklistOracle to a new address', async function () {
@@ -280,6 +302,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         'Tmp',
         'TMP',
         await underlying.getAddress(),
+        18,
         admin.address,
         0,
         ethers.ZeroAddress,
@@ -295,12 +318,30 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         'Tmp',
         'TMP',
         await underlying.getAddress(),
+        18,
         admin.address,
         0,
         treasury.address,
         ethers.ZeroAddress
       ])
     ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAddress');
+  });
+
+  it('initialize reverts when fallback decimals is zero', async function () {
+    const factory = await ethers.getContractFactory('MultiAssetWithAsyncRedemptionStrategy');
+    const blocklistOracleAddr = await deployBlocklistOracle(admin.address);
+    await expect(
+      upgrades.deployProxy(factory, [
+        'Tmp',
+        'TMP',
+        await underlying.getAddress(),
+        0,
+        admin.address,
+        0,
+        treasury.address,
+        blocklistOracleAddr
+      ])
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroDecimals');
   });
 
   it('lists a deposit asset and records converter + fee', async function () {
@@ -331,6 +372,30 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
     expect(await strategy.balanceOf(user.address)).to.equal(preview);
     expect(await altDeposit.balanceOf(v)).to.equal(assets);
+  });
+
+  it('reverts deposit and mint for an unlisted asset (no spurious Deposit event)', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+
+    // altDeposit is intentionally NOT listed via addDepositAsset.
+    const assets = 10_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, assets);
+    await altDeposit.connect(user).approve(v, assets);
+
+    // Unlisted asset: previewDeposit returns 0 shares, caught by the zero guard.
+    await expect(
+      strategy.connect(user)['deposit(address,uint256,address)'](alt, assets, user.address)
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAmount');
+
+    // mint of an unlisted asset: previewMint returns 0 assets, caught downstream.
+    await expect(
+      strategy.connect(user)['mint(address,uint256,address)'](alt, 1n, user.address)
+    ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroAmount');
+
+    // No tokens were pulled and no shares minted.
+    expect(await altDeposit.balanceOf(v)).to.equal(0n);
+    expect(await strategy.balanceOf(user.address)).to.equal(0n);
   });
 
   it('optional defaultShard forwards net deposit tokens to a registered address', async function () {
@@ -608,7 +673,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       it(`convertToShares ${arg.name}`, async () => {
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        await strategy.connect(admin).postPricePerShare(arg.pps, e18, false);
 
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const amount = arg.amount;
@@ -621,7 +686,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       it(`convertToAssets ${arg.name}`, async () => {
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        await strategy.connect(admin).postPricePerShare(arg.pps, e18, false);
 
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const amount = arg.amount;
@@ -635,7 +700,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
         const priceManagerRole = await strategy.PRICE_SETTER_ROLE();
         await strategy.connect(admin).grantRole(priceManagerRole, admin.address);
-        await strategy.connect(admin).postPricePerShare(arg.pps, false);
+        await strategy.connect(admin).postPricePerShare(arg.pps, e18, false);
         if (await strategy.depositPaused()) {
           await strategy.connect(admin).unpauseDeposit();
         }
@@ -808,6 +873,47 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       // Strategy holds no underlying — fulfillment must revert (transfer fails).
       await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid])).to.be.reverted;
     });
+
+    it('fulfillRedeemRequests: reverts when fulfilled in the same block as the request', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const depositAmt = e18;
+      await altDeposit.mint(user.address, depositAmt);
+      await altDeposit.connect(user).approve(strategy.address, depositAmt);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, depositAmt, user.address);
+
+      const shares = await strategy.balanceOf(user.address);
+      await underlying.mint(strategy.address, shares);
+
+      const rid = await strategy.connect(user).requestRedeem.staticCall(shares, user.address);
+
+      // Force the request and the fulfillment into the same block.
+      await ethers.provider.send('evm_setAutomine', [false]);
+      let fulfillStatus: number | undefined;
+      try {
+        await strategy.connect(user).requestRedeem(shares, user.address, { gasLimit: 1_000_000 });
+        const fulfillTx = await strategy
+          .connect(redeemOperator)
+          .fulfillRedeemRequests([rid], { gasLimit: 1_000_000 });
+        await ethers.provider.send('evm_mine', []);
+        const receipt = await ethers.provider.getTransactionReceipt(fulfillTx.hash);
+        fulfillStatus = receipt!.status ?? undefined;
+      } finally {
+        await ethers.provider.send('evm_setAutomine', [true]);
+      }
+      // Fulfillment in the same block must have reverted.
+      expect(fulfillStatus).to.equal(0);
+
+      // The request remains open and is fulfillable from the next block onward.
+      const pending = await strategy.pendingRedeemRequest(rid);
+      expect(pending.pendingShares).to.equal(shares);
+
+      await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([rid]))
+        .to.emit(strategy, 'Redeem')
+        .withArgs(redeemOperator.address, user.address, shares, shares)
+        .and.to.emit(strategy, 'RedeemRequestsFulfilled')
+        .withArgs([rid]);
+    });
   });
 
   describe('harvestPerformanceFee at different pps', function () {
@@ -941,7 +1047,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
         const newRate = arg.newRate(defaultRate);
 
         if (newRate !== defaultRate) {
-          await strategy.connect(admin).postPricePerShare(newRate, false);
+          const supplyAtSnapshot = await strategy.totalSupply();
+          const navAtSnapshot = (newRate * supplyAtSnapshot) / e18;
+          await strategy.connect(admin).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
           if (await strategy.depositPaused()) {
             await strategy.connect(admin).unpauseDeposit();
           }
@@ -1010,6 +1118,74 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.converterOf(altDeposit.address)).to.equal(nextAddr);
   });
 
+  describe('postPricePerShare reconciliation', function () {
+    it('reconciles down for mid-epoch deposit (frontrun protection)', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+      expect(supplyAtSnapshot).to.equal(baseDeposit);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Operator off-chain: NAV = 101, supply = 100 → declared PPS = 1.01.
+      const navAtSnapshot = 101n * e18;
+
+      // Frontrun: 50-asset deposit at the still-stored PPS = 1.0 mints 50 shares before the post lands.
+      const frontrunAmt = 50n * e18;
+      await altDeposit.mint(user.address, frontrunAmt);
+      await altDeposit.connect(user).approve(strategy.address, frontrunAmt);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, frontrunAmt, user.address);
+
+      expect(await strategy.totalSupply()).to.equal(150n * e18);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Post: reconciledNav = 101 + 50 * 1.0 = 151, stored PPS = 151/150 (Floor) — not the declared 1.01.
+      await strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      const expectedPPS = (151n * e18) / 150n;
+      const declaredPPS = (101n * e18) / 100n;
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+      expect(await strategy.pricePerShare()).to.be.lessThan(declaredPPS);
+
+      // totalAssets() matches real backing (151), modulo Floor truncation in the round-trip.
+      expect(await strategy.totalAssets()).to.equal((150n * e18 * expectedPPS) / e18);
+    });
+
+    it('reconciles up for mid-epoch redeem request', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Operator snapshot: NAV = 101, supply = 100 → declared PPS = 1.01.
+      const navAtSnapshot = 101n * e18;
+
+      // Mid-epoch redeem request burns 30 shares at stale PPS = 1.0; active supply drops to 70.
+      const redeemShares = 30n * e18;
+      await strategy.connect(user).requestRedeem(redeemShares, user.address);
+      expect(await strategy.totalSupply()).to.equal(70n * e18);
+
+      // Post: navRemoved = 30 * 1.0 = 30, reconciledNav = 71, stored PPS = 71/70 (Floor) — above declared 1.01.
+      await strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      const expectedPPS = (71n * e18) / 70n;
+      const declaredPPS = (101n * e18) / 100n;
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+      expect(await strategy.pricePerShare()).to.be.greaterThan(declaredPPS);
+
+      expect(await strategy.totalAssets()).to.equal((70n * e18 * expectedPPS) / e18);
+    });
+  });
+
   describe('price-per-share rate limit', function () {
     it('setPricePerShareRateLimit requires MANAGER_ROLE', async function () {
       await expect(strategy.connect(user).setPricePerShareRateLimit(500, 1n)).to.be.revertedWithCustomError(
@@ -1034,11 +1210,14 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       const p0 = await strategy.pricePerShare();
       // +0.05% (500 bps) — consumes the entire weekly budget
       const p1 = (p0 * 10005n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p1, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p1, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
 
       // Any further move is blocked until the bucket refills
-      await expect(strategy.connect(operator).postPricePerShare(p1 + 1n, true)).to.be.revertedWithCustomError(
+      await expect(strategy.connect(operator).postPricePerShare(p1 + 1n, e18, true)).to.be.revertedWithCustomError(
         strategy,
         'PriceRateLimiterRateLimitExceeded'
       );
@@ -1048,7 +1227,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p2 = (p1 * 10005n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p2, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p2, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
     });
 
     it('soft overflow: applies price, drains bucket, and pauses deposit and redeem', async function () {
@@ -1060,10 +1242,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
       const p0 = await strategy.pricePerShare();
       const p1 = (p0 * 10005n) / 10000n;
-      await strategy.connect(operator).postPricePerShare(p1, true);
+      await strategy.connect(operator).postPricePerShare(p1, e18, true);
 
       const tinyBump = p1 + 1n;
-      await expect(strategy.connect(operator).postPricePerShare(tinyBump, false)).to.emit(
+      await expect(strategy.connect(operator).postPricePerShare(tinyBump, e18, false)).to.emit(
         strategy,
         'PricePerShareUpdated'
       );
@@ -1085,12 +1267,15 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       const p0 = await strategy.pricePerShare();
       // +0.13% (1300 bps) — within daily budget, leaving 100 bps
       const p1 = (p0 * 10013n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p1, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p1, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(100n);
 
       // 2 bps exceeds the 1 bps remaining in the bucket
       const p2 = (p1 * 10002n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p2, true)).to.be.revertedWithCustomError(
+      await expect(strategy.connect(operator).postPricePerShare(p2, e18, true)).to.be.revertedWithCustomError(
         strategy,
         'PriceRateLimiterRateLimitExceeded'
       );
@@ -1100,7 +1285,128 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       await ethers.provider.send('evm_mine', []);
 
       const p3 = (p1 * 10013n) / 10000n;
-      await expect(strategy.connect(operator).postPricePerShare(p3, true)).to.emit(strategy, 'PricePerShareUpdated');
+      await expect(strategy.connect(operator).postPricePerShare(p3, e18, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
+    });
+
+    it('gates on the declared NAV move, not the reconciled move (mid-epoch mint cannot mask a swing)', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+      expect(supplyAtSnapshot).to.equal(baseDeposit);
+
+      // Bucket allows a +60% move (600_000 micro-bps); refillRate 0 keeps it full for the test.
+      await strategy.connect(admin).setPricePerShareRateLimit(600_000, 0);
+
+      // Frontrun: mint 100 more shares at the stale PPS = 1.0 before the post lands → supply doubles to 200.
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      expect(await strategy.totalSupply()).to.equal(200n * e18);
+
+      // Operator declares NAV = 200 for the 100 snapshot shares → declared PPS = 2.0, a +100% move.
+      // The reconciled move is only +50% (priceToSet = 300/200 = 1.5), which would slip under the 60% cap.
+      // The limiter must measure the declared +100% (1_000_000 micro-bps) and reject it.
+      const navAtSnapshot = 200n * e18;
+      await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true))
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiter_RateLimitExceeded')
+        .withArgs(1_000_000n, 600_000n);
+    });
+
+    it('consumes the declared move from the bucket but stores the reconciled price', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Bucket allows a +150% move (1_500_000 micro-bps), so the declared +100% clears it; refillRate 0.
+      await strategy.connect(admin).setPricePerShareRateLimit(1_500_000, 0);
+
+      // Frontrun mint at stale PPS → supply 200.
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      // Declared PPS = 2.0 (+100%); reconciled priceToSet = 300/200 = 1.5.
+      const navAtSnapshot = 200n * e18;
+      await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
+
+      // Stored price is the reconciled 1.5, but the bucket was drained by the declared +100% (1_000_000),
+      // not the reconciled +50% — leaving 1_500_000 - 1_000_000 = 500_000 of capacity.
+      expect(await strategy.pricePerShare()).to.equal((3n * e18) / 2n);
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(500_000n);
+    });
+
+    it('pauses on a declared NAV decrease masked by a mid-epoch deposit (soft overflow)', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Bucket allows a -40% move (400_000 micro-bps); refillRate 0.
+      await strategy.connect(admin).setPricePerShareRateLimit(400_000, 0);
+
+      // Frontrun: deposit 100 more at the stale PPS = 1.0 → supply 200. Depositing at the (now too-high)
+      // stale PPS props the reconciled NAV up and shrinks the apparent loss.
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+
+      // Operator declares NAV = 50 for the 100 snapshot shares → declared PPS = 0.5, a -50% move (500_000).
+      // Reconciled priceToSet = 150/200 = 0.75, only a -25% move — under the 40% cap. The limiter must
+      // measure the declared -50%, exhaust the bucket, store the reconciled 0.75, and pause both paths.
+      const navAtSnapshot = 50n * e18;
+      await strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      expect(await strategy.pricePerShare()).to.equal((3n * e18) / 4n);
+      expect(await strategy.depositPaused()).to.be.true;
+      expect(await strategy.redeemPaused()).to.be.true;
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
+    });
+
+    it('rejects a declared NAV decrease on the declared move even when a redemption amplifies it', async function () {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      // Seed 100 shares at PPS = 1.0.
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(user.address, baseDeposit);
+      await altDeposit.connect(user).approve(strategy.address, baseDeposit);
+      await strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, user.address);
+      const supplyAtSnapshot = await strategy.totalSupply();
+
+      // Bucket allows a -55% move (550_000 micro-bps); refillRate 0.
+      await strategy.connect(admin).setPricePerShareRateLimit(550_000, 0);
+
+      // Mid-epoch redeem request burns 30 shares at the stale PPS = 1.0 → supply 70. Redemptions at the
+      // stale (too-high) PPS *amplify* the reconciled loss rather than mask it.
+      await strategy.connect(user).requestRedeem(30n * e18, user.address);
+      expect(await strategy.totalSupply()).to.equal(70n * e18);
+
+      // Operator declares NAV = 40 for the 100 snapshot shares → declared PPS = 0.4, a -60% move (600_000).
+      // Reconciled priceToSet = (40 - 30)/70 ≈ 0.143, a steeper ~-85.7% move. Either move trips the 55% cap,
+      // but the limiter must report the *declared* 600_000 (not the reconciled ~857_143) as the requested move.
+      const navAtSnapshot = 40n * e18;
+      await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true))
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiter_RateLimitExceeded')
+        .withArgs(600_000n, 550_000n);
     });
   });
 });
@@ -1165,6 +1471,7 @@ describe('StakedLBTC as deposit token', function () {
         'Lombard BTC Strategy',
         'LBTCSTR',
         await lbtcUnderlying.getAddress(),
+        8,
         admin.address,
         0,
         treasury.address,
@@ -1370,6 +1677,7 @@ describe('Chainlink as deposit token', function () {
         'Chainlink BTC Strategy',
         'clSTRAT',
         await depositToken.getAddress(),
+        8,
         admin.address,
         0,
         admin.address,
@@ -1436,6 +1744,34 @@ describe('Chainlink as deposit token', function () {
           expect(tokenOut - amt).to.be.lte(1n);
         }
       }
+    });
+
+    it('forward: negative exponent (feedDec + tokenDec < baseDec) converts instead of reverting', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // base-per-token feed at peg: answer/1e8 = 1 base natural per 1 token natural
+      const feed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await feed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      // token 6 dec, base 18 dec, feed 8 dec → exponent = 8 + 6 - 18 = -4 (would previously underflow-revert)
+      const conv = (await convFactory.deploy(
+        await feed.getAddress(),
+        6,
+        18,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+
+      // scale = 10^-4 → scaleNumerator = 1, scaleDenominator = 10000
+      expect(await conv.scaleNumerator()).to.equal(1n);
+      expect(await conv.scaleDenominator()).to.equal(10_000n);
+
+      const ONE_TOKEN = 10n ** 6n;
+      const ONE_BASE = 10n ** 18n;
+      expect(await conv.toBaseUnits(ONE_TOKEN, 0)).to.equal(ONE_BASE);
+      expect(await conv.fromBaseUnits(ONE_BASE, 1)).to.equal(ONE_TOKEN);
     });
 
     it('stale answer reverts with StaleAnswer', async function () {
@@ -1569,14 +1905,63 @@ describe('Chainlink as deposit token', function () {
       expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(usdcIn);
     });
 
-    it('inverted: decimals underflow when feedDec + baseDec < tokenDec', async function () {
+    it('inverted: negative exponent (feedDec + baseDec < tokenDec) converts instead of reverting', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // token-per-base feed at peg: answer/1e8 = 1 token natural per 1 base natural
+      const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
+      await invFeed.waitForDeployment();
+      const convFactory = await ethers.getContractFactory('ChainlinkConverter');
+      // token 18 dec, base 8 dec, feed 8 dec → exponent = 8 + 8 - 18 = -2 (would previously underflow-revert)
+      const conv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        18,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+
+      // scale = 10^-2 → scaleNumerator = 1, scaleDenominator = 100
+      expect(await conv.scaleNumerator()).to.equal(1n);
+      expect(await conv.scaleDenominator()).to.equal(100n);
+
+      // 1 token (1e18) at peg → 1 base natural → 1e8 base units; and back.
+      const ONE_TOKEN = 10n ** 18n;
+      expect(await conv.toBaseUnits(ONE_TOKEN, 0)).to.equal(ONE_BTC);
+      expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_TOKEN);
+    });
+
+    it('inverted: negative-exponent round-trip stays within 1 base wei', async function () {
       const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
       const invFeed = (await feedFactory.deploy(8, ONE_BTC)) as ChainlinkFeedMock;
       await invFeed.waitForDeployment();
       const convFactory = await ethers.getContractFactory('ChainlinkConverter');
-      await expect(
-        convFactory.deploy(await invFeed.getAddress(), 18, 8, HEARTBEAT, ethers.ZeroAddress, 0, true)
-      ).to.be.revertedWithCustomError(convFactory, 'ChainlinkConverterDecimalsUnderflow');
+      const conv = (await convFactory.deploy(
+        await invFeed.getAddress(),
+        18,
+        8,
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkConverter;
+      await conv.waitForDeployment();
+
+      // Round-trip in the precision-preserving direction: base -> token -> base. (token has 18 dec, base 8,
+      // so token -> base -> token would shed sub-base dust; that is decimal truncation, not a converter bug.)
+      const answers = [(ONE_BTC * 95n) / 100n, (ONE_BTC * 99n) / 100n, ONE_BTC];
+      const amounts = [ONE_BTC / 2n, ONE_BTC, ONE_BTC * 100n];
+      for (const answer of answers) {
+        await invFeed.setAnswer(answer);
+        for (const amt of amounts) {
+          const tokenOut = await conv.fromBaseUnits(amt, 1);
+          const baseOut = await conv.toBaseUnits(tokenOut, 0);
+          expect(baseOut).to.be.gte(amt);
+          expect(baseOut - amt).to.be.lte(1n);
+        }
+      }
     });
 
     it('round-trip: fromBaseUnits(toBaseUnits(x)) >= x and diff <= 1 token wei (inverted)', async function () {
@@ -1731,6 +2116,135 @@ describe('Chainlink as deposit token', function () {
           }
         }
       }
+    });
+
+    it('mismatched feed decimals (6-dec num, 18-dec den) do not truncate to zero', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // Both feeds report a 1:1 price, but with very different decimals.
+      // num: 6-dec feed, answer 1e6 (price 1.0)
+      // den: 18-dec feed, answer 1e18 (price 1.0)
+      const feedNum = (await feedFactory.deploy(6, 10n ** 6n)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        6, // tokenDecimals
+        6, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // 100,000 USDC (6 decimals). With the old two-step computation the
+      // intermediate ratio mulDiv(1e11, 1e6, 1e18) floored to 0, losing the
+      // entire amount. A single fused mulDiv preserves the 1:1 conversion.
+      const amount = 100_000n * 10n ** 6n; // 1e11
+      expect(await conv.toBaseUnits(amount, 0)).to.equal(amount);
+      expect(await conv.fromBaseUnits(amount, 1)).to.equal(amount);
+    });
+
+    it('scaleFwdDen > scaleFwdNum (18-dec token/num, 8-dec base/den) stays exact', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // num: 18-dec feed, answer 1e18 (price 1.0)
+      // den: 8-dec feed, answer 1e8 (price 1.0)
+      // fwdExp = (denDec+baseDec) - (numDec+tokenDec) = (8+8) - (18+18) = -20,
+      // so the netted scales are scaleFwdNum = 1 and scaleFwdDen = 10^20 (den >> num).
+      const feedNum = (await feedFactory.deploy(18, 10n ** 18n)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(8, 10n ** 8n)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        18, // tokenDecimals
+        8, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // 1 token (1e18) at a 1:1 price is exactly 1 base unit (1e8), regardless
+      // of scaleFwdDen (1e20) being 20 orders of magnitude larger than scaleFwdNum (1).
+      const oneToken = 10n ** 18n;
+      const oneBase = 10n ** 8n;
+      expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneBase);
+      expect(await conv.fromBaseUnits(oneBase, 1)).to.equal(oneToken);
+
+      // Sub-base-unit dust (true value < 1 base unit) legitimately floors to 0
+      // with Floor rounding, and ceils to 1 with Ceil rounding — not a bug.
+      const dust = 10n ** 9n; // 1e9 token wei = 1e-9 token => well below 1 base unit
+      expect(await conv.toBaseUnits(dust, 0)).to.equal(0n); // Floor
+      expect(await conv.toBaseUnits(dust, 1)).to.equal(1n); // Ceil
+    });
+
+    it('large feed answers do not overflow the fused mulDiv (netted scaling)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // 18-dec feeds, 18-dec token, 18-dec base => fwd/inv net exponents are 0,
+      // so the applied scale is 1. With the *un-netted* scaling the converter would
+      // multiply the answer by 10^(18+18)=10^36; an answer of 1e42 would then form
+      // 1e78 > 2^256 and revert, blocking a legitimate price. Netting avoids this.
+      const bigAnswer = 10n ** 42n;
+      const feedNum = (await feedFactory.deploy(18, bigAnswer)) as ChainlinkFeedMock;
+      const feedDen = (await feedFactory.deploy(18, bigAnswer)) as ChainlinkFeedMock;
+      await feedNum.waitForDeployment();
+      await feedDen.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      const conv = (await convFactory.deploy(
+        await feedNum.getAddress(),
+        await feedDen.getAddress(),
+        18, // tokenDecimals
+        18, // baseDecimals
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        false
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      // num == den (1:1) at equal decimals => 1 token maps to 1 base unit, no revert.
+      const oneToken = 10n ** 18n;
+      expect(await conv.toBaseUnits(oneToken, 0)).to.equal(oneToken);
+      expect(await conv.fromBaseUnits(oneToken, 1)).to.equal(oneToken);
+    });
+
+    it('inverted mode is unchanged by netting (ETH/USD ÷ BTC/USD style)', async function () {
+      const feedFactory = await ethers.getContractFactory('ChainlinkFeedMock');
+      // Same economic setup as the forward cross test but deployed inverted with the
+      // feeds swapped, which must yield identical results.
+      const ethUsd = (await feedFactory.deploy(8, 2500n * ONE_BTC)) as ChainlinkFeedMock;
+      const btcUsd = (await feedFactory.deploy(8, 50_000n * ONE_BTC)) as ChainlinkFeedMock;
+      await ethUsd.waitForDeployment();
+      await btcUsd.waitForDeployment();
+
+      const convFactory = await ethers.getContractFactory('ChainlinkCompositeConverter');
+      // inverted = true with (num=BTC/USD, den=ETH/USD): ratio is den/num = ETH/BTC.
+      const conv = (await convFactory.deploy(
+        await btcUsd.getAddress(),
+        await ethUsd.getAddress(),
+        18, // tokenDecimals (ETH)
+        8, // baseDecimals (BTC)
+        HEARTBEAT,
+        ethers.ZeroAddress,
+        0,
+        true
+      )) as ChainlinkCompositeConverter;
+      await conv.waitForDeployment();
+
+      const oneEth = 10n ** 18n;
+      const expectedSat = 5n * 10n ** 6n; // 0.05 BTC
+      expect(await conv.toBaseUnits(oneEth, 0)).to.equal(expectedSat);
+      expect(await conv.fromBaseUnits(expectedSat, 1)).to.equal(oneEth);
     });
   });
 

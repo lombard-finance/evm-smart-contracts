@@ -58,6 +58,6 @@ contract RatioFeedMock is IOracle {
             _ratio,
             Math.Rounding.Ceil
         );
-        return (uint80(0), int256(rate), _updatedAt, _updatedAt, uint80(0));
+        return (uint80(1), int256(rate), _updatedAt, _updatedAt, uint80(1));
     }
 }

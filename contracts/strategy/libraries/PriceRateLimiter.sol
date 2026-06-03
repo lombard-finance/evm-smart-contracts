@@ -6,7 +6,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @title PriceRateLimiter
 /// @notice Rate limit on how large a single relative `pricePerShare` move may be (micro-basis-point units), using configurable capacity and refill.
 /// @dev Attach with `using PriceRateLimiter for PriceRateLimiter.Bucket` and call `_consume`, `_setConfig`, etc. on storage buckets.
-///      **Micro-bps**: internal scale uses `BPS_DENOMINATOR = 1_000_000` (not 10_000).
+///      **Micro-bps**: internal scale uses `MICRO_BPS_DENOMINATOR = 1_000_000` (not 10_000).
 /// @custom:security-contact legal@lombard.finance
 library PriceRateLimiter {
     using Math for uint256;
@@ -27,7 +27,7 @@ library PriceRateLimiter {
     /// @dev Micro-basis-points: 1 unit = 0.0001% (1/1,000,000), NOT standard bps (1/10,000).
     ///      This provides finer granularity for rate limiting price changes.
     ///      Example: 100 units = 0.01%, 10000 units = 1%.
-    uint256 private constant BPS_DENOMINATOR = 1_000_000;
+    uint256 private constant MICRO_BPS_DENOMINATOR = 1_000_000;
 
     /// @notice Persistent capacity/refill state for this rate limiter.
     /// @dev Packed into one 32-byte storage slot (22 bytes used): timestamps and bps fields.
@@ -101,7 +101,10 @@ library PriceRateLimiter {
     function _refill(Bucket memory b) internal view returns (Bucket memory) {
         uint48 ts = uint48(block.timestamp);
         if (ts <= b.lastRefill) return b;
-        uint256 elapsed = uint256(ts) - uint256(b.lastRefill);
+        uint256 elapsed;
+        unchecked {
+            elapsed = uint256(ts) - uint256(b.lastRefill);
+        }
         uint256 added = (elapsed * uint256(b.refillRate)) >> 32;
         uint256 newLevel = uint256(b.capacityBps) + added;
         b.capacityBps = newLevel > uint256(b.maxBps)
@@ -135,7 +138,7 @@ library PriceRateLimiter {
         uint256 newPps
     ) internal pure returns (uint256) {
         uint256 diff = newPps >= oldPps ? newPps - oldPps : oldPps - newPps;
-        return diff.mulDiv(BPS_DENOMINATOR, oldPps, Math.Rounding.Ceil);
+        return diff.mulDiv(MICRO_BPS_DENOMINATOR, oldPps, Math.Rounding.Ceil);
     }
 
     /// @dev Advances stored refill state to `block.timestamp` without exceeding `maxBps`.

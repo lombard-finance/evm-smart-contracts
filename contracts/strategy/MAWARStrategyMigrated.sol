@@ -16,10 +16,7 @@ import {MultiAssetWithAsyncRedemptionStrategy} from "./MultiAssetWithAsyncRedemp
 
 /// @custom:security-contact legal@lombard.finance
 contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
-    error ZeroDecimals();
-
     uint256 private constant NOT_ENTERED = 1;
-    uint256 private constant ENTERED = 2;
 
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ReentrancyGuard")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant REENTRANCY_GUARD_STORAGE_LOCATION =
@@ -54,7 +51,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (blocklistOracle_ == address(0)) revert Strategy_ZeroAddress();
         if (address(asset_) == address(0)) revert Strategy_ZeroAddress();
-        if (decimals_ == 0) revert ZeroDecimals();
+        if (decimals_ == 0) revert Strategy_ZeroDecimals();
         if (managementFeeTreasury_ == address(0)) revert Strategy_ZeroAddress();
 
         // initialize ReentrancyGuard storage
