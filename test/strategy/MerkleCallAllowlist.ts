@@ -8,7 +8,7 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import { ERC20__factory, MerkleAllowlistValidator } from '../../typechain-types';
 import { e18, randomBigInt } from '../helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { packRuleSelector, packedSelectorToBytes4, buildTree, RulesFile } from '../../scripts/strategy/merkleUtils';
+import { packRuleSelector, packedSelectorToBytes4, buildTree, RulesFile, validateForPPS } from '../../scripts/strategy/merkleUtils';
 import { KNOWN_DESTINATION_TYPES } from '../../scripts/strategy/destinationTypes';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
@@ -1238,6 +1238,259 @@ describe('buildTree: disabled rules and destinationType', function () {
       expect(out).to.match(/Rules processed:.*active_rule/);
       expect(out).to.match(/Rules skipped:.*skipped_rule/);
       expect(out).not.to.match(/Rules processed:.*skipped_rule/);
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+});
+
+// ─── validateForPPS ───────────────────────────────────────────────────────────
+
+describe('validateForPPS', function () {
+  const TO = '0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072';
+  const FULL_MASK = '0x' + 'ff'.repeat(32);
+  const NONZERO = '0x' + '00'.repeat(31) + '01';
+  const ZERO = '0x' + '00'.repeat(32);
+
+  // Constraint with a non-zero expected value at the given offset — counts as a pin.
+  function pin(offset: number): RuleConstraint {
+    return { offset, mask: FULL_MASK, expected: NONZERO };
+  }
+
+  // Full set of valid CcipBridge pins (chainSelector + token + EVM recipient).
+  function ccipPins(opts: { evmRecipient?: boolean; svmRecipient?: boolean } = { evmRecipient: true }): RuleConstraint[] {
+    const cs: RuleConstraint[] = [pin(0), pin(352)]; // chainSelector, token
+    if (opts.evmRecipient) cs.push(pin(256));
+    if (opts.svmRecipient) cs.push(pin(580));
+    return cs;
+  }
+
+  // Full set of valid Morpho_blue MarketParams pins.
+  function morphoBluePins(): RuleConstraint[] {
+    return [pin(0), pin(32), pin(64), pin(96), pin(128)];
+  }
+
+  // ── non-venue rules are ignored ─────────────────────────────────────────────
+
+  it('returns no issues for an empty ruleset', function () {
+    expect(validateForPPS({})).to.be.empty;
+  });
+
+  it('ignores rules with no destinationType', function () {
+    const rules: RulesFile = { r: { value: '0' } };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
+  it('ignores rules with non-venue destinationType (ERC20)', function () {
+    const rules: RulesFile = { r: { destinationType: 'ERC20', value: '0' } };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
+  it('ignores disabled venue rules', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'AAVE_v3', disabled: true }
+    };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
+  // ── wildcard `to` check (all venue types) ───────────────────────────────────
+
+  for (const dt of ['AAVE_v3', 'AAVE_v4', 'Morpho', 'Morpho_blue', 'CcipBridge'] as const) {
+    it(`reports an issue when ${dt} rule has wildcard 'to'`, function () {
+      const rules: RulesFile = { r: { destinationType: dt } };
+      const issues = validateForPPS(rules);
+      expect(issues).to.have.length.greaterThan(0);
+      expect(issues[0]).to.match(/wildcard 'to'/);
+      expect(issues[0]).to.include(dt);
+    });
+
+    it(`no issue when ${dt} rule has a concrete 'to'`, function () {
+      const base: RulesFile = { r: { destinationType: dt, to: TO } };
+      // For CcipBridge/Morpho_blue we also need the required pins to avoid other errors
+      if (dt === 'CcipBridge') base.r.constraints = ccipPins();
+      if (dt === 'Morpho_blue') base.r.constraints = morphoBluePins();
+      const issues = validateForPPS(base);
+      expect(issues).to.be.empty;
+    });
+  }
+
+  // ── CcipBridge-specific pin checks ──────────────────────────────────────────
+
+  it('CcipBridge: reports missing chainSelector', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'CcipBridge', to: TO, constraints: [pin(352), pin(256)] }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('chainSelector');
+  });
+
+  it('CcipBridge: reports missing token', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'CcipBridge', to: TO, constraints: [pin(0), pin(256)] }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('token');
+  });
+
+  it('CcipBridge: reports missing recipient when both EVM and SVM are absent', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'CcipBridge', to: TO, constraints: [pin(0), pin(352)] }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('recipient');
+  });
+
+  it('CcipBridge: EVM recipient alone satisfies recipient requirement', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'CcipBridge', to: TO, constraints: ccipPins({ evmRecipient: true }) }
+    };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
+  it('CcipBridge: SVM recipient alone satisfies recipient requirement', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'CcipBridge', to: TO, constraints: ccipPins({ svmRecipient: true }) }
+    };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
+  it('CcipBridge: constraint with all-zero expected does not count as a pin', function () {
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [
+          { offset: 0, mask: FULL_MASK, expected: ZERO }, // zero — not a pin
+          pin(352),
+          pin(256)
+        ]
+      }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('chainSelector');
+  });
+
+  it('CcipBridge: reports all missing fields in a single issue entry', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'CcipBridge', to: TO, constraints: [] }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('chainSelector');
+    expect(issues[0]).to.include('token');
+    expect(issues[0]).to.include('recipient');
+  });
+
+  // ── Morpho_blue-specific pin checks ─────────────────────────────────────────
+
+  it('Morpho_blue: reports all missing MarketParams in a single issue entry', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'Morpho_blue', to: TO, constraints: [] }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('loanToken');
+    expect(issues[0]).to.include('collateralToken');
+    expect(issues[0]).to.include('oracle');
+    expect(issues[0]).to.include('irm');
+    expect(issues[0]).to.include('lltv');
+  });
+
+  it('Morpho_blue: reports only the missing fields', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'Morpho_blue', to: TO, constraints: [pin(0), pin(64)] } // missing collateralToken, irm, lltv
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('collateralToken');
+    expect(issues[0]).to.include('irm');
+    expect(issues[0]).to.include('lltv');
+    expect(issues[0]).not.to.include('loanToken');
+    expect(issues[0]).not.to.include('oracle');
+  });
+
+  it('Morpho_blue: all five MarketParams pinned → no issues', function () {
+    const rules: RulesFile = {
+      r: { destinationType: 'Morpho_blue', to: TO, constraints: morphoBluePins() }
+    };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
+  it('Morpho_blue: zero-expected constraint does not count as a pin', function () {
+    const zeroPins = morphoBluePins();
+    zeroPins[2] = { offset: 64, mask: FULL_MASK, expected: ZERO }; // oracle zeroed
+    const rules: RulesFile = { r: { destinationType: 'Morpho_blue', to: TO, constraints: zeroPins } };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('oracle');
+  });
+
+  // ── multiple rules / mixed issues ────────────────────────────────────────────
+
+  it('accumulates issues across multiple rules', function () {
+    const rules: RulesFile = {
+      aave_bad: { destinationType: 'AAVE_v3' },
+      morpho_bad: { destinationType: 'Morpho' },
+      ok: { destinationType: 'ERC20', to: TO }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(2);
+    expect(issues.some(i => i.includes('aave_bad'))).to.be.true;
+    expect(issues.some(i => i.includes('morpho_bad'))).to.be.true;
+  });
+
+  // ── script integration: --validate-pps flag ──────────────────────────────────
+
+  it('script exits 0 when --validate-pps passes', async function () {
+    this.timeout(60_000);
+    const { execSync } = await import('child_process');
+    const { writeFileSync, unlinkSync } = await import('fs');
+    const { join } = await import('path');
+    const tmpFile = join(process.cwd(), 'test/strategy/fixtures/tmp-pps-ok.json');
+    // All venue rules have concrete `to` and the extra required pins
+    const rules = {
+      aave_ok: { destinationType: 'AAVE_v3', to: TO, value: '0' },
+      erc20_ok: { destinationType: 'ERC20', to: TO }
+    };
+    writeFileSync(tmpFile, JSON.stringify(rules));
+    try {
+      // Should not throw (exit code 0)
+      expect(() =>
+        execSync(
+          `npx ts-node scripts/strategy/merkleTreeBuilder.ts --rules ${tmpFile} --chain-id 1 --contract ${TO} --mode build --validate-pps 1`
+        )
+      ).not.to.throw();
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it('script exits non-zero when --validate-pps detects a wildcard-to violation', async function () {
+    this.timeout(60_000);
+    const { execSync } = await import('child_process');
+    const { writeFileSync, unlinkSync } = await import('fs');
+    const { join } = await import('path');
+    const tmpFile = join(process.cwd(), 'test/strategy/fixtures/tmp-pps-fail.json');
+    // AAVE_v3 rule with no `to` — violates PPS completeness
+    const rules = {
+      aave_bad: { destinationType: 'AAVE_v3', value: '0' },
+      filler: { to: TO } // needed so tree has at least one leaf
+    };
+    writeFileSync(tmpFile, JSON.stringify(rules));
+    try {
+      let threw = false;
+      try {
+        execSync(
+          `npx ts-node scripts/strategy/merkleTreeBuilder.ts --rules ${tmpFile} --chain-id 1 --contract ${TO} --mode build --validate-pps 1`
+        );
+      } catch {
+        threw = true;
+      }
+      expect(threw).to.be.true;
     } finally {
       unlinkSync(tmpFile);
     }
