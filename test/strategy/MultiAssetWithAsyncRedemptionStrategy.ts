@@ -1317,7 +1317,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       // The limiter must measure the declared +100% (1_000_000 micro-bps) and reject it.
       const navAtSnapshot = 200n * e18;
       await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true))
-        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiter_RateLimitExceeded')
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiterRateLimitExceeded')
         .withArgs(1_000_000n, 600_000n);
     });
 
@@ -1405,7 +1405,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       // but the limiter must report the *declared* 600_000 (not the reconciled ~857_143) as the requested move.
       const navAtSnapshot = 40n * e18;
       await expect(strategy.connect(operator).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true))
-        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiter_RateLimitExceeded')
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiterRateLimitExceeded')
         .withArgs(600_000n, 550_000n);
     });
   });
