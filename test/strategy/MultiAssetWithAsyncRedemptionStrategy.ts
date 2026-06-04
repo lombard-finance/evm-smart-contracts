@@ -892,9 +892,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       let fulfillStatus: number | undefined;
       try {
         await strategy.connect(user).requestRedeem(shares, user.address, { gasLimit: 1_000_000 });
-        const fulfillTx = await strategy
-          .connect(redeemOperator)
-          .fulfillRedeemRequests([rid], { gasLimit: 1_000_000 });
+        const fulfillTx = await strategy.connect(redeemOperator).fulfillRedeemRequests([rid], { gasLimit: 1_000_000 });
         await ethers.provider.send('evm_mine', []);
         const receipt = await ethers.provider.getTransactionReceipt(fulfillTx.hash);
         fulfillStatus = receipt!.status ?? undefined;
