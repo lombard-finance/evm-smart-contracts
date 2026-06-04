@@ -169,13 +169,7 @@ export function buildTree(
  * `pkg/ruleset/validate.go` (vault-manager) and the adapter registrations in
  * the vault-manager NodeManager resolver.
  */
-const PPS_VENUE_DESTINATION_TYPES = new Set<string>([
-  'AAVE_v3',
-  'AAVE_v4',
-  'Morpho',
-  'Morpho_blue',
-  'CcipBridge'
-]);
+const PPS_VENUE_DESTINATION_TYPES = new Set<string>(['AAVE_v3', 'AAVE_v4', 'Morpho', 'Morpho_blue', 'CcipBridge']);
 
 /**
  * Constraint offsets for `CcipBridge` (Chainlink CCIP `Router.ccipSend`).
