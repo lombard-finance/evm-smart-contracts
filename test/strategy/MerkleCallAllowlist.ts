@@ -8,7 +8,13 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 import { ERC20__factory, MerkleAllowlistValidator } from '../../typechain-types';
 import { e18, randomBigInt } from '../helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { packRuleSelector, packedSelectorToBytes4, buildTree, RulesFile, validateForPPS } from '../../scripts/strategy/merkleUtils';
+import {
+  packRuleSelector,
+  packedSelectorToBytes4,
+  buildTree,
+  RulesFile,
+  validateForPPS
+} from '../../scripts/strategy/merkleUtils';
 import { KNOWN_DESTINATION_TYPES } from '../../scripts/strategy/destinationTypes';
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
@@ -1258,7 +1264,9 @@ describe('validateForPPS', function () {
   }
 
   // Full set of valid CcipBridge pins (chainSelector + token + EVM recipient).
-  function ccipPins(opts: { evmRecipient?: boolean; svmRecipient?: boolean } = { evmRecipient: true }): RuleConstraint[] {
+  function ccipPins(
+    opts: { evmRecipient?: boolean; svmRecipient?: boolean } = { evmRecipient: true }
+  ): RuleConstraint[] {
     const cs: RuleConstraint[] = [pin(0), pin(352)]; // chainSelector, token
     if (opts.evmRecipient) cs.push(pin(256));
     if (opts.svmRecipient) cs.push(pin(580));
