@@ -193,8 +193,22 @@ abstract contract FeeManagerUpgradeable is
         );
     }
 
-    /// @dev `totalSupply` is the full outstanding share count (user + treasury). Fee shares previously
-    ///      minted to `managementFeeTreasury` remain in that supply and therefore increase later accruals.
+    /// @dev Computes the management fee shares to mint, grossed up for self-dilution. The configured rate maps
+    ///      to a value fraction `f = bps * elapsed / (_BPS_DENOMINATOR * _SECONDS_PER_YEAR)` that holders should
+    ///      be charged over `elapsed`. Because fee shares dilute themselves the instant they are minted, minting
+    ///      `totalSupply * f` would leave the treasury owning only `f / (1 + f)` of the post-mint supply. To make
+    ///      the treasury own exactly `f`, solve `x / (totalSupply + x) = f` ⇒ mint `totalSupply * f / (1 - f)`,
+    ///      i.e. `totalSupply * num / (den - num)`.
+    ///
+    ///      `den - num` underflows (reverts) only when `num >= den`, i.e. `bps * elapsed >= _BPS_DENOMINATOR *
+    ///      _SECONDS_PER_YEAR`. As every `bps` setter enforces `bps < _BPS_DENOMINATOR`, this requires `elapsed` to
+    ///      exceed `_SECONDS_PER_YEAR * _BPS_DENOMINATOR / bps` — over a year of accrual with no deposit, redeem
+    ///      request, or fee-rate change to reset `lastFeeHarvestAt` (decades at realistic fee rates). That is treated
+    ///      as unreachable, so accrual charges the full elapsed interval rather than capping it; the returned
+    ///      `elapsed` is the true wall-clock gap, kept consistent with the {ManagementFeeHarvested} `shares` it feeds.
+    ///
+    ///      `totalSupply` is the full outstanding share count (user + treasury). Fee shares previously minted to
+    ///      `managementFeeTreasury` remain in that supply and therefore increase later accruals.
     function _computeManagementFeeShares(
         uint48 lastFeeHarvestAt,
         uint16 bps,
@@ -202,12 +216,12 @@ abstract contract FeeManagerUpgradeable is
     ) internal view returns (uint256 shares, uint256 elapsed) {
         elapsed = block.timestamp - uint256(lastFeeHarvestAt);
         if (bps == 0 || totalSupply == 0 || elapsed == 0) return (0, elapsed);
-        // bps <= 9_999 < 2^14, elapsed <= ~3.15e7 < 2^25 → product < 2^39, no overflow
-        shares = totalSupply.mulDiv(
-            uint256(bps) * elapsed,
-            _BPS_DENOMINATOR * _SECONDS_PER_YEAR,
-            Math.Rounding.Floor
-        );
+        // bps <= 9_999 < 2^14, elapsed < 2^48 → num < 2^62, no overflow.
+        uint256 num = uint256(bps) * elapsed;
+        uint256 den = _BPS_DENOMINATOR * _SECONDS_PER_YEAR;
+        // Gross-up: totalSupply * f / (1 - f) = totalSupply * num / (den - num). den - num underflows only past
+        // ~_SECONDS_PER_YEAR * _BPS_DENOMINATOR / bps of unbroken accrual; treated as unreachable.
+        shares = totalSupply.mulDiv(num, den - num, Math.Rounding.Floor);
     }
 
     function _computePerformanceFeeShares(

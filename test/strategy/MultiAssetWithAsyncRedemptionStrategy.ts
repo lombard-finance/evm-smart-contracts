@@ -44,8 +44,12 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
 
   let snapshot: SnapshotRestorer;
 
+  // Mirrors FeeManagerUpgradeable._computeManagementFeeShares: gross-up so the treasury ends up owning
+  // f = num/den of the POST-mint supply (mint S*f/(1-f) = S*num/(den-num)), over the full elapsed interval.
   function expectedManagementFeeShares(supply: bigint, elapsedSeconds: bigint): bigint {
-    return (supply * MGMT_FEE_BPS * elapsedSeconds) / (BPS_DENOMINATOR * SECONDS_PER_YEAR);
+    const num = MGMT_FEE_BPS * elapsedSeconds;
+    const den = BPS_DENOMINATOR * SECONDS_PER_YEAR;
+    return (supply * num) / (den - num);
   }
 
   before(async function () {
@@ -292,6 +296,78 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(feeTreasuryAssetAfter).to.equal(depositFee * 2n);
     expect(mgmtTreasurySharesAfter - mgmtTreasurySharesBefore).to.equal(expectedFeeShares);
     expect(feeTreasuryShares).to.equal(0n);
+  });
+
+  it('grosses up management fee shares so the treasury owns the configured fraction of post-mint supply', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    await strategy.connect(admin).addDepositAsset(alt, await directConverter.getAddress(), 0);
+    await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS)); // 10%
+
+    const firstDeposit = 2_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, firstDeposit * 2n);
+    await altDeposit.connect(user).approve(v, firstDeposit * 2n);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+
+    await ethers.provider.send('evm_increaseTime', [30 * 24 * 60 * 60]);
+    await ethers.provider.send('evm_mine', []);
+
+    const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
+    const treasuryBefore = await strategy.balanceOf(treasury.address);
+    const tx = await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsed = BigInt(block!.timestamp) - BigInt(lastHarvest);
+
+    const minted = (await strategy.balanceOf(treasury.address)) - treasuryBefore;
+    const num = MGMT_FEE_BPS * elapsed;
+    const den = BPS_DENOMINATOR * SECONDS_PER_YEAR;
+
+    // Grossed up amount, and strictly more than the old (buggy) naive mint that under-collected.
+    const naive = (supplyBefore * num) / den;
+    expect(minted).to.equal((supplyBefore * num) / (den - num));
+    expect(minted).to.be.gt(naive);
+
+    // Post-mint ownership fraction equals f = num/den (within one share of flooring), NOT f/(1+f).
+    const postSupply = supplyBefore + minted;
+    // minted/postSupply >= num/den  and  < num/den rounded up by one share:
+    expect(minted * den).to.be.gte(num * postSupply - den);
+    expect(minted * den).to.be.lt(num * postSupply + den);
+  });
+
+  it('charges the full elapsed interval on multi-year dormancy (no cap)', async function () {
+    const alt = await altDeposit.getAddress();
+    const v = await strategy.getAddress();
+    await strategy.connect(admin).addDepositAsset(alt, await directConverter.getAddress(), 0);
+    await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS)); // 10%
+
+    const firstDeposit = 2_000n * 10n ** 18n;
+    await altDeposit.mint(user.address, firstDeposit * 2n);
+    await altDeposit.connect(user).approve(v, firstDeposit * 2n);
+    await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+
+    // Three years of dormancy: at 10%/yr the gross-up stays well below 100% (num/den = 0.3), so no revert,
+    // and the full ~3y interval is charged rather than being capped to one year.
+    await ethers.provider.send('evm_increaseTime', [3 * 365 * 24 * 60 * 60]);
+    await ethers.provider.send('evm_mine', []);
+
+    const supplyBefore = await strategy.totalSupply();
+    const [, lastHarvest] = await strategy.managementFee();
+    const treasuryBefore = await strategy.balanceOf(treasury.address);
+    const tx = await strategy.connect(user)['deposit(address,uint256,address)'](alt, firstDeposit, user.address);
+    const receipt = await tx.wait();
+    const block = await ethers.provider.getBlock(receipt!.blockNumber);
+    const elapsed = BigInt(block!.timestamp) - BigInt(lastHarvest);
+    const minted = (await strategy.balanceOf(treasury.address)) - treasuryBefore;
+
+    // Charged over the true (~3y) interval — and strictly more than a one-year charge would mint.
+    const den = BPS_DENOMINATOR * SECONDS_PER_YEAR;
+    const num = MGMT_FEE_BPS * elapsed;
+    expect(elapsed).to.be.gt(SECONDS_PER_YEAR);
+    expect(minted).to.equal((supplyBefore * num) / (den - num));
+    const oneYearNum = MGMT_FEE_BPS * SECONDS_PER_YEAR;
+    expect(minted).to.be.gt((supplyBefore * oneYearNum) / (den - oneYearNum));
   });
 
   it('initialize reverts when management fee treasury is zero', async function () {

@@ -16,6 +16,10 @@ interface IFeeManager {
     event PerformanceFeeBpsSet(address indexed account, uint16 bps);
 
     /// @notice Management fee shares were minted to `to`.
+    /// @param shares Fee shares minted, grossed up for self-dilution so `to` ends up owning the configured value
+    ///        fraction of the post-mint supply (mint `totalSupply * f / (1 - f)`, not `totalSupply * f`).
+    /// @param elapsed Accrual interval charged, in seconds: the wall-clock gap since the last harvest. `shares`
+    ///        correspond to exactly this interval.
     event ManagementFeeHarvested(
         address indexed to,
         uint256 shares,
