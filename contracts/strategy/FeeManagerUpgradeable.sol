@@ -53,7 +53,7 @@ abstract contract FeeManagerUpgradeable is
     function __FeeManager_init(
         address managementFeeTreasury_
     ) internal onlyInitializing {
-        if (managementFeeTreasury_ == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(managementFeeTreasury_);
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         $.highWaterMark = pricePerShare();
         $.lastFeeHarvestAt = uint48(block.timestamp);
@@ -65,7 +65,7 @@ abstract contract FeeManagerUpgradeable is
     function setManagementFeeTreasury(
         address treasury
     ) external onlyRole(MANAGER_ROLE) {
-        if (treasury == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(treasury);
         _getFeeManagerStorage().managementFeeTreasury = treasury;
         emit ManagementFeeTreasurySet(_msgSender(), treasury);
     }

@@ -78,11 +78,8 @@ abstract contract MultiAssetDepositUpgradeable is
         IAssetConverter assetConverter_
     ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if (!$.depositAssets.contains(depositAsset)) {
-            revert StrategyDeposit_AssetNotListed(depositAsset);
-        }
-        if (address(assetConverter_) == address(0))
-            revert Strategy_ZeroAddress();
+        _requireListed($, depositAsset);
+        _requireNonZeroAddress(address(assetConverter_));
         $.converters[depositAsset] = assetConverter_;
         emit DepositAssetConverterSet(depositAsset, address(assetConverter_));
     }
@@ -93,13 +90,27 @@ abstract contract MultiAssetDepositUpgradeable is
         uint16 depositFeeBps_
     ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
+        _requireListed($, depositAsset);
+        _requireValidFeeBps(depositFeeBps_);
+        $.depositFeeBps[depositAsset] = depositFeeBps_;
+        emit DepositFeeBpsSet(depositAsset, depositFeeBps_);
+    }
+
+    /// @dev Reverts unless `depositAsset` is currently listed.
+    function _requireListed(
+        MultiAssetDepositStorage storage $,
+        address depositAsset
+    ) private view {
         if (!$.depositAssets.contains(depositAsset)) {
             revert StrategyDeposit_AssetNotListed(depositAsset);
         }
-        if (depositFeeBps_ >= _BPS_DENOMINATOR)
-            revert StrategyDeposit_FeeBpsTooHigh(depositFeeBps_);
-        $.depositFeeBps[depositAsset] = depositFeeBps_;
-        emit DepositFeeBpsSet(depositAsset, depositFeeBps_);
+    }
+
+    /// @dev Reverts unless `bps` is a valid deposit fee (strictly below 10_000).
+    function _requireValidFeeBps(uint16 bps) private pure {
+        if (bps >= _BPS_DENOMINATOR) {
+            revert StrategyDeposit_FeeBpsTooHigh(bps);
+        }
     }
 
     function _registerDepositAsset(
@@ -107,11 +118,9 @@ abstract contract MultiAssetDepositUpgradeable is
         IAssetConverter assetConverter_,
         uint16 depositFeeBps_
     ) private {
-        if (depositAsset == address(0)) revert Strategy_ZeroAddress();
-        if (address(assetConverter_) == address(0))
-            revert Strategy_ZeroAddress();
-        if (depositFeeBps_ >= _BPS_DENOMINATOR)
-            revert StrategyDeposit_FeeBpsTooHigh(depositFeeBps_);
+        _requireNonZeroAddress(depositAsset);
+        _requireNonZeroAddress(address(assetConverter_));
+        _requireValidFeeBps(depositFeeBps_);
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.add(depositAsset)) {
             revert StrategyDeposit_AssetAlreadyAdded(depositAsset);
@@ -290,18 +299,12 @@ abstract contract MultiAssetDepositUpgradeable is
     }
 
     /// @inheritdoc IMultiAssetDeposit
+    /// @dev Gating conditions are identical to {maxDeposit}; forwards to avoid duplicating them.
     function maxMint(
         address depositAsset,
-        address
-    ) public view virtual returns (uint256) {
-        if (
-            !_getMultiAssetDepositStorage().depositAssets.contains(
-                depositAsset
-            ) ||
-            depositPaused() ||
-            paused()
-        ) return 0;
-        return type(uint256).max;
+        address receiver
+    ) external view virtual returns (uint256) {
+        return maxDeposit(depositAsset, receiver);
     }
 
     /// @inheritdoc IMultiAssetDeposit
@@ -310,10 +313,7 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 assets
     ) public view virtual returns (uint256) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if (!$.depositAssets.contains(depositAsset)) {
-            return 0;
-        }
-        if (assets == 0) {
+        if (!$.depositAssets.contains(depositAsset) || assets == 0) {
             return 0;
         }
         (, uint256 net) = _splitDepositFeeView(
@@ -331,10 +331,7 @@ abstract contract MultiAssetDepositUpgradeable is
         uint256 shares
     ) public view virtual override returns (uint256) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
-        if (!$.depositAssets.contains(depositAsset)) {
-            return 0;
-        }
-        if (shares == 0) {
+        if (!$.depositAssets.contains(depositAsset) || shares == 0) {
             return 0;
         }
         uint256 assetsIn = _convertToAssets(shares, Math.Rounding.Ceil);

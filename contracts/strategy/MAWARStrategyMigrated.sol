@@ -49,10 +49,10 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
         address managementFeeTreasury_,
         uint256 initialPPS_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (blocklistOracle_ == address(0)) revert Strategy_ZeroAddress();
-        if (address(asset_) == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(blocklistOracle_);
+        _requireNonZeroAddress(address(asset_));
         if (decimals_ == 0) revert Strategy_ZeroDecimals();
-        if (managementFeeTreasury_ == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(managementFeeTreasury_);
 
         // initialize ReentrancyGuard storage
         ReentrancyGuardStorage

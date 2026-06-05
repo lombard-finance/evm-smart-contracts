@@ -144,7 +144,7 @@ abstract contract StrategyBaseUpgradeable is
         $.asset = asset_;
         _setBlocklistOracle($, blocklistOracle_);
         // Initial price per share is 1 asset per share.
-        _setPricePerShare($, 10 ** decimals());
+        _setPricePerShare($, _oneShare());
         $.ppsRateLimiter = PriceRateLimiter.Bucket({
             lastRefill: uint48(block.timestamp),
             capacityBps: 0,
@@ -166,7 +166,7 @@ abstract contract StrategyBaseUpgradeable is
     /// @notice Treasury for protocol fee skims: deposit-asset fees and (with `AsyncRedemptionUpgradeable`) redeem fee shares.
     /// @param treasury_ Must not be zero.
     function setFeeTreasury(address treasury_) external onlyRole(MANAGER_ROLE) {
-        if (treasury_ == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(treasury_);
         _getStrategyBaseUpgradeableStorage().feeTreasury = treasury_;
         emit FeeTreasurySet(treasury_);
     }
@@ -196,9 +196,15 @@ abstract contract StrategyBaseUpgradeable is
         StrategyBaseUpgradeableStorage storage $,
         address oracle_
     ) internal {
-        if (oracle_ == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(oracle_);
         $.blocklistOracle = oracle_;
         emit BlocklistOracleSet(oracle_);
+    }
+
+    /// @dev Reverts with {Strategy_ZeroAddress} when `account` is the zero address. Shared across the
+    ///      hierarchy so the revert site is emitted once instead of at every zero-address guard.
+    function _requireNonZeroAddress(address account) internal pure {
+        if (account == address(0)) revert Strategy_ZeroAddress();
     }
 
     /// @dev Invokes `IBlocklistOracle.check` (oracle is always set after init).
@@ -245,7 +251,7 @@ abstract contract StrategyBaseUpgradeable is
             storage $ = _getStrategyBaseUpgradeableStorage();
 
         uint256 currentSupply = totalSupply();
-        uint256 oneShare = 10 ** decimals();
+        uint256 oneShare = _oneShare();
 
         // Operator-declared PPS implied purely by the NAV snapshot, before reconciling any mid-epoch
         // supply changes. The rate limiter gates on the move to *this* value (see below).
@@ -379,7 +385,7 @@ abstract contract StrategyBaseUpgradeable is
     function registerShard(
         address shard
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (shard == address(0)) revert Strategy_ZeroAddress();
+        _requireNonZeroAddress(shard);
         if (!_getStrategyBaseUpgradeableStorage().shards.add(shard))
             revert Strategy_ShardAlreadyRegistered();
         emit ShardRegistered(shard, _msgSender());
@@ -460,18 +466,24 @@ abstract contract StrategyBaseUpgradeable is
         return $.underlyingDecimals;
     }
 
+    /// @dev One share unit in asset-conversion terms: `10 ** decimals()`. Centralised so the
+    ///      exponentiation is emitted once rather than at every conversion site.
+    function _oneShare() internal view returns (uint256) {
+        return 10 ** decimals();
+    }
+
     function _convertToShares(
         uint256 assets,
         Math.Rounding rounding
     ) internal view virtual returns (uint256) {
-        return assets.mulDiv(10 ** decimals(), pricePerShare(), rounding);
+        return assets.mulDiv(_oneShare(), pricePerShare(), rounding);
     }
 
     function _convertToAssets(
         uint256 shares,
         Math.Rounding rounding
     ) internal view virtual returns (uint256) {
-        return shares.mulDiv(pricePerShare(), 10 ** decimals(), rounding);
+        return shares.mulDiv(pricePerShare(), _oneShare(), rounding);
     }
 
     /// @notice Pauses deposit/mint entrypoints; distinct from ERC-20 transfer pause.
