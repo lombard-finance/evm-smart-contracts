@@ -386,9 +386,12 @@ contract MerkleAllowlistValidator is
                 base + _CONSTRAINT_OFFSET_EXPECTED
             );
             uint256 offset = uint256(cOff) + _SELECTOR_LENGTH;
-            // Reject offsets past calldata: _wordAt right-pads with zero, so
-            // expected == 0 would spuriously match truncated payloads.
-            if (offset >= data.length) {
+            // Require a full word to be present: _wordAt right-pads short reads
+            // with zero, so any constraint whose expected bits fall in the
+            // padding would spuriously match truncated payloads. Reading less
+            // than a full 32-byte word is never a valid constraint check.
+            // offset is bounded (uint16 + 4), so offset + 32 cannot overflow.
+            if (offset + 32 > data.length) {
                 return false;
             }
             if ((_wordAt(data, offset) & mask) != expected) {
