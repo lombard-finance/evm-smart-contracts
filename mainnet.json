@@ -263,18 +263,20 @@
       "TimeLock": "0x",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
+    "deprecated": {
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
+      "CLAdapter": "0x80A23cB6eCEDa270889Eb165C41f55bcd300053c",
+      "LombardTokenPool": "0xe361310Fa58841F323638d4ab5E2032F94F790D6"
+    },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
-      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
-      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
+      "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4"
     },
     "chainlink": {
       "ChainSelector": "3461204551265785888",
       "Router": "0xca7c90A52B44E301AC01Cb5EB99b2fD99339433A",
-      "RMN": "0x3A293fa336E118900AD0f2EcfeC0DAa6A4DeDaA1",
-      "CLAdapter": "0x80A23cB6eCEDa270889Eb165C41f55bcd300053c",
-      "LombardTokenPool": "0xe361310Fa58841F323638d4ab5E2032F94F790D6"
+      "RMN": "0x3A293fa336E118900AD0f2EcfeC0DAa6A4DeDaA1"
     },
     "cubist": {
       "BasculeV2": "0x862Cbca3a521858416EE08208455984EE6681420"
@@ -305,8 +307,6 @@
       "ChainSelector": "2459028469735686113",
       "Router": "0x7c19b79D2a054114Ab36ad758A36e92376e267DA",
       "RMN": "0x32270E4FA459cA47ae0334488e27ffb9bC9aB4a1",
-      "CLAdapter": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037",
-      "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C",
       "LombardTokenPoolV2_stakedLBTC": "0xE4B5166b1D60C2208A934176522461c470A37d56",
       "LombardTokenPoolV2_nativeLBTC": "0xf1fc1bE000Db6fa2193aB75E461a5603400d031F"
     },
@@ -345,10 +345,12 @@
       "TimeLock": "0x2e1871Fc8ac793dCf2A74Ce004eE21D913763565",
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
+    "deprecated": {
+      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+    },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
-      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
-      "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF"
+      "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4"
     }
   },
   "bob": {
