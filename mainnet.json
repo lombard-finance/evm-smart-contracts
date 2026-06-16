@@ -290,7 +290,9 @@
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "deprecated": {
-      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B"
+      "Bridge": "0xA869817b48b25EeE986bdF4bE04062e6fd2C418B",
+      "CLAdapter": "0xc329793Df473B8422efE6652bfDCb5fC6c8C2037",
+      "LombardTokenPool": "0x087ae6eD810A22A4Ec26c4ef1A59D79d48a16B5C"
     },
     "lombard": {
       "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
