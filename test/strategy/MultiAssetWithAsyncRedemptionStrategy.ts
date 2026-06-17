@@ -4,6 +4,7 @@ import { takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import type { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/dist/src/helpers/takeSnapshot';
 import { calculateStorageSlot, deployContract, e18, getSignersWithPrivateKeys, randomBigInt, Signer } from '../helpers';
 import type {
+  BlocklistOracle,
   ChainlinkCompositeConverter,
   ChainlinkConverter,
   ChainlinkFeedMock,
@@ -11,6 +12,7 @@ import type {
   WBTCMock,
   MultiAssetWithAsyncRedemptionStrategy,
   RatioFeedMock,
+  SanctionListMock,
   StakedLBTCMock,
   TokenMock
 } from '../../typechain-types';
@@ -132,6 +134,70 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
       strategy,
       'Strategy_ZeroAddress'
     );
+  });
+
+  describe('share transfer compliance', function () {
+    const DenialReason = { Blocklist: 0, Sanction: 1 } as const;
+
+    async function mintSharesTo(holder: Signer, amount = 100n * e18) {
+      await strategy.connect(admin).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await altDeposit.mint(holder.address, amount);
+      await altDeposit.connect(holder).approve(strategy.address, amount);
+      await strategy.connect(holder)['deposit(address,uint256,address)'](altDeposit.address, amount, holder.address);
+    }
+
+    it('reverts transfer when sender is blocklisted', async function () {
+      await mintSharesTo(user);
+      const oracle = (await ethers.getContractAt('BlocklistOracle', blocklistOracleAddr)) as BlocklistOracle;
+      await oracle.connect(admin).blockAccount(user.address);
+      const shares = await strategy.balanceOf(user.address);
+      await expect(strategy.connect(user).transfer(operator.address, shares))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
+        .withArgs(DenialReason.Blocklist);
+    });
+
+    it('reverts transfer when recipient is blocklisted', async function () {
+      await mintSharesTo(user);
+      const oracle = (await ethers.getContractAt('BlocklistOracle', blocklistOracleAddr)) as BlocklistOracle;
+      await oracle.connect(admin).blockAccount(operator.address);
+      const shares = await strategy.balanceOf(user.address);
+      await expect(strategy.connect(user).transfer(operator.address, shares))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
+        .withArgs(DenialReason.Blocklist);
+    });
+
+    it('reverts transfer when sender is sanctioned', async function () {
+      await mintSharesTo(user);
+      const oracle = (await ethers.getContractAt('BlocklistOracle', blocklistOracleAddr)) as BlocklistOracle;
+      const sanctionList = (await ethers.deployContract('SanctionListMock')) as SanctionListMock;
+      await oracle.connect(admin).addSanctionList(await sanctionList.getAddress());
+      await sanctionList.setSanctioned(user.address, true);
+      const shares = await strategy.balanceOf(user.address);
+      await expect(strategy.connect(user).transfer(operator.address, shares))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
+        .withArgs(DenialReason.Sanction);
+    });
+
+    it('reverts transfer when recipient is sanctioned', async function () {
+      await mintSharesTo(user);
+      const oracle = (await ethers.getContractAt('BlocklistOracle', blocklistOracleAddr)) as BlocklistOracle;
+      const sanctionList = (await ethers.deployContract('SanctionListMock')) as SanctionListMock;
+      await oracle.connect(admin).addSanctionList(await sanctionList.getAddress());
+      await sanctionList.setSanctioned(operator.address, true);
+      const shares = await strategy.balanceOf(user.address);
+      await expect(strategy.connect(user).transfer(operator.address, shares))
+        .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
+        .withArgs(DenialReason.Sanction);
+    });
+
+    it('allows transfer between compliant accounts', async function () {
+      await mintSharesTo(user);
+      const shares = await strategy.balanceOf(user.address);
+      const half = shares / 2n;
+      await strategy.connect(user).transfer(operator.address, half);
+      expect(await strategy.balanceOf(user.address)).to.equal(shares - half);
+      expect(await strategy.balanceOf(operator.address)).to.equal(half);
+    });
   });
 
   it('Verify StrategyBaseUpgradeableStorage slot', async function () {

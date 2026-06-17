@@ -569,4 +569,15 @@ abstract contract StrategyBaseUpgradeable is
     function unpause() external onlyRole(MANAGER_ROLE) {
         _unpause();
     }
+
+    /// @dev Compliance gate on every share balance change (transfer, mint, burn).
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal virtual override(ERC20PausableUpgradeable) {
+        _requireBlocklistAllows(from);
+        _requireBlocklistAllows(to);
+        super._update(from, to, value);
+    }
 }
