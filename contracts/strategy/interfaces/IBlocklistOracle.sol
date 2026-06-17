@@ -11,7 +11,6 @@ interface IBlocklistOracle {
 
     error BlocklistOracle_NotAllowed(DenialReason reason);
     error BlocklistOracle_ZeroAddress();
-    error BlocklistOracle_AlreadyBlocklisted(address account);
     error BlocklistOracle_NotBlocklisted(address account);
     error BlocklistOracle_SanctionListAlreadyAdded();
     error BlocklistOracle_SanctionListNotFound();
@@ -33,8 +32,9 @@ interface IBlocklistOracle {
     /// @notice Compliance gate for deposits and redemptions; reverts if `account` is blocklisted or sanctioned.
     function check(address account) external view;
 
-    /// @notice Adds `account` to the manual blocklist. Requires {BLOCKLIST_SETTER_ROLE}. Reverts if already blocklisted.
-    function blockAccount(address account) external;
+    /// @notice Adds `accounts` to the manual blocklist. Requires {BLOCKLIST_SETTER_ROLE}.
+    ///         Reverts if any account is zero. Already-blocklisted accounts are skipped.
+    function blockAccount(address[] calldata accounts) external;
 
     /// @notice Removes `account` from the manual blocklist. Requires {BLOCKLIST_REMOVER_ROLE}. Reverts if not blocklisted.
     function unblockAccount(address account) external;

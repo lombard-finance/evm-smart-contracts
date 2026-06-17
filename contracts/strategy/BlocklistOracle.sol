@@ -72,13 +72,18 @@ contract BlocklistOracle is
 
     /// @inheritdoc IBlocklistOracle
     function blockAccount(
-        address account
+        address[] calldata accounts
     ) external onlyRole(BLOCKLIST_SETTER_ROLE) {
-        if (account == address(0)) revert BlocklistOracle_ZeroAddress();
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
-        if (!$.blocklistedAccounts.add(account))
-            revert BlocklistOracle_AlreadyBlocklisted(account);
-        emit BlocklistedSet(_msgSender(), account, true);
+        address sender = _msgSender();
+        uint256 len = accounts.length;
+        for (uint256 i; i < len; ++i) {
+            address account = accounts[i];
+            if (account == address(0)) revert BlocklistOracle_ZeroAddress();
+            if ($.blocklistedAccounts.add(account)) {
+                emit BlocklistedSet(sender, account, true);
+            }
+        }
     }
 
     /// @inheritdoc IBlocklistOracle
