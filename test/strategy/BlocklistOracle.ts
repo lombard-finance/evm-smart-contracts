@@ -56,6 +56,24 @@ describe('BlocklistOracle', function () {
       );
     });
 
+    it('reverts unblockAccount when caller lacks BLOCKLIST_REMOVER_ROLE', async function () {
+      const { oracle, admin, alice, bob } = await loadFixture(deployOracleFixture);
+      await oracle.connect(admin).blockAccount(bob.address);
+      await expect(oracle.connect(alice).unblockAccount(bob.address)).to.be.revertedWithCustomError(
+        oracle,
+        'AccessControlUnauthorizedAccount'
+      );
+    });
+
+    it('allows BLOCKLIST_REMOVER_ROLE (without admin) to unblockAccount', async function () {
+      const { oracle, admin, alice, bob } = await loadFixture(deployOracleFixture);
+      const removerRole = await oracle.BLOCKLIST_REMOVER_ROLE();
+      await oracle.connect(admin).grantRole(removerRole, alice.address);
+      await oracle.connect(admin).blockAccount(bob.address);
+      await oracle.connect(alice).unblockAccount(bob.address);
+      expect(await oracle.isBlocklisted(bob.address)).to.be.false;
+    });
+
     it('reverts when non-admin adds sanction list', async function () {
       const { oracle, sanctionList, alice } = await loadFixture(deployOracleFixture);
       await expect(

@@ -19,6 +19,10 @@ contract BlocklistOracle is
     bytes32 public constant BLOCKLIST_SETTER_ROLE =
         keccak256("BLOCKLIST_SETTER_ROLE");
 
+    /// @notice May call {unblockAccount}; granted to `defaultAdmin_` in {initialize}.
+    bytes32 public constant BLOCKLIST_REMOVER_ROLE =
+        keccak256("BLOCKLIST_REMOVER_ROLE");
+
     /// @custom:storage-location erc7201:lombardfinance.storage.BlocklistOracle
     struct BlocklistOracleStorage {
         /// @dev Membership implies blocklisted; enumeration order is not stable.
@@ -63,6 +67,7 @@ contract BlocklistOracle is
             defaultAdmin_
         );
         _grantRole(BLOCKLIST_SETTER_ROLE, defaultAdmin_);
+        _grantRole(BLOCKLIST_REMOVER_ROLE, defaultAdmin_);
     }
 
     /// @inheritdoc IBlocklistOracle
@@ -79,7 +84,7 @@ contract BlocklistOracle is
     /// @inheritdoc IBlocklistOracle
     function unblockAccount(
         address account
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(BLOCKLIST_REMOVER_ROLE) {
         if (account == address(0)) revert BlocklistOracle_ZeroAddress();
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
         if (!$.blocklistedAccounts.remove(account))

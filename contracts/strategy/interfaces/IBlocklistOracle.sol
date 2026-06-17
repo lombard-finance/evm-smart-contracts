@@ -30,16 +30,13 @@ interface IBlocklistOracle {
         address indexed sanctionList
     );
 
-    /// @return Role required for {blockAccount} (see implementation for initial grant).
-    function BLOCKLIST_SETTER_ROLE() external view returns (bytes32);
-
     /// @notice Compliance gate for deposits and redemptions; reverts if `account` is blocklisted or sanctioned.
     function check(address account) external view;
 
     /// @notice Adds `account` to the manual blocklist. Requires {BLOCKLIST_SETTER_ROLE}. Reverts if already blocklisted.
     function blockAccount(address account) external;
 
-    /// @notice Removes `account` from the manual blocklist. Reverts if not blocklisted.
+    /// @notice Removes `account` from the manual blocklist. Requires {BLOCKLIST_REMOVER_ROLE}. Reverts if not blocklisted.
     function unblockAccount(address account) external;
 
     function addSanctionList(address sanctionList) external;
