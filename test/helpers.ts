@@ -1,4 +1,5 @@
 import { config, ethers, upgrades } from 'hardhat';
+import type { DeployProxyOptions } from '@openzeppelin/hardhat-upgrades/dist/utils/options';
 import { impersonateAccount } from '@nomicfoundation/hardhat-network-helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, randomBytes, Signature } from 'ethers';
@@ -16,6 +17,13 @@ export const CHAIN_ID: string = encode(['uint256'], [1]);
 
 export const e18: bigint = 10n ** 18n;
 export const e8: bigint = 10n ** 8n;
+export const UNLIMITED_MINTER_CONFIG = {
+  limit: (1n << 96n) - 1n,
+  window: 1n
+};
+export const PROXY_DEPLOY_OPTS: DeployProxyOptions = {
+  unsafeAllow: ['constructor']
+};
 export const LEDGER_CHAIN_ID: string = '0x0387b25e8e61f2ce4838b04795b231f09ee73ffd391da018bef4bc5c4975897b';
 export const BITCOIN_CHAIN_ID: string = encode(
   ['uint256'],
@@ -260,10 +268,15 @@ export async function signPayload(
 export async function deployContract<T extends BaseContract>(
   contractName: string,
   args: any[],
-  isProxy: boolean = true
+  isProxy: boolean = true,
+  useProxyDeployOpts: boolean = false
 ): Promise<T> {
   const factory = await ethers.getContractFactory(contractName);
-  const contract = await (isProxy ? upgrades.deployProxy(factory, args) : factory.deploy(...args));
+  const contract = await (isProxy
+    ? useProxyDeployOpts
+      ? upgrades.deployProxy(factory, args, PROXY_DEPLOY_OPTS)
+      : upgrades.deployProxy(factory, args)
+    : factory.deploy(...args));
   await contract.waitForDeployment();
 
   return factory.attach(contract.target) as T;

@@ -1,6 +1,6 @@
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
-import { Addressable, deployContract, initStakedLBTC } from './helpers';
+import { Addressable, deployContract, initStakedLBTC, UNLIMITED_MINTER_CONFIG } from './helpers';
 import { IBCVoucher, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-network-helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
@@ -39,8 +39,10 @@ describe('IBCVoucher', function () {
 
     // set deployer as minter
     await lbtc.connect(admin).grantRole(await lbtc.MINTER_ROLE(), admin.address);
+    await lbtc.connect(admin).setMinterLimit(admin.address, UNLIMITED_MINTER_CONFIG);
     // IBC Voucher needs to be minter
     await lbtc.connect(admin).grantRole(await lbtc.MINTER_ROLE(), await ibcVoucher.getAddress());
+    await lbtc.connect(admin).setMinterLimit(await ibcVoucher.getAddress(), UNLIMITED_MINTER_CONFIG);
 
     // Initialize the permit module
     await ibcVoucher.connect(admin).grantRole(await ibcVoucher.RELAYER_ROLE(), relayer.address);

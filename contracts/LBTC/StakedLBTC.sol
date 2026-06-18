@@ -84,7 +84,6 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         0xa9a2395ec4edf6682d754acb293b04902817fdb5829dd13adb0367ab3a26c700;
 
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev Matches OpenZeppelin `OwnableUpgradeable` namespace (pre-migration proxies only).
     /// @custom:storage-location erc7201:openzeppelin.storage.Ownable
@@ -300,7 +299,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         address to,
         uint256 amount
     ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
-        _mint(to, amount);
+        _mintWithLimit(to, amount);
     }
 
     /**
@@ -313,7 +312,7 @@ contract StakedLBTC is IStakedLBTC, BaseLBTC {
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
-        _batchMint(to, amount);
+        _batchMintWithLimit(to, amount);
     }
 
     /**

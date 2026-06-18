@@ -1,6 +1,13 @@
 import { EndpointV2Mock, LBTCOFTAdapter, LBTCBurnMintOFTAdapter, StakedLBTC } from '../typechain-types';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import { getSignersWithPrivateKeys, deployContract, encode, Signer, initStakedLBTC } from './helpers';
+import {
+  getSignersWithPrivateKeys,
+  deployContract,
+  encode,
+  Signer,
+  initStakedLBTC,
+  UNLIMITED_MINTER_CONFIG
+} from './helpers';
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { Options } from '@layerzerolabs/lz-v2-utilities';
@@ -39,6 +46,7 @@ describe('OFTAdapter', function () {
       false
     );
     await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await aBMOFTAdapter.getAddress());
+    await lbtc.connect(deployer).setMinterLimit(await aBMOFTAdapter.getAddress(), UNLIMITED_MINTER_CONFIG);
 
     aOFTAdapter = await deployContract<LBTCOFTAdapter>(
       'LBTCOFTAdapter',
@@ -52,6 +60,7 @@ describe('OFTAdapter', function () {
       false
     );
     await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await bBMOFTAdapter.getAddress());
+    await lbtc.connect(deployer).setMinterLimit(await bBMOFTAdapter.getAddress(), UNLIMITED_MINTER_CONFIG);
 
     await aOFTAdapter.setPeer(bEid, encode(['address'], [await bBMOFTAdapter.getAddress()]));
     await bBMOFTAdapter.setPeer(aEid, encode(['address'], [await aOFTAdapter.getAddress()]));
@@ -60,6 +69,7 @@ describe('OFTAdapter', function () {
     await bLZEndpoint.setDestLzEndpoint(await aOFTAdapter.getAddress(), await aLZEndpoint.getAddress());
 
     await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), deployer.address);
+    await lbtc.connect(deployer).setMinterLimit(deployer.address, UNLIMITED_MINTER_CONFIG);
     // rate limits (inbound)
     await aOFTAdapter.setRateLimits(
       [

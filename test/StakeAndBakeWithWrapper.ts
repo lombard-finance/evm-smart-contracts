@@ -26,7 +26,8 @@ import {
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import {
   AssetRouter,
@@ -114,6 +115,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
     lbtcOwner = await impersonateWithEth('0x055E84e7FE8955E2781010B866f10Ef6E1E77e59');
     await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
     await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
+    await stakedLbtc.connect(lbtcOwner).setMinterLimit(minter, UNLIMITED_MINTER_CONFIG);
 
     stakeAndBake = (await ethers.getContractAt(
       'StakeAndBake',
@@ -1106,6 +1108,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
       token = await initStakedLBTC(owner.address, rndAddr.address);
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
+      await token.connect(owner).setMinterLimit(owner.address, UNLIMITED_MINTER_CONFIG);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 

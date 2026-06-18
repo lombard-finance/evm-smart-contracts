@@ -14,7 +14,8 @@ import {
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
@@ -87,10 +88,13 @@ describe('BridgeV2', function () {
     sLBTC = await initStakedLBTC(owner.address, owner.address);
     sLBTC.address = await sLBTC.getAddress();
     await sLBTC.connect(owner).grantRole(await sLBTC.MINTER_ROLE(), minter.address);
+    await sLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     dLBTC = await initStakedLBTC(owner.address, owner.address);
     dLBTC.address = await dLBTC.getAddress();
     await dLBTC.connect(owner).grantRole(await dLBTC.MINTER_ROLE(), minter.address);
+    await dLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     await dLBTC.connect(owner).grantRole(await dLBTC.MINTER_ROLE(), dbridge.address);
+    await dLBTC.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
 
     // Set paths and map tokens
     await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
@@ -330,6 +334,7 @@ describe('BridgeV2', function () {
       token.address = await token.getAddress();
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
+      await token.connect(owner).setMinterLimit(owner.address, UNLIMITED_MINTER_CONFIG);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 
@@ -564,6 +569,7 @@ describe('BridgeV2', function () {
       const sLBTC = await initStakedLBTC(owner.address, owner.address);
       sLBTC.address = await sLBTC.getAddress();
       await sLBTC.connect(owner).grantRole(await sLBTC.MINTER_ROLE(), minter.address);
+      await sLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
       await sLBTC.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
       await sLBTC.connect(signer1).approve(sbridge, AMOUNT);
       let newDstToken = ethers.Wallet.createRandom().address;
@@ -963,6 +969,7 @@ describe('BridgeV2', function () {
         const dLBTC2 = await initStakedLBTC(owner.address, owner.address);
         dLBTC2.address = await dLBTC2.getAddress();
         await dLBTC2.connect(owner).grantRole(await dLBTC2.MINTER_ROLE(), dbridge.address);
+        await dLBTC2.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
         await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
 
         const amount = randomBigInt(8);
@@ -1263,6 +1270,7 @@ describe('BridgeV2', function () {
         unknownToken = await initStakedLBTC(owner.address, owner.address);
         unknownToken.address = await unknownToken.getAddress();
         await unknownToken.connect(owner).grantRole(await unknownToken.MINTER_ROLE(), dbridge.address);
+        await unknownToken.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
       });
 
       const args = [
@@ -1408,6 +1416,7 @@ describe('BridgeV2', function () {
       dLBTC2 = await initStakedLBTC(owner.address, owner.address);
       dLBTC2.address = await dLBTC2.getAddress();
       await dLBTC2.connect(owner).grantRole(await dLBTC2.MINTER_ROLE(), dbridge.address);
+      await dLBTC2.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
       await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
 
       //Link another chain

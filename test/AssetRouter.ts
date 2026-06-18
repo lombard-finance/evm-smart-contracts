@@ -31,7 +31,8 @@ import {
   REDEEM_REQUEST_SELECTOR,
   signDepositBtcV0Payload,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
@@ -115,6 +116,8 @@ describe('AssetRouter', function () {
     // Minter
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
+    await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     // Claimer
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
@@ -166,6 +169,8 @@ describe('AssetRouter', function () {
     await nativeLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), assetRouter.address);
+    await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
 
     await expect(
       assetRouter

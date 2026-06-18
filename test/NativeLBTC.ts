@@ -29,7 +29,8 @@ import {
   REDEEM_FROM_NATIVE_TOKEN_SELECTOR,
   signDepositBtcV0Payload,
   signDepositBtcV1Payload,
-  Signer
+  Signer,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { AssetRouter, BasculeV3, Consortium, Mailbox, NativeLBTC, RatioFeedMock } from '../typechain-types';
 
@@ -106,6 +107,7 @@ describe('NativeLBTC', function () {
 
     // Roles
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
+    await nativeLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn.address);
@@ -144,6 +146,7 @@ describe('NativeLBTC', function () {
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 500, true);
     await nativeLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), assetRouter.address);
+    await nativeLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
 
     await assetRouter
       .connect(owner)
@@ -437,6 +440,123 @@ describe('NativeLBTC', function () {
             amount
           );
         });
+      });
+    });
+
+    describe('Minter mint limits', function () {
+      const mintLimit = 1_000_000n;
+      const mintWindow = BigInt(DAY);
+      const mintConfig = { limit: mintLimit, window: mintWindow };
+
+      async function minterLimit(minterAddr: string) {
+        const [limit, window, amountInFlight, remaining] = await nativeLbtc.getMinterLimit(minterAddr);
+        return { limit, window, amountInFlight, remaining };
+      }
+
+      beforeEach(async function () {
+        await snapshot.restore();
+        await nativeLbtc.connect(owner).setMinterLimit(minter.address, mintConfig);
+      });
+
+      it('getMinterLimit()', async function () {
+        const state = await minterLimit(minter.address);
+        expect(state.limit).to.equal(mintLimit);
+        expect(state.window).to.equal(mintWindow);
+        expect(state.amountInFlight).to.equal(0n);
+        expect(state.remaining).to.equal(mintLimit);
+      });
+
+      it('mint() increments amountInFlight and enforces limit', async function () {
+        const amount = 400_000n;
+        await nativeLbtc.connect(minter).mint(signer1.address, amount);
+        const state = await minterLimit(minter.address);
+        expect(state.amountInFlight).to.equal(amount);
+        expect(state.remaining).to.equal(mintLimit - amount);
+      });
+
+      it('mint() reverts when limit exceeded', async function () {
+        await expect(nativeLbtc.connect(minter).mint(signer1.address, mintLimit + 1n)).to.be.reverted;
+      });
+
+      it('batchMint() counts total minted amount against limit', async function () {
+        const first = mintLimit / 2n;
+        const second = mintLimit - first;
+        await nativeLbtc.connect(minter).batchMint([signer1.address, signer2.address], [first, second]);
+        const state = await minterLimit(minter.address);
+        expect(state.amountInFlight).to.equal(mintLimit);
+        expect(state.remaining).to.equal(0n);
+      });
+
+      it('mintV1() is not limited by minter caps', async function () {
+        const amount = randomBigInt(6);
+        const { payload, proof } = await defaultData(signer3, amount);
+        await nativeLbtc.connect(minter).mint(signer1.address, mintLimit);
+        await expect(nativeLbtc.connect(minter).mint.staticCall(signer1.address, mintLimit)).to.be.reverted;
+        await expect(nativeLbtc.mintV1(payload, proof)).to.changeTokenBalance(nativeLbtc, signer3, amount);
+      });
+
+      it('setMinterLimit() enforces a lower limit immediately', async function () {
+        await nativeLbtc.connect(minter).mint(signer1.address, mintLimit);
+        const newLimit = 1n;
+        await nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: newLimit, window: mintWindow });
+        const state = await minterLimit(minter.address);
+        expect(state.limit).to.equal(newLimit);
+        expect(state.amountInFlight).to.equal(newLimit);
+        expect(state.remaining).to.equal(0n);
+        await expect(nativeLbtc.connect(minter).mint(signer1.address, 1n)).to.be.reverted;
+      });
+
+      it('setMinterLimit() emits event and raises cap', async function () {
+        const newLimit = mintLimit * 2n;
+        await expect(
+          nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: newLimit, window: mintWindow })
+        )
+          .to.emit(nativeLbtc, 'MinterLimitSet')
+          .withArgs(minter.address, newLimit, mintWindow);
+        expect((await minterLimit(minter.address)).limit).to.equal(newLimit);
+      });
+
+      it('mint() reverts when minter limit is not configured', async function () {
+        await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), signer2.address);
+        await expect(nativeLbtc.connect(signer2).mint(signer1.address, 1n)).to.be.reverted;
+      });
+
+      it('getMinterLimit() returns zeros when unset', async function () {
+        await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), signer3.address);
+        const [limit, window, amountInFlight, remaining] = await nativeLbtc.getMinterLimit(signer3.address);
+        expect(limit).to.equal(0n);
+        expect(window).to.equal(0n);
+        expect(amountInFlight).to.equal(0n);
+        expect(remaining).to.equal(0n);
+      });
+
+      it('setMinterLimit() clears record when limit is 0', async function () {
+        await expect(nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: 0n, window: mintWindow }))
+          .to.emit(nativeLbtc, 'MinterLimitSet')
+          .withArgs(minter.address, 0n, mintWindow);
+        const state = await minterLimit(minter.address);
+        expect(state.limit).to.equal(0n);
+        expect(state.window).to.equal(0n);
+        expect(state.amountInFlight).to.equal(0n);
+        expect(state.remaining).to.equal(0n);
+        await expect(nativeLbtc.connect(minter).mint(signer1.address, 1n)).to.be.reverted;
+      });
+
+      it('max limit with window 1 allows large mints', async function () {
+        const maxLimit = (1n << 96n) - 1n;
+        await nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: maxLimit, window: 1n });
+        const amount = randomBigInt(8);
+        await expect(nativeLbtc.connect(minter).mint(signer1.address, amount)).to.changeTokenBalance(
+          nativeLbtc,
+          signer1,
+          amount
+        );
+      });
+
+      it('setMinterLimit() reverts for non-admin', async function () {
+        await expect(nativeLbtc.connect(signer1).setMinterLimit(minter.address, mintConfig))
+          .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
+          .withArgs(signer1.address, DEFAULT_ADMIN_ROLE);
       });
     });
 

@@ -47,7 +47,6 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
 
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -232,7 +231,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         address to,
         uint256 amount
     ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
-        _mint(to, amount);
+        _mintWithLimit(to, amount);
     }
 
     /**
@@ -245,7 +244,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
-        _batchMint(to, amount);
+        _batchMintWithLimit(to, amount);
     }
 
     /**

@@ -21,7 +21,8 @@ import {
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import {
   AssetRouter,
@@ -121,6 +122,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 516, true);
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
+    await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
 
     vault = await deployContract<ERC4626Mock & Addressable>('ERC4626Mock', [stakedLbtc.address], false);
     vault.address = await vault.getAddress();

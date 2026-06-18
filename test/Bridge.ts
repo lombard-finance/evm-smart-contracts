@@ -18,7 +18,8 @@ import {
   getSignersWithPrivateKeys,
   NEW_VALSET,
   signDepositBridgePayload,
-  Signer
+  Signer,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
@@ -94,6 +95,15 @@ describe('Bridge', function () {
     await stakedLbtcDestination
       .connect(deployer)
       .grantRole(await stakedLbtcDestination.MINTER_ROLE(), deployer.address);
+
+    await stakedLbtcSource
+      .connect(deployer)
+      .setMinterLimit(await bridgeSource.getAddress(), UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcDestination
+      .connect(deployer)
+      .setMinterLimit(await bridgeDestination.getAddress(), UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcSource.connect(deployer).setMinterLimit(deployer.address, UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcDestination.connect(deployer).setMinterLimit(deployer.address, UNLIMITED_MINTER_CONFIG);
 
     // set rate limits
     const oo = {

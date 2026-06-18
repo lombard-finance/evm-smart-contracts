@@ -17,7 +17,8 @@ import {
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 
 const GLOBAL_MAX_PAYLOAD_SIZE = 10000n;
@@ -618,6 +619,7 @@ describe('Mailbox', function () {
       token = await initStakedLBTC(owner.address, rndAddr.address);
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
+      await token.connect(owner).setMinterLimit(owner.address, UNLIMITED_MINTER_CONFIG);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 

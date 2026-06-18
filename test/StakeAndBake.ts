@@ -21,7 +21,8 @@ import {
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import {
   AssetRouter,
@@ -120,6 +121,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 516, true);
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
+    await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
 
     teller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
       'TellerWithMultiAssetSupportMock',

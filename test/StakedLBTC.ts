@@ -29,7 +29,8 @@ import {
   REDEEM_REQUEST_SELECTOR,
   signDepositBtcV0Payload,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
 
@@ -113,6 +114,8 @@ describe('StakedLBTC', function () {
     // Minter
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), minter);
+    await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     // Claimer
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.CLAIMER_ROLE(), claimer);
@@ -161,6 +164,8 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), assetRouter.address);
+    await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLBTC.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
 
     await assetRouter
       .connect(owner)
@@ -2088,6 +2093,7 @@ describe('StakedLBTC', function () {
       ]);
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
+      await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
       const sender = signer1;
       const amount = randomBigInt(8);
       await stakedLbtc.connect(minter)['mint(address,uint256)'](sender, amount);
