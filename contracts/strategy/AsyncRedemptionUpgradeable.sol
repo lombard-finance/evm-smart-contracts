@@ -145,6 +145,8 @@ abstract contract AsyncRedemptionUpgradeable is
     }
 
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
+    /// @dev Payout per request is `min(pendingAssets, shares × current pricePerShare)` so a PPS drop
+    ///      after the request cannot pay more than current NAV for the burned shares.
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
     ) external onlyRole(PAY_REDEMPTIONS_ROLE) nonReentrant {
@@ -172,13 +174,18 @@ abstract contract AsyncRedemptionUpgradeable is
                 revert AsyncRedemption_FulfillTooEarly(rid, requestBlock);
             }
 
+            uint256 payout = Math.min(
+                assets,
+                _convertToAssets(shares, Math.Rounding.Floor)
+            );
+
             $.totalPendingShares -= shares;
             $.totalPendingAssets -= assets;
             $.ownerPendingAssets[owner] -= assets;
             delete $.redeemRequestById[rid];
 
-            asset_.safeTransfer(owner, assets);
-            emit Redeem(msgSender, owner, assets, shares);
+            asset_.safeTransfer(owner, payout);
+            emit Redeem(msgSender, owner, payout, shares);
         }
 
         emit RedeemRequestsFulfilled(requestIds);
