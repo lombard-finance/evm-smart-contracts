@@ -244,7 +244,6 @@ abstract contract MultiAssetDepositUpgradeable is
         if (shares == 0) revert Strategy_ZeroAmount();
 
         _requireBlocklistAllows(sender);
-        _requireBlocklistAllows(receiver);
         _accrueManagementFee();
 
         // Interaction first: pull tokens before minting shares so that any hook
