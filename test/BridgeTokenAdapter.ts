@@ -29,7 +29,8 @@ import {
   signDepositBtcV0Payload,
   signDepositBtcV1Payload,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import {
   AssetRouter,
@@ -122,6 +123,7 @@ describe('BridgeTokenAdapter', function () {
 
     // Roles
     await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), minter);
+    await bridgeTokenAdapter.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.PAUSER_ROLE(), pauser);
 
     bascule = await deployContract<BasculeV3>(
@@ -158,6 +160,10 @@ describe('BridgeTokenAdapter', function () {
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 500, true);
     await bridgeTokenAdapter.connect(owner).changeAssetRouter(assetRouter.address);
     await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), assetRouter.address);
+    await bridgeTokenAdapter.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
+    await bridgeTokenAdapter
+      .connect(owner)
+      .setMinterLimit(bridgeTokenAdapter.address, UNLIMITED_MINTER_CONFIG);
 
     await assetRouter
       .connect(owner)
@@ -823,6 +829,7 @@ describe('BridgeTokenAdapter', function () {
 
         bridge = await deployContract<BridgeV2>('BridgeV2', [owner.address, mailbox.address]);
         await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), bridge);
+        await bridgeTokenAdapter.connect(owner).setMinterLimit(bridge, UNLIMITED_MINTER_CONFIG);
         bridgeAddressBytes = encode(['address'], [await bridge.getAddress()]);
 
         // allow some mocked paths

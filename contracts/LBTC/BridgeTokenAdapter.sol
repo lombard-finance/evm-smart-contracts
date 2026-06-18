@@ -8,6 +8,7 @@ import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {Actions} from "../libs/Actions.sol";
+import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {IBridgeToken} from "../interfaces/IBridgeToken.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -30,6 +31,7 @@ contract BridgeTokenAdapter is
         address indexed prevValue,
         address indexed newValue
     );
+    event MinterLimitSet(address indexed minter, uint256 limit, uint256 window);
 
     error InvalidRecipient(address expected, address actual);
 
@@ -45,6 +47,8 @@ contract BridgeTokenAdapter is
         mapping(bytes32 => bool) usedPayloads; // sha256(rawPayload) => used
         IAssetRouter assetRouter;
         IBridgeToken bridgeToken; // the token to adapt
+        /// @dev Per-minter rate limit for `MINTER_ROLE` mint entrypoints; keyed by address, survives role revoke/grant.
+        mapping(address => RateLimitsV2.Data) minterRateLimits;
     }
 
     /// @dev keccak256(abi.encode(uint256(keccak256("lombardfinance.storage.BridgeTokenAdapter")) - 1)) & ~bytes32(uint256(0xff))
@@ -202,6 +206,44 @@ contract BridgeTokenAdapter is
         revert();
     }
 
+    /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
+    /// @dev `limit` = `0` deletes the minter's mapping entry (unset; mints revert until reconfigured).
+    /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
+    function setMinterLimit(
+        address minter,
+        RateLimitsV2.Config memory config
+    ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
+        if (config.limit == 0) {
+            delete $.minterRateLimits[minter];
+            emit MinterLimitSet(minter, 0, 0);
+        } else {
+            RateLimitsV2.setRateLimit($.minterRateLimits[minter], config);
+            emit MinterLimitSet(minter, config.limit, config.window);
+        }
+    }
+
+    /// @notice Returns rate-limit state for `minter`.
+    function getMinterLimit(
+        address minter
+    )
+        external
+        view
+        override
+        returns (
+            uint256 limit,
+            uint256 window,
+            uint256 amountInFlight,
+            uint256 remaining
+        )
+    {
+        RateLimitsV2.Data storage rl = _getBridgeTokenAdapterStorage()
+            .minterRateLimits[minter];
+        limit = rl.limit;
+        window = rl.window;
+        (amountInFlight, remaining) = RateLimitsV2.availableAmount(rl);
+    }
+
     /// @notice Get Bascule contract.
     /// @return The address of Bascule DrawBridge contract
     function getBascule() external view returns (IBascule) {
@@ -218,6 +260,7 @@ contract BridgeTokenAdapter is
         address to,
         uint256 amount
     ) external override whenNotPaused onlyRole(MINTER_ROLE) nonReentrant {
+        _consumeMinterLimit(_msgSender(), amount);
         // the mint can be not backed by Bitcoin deposit
         // set vout as dummy `type(uint256).max` to make it impossible on Bitcoin network
         // could help to filter out such events
@@ -248,6 +291,12 @@ contract BridgeTokenAdapter is
     ) internal whenNotPaused {
         Assert.equalLength(to.length, amount.length);
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
+
+        uint256 totalAmount;
+        for (uint256 i; i < amount.length; ++i) {
+            totalAmount += amount[i];
+        }
+        _consumeMinterLimit(_msgSender(), totalAmount);
 
         for (uint256 i; i < to.length; ++i) {
             // the mint can be not backed by Bitcoin deposit
@@ -390,7 +439,8 @@ contract BridgeTokenAdapter is
         // Confirm deposit against Bascule
         _confirmDeposit($, legacyHash, action.amount);
 
-        // Actually mint
+        // Actually mint (contract-level bucket; caller is not `MINTER_ROLE`)
+        _consumeMinterLimit(address(this), action.amount);
         $.bridgeToken.mint(
             action.recipient,
             action.amount,
@@ -497,6 +547,13 @@ contract BridgeTokenAdapter is
         address prevValue = address($.assetRouter);
         $.assetRouter = IAssetRouter(newVal);
         emit AssetRouterChanged(prevValue, newVal);
+    }
+
+    function _consumeMinterLimit(address minter, uint256 amount) internal {
+        RateLimitsV2.updateLimit(
+            _getBridgeTokenAdapterStorage().minterRateLimits[minter],
+            amount
+        );
     }
 
     function _getBridgeTokenAdapterStorage()
