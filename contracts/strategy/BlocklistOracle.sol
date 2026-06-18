@@ -27,6 +27,8 @@ contract BlocklistOracle is
     struct BlocklistOracleStorage {
         /// @dev Membership implies blocklisted; enumeration order is not stable.
         EnumerableSet.AddressSet blocklistedAccounts;
+        /// @dev Exempt from external {ISanctionList} checks; manual blocklist still applies.
+        EnumerableSet.AddressSet allowlistedAccounts;
         EnumerableSet.AddressSet sanctions;
     }
 
@@ -102,6 +104,37 @@ contract BlocklistOracle is
     }
 
     /// @inheritdoc IBlocklistOracle
+    function allowAccount(
+        address[] calldata accounts
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
+        address sender = _msgSender();
+        uint256 len = accounts.length;
+        for (uint256 i; i < len; ++i) {
+            address account = accounts[i];
+            if (account == address(0)) revert BlocklistOracle_ZeroAddress();
+            if ($.allowlistedAccounts.add(account)) {
+                emit AllowlistedSet(sender, account, true);
+            }
+        }
+    }
+
+    /// @inheritdoc IBlocklistOracle
+    function disallowAccount(
+        address[] calldata accounts
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
+        address sender = _msgSender();
+        uint256 len = accounts.length;
+        for (uint256 i; i < len; ++i) {
+            address account = accounts[i];
+            if (!$.allowlistedAccounts.remove(account))
+                revert BlocklistOracle_NotAllowlisted(account);
+            emit AllowlistedSet(sender, account, false);
+        }
+    }
+
+    /// @inheritdoc IBlocklistOracle
     function addSanctionList(
         address sanctionList
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -125,7 +158,17 @@ contract BlocklistOracle is
 
     /// @inheritdoc IBlocklistOracle
     function isSanctioned(address account) public view returns (bool) {
-        BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
+        return _isSanctioned(_getBlocklistOracleStorage(), account);
+    }
+
+    /// @dev Uses caller-provided storage so {check} avoids a second slot load.
+    function _isSanctioned(
+        BlocklistOracleStorage storage $,
+        address account
+    ) internal view returns (bool) {
+        if ($.allowlistedAccounts.contains(account)) {
+            return false;
+        }
         uint256 len = $.sanctions.length();
         for (uint256 i; i < len; ++i) {
             if (ISanctionList($.sanctions.at(i)).isSanctioned(account)) {
@@ -142,8 +185,19 @@ contract BlocklistOracle is
     }
 
     /// @inheritdoc IBlocklistOracle
+    function isAllowlisted(address account) external view returns (bool) {
+        return
+            _getBlocklistOracleStorage().allowlistedAccounts.contains(account);
+    }
+
+    /// @inheritdoc IBlocklistOracle
     function blocklistLength() external view returns (uint256) {
         return _getBlocklistOracleStorage().blocklistedAccounts.length();
+    }
+
+    /// @inheritdoc IBlocklistOracle
+    function allowlistLength() external view returns (uint256) {
+        return _getBlocklistOracleStorage().allowlistedAccounts.length();
     }
 
     /// @inheritdoc IBlocklistOracle
@@ -165,6 +219,24 @@ contract BlocklistOracle is
     }
 
     /// @inheritdoc IBlocklistOracle
+    function getAllowlistEntries(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory accounts) {
+        BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
+        uint256 n = $.allowlistedAccounts.length();
+        if (limit == 0 || offset >= n) {
+            return new address[](0);
+        }
+        uint256 remaining = n - offset;
+        uint256 count = limit < remaining ? limit : remaining;
+        accounts = new address[](count);
+        for (uint256 i; i < count; ++i) {
+            accounts[i] = $.allowlistedAccounts.at(offset + i);
+        }
+    }
+
+    /// @inheritdoc IBlocklistOracle
     function getSanctionLists() external view returns (address[] memory) {
         BlocklistOracleStorage storage $ = _getBlocklistOracleStorage();
         return $.sanctions.values();
@@ -176,7 +248,7 @@ contract BlocklistOracle is
         if ($.blocklistedAccounts.contains(account)) {
             revert BlocklistOracle_NotAllowed(DenialReason.Blocklist);
         }
-        if (isSanctioned(account)) {
+        if (_isSanctioned($, account)) {
             revert BlocklistOracle_NotAllowed(DenialReason.Sanction);
         }
     }
