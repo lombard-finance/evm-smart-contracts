@@ -33,11 +33,15 @@ interface IBlocklistOracle {
     function check(address account) external view;
 
     /// @notice Adds `accounts` to the manual blocklist. Requires {BLOCKLIST_SETTER_ROLE}.
-    ///         Reverts if any account is zero. Already-blocklisted accounts are skipped.
+    ///         Reverts if any account is zero. Already-blocklisted accounts are skipped so urgent
+    ///         blocklist updates can be applied without retry friction.
     function blockAccount(address[] calldata accounts) external;
 
-    /// @notice Removes `account` from the manual blocklist. Requires {BLOCKLIST_REMOVER_ROLE}. Reverts if not blocklisted.
-    function unblockAccount(address account) external;
+    /// @notice Removes `accounts` from the manual blocklist. Requires {BLOCKLIST_REMOVER_ROLE}.
+    ///         Reverts if any account is not blocklisted. Unlike {blockAccount}, missing entries
+    ///         revert so the caller gets an exact outcome; unblocks are less time-sensitive and
+    ///         can afford strict confirmation.
+    function unblockAccount(address[] calldata accounts) external;
 
     function addSanctionList(address sanctionList) external;
 
