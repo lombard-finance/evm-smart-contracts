@@ -40,7 +40,6 @@ abstract contract BaseLBTC is
     error MintBurnExpectedPaused();
 
     event MintBurnPauseChanged(bool paused);
-    event MinterLimitSet(address indexed minter, uint256 limit, uint256 window);
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 

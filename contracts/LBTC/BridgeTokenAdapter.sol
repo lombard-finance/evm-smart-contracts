@@ -31,7 +31,6 @@ contract BridgeTokenAdapter is
         address indexed prevValue,
         address indexed newValue
     );
-    event MinterLimitSet(address indexed minter, uint256 limit, uint256 window);
 
     error InvalidRecipient(address expected, address actual);
 
