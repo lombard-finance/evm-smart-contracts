@@ -30,12 +30,12 @@ describe('BTCBPMM', function () {
     pmm = await deployContract<BTCBPMM>(
       'BTCBPMM',
       [
-      await lbtc.getAddress(),
-      await btcb.getAddress(),
-      await deployer.getAddress(),
-      ethers.parseUnits('30', 8),
-      await withdrawalAddress.getAddress(),
-      1000 // 10%
+        await lbtc.getAddress(),
+        await btcb.getAddress(),
+        await deployer.getAddress(),
+        ethers.parseUnits('30', 8),
+        await withdrawalAddress.getAddress(),
+        1000 // 10%
       ],
       true,
       true

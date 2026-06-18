@@ -96,9 +96,7 @@ describe('Bridge', function () {
       .connect(deployer)
       .grantRole(await stakedLbtcDestination.MINTER_ROLE(), deployer.address);
 
-    await stakedLbtcSource
-      .connect(deployer)
-      .setMinterLimit(await bridgeSource.getAddress(), UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcSource.connect(deployer).setMinterLimit(await bridgeSource.getAddress(), UNLIMITED_MINTER_CONFIG);
     await stakedLbtcDestination
       .connect(deployer)
       .setMinterLimit(await bridgeDestination.getAddress(), UNLIMITED_MINTER_CONFIG);

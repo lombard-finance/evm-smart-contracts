@@ -30,12 +30,12 @@ describe('CBBTCPMM', function () {
     pmm = await deployContract<CBBTCPMM>(
       'CBBTCPMM',
       [
-      await lbtc.getAddress(),
-      await cbbtc.getAddress(),
-      await deployer.getAddress(),
-      ethers.parseUnits('30', 8),
-      await withdrawalAddress.getAddress(),
-      1000 // 10%
+        await lbtc.getAddress(),
+        await cbbtc.getAddress(),
+        await deployer.getAddress(),
+        ethers.parseUnits('30', 8),
+        await withdrawalAddress.getAddress(),
+        1000 // 10%
       ],
       true,
       true

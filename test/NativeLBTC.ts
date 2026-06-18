@@ -508,9 +508,7 @@ describe('NativeLBTC', function () {
 
       it('setMinterLimit() emits event and raises cap', async function () {
         const newLimit = mintLimit * 2n;
-        await expect(
-          nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: newLimit, window: mintWindow })
-        )
+        await expect(nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: newLimit, window: mintWindow }))
           .to.emit(nativeLbtc, 'MinterLimitSet')
           .withArgs(minter.address, newLimit, mintWindow);
         expect((await minterLimit(minter.address)).limit).to.equal(newLimit);
