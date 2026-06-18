@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { CustomRuntimeEnvironment } from '../cre';
 import { populateSchedule, schedule } from '../helpers';
+import { parseLibrariesArg } from '../helpers/linkedLibraries';
 
 task('upgrade-proxy', 'Upgrades proxy contract')
   .addParam('proxy', 'The address of the proxy contract')
@@ -8,6 +9,7 @@ task('upgrade-proxy', 'Upgrades proxy contract')
   .addOptionalParam('timelock', 'The address of timelock contract')
   .addOptionalParam('timelockDelay', 'The timelock delay in seconds')
   .addOptionalParam('timelockSalt', 'The salt to use for the upgrade')
+  .addOptionalParam('libraries', 'Comma-separated linked libraries as LibraryName:address', '')
   .addParam('calldata', 'The calldata to execute during upgrade', '0x')
   .addFlag('populate', 'Show tx data to execute later')
   .setAction(async (taskArgs, hre) => {
@@ -18,14 +20,15 @@ task('upgrade-proxy', 'Upgrades proxy contract')
       populate,
       timelock: timelockArg,
       timelockDelay: timelockDelayArg,
-      timelockSalt: timelockSaltArg
+      timelockSalt: timelockSaltArg,
+      libraries
     } = taskArgs;
 
     const cre = new CustomRuntimeEnvironment(hre);
 
     const proxyAdmin = await cre.getProxyAdmin(proxy);
 
-    const impl = await cre.deployImplementation(contractName);
+    const impl = await cre.deployImplementation(contractName, parseLibrariesArg(libraries));
 
     if (!populate && !timelockArg) {
       const upgradeTx = await proxyAdmin.upgradeAndCall(proxy, impl, calldata);

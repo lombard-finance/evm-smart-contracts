@@ -67,7 +67,7 @@ library RateLimitsV2 {
 
     /// @dev Checkpoints decayed in-flight at `block.timestamp`, then stores `config`. If decayed
     ///      in-flight exceeds `config.limit`, it is capped so the new limit applies immediately.
-    function setRateLimit(Data storage rl, Config memory config) internal {
+    function setRateLimit(Data storage rl, Config memory config) public {
         if (config.limit == 0 || config.window == 0) {
             revert MalformedRateLimit();
         }
@@ -86,7 +86,7 @@ library RateLimitsV2 {
     function availableAmount(
         Data storage rl
     )
-        internal
+        public
         view
         returns (uint256 currentAmountInFlight, uint256 remainingCapacity)
     {
@@ -117,7 +117,7 @@ library RateLimitsV2 {
      * @param rl The rate limit to update.
      * @param _amount The amount to check and apply.
      */
-    function updateLimit(Data storage rl, uint256 _amount) internal {
+    function updateLimit(Data storage rl, uint256 _amount) public {
         if (rl.limit == 0) revert RateLimitNotConfigured();
 
         (

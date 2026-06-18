@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
 import { create3 } from '../helpers/create3Deployment';
+import { parseLibrariesArg } from '../helpers/linkedLibraries';
 
 /*
  * After deployment:
@@ -17,10 +18,9 @@ task('deploy-lbtc', 'Deploys the StakedLBTC contract')
   .addParam('admin', 'The owner of the proxy', 'self')
   .addParam('proxyFactoryAddr', 'The ProxyFactory address', DEFAULT_PROXY_FACTORY)
   .addOptionalParam('adminChangeDelay', 'Default admin delay (seconds) for AccessControlDefaultAdminRules', '0')
+  .addOptionalParam('libraries', 'Comma-separated linked libraries as LibraryName:address', '')
   .setAction(async (taskArgs, hre, network) => {
-    const { ethers } = hre;
-
-    const { ledgerNetwork, treasury, admin, proxyFactoryAddr, adminChangeDelay } = taskArgs;
+    const { ledgerNetwork, treasury, admin, proxyFactoryAddr, adminChangeDelay, libraries } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     let owner = await signer.getAddress();
@@ -34,13 +34,15 @@ task('deploy-lbtc', 'Deploys the StakedLBTC contract')
       treasuryAddr = treasury;
     }
 
-    const data = await create3(
+    await create3(
       'StakedLBTC',
       [treasuryAddr, owner, adminChangeDelay],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
       hre,
-      'LBTC'
+      'LBTC',
+      0,
+      parseLibrariesArg(libraries)
     );
   });

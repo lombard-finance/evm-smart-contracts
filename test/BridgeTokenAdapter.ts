@@ -110,13 +110,18 @@ describe('BridgeTokenAdapter', function () {
       );
 
     bridgeToken = await deployContract<BridgeTokenMock>('BridgeTokenMock', [], false);
-    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>('BridgeTokenAdapter', [
-      await consortium.getAddress(),
-      treasury.address,
-      owner.address,
-      0n, //owner delay
-      await bridgeToken.getAddress()
-    ]);
+    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>(
+      'BridgeTokenAdapter',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        owner.address,
+        0n, //owner delay
+        await bridgeToken.getAddress()
+      ],
+      true,
+      true
+    );
     await bridgeToken.migrateBridgeRole(bridgeTokenAdapter);
     bridgeTokenAdapter.address = await bridgeTokenAdapter.getAddress();
     bridgeTokenAdapterBytes = encode(['address'], [bridgeTokenAdapter.address]);
@@ -161,9 +166,7 @@ describe('BridgeTokenAdapter', function () {
     await bridgeTokenAdapter.connect(owner).changeAssetRouter(assetRouter.address);
     await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), assetRouter.address);
     await bridgeTokenAdapter.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
-    await bridgeTokenAdapter
-      .connect(owner)
-      .setMinterLimit(bridgeTokenAdapter.address, UNLIMITED_MINTER_CONFIG);
+    await bridgeTokenAdapter.connect(owner).setMinterLimit(bridgeTokenAdapter.address, UNLIMITED_MINTER_CONFIG);
 
     await assetRouter
       .connect(owner)

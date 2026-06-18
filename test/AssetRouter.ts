@@ -98,18 +98,28 @@ describe('AssetRouter', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+      'StakedLBTC',
+      [treasury.address, owner.address, 0n],
+      true,
+      true
+    );
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
-    nativeLbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      'Native LBTC name',
-      'nativeLbtcSymbol',
-      owner.address,
-      0n //owner delay
-    ]);
+    nativeLbtc = await deployContract<NativeLBTC & Addressable>(
+      'NativeLBTC',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        'Native LBTC name',
+        'nativeLbtcSymbol',
+        owner.address,
+        0n //owner delay
+      ],
+      true,
+      true
+    );
     nativeLbtc.address = await nativeLbtc.getAddress();
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 

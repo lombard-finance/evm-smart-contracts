@@ -94,14 +94,19 @@ describe('NativeLBTC', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    nativeLbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      'Lombard Liquid Bitcoin',
-      'XLBTC',
-      owner.address,
-      0n //owner delay
-    ]);
+    nativeLbtc = await deployContract<NativeLBTC & Addressable>(
+      'NativeLBTC',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        'Lombard Liquid Bitcoin',
+        'XLBTC',
+        owner.address,
+        0n //owner delay
+      ],
+      true,
+      true
+    );
     nativeLbtc.address = await nativeLbtc.getAddress();
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 

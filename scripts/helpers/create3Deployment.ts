@@ -1,5 +1,6 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { verify, getProxyFactoryAt, getProxySalt } from './index';
+import { deployLinkedImplementation, implementationVerifyOptions, LinkedLibraries } from './linkedLibraries';
 
 export async function create3(
   contract: string,
@@ -9,15 +10,15 @@ export async function create3(
   admin: string,
   hre: HardhatRuntimeEnvironment,
   contractName: string = contract,
-  nonce: number = 0
+  nonce: number = 0,
+  libraries: LinkedLibraries = {}
 ): Promise<{ proxy: any; proxyAdmin: any }> {
   const { ethers, run, upgrades } = hre;
 
   const factory = await getProxyFactoryAt(ethers, factoryAddr);
   const saltHash = getProxySalt(ethers, ledgerNetwork, contractName, nonce);
 
-  const impl = await ethers.deployContract(contract);
-  await impl.waitForDeployment();
+  const { impl, libraries: linkedLibraries } = await deployLinkedImplementation(hre, contract, libraries);
 
   const data = impl.interface.encodeFunctionData('initialize', args);
 
@@ -30,7 +31,7 @@ export async function create3(
   const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxy);
   console.log('Proxy admin:', proxyAdmin);
 
-  await verify(run, await impl.getAddress());
+  await verify(run, await impl.getAddress(), implementationVerifyOptions(hre, contract, linkedLibraries));
   await verify(run, proxyAdmin, {
     contract: '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin',
     constructorArguments: [admin]

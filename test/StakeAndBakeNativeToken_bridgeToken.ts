@@ -13,7 +13,8 @@ import {
   randomBigInt,
   rawSign,
   signDepositBtcV1Payload,
-  Signer
+  Signer,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import {
   BridgeTokenAdapter,
@@ -67,15 +68,21 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
 
     bridgeToken = await deployContract<BridgeTokenMock & Addressable>('BridgeTokenMock', [], false);
     bridgeToken.address = await bridgeToken.getAddress();
-    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>('BridgeTokenAdapter', [
-      await consortium.getAddress(),
-      treasury.address,
-      owner.address,
-      0n, //owner delay
-      await bridgeToken.getAddress()
-    ]);
+    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>(
+      'BridgeTokenAdapter',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        owner.address,
+        0n, //owner delay
+        await bridgeToken.getAddress()
+      ],
+      true,
+      true
+    );
     bridgeTokenAdapter.address = await bridgeTokenAdapter.getAddress();
     await bridgeToken.migrateBridgeRole(bridgeTokenAdapter);
+    await bridgeTokenAdapter.connect(owner).setMinterLimit(bridgeTokenAdapter.address, UNLIMITED_MINTER_CONFIG);
 
     stakeAndBakeForNativeToken = await deployContract<StakeAndBakeNativeToken & Addressable>(
       'StakeAndBakeNativeToken',

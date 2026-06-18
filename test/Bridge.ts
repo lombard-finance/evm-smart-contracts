@@ -57,7 +57,12 @@ describe('Bridge', function () {
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
-    stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [treasurySource.address, deployer.address, 0n]);
+    stakedLbtcSource = await deployContract<StakedLBTC>(
+      'StakedLBTC',
+      [treasurySource.address, deployer.address, 0n],
+      true,
+      true
+    );
     bridgeSource = await deployContract<Bridge>('Bridge', [
       await stakedLbtcSource.getAddress(),
       treasurySource.address,
@@ -70,11 +75,12 @@ describe('Bridge', function () {
     );
 
     // chain 2
-    stakedLbtcDestination = await deployContract<StakedLBTC>('StakedLBTC', [
-      treasuryDestination.address,
-      deployer.address,
-      0n
-    ]);
+    stakedLbtcDestination = await deployContract<StakedLBTC>(
+      'StakedLBTC',
+      [treasuryDestination.address, deployer.address, 0n],
+      true,
+      true
+    );
     bridgeDestination = await deployContract<Bridge>('Bridge', [
       await stakedLbtcDestination.getAddress(),
       treasuryDestination.address,

@@ -96,18 +96,28 @@ describe('StakedLBTC', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury.address, owner.address, 0n]);
+    stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+      'StakedLBTC',
+      [treasury.address, owner.address, 0n],
+      true,
+      true
+    );
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
 
-    nativeLBTC = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      'Native LBTC name',
-      'nativeLbtcSymbol',
-      owner.address,
-      0n //owner delay
-    ]);
+    nativeLBTC = await deployContract<NativeLBTC & Addressable>(
+      'NativeLBTC',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        'Native LBTC name',
+        'nativeLbtcSymbol',
+        owner.address,
+        0n //owner delay
+      ],
+      true,
+      true
+    );
     nativeLBTC.address = await nativeLBTC.getAddress();
     nativeLbtcBytes = encode(['address'], [nativeLBTC.address]);
 
@@ -2122,11 +2132,12 @@ describe('StakedLBTC', function () {
     });
 
     it('redeem() reverts when assetRouter is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ]);
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        true
+      );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
@@ -2232,11 +2243,12 @@ describe('StakedLBTC', function () {
     });
 
     it('deposit() reverts when assetRouter is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ]);
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        true
+      );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       const sender = signer1;
@@ -2245,11 +2257,12 @@ describe('StakedLBTC', function () {
     });
 
     it('deposit() reverts when deposit route is not set', async function () {
-      const stakedLbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [
-        treasury.address,
-        owner.address,
-        0n
-      ]);
+      const stakedLbtc = await deployContract<StakedLBTC & Addressable>(
+        'StakedLBTC',
+        [treasury.address, owner.address, 0n],
+        true,
+        true
+      );
       const stakedLbtcBytes = encode(['address'], [await stakedLbtc.getAddress()]);
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       await assetRouter.connect(owner).setRoute(BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, stakedLbtcBytes, CHAIN_ID, 1);

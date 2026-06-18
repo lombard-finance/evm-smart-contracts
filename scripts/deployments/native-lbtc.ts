@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
 import { create3 } from '../helpers/create3Deployment';
+import { parseLibrariesArg } from '../helpers/linkedLibraries';
 
 /*
  * After deployment:
@@ -20,10 +21,10 @@ task('deploy-native-lbtc', 'Deploys the NativeLBTC contract')
   .addParam('name', 'The name of token')
   .addParam('symbol', 'The symbol of token')
   .addOptionalParam('adminChangeDelay', 'The delay of admin role change', '0')
+  .addOptionalParam('libraries', 'Comma-separated linked libraries as LibraryName:address', '')
   .setAction(async (taskArgs, hre, network) => {
-    const { ethers } = hre;
-
-    const { ledgerNetwork, consortium, treasury, admin, proxyFactoryAddr, name, symbol, adminChangeDelay } = taskArgs;
+    const { ledgerNetwork, consortium, treasury, admin, proxyFactoryAddr, name, symbol, adminChangeDelay, libraries } =
+      taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
     let owner = await signer.getAddress();
@@ -32,12 +33,15 @@ task('deploy-native-lbtc', 'Deploys the NativeLBTC contract')
       owner = admin;
     }
 
-    const data = await create3(
+    await create3(
       'NativeLBTC',
       [consortium, treasury, name, symbol, admin, adminChangeDelay],
       proxyFactoryAddr,
       ledgerNetwork,
       owner,
-      hre
+      hre,
+      'NativeLBTC',
+      0,
+      parseLibrariesArg(libraries)
     );
   });

@@ -2,18 +2,20 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { verify, getProxyFactoryAt, getProxySalt } from './index';
 
 import { CustomRuntimeEnvironment } from '../cre';
+import { LinkedLibraries } from './linkedLibraries';
 
 export async function proxyDeployment(
   contract: string,
   args: any[],
   admin: string,
-  hre: HardhatRuntimeEnvironment
+  hre: HardhatRuntimeEnvironment,
+  libraries: LinkedLibraries = {}
 ): Promise<{ proxy: string; proxyAdmin: string }> {
   const { ethers, run, upgrades } = hre;
 
   const cre = new CustomRuntimeEnvironment(hre);
 
-  const implementationAddress = await cre.deployImplementation(contract);
+  const implementationAddress = await cre.deployImplementation(contract, libraries);
   const implementationContractFactory = await ethers.getContractFactory(contract);
 
   const initData = implementationContractFactory.interface.encodeFunctionData('initialize', args);
