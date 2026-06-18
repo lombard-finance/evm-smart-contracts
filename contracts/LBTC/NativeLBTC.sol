@@ -465,7 +465,8 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         // Confirm deposit against Bascule
         _confirmDeposit($, legacyHash, amountToMint);
 
-        // Actually mint
+        // Actually mint (contract-level bucket; caller is not `MINTER_ROLE`)
+        _consumeMinterLimit(address(this), amountToMint);
         _mint(recipient, amountToMint);
 
         emit MintProofConsumed(recipient, payloadHash, payload);

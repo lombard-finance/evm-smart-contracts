@@ -1279,6 +1279,42 @@ describe('StakedLBTC', function () {
       });
     });
 
+    describe('Minter mint limits', function () {
+      const mintLimit = 1_000_000n;
+      const mintWindow = BigInt(DAY);
+      const mintConfig = { limit: mintLimit, window: mintWindow };
+
+      beforeEach(async function () {
+        await snapshot.restore();
+        await stakedLbtc.connect(owner).setMinterLimit(minter.address, mintConfig);
+      });
+
+      it('mint() increments amountInFlight and enforces limit', async function () {
+        const amount = 400_000n;
+        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
+        const [limit, , amountInFlight, remaining] = await stakedLbtc.getMinterLimit(minter.address);
+        expect(limit).to.equal(mintLimit);
+        expect(amountInFlight).to.equal(amount);
+        expect(remaining).to.equal(mintLimit - amount);
+      });
+
+      it('batchMint() counts total minted amount against limit', async function () {
+        const first = mintLimit / 2n;
+        const second = mintLimit - first;
+        await stakedLbtc
+          .connect(minter)
+          ['batchMint(address[],uint256[])']([signer1.address, signer2.address], [first, second]);
+        const [, , amountInFlight, remaining] = await stakedLbtc.getMinterLimit(minter.address);
+        expect(amountInFlight).to.equal(mintLimit);
+        expect(remaining).to.equal(0n);
+      });
+
+      it('mint() reverts when minter limit is not configured', async function () {
+        await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), signer2.address);
+        await expect(stakedLbtc.connect(signer2)['mint(address,uint256)'](signer1.address, 1n)).to.be.reverted;
+      });
+    });
+
     describe('Batch mint', function () {
       describe('batchMint(address[],uint256[]) mints to listed addresses', function () {
         const amount1 = randomBigInt(8);

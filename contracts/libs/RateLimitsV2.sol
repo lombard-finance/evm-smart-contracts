@@ -5,20 +5,23 @@ pragma solidity 0.8.24;
  * @title RateLimitsV2
  * @notice Gas-optimized successor to {RateLimits}.
  *
- * @dev The rate-limiting *behaviour* is byte-for-byte identical to {RateLimits}: a continuous
- *      linear-decay (leaky-bucket) limiter where `amountInFlight` decays towards zero over
- *      `window`. The ONLY change is the storage layout.
+ * @dev Decay math matches {RateLimits}: a continuous linear-decay (leaky-bucket) limiter where
+ *      `amountInFlight` decays towards zero over `window`. Configuration and error semantics
+ *      are tightened vs V1: `setRateLimit` rejects `window == 0`, caps decayed in-flight to the
+ *      new limit on reconfigure, and `updateLimit` reverts {RateLimitNotConfigured} when unset
+ *      (V1 allowed updates against a zero limit). {RateLimitExceeded} carries revert args.
  *
- *      {RateLimits.Data} occupies four 256-bit slots and {RateLimits.updateLimit} copies the
- *      whole struct into memory (4 SLOADs) and writes two slots (2 SSTOREs) per call.
- *
- *      {RateLimitsV2.Data} packs all four fields into a SINGLE 256-bit slot, so a hot-path
- *      update costs 1 SLOAD + 1 SSTORE.
+ *      Storage layout is the other major change. {RateLimits.Data} occupies four 256-bit slots
+ *      and {RateLimits.updateLimit} copies the whole struct into memory (4 SLOADs) and writes
+ *      two slots (2 SSTOREs) per call. {RateLimitsV2.Data} packs all four fields into a SINGLE
+ *      256-bit slot, so a hot-path update costs 1 SLOAD + 1 SSTORE.
  *
  *      Field widths (sum = 256 bits → one slot). Do NOT reorder without re-checking packing:
  *        - amountInFlight  uint96  max ~7.92e28
  *        - limit           uint96  same bound; `amountInFlight` is always <= `limit`
- *        - lastUpdated     uint32  unix seconds, valid until year 2106
+ *        - lastUpdated     uint32  unix seconds; truncates after year 2106 — then
+ *          `block.timestamp - lastUpdated` wraps large, the bucket reads as fully decayed, and
+ *          the cap stops constraining (fails open, not locked)
  *        - window          uint32  seconds, max ~136 years
  */
 library RateLimitsV2 {

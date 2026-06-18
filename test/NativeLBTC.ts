@@ -108,6 +108,7 @@ describe('NativeLBTC', function () {
     // Roles
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLbtc.connect(owner).setMinterLimit(nativeLbtc.address, UNLIMITED_MINTER_CONFIG);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn.address);
@@ -487,7 +488,7 @@ describe('NativeLBTC', function () {
         expect(state.remaining).to.equal(0n);
       });
 
-      it('mintV1() is not limited by minter caps', async function () {
+      it('mintV1() is limited by contract cap, not minter caps', async function () {
         const amount = randomBigInt(6);
         const { payload, proof } = await defaultData(signer3, amount);
         await nativeLbtc.connect(minter).mint(signer1.address, mintLimit);
@@ -531,7 +532,7 @@ describe('NativeLBTC', function () {
       it('setMinterLimit() clears record when limit is 0', async function () {
         await expect(nativeLbtc.connect(owner).setMinterLimit(minter.address, { limit: 0n, window: mintWindow }))
           .to.emit(nativeLbtc, 'MinterLimitSet')
-          .withArgs(minter.address, 0n, mintWindow);
+          .withArgs(minter.address, 0n, 0n);
         const state = await minterLimit(minter.address);
         expect(state.limit).to.equal(0n);
         expect(state.window).to.equal(0n);

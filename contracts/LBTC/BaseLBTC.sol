@@ -21,7 +21,8 @@ import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
  *      `MINT_BURN_PAUSER_ROLE` toggles `mintBurnPaused`; concrete contracts attach `whenMintBurnAllowed` to every external path that mints or burns
  *      so ERC20 transfers stay cheap (no guard in `_update`). New supply-changing entrypoints must use that modifier.
  *      `MINTER_ROLE` holders mint through `_mintWithLimit` / `_batchMintWithLimit`; per-minter leaky-bucket limits
- *      are configured with `setMinterLimit`. Use `type(uint96).max` with a short `window` for a practical unlimited cap.
+ *      are configured with `setMinterLimit`. Proof-mint paths consume the bucket keyed by
+ *      `address(this)` at the call site. Use `type(uint96).max` with a short `window` for a practical unlimited cap.
  *      Rate limits are keyed by minter address, not role membership: revoking and re-granting `MINTER_ROLE` does not
  *      reset or clear `minterRateLimits` (intended; `DEFAULT_ADMIN_ROLE` must reconfigure or accept prior state).
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
@@ -89,11 +90,12 @@ abstract contract BaseLBTC is
             );
     }
 
-    /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder.
+    /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
     /// @dev `limit` = `0` deletes the minter's mapping entry (unset; mints revert until reconfigured).
     ///      Non-zero `limit`: if the new limit is below decayed in-flight, in-flight is capped
     ///      to the new limit so the tighter cap applies immediately (see {RateLimitsV2.setRateLimit}).
     ///      Revoking and re-granting `MINTER_ROLE` for `minter` does not change this limit state.
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @param config Rate limit configuration (`limit`, `window`).
     /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
     function setMinterLimit(
@@ -103,10 +105,11 @@ abstract contract BaseLBTC is
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
         if (config.limit == 0) {
             delete $.minterRateLimits[minter];
+            emit MinterLimitSet(minter, 0, 0);
         } else {
             RateLimitsV2.setRateLimit($.minterRateLimits[minter], config);
+            emit MinterLimitSet(minter, config.limit, config.window);
         }
-        emit MinterLimitSet(minter, config.limit, config.window);
     }
 
     /// @notice Returns rate-limit state for `minter`.
@@ -135,7 +138,7 @@ abstract contract BaseLBTC is
     }
 
     function _mintWithLimit(address to, uint256 amount) internal {
-        _consumeMinterLimit(amount);
+        _consumeMinterLimit(_msgSender(), amount);
         _mint(to, amount);
     }
 
@@ -149,16 +152,16 @@ abstract contract BaseLBTC is
         for (uint256 i; i < amount.length; ++i) {
             totalAmount += amount[i];
         }
-        _consumeMinterLimit(totalAmount);
+        _consumeMinterLimit(_msgSender(), totalAmount);
 
         for (uint256 i; i < to.length; ++i) {
             _mint(to[i], amount[i]);
         }
     }
 
-    function _consumeMinterLimit(uint256 amount) internal {
+    function _consumeMinterLimit(address minter, uint256 amount) internal {
         RateLimitsV2.updateLimit(
-            _getBaseLBTCStorage().minterRateLimits[_msgSender()],
+            _getBaseLBTCStorage().minterRateLimits[minter],
             amount
         );
     }

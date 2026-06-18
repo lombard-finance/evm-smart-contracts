@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {RateLimitsV2} from "../../libs/RateLimitsV2.sol";
+
 interface IBaseLBTC {
     error RedeemForBtcDisabled();
     error PayloadAlreadyUsed();
@@ -63,4 +65,25 @@ interface IBaseLBTC {
     ) external view returns (bytes32);
 
     function isRedeemsEnabled() external view returns (bool);
+
+    /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
+    /// @dev Unsupported on `BridgeTokenAdapter`.
+    function setMinterLimit(
+        address minter,
+        RateLimitsV2.Config memory config
+    ) external;
+
+    /// @notice Returns rate-limit state for `minter`.
+    /// @dev Returns zeros on `BridgeTokenAdapter`, which does not implement rate limits.
+    function getMinterLimit(
+        address minter
+    )
+        external
+        view
+        returns (
+            uint256 limit,
+            uint256 window,
+            uint256 amountInFlight,
+            uint256 remaining
+        );
 }
