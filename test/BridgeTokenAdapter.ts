@@ -1,6 +1,6 @@
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
-import { SnapshotRestorer, takeSnapshot } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { SnapshotRestorer, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import {
   Addressable,
   ASSETS_MODULE_ADDRESS,
@@ -40,7 +40,9 @@ import {
   BridgeTokenAdapter,
   RatioFeedMock,
   BridgeTokenMock,
-  BridgeV2
+  BridgeV2,
+  RateLimitsV2,
+  RateLimitsV2__factory
 } from '../typechain-types';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { Addressable as EthersAddressable, BytesLike } from 'ethers';
@@ -1068,6 +1070,162 @@ describe('BridgeTokenAdapter', function () {
       await expect(bridgeTokenAdapter.connect(signer1)['burn(uint256)'](amount))
         .to.revertedWithCustomError(bridgeTokenAdapter, 'AccessControlUnauthorizedAccount')
         .withArgs(signer1, await bridgeTokenAdapter.MINTER_ROLE());
+    });
+  });
+
+  describe('Rate limits', function () {
+    const KNOWN_LIMIT = e18;
+    const limitWindow = 86400n;
+    const limitConfig = { limit: KNOWN_LIMIT, window: limitWindow };
+    const redeemFee = 1_000n;
+    const toNativeFee = 1_000n;
+    const p2wpkh = '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03';
+    let rateLimits: RateLimitsV2;
+    let rateLimitsSnapshot: SnapshotRestorer;
+
+    async function defaultData(recipient: Signer, amount: bigint) {
+      const txid = encode(['uint256'], [randomBigInt(8)]);
+      const { payload, payloadHash, proof } = await signDepositBtcV1Payload(
+        [notary1, notary2],
+        [true, true],
+        CHAIN_ID,
+        recipient.address,
+        amount,
+        txid,
+        bridgeTokenAdapter.address
+      );
+      return { payload, payloadHash, proof };
+    }
+
+    before(async function () {
+      await snapshot.restore();
+      rateLimits = RateLimitsV2__factory.connect(bridgeTokenAdapter.address, owner);
+      rateLimitsSnapshot = await takeSnapshot();
+    });
+
+    describe('Minter bucket', function () {
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+        await bridgeTokenAdapter.connect(owner).setMinterLimit(minter.address, limitConfig);
+      });
+
+      it('mint() succeeds when the amount equals the rate limit', async function () {
+        // prettier-ignore
+        await expect(bridgeTokenAdapter.connect(minter).mint(signer1.address, KNOWN_LIMIT))
+          .to.changeTokenBalance(bridgeToken, signer1, KNOWN_LIMIT);
+      });
+
+      it('mint() reverts when the amount is the rate limit + 1', async function () {
+        // prettier-ignore
+        await expect(bridgeTokenAdapter.connect(minter).mint(signer1.address, KNOWN_LIMIT + 1n))
+          .to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded').withArgs(KNOWN_LIMIT + 1n, KNOWN_LIMIT, KNOWN_LIMIT);
+      });
+
+      it('batchMint() succeeds when the total of all payloads equals the rate limit', async function () {
+        const half = KNOWN_LIMIT / 2n;
+        // prettier-ignore
+        await expect(bridgeTokenAdapter.connect(minter).batchMint([signer1.address, signer2.address], [half, KNOWN_LIMIT - half]))
+          .to.changeTokenBalances(bridgeToken, [signer1, signer2], [half, KNOWN_LIMIT - half]);
+      });
+
+      it('batchMint() reverts when the total of all payloads is the rate limit + 1', async function () {
+        const half = KNOWN_LIMIT / 2n;
+        await expect(
+          bridgeTokenAdapter
+            .connect(minter)
+            .batchMint([signer1.address, signer2.address], [half, KNOWN_LIMIT - half + 1n])
+        ).to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded');
+      });
+
+      it('mintV1() is unaffected when the minter bucket is spent', async function () {
+        await bridgeTokenAdapter.connect(minter).mint(signer1.address, KNOWN_LIMIT);
+        const amount = randomBigInt(8);
+        const { payload, proof } = await defaultData(signer2, amount);
+        await expect(bridgeTokenAdapter.mintV1(payload, proof)).to.changeTokenBalance(bridgeToken, signer2, amount);
+      });
+    });
+
+    describe('BridgeTokenAdapter bucket', function () {
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+        await bridgeTokenAdapter.connect(owner).setMinterLimit(bridgeTokenAdapter.address, limitConfig);
+      });
+
+      it('mintV1() succeeds when the deposit amount equals the rate limit', async function () {
+        const { payload, proof } = await defaultData(signer1, KNOWN_LIMIT);
+        await expect(bridgeTokenAdapter.mintV1(payload, proof)).to.changeTokenBalance(
+          bridgeToken,
+          signer1,
+          KNOWN_LIMIT
+        );
+      });
+
+      it('mintV1() reverts when the deposit amount is the rate limit + 1', async function () {
+        const { payload, proof } = await defaultData(signer1, KNOWN_LIMIT + 1n);
+        // prettier-ignore
+        await expect(bridgeTokenAdapter.mintV1(payload, proof))
+          .to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded').withArgs(KNOWN_LIMIT + 1n, KNOWN_LIMIT, KNOWN_LIMIT);
+      });
+
+      it('batchMintV1() succeeds when the total of all payloads equals the rate limit', async function () {
+        const half = KNOWN_LIMIT / 2n;
+        const first = await defaultData(signer1, half);
+        const second = await defaultData(signer2, KNOWN_LIMIT - half);
+        // prettier-ignore
+        await expect(bridgeTokenAdapter.batchMintV1([first.payload, second.payload], [first.proof, second.proof]))
+          .to.changeTokenBalances(bridgeToken, [signer1, signer2], [half, KNOWN_LIMIT - half]);
+      });
+
+      it('batchMintV1() reverts when the total of all payloads is the rate limit + 1', async function () {
+        const half = KNOWN_LIMIT / 2n;
+        const first = await defaultData(signer1, half);
+        const second = await defaultData(signer2, KNOWN_LIMIT - half + 1n);
+        await expect(
+          bridgeTokenAdapter.batchMintV1([first.payload, second.payload], [first.proof, second.proof])
+        ).to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded');
+      });
+
+      it('mint() is unaffected when the contract bucket is spent', async function () {
+        const { payload, proof } = await defaultData(signer1, KNOWN_LIMIT);
+        await bridgeTokenAdapter.mintV1(payload, proof);
+        const amount = randomBigInt(8);
+        // prettier-ignore
+        await expect(bridgeTokenAdapter.connect(minter).mint(signer2.address, amount))
+          .to.changeTokenBalance(bridgeToken, signer2, amount);
+      });
+    });
+
+    describe('AssetRouter bucket', function () {
+      const fee = redeemFee + toNativeFee;
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+        await assetRouter
+          .connect(owner)
+          .setRoute(bridgeTokenAdapterBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
+        await assetRouter.connect(owner)['changeRedeemFee(address,uint256)'](bridgeTokenAdapter.address, redeemFee);
+        await assetRouter.connect(owner).changeToNativeCommission(bridgeTokenAdapter.address, toNativeFee);
+        await ratioFeed.setRatio(e18);
+        await bridgeTokenAdapter.connect(minter).mint(signer1.address, KNOWN_LIMIT);
+        await bridgeToken.connect(signer1).approve(bridgeTokenAdapter, KNOWN_LIMIT);
+      });
+
+      it('redeemForBtc() succeeds when the minted fee equals the rate limit', async function () {
+        await bridgeTokenAdapter
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: fee, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).redeemForBtc(signer1, bridgeTokenAdapter, p2wpkh, KNOWN_LIMIT))
+          .to.changeTokenBalance(bridgeToken, treasury, fee);
+      });
+
+      it('redeemForBtc() reverts when the minted fee is the rate limit + 1', async function () {
+        await bridgeTokenAdapter
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: fee - 1n, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).redeemForBtc(signer1, bridgeTokenAdapter, p2wpkh, KNOWN_LIMIT))
+          .to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded').withArgs(fee, fee - 1n, fee - 1n);
+      });
     });
   });
 });

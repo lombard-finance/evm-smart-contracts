@@ -34,7 +34,17 @@ import {
   signPayload,
   UNLIMITED_MINTER_CONFIG
 } from './helpers';
-import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
+import {
+  AssetRouter,
+  Bascule,
+  Consortium,
+  Mailbox,
+  NativeLBTC,
+  RatioFeedMock,
+  RateLimitsV2,
+  RateLimitsV2__factory,
+  StakedLBTC
+} from '../typechain-types';
 import { SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers/src/helpers/takeSnapshot';
 import { GMPUtils } from '../typechain-types/contracts/gmp/IHandler';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
@@ -2759,6 +2769,176 @@ describe('AssetRouter', function () {
             //@ts-ignore
             .to.revertedWithCustomError(...arg.customError());
         });
+      });
+    });
+  });
+
+  describe('Rate limits', function () {
+    const KNOWN_AMOUNT = e18;
+    const limitWindow = BigInt(DAY);
+    const redeemFee = 1_000n;
+    const toNativeFee = 1_000n;
+    const maxMintFee = 1_000n;
+    const p2wpkh = '0x00143dee6158aac9b40cd766b21a1eb8956e99b1ff03';
+    let rateLimits: RateLimitsV2;
+    let rateLimitsSnapshot: SnapshotRestorer;
+
+    before(async function () {
+      await snapshot.restore();
+      await assetRouter.connect(owner)['changeRedeemFee(address,uint256)'](stakedLbtc.address, redeemFee);
+      await assetRouter.connect(owner).changeToNativeCommission(stakedLbtc.address, toNativeFee);
+      await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, maxMintFee);
+      await ratioFeed.setRatio(e18);
+      rateLimits = RateLimitsV2__factory.connect(stakedLbtc.address, owner);
+      rateLimitsSnapshot = await takeSnapshot();
+    });
+
+    describe('mint()', function () {
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+      });
+
+      it('mint() succeeds when the payload amount = rate limit', async function () {
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: KNOWN_AMOUNT, window: limitWindow });
+        const { payload, proof } = await defaultData(signer1, KNOWN_AMOUNT);
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).mint(payload, proof))
+          .to.changeTokenBalance(stakedLbtc, signer1, KNOWN_AMOUNT);
+      });
+
+      it('mint() reverts when the payload amount > rate limit', async function () {
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: KNOWN_AMOUNT, window: limitWindow });
+        const { payload, proof } = await defaultData(signer1, KNOWN_AMOUNT + 1n);
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).mint(payload, proof))
+          .to.be.revertedWithCustomError(assetRouter, 'AssetRouter_MintProcessingError');
+      });
+
+      it('batchMint() succeeds when the total of all payloads equals the rate limit', async function () {
+        const half = KNOWN_AMOUNT / 2n;
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: KNOWN_AMOUNT, window: limitWindow });
+        const first = await defaultData(signer1, half);
+        const second = await defaultData(signer2, KNOWN_AMOUNT - half);
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).batchMint([first.payload, second.payload], [first.proof, second.proof]))
+          .to.changeTokenBalances(stakedLbtc, [signer1, signer2], [half, KNOWN_AMOUNT - half]);
+      });
+
+      it('batchMint() skips the payload that exceeds the rate limit instead of reverting', async function () {
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: KNOWN_AMOUNT, window: limitWindow });
+        const first = await defaultData(signer1, KNOWN_AMOUNT);
+        const second = await defaultData(signer2, 1n);
+        const tx = await assetRouter
+          .connect(signer1)
+          .batchMint([first.payload, second.payload], [first.proof, second.proof]);
+        await expect(tx).to.emit(assetRouter, 'AssetRouter_BatchMintError');
+        // prettier-ignore
+        await expect(tx)
+          .to.changeTokenBalances(stakedLbtc, [signer1, signer2], [KNOWN_AMOUNT, 0n]);
+      });
+    });
+
+    describe('mintWithFee()', function () {
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+      });
+
+      it('mintWithFee() succeeds when the payload amount + mintFee = rate limit', async function () {
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: KNOWN_AMOUNT + maxMintFee, window: limitWindow });
+        const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(
+          signer1,
+          KNOWN_AMOUNT,
+          maxMintFee
+        );
+        // prettier-ignore
+        await expect(assetRouter.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload!, userSignature!))
+          .to.changeTokenBalances(stakedLbtc, [signer1, treasury], [KNOWN_AMOUNT - maxMintFee, maxMintFee]);
+      });
+
+      it('mintWithFee() reverts when the payload amount + mintFee > rate limit', async function () {
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: KNOWN_AMOUNT + maxMintFee - 1n, window: limitWindow });
+        const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(
+          signer1,
+          KNOWN_AMOUNT,
+          maxMintFee
+        );
+        // prettier-ignore
+        await expect(assetRouter.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload!, userSignature!))
+          .to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded').withArgs(maxMintFee, maxMintFee - 1n, KNOWN_AMOUNT + maxMintFee - 1n);
+      });
+    });
+
+    describe('redeem()', function () {
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, nativeLbtcBytes, CHAIN_ID, 2);
+        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, KNOWN_AMOUNT);
+      });
+
+      it('redeem() succeeds when the redeemFee = rate limit', async function () {
+        await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, { limit: redeemFee, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1)['redeem(address,address,uint256)'](signer1.address, stakedLbtc.address, KNOWN_AMOUNT))
+          .to.changeTokenBalance(stakedLbtc, treasury, redeemFee);
+      });
+
+      it('redeem() reverts when the redeemFee > rate limit', async function () {
+        await stakedLbtc
+          .connect(owner)
+          .setMinterLimit(assetRouter.address, { limit: redeemFee - 1n, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1)['redeem(address,address,uint256)'](signer1.address, stakedLbtc.address, KNOWN_AMOUNT))
+          .to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded').withArgs(redeemFee, redeemFee - 1n, redeemFee - 1n);
+      });
+    });
+
+    describe('redeemForBtc()', function () {
+      const fee = redeemFee + toNativeFee;
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+        await assetRouter.connect(owner).setRoute(stakedLbtcBytes, CHAIN_ID, BITCOIN_NATIVE_COIN, BITCOIN_CHAIN_ID, 2);
+        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, KNOWN_AMOUNT);
+      });
+
+      it('redeemForBtc() succeeds when redeemFee + toNativeFee = rate limit', async function () {
+        await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, { limit: fee, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).redeemForBtc(signer1.address, stakedLbtc.address, p2wpkh, KNOWN_AMOUNT))
+          .to.changeTokenBalance(stakedLbtc, treasury, fee);
+      });
+
+      it('redeemForBtc() reverts when redeemFee + toNativeFee > rate limit', async function () {
+        await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, { limit: fee - 1n, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1).redeemForBtc(signer1.address, stakedLbtc.address, p2wpkh, KNOWN_AMOUNT))
+          .to.be.revertedWithCustomError(rateLimits, 'RateLimitExceeded').withArgs(fee, fee - 1n, fee - 1n);
+      });
+    });
+
+    describe('deposit()', function () {
+      beforeEach(async function () {
+        await rateLimitsSnapshot.restore();
+        await assetRouter.connect(owner).setRoute(nativeLbtcBytes, CHAIN_ID, stakedLbtcBytes, CHAIN_ID, 1);
+        await nativeLbtc.connect(minter).mint(signer1.address, KNOWN_AMOUNT);
+      });
+
+      it('deposit() is not rate limited because it only burns', async function () {
+        await nativeLbtc.connect(owner).setMinterLimit(assetRouter.address, { limit: 1n, window: limitWindow });
+        // prettier-ignore
+        await expect(assetRouter.connect(signer1)['deposit(address,address,uint256)'](signer1.address, stakedLbtc.address, KNOWN_AMOUNT))
+          .to.changeTokenBalance(nativeLbtc, signer1, -KNOWN_AMOUNT);
       });
     });
   });
