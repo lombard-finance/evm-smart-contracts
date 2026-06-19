@@ -149,7 +149,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     it('reverts transfer when sender is blocklisted', async function () {
       await mintSharesTo(user);
       const oracle = (await ethers.getContractAt('BlocklistOracle', blocklistOracleAddr)) as BlocklistOracle;
-      await oracle.connect(admin).blockAccount(user.address);
+      await oracle.connect(admin).blockAccount([user.address]);
       const shares = await strategy.balanceOf(user.address);
       await expect(strategy.connect(user).transfer(operator.address, shares))
         .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
@@ -159,7 +159,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     it('reverts transfer when recipient is blocklisted', async function () {
       await mintSharesTo(user);
       const oracle = (await ethers.getContractAt('BlocklistOracle', blocklistOracleAddr)) as BlocklistOracle;
-      await oracle.connect(admin).blockAccount(operator.address);
+      await oracle.connect(admin).blockAccount([operator.address]);
       const shares = await strategy.balanceOf(user.address);
       await expect(strategy.connect(user).transfer(operator.address, shares))
         .to.be.revertedWithCustomError(oracle, 'BlocklistOracle_NotAllowed')
