@@ -64,7 +64,7 @@ abstract contract MultiAssetDepositUpgradeable is
     ) external onlyRole(MANAGER_ROLE) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.remove(depositAsset)) {
-            revert StrategyDeposit_AssetNotListed(depositAsset);
+            revert StrategyDeposit_AssetNotListed();
         }
         delete $.depositFeeBps[depositAsset];
         delete $.converters[depositAsset];
@@ -102,14 +102,14 @@ abstract contract MultiAssetDepositUpgradeable is
         address depositAsset
     ) private view {
         if (!$.depositAssets.contains(depositAsset)) {
-            revert StrategyDeposit_AssetNotListed(depositAsset);
+            revert StrategyDeposit_AssetNotListed();
         }
     }
 
     /// @dev Reverts unless `bps` is a valid deposit fee (strictly below 10_000).
     function _requireValidFeeBps(uint16 bps) private pure {
         if (bps >= _BPS_DENOMINATOR) {
-            revert StrategyDeposit_FeeBpsTooHigh(bps);
+            revert StrategyDeposit_FeeBpsTooHigh();
         }
     }
 
@@ -123,7 +123,7 @@ abstract contract MultiAssetDepositUpgradeable is
         _requireValidFeeBps(depositFeeBps_);
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.add(depositAsset)) {
-            revert StrategyDeposit_AssetAlreadyAdded(depositAsset);
+            revert StrategyDeposit_AssetAlreadyAdded();
         }
         $.depositFeeBps[depositAsset] = depositFeeBps_;
         $.converters[depositAsset] = assetConverter_;
@@ -183,7 +183,7 @@ abstract contract MultiAssetDepositUpgradeable is
     {
         uint256 shares = previewDeposit(depositAsset, assets);
         if (shares < minSharesOut) {
-            revert StrategyDeposit_InsufficientSharesOut(shares, minSharesOut);
+            revert StrategyDeposit_InsufficientSharesOut();
         }
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
@@ -223,7 +223,7 @@ abstract contract MultiAssetDepositUpgradeable is
     {
         uint256 assets = previewMint(depositAsset, shares);
         if (assets > maxAssetsIn) {
-            revert StrategyDeposit_ExcessiveAssetsIn(assets, maxAssetsIn);
+            revert StrategyDeposit_ExcessiveAssetsIn();
         }
         _deposit(_msgSender(), receiver, depositAsset, assets, shares);
 
@@ -260,7 +260,7 @@ abstract contract MultiAssetDepositUpgradeable is
         if (feeAssets > 0) {
             address tr = feeTreasury();
             if (tr == address(0))
-                revert StrategyDeposit_FeeTreasuryNotSet(depositAsset);
+                revert StrategyDeposit_FeeTreasuryNotSet();
             IERC20(depositAsset).safeTransfer(tr, feeAssets);
             emit DepositFeeTransferred(depositAsset, tr, feeAssets);
         }

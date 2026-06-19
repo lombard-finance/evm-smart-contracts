@@ -47,7 +47,7 @@ abstract contract AsyncRedemptionUpgradeable is
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
     function setRedeemFeeBps(uint16 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)
-            revert AsyncRedemption_RedeemFeeBpsTooHigh(bps);
+            revert AsyncRedemption_RedeemFeeBpsTooHigh();
         _getAsyncRedemptionStorage().redeemFeeBps = bps;
         emit RedeemFeeBpsSet(bps);
     }
@@ -106,15 +106,12 @@ abstract contract AsyncRedemptionUpgradeable is
         }
         // check that enough shares are left for the request
         if (feeShares >= shares) {
-            revert AsyncRedemption_FeeSharesGreaterThanShares(
-                feeShares,
-                shares
-            );
+            revert AsyncRedemption_FeeSharesGreaterThanShares();
         }
         uint256 netShares = shares - feeShares;
         uint256 assets = _convertToAssets(netShares, Math.Rounding.Floor);
         if (assets == 0) {
-            revert AsyncRedemption_ZeroAssets(netShares);
+            revert AsyncRedemption_ZeroAssets();
         }
         requestId = ++$.nextRequestId;
         RedeemRequest storage rq = $.redeemRequestById[requestId];
@@ -170,7 +167,7 @@ abstract contract AsyncRedemptionUpgradeable is
             // requestRedeem -> fulfill that could be used to manipulate the
             // fee share base while paying out atomically.
             if (block.number <= requestBlock) {
-                revert AsyncRedemption_FulfillTooEarly(rid, requestBlock);
+                revert AsyncRedemption_FulfillTooEarly(rid);
             }
 
             uint256 payout = Math.min(

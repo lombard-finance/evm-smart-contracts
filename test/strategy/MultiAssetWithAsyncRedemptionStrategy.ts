@@ -96,7 +96,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     expect(await strategy.name()).to.equal('Multi Strategy Shares');
     expect(await strategy.symbol()).to.equal('mSTRAT');
     expect(await strategy.asset()).to.equal(underlying.address);
-    expect(await strategy.version()).to.equal('MultiAssetWithAsyncRedemptionStrategy-0.0.1');
+    expect(await strategy.version()).to.equal('MAWARS-0.0.1');
     expect(await strategy.blocklistOracle()).to.equal(blocklistOracleAddr);
   });
 
@@ -729,8 +729,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy (happy path)', function () {
     await altDeposit.connect(user).approve(strategy.address, assets);
 
     await expect(strategy.connect(user)['deposit(address,uint256,address)'](altDeposit.address, assets, user.address))
-      .to.be.revertedWithCustomError(strategy, 'StrategyDeposit_FeeTreasuryNotSet')
-      .withArgs(altDeposit.address);
+      .to.be.revertedWithCustomError(strategy, 'StrategyDeposit_FeeTreasuryNotSet');
   });
 
   it('deregisterShard clears defaultShard when it matches', async function () {

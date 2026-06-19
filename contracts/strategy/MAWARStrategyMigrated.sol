@@ -49,7 +49,7 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
         address managementFeeTreasury_,
         uint256 initialPPS_
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _requireNonZeroAddress(blocklistOracle_);
+        // blocklistOracle_ non-zero is enforced below by _setBlocklistOracle.
         _requireNonZeroAddress(address(asset_));
         if (decimals_ == 0) revert Strategy_ZeroDecimals();
         _requireNonZeroAddress(managementFeeTreasury_);
@@ -77,8 +77,9 @@ contract MAWARStrategyMigrated is MultiAssetWithAsyncRedemptionStrategy {
         });
 
         // initialize FeeManager storage
+        // initialPPS_ == pricePerShare() here (just set via _setPricePerShare) and is non-zero.
         FeeManagerStorage storage feeManagerStorage = _getFeeManagerStorage();
-        feeManagerStorage.highWaterMark = pricePerShare();
+        feeManagerStorage.highWaterMark = initialPPS_;
         feeManagerStorage.lastFeeHarvestAt = uint48(block.timestamp);
         feeManagerStorage.managementFeeTreasury = managementFeeTreasury_;
     }

@@ -51,13 +51,13 @@ interface IMultiAssetDeposit is IERC165 {
         uint256 amount
     );
 
-    error StrategyDeposit_AssetNotListed(address token);
+    error StrategyDeposit_AssetNotListed();
 
-    /// @param bps The fee basis points that failed validation (must be < 10_000).
-    error StrategyDeposit_FeeBpsTooHigh(uint16 bps);
+    /// @dev The fee basis points failed validation (must be < 10_000).
+    error StrategyDeposit_FeeBpsTooHigh();
 
-    /// @param depositAsset Deposit token for which a fee was charged while `feeTreasury` was unset.
-    error StrategyDeposit_FeeTreasuryNotSet(address depositAsset);
+    /// @dev A fee was charged while `feeTreasury` was unset.
+    error StrategyDeposit_FeeTreasuryNotSet();
 
     error StrategyDeposit_ExceededMaxDeposit(
         address receiver,
@@ -73,17 +73,11 @@ interface IMultiAssetDeposit is IERC165 {
         uint256 maxShares
     );
 
-    error StrategyDeposit_AssetAlreadyAdded(address depositAsset);
+    error StrategyDeposit_AssetAlreadyAdded();
 
-    error StrategyDeposit_InsufficientSharesOut(
-        uint256 sharesOut,
-        uint256 minSharesOut
-    );
+    error StrategyDeposit_InsufficientSharesOut();
 
-    error StrategyDeposit_ExcessiveAssetsIn(
-        uint256 assetsIn,
-        uint256 maxAssetsIn
-    );
+    error StrategyDeposit_ExcessiveAssetsIn();
 
     /// @notice Deposit `assets` of `depositAsset` and mint shares to `receiver`.
     /// @return shares Strategy shares minted.
