@@ -23,6 +23,22 @@ import {Validation} from "./libraries/Validation.sol";
  * @title Router to store xxxLBTC Staking paths and token's name.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @dev Fee collection on redeem and StakedLBTC deposit paths uses burn-then-mint to treasury
+ *      (not a user transfer) so callers do not need a separate fee approval. Those treasury
+ *      mints go through the token's `MINTER_ROLE` entrypoint and consume the {AssetRouter}
+ *      minter rate-limit bucket; burns do not release bucket capacity.
+ *
+ *      Lombard acknowledges the following expected behaviour when the AssetRouter bucket is
+ *      tight or exhausted:
+ *      - `redeem` / `redeemForBtc` may revert on the fee mint even though the operation is
+ *        net supply-reducing (user burns `amount + fee`).
+ *      - `mintWithFee` (StakedLBTC) counts both the deposit mint and the fee mint against the
+ *        same bucket (`amount + fee` consumed; net supply increase is only `amount`). A deposit
+ *        with `amount == remainingCapacity` can revert on the fee step.
+ *
+ *      NativeLBTC proof mints with fee use `_transfer` for the commission and are not subject to
+ *      this double-count on the AssetRouter bucket. Operators sizing the AssetRouter limit should
+ *      budget for fee mints on redeem and StakedLBTC deposit paths.
  */
 contract AssetRouter is
     IAssetRouter,
@@ -567,6 +583,10 @@ contract AssetRouter is
         );
     }
 
+    /// @dev Sends the redeem GMP message, mints `fee` to treasury, then burns `amount + fee`
+    ///      from `fromAddress`. The fee mint consumes the AssetRouter minter rate-limit bucket.
+    ///      If the bucket lacks capacity for `fee`, the whole redeem reverts — expected and
+    ///      acknowledged by Lombard.
     function _redeem(
         AssetRouterStorage storage $,
         address fromAddress,
@@ -719,6 +739,10 @@ contract AssetRouter is
         return (success, recipient, token, amount);
     }
 
+    /// @dev Mints the deposit to `recipient`, then burns `fee` from `recipient` and mints it
+    ///      to treasury. Both mints consume the AssetRouter minter rate-limit bucket (`amount +
+    ///      fee` total; net supply increase is `amount`). Double-counting is expected and
+    ///      acknowledged by Lombard.
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,

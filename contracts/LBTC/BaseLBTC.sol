@@ -22,7 +22,11 @@ import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
  *      so ERC20 transfers stay cheap (no guard in `_update`). New supply-changing entrypoints must use that modifier.
  *      `MINTER_ROLE` holders mint through `_mintWithLimit` / `_batchMintWithLimit`; per-minter leaky-bucket limits
  *      are configured with `setMinterLimit`. Proof-mint paths consume the bucket keyed by
- *      `address(this)` at the call site. Use `type(uint96).max` with a short `window` for a practical unlimited cap.
+ *      `address(this)` at the call site. {AssetRouter} holds `MINTER_ROLE` on its own bucket:
+ *      fee collection there uses mint-to-treasury (not transfer) and consumes that bucket without
+ *      burns releasing capacity — see {AssetRouter} `@dev` for redeem blocking and StakedLBTC
+ *      `mintWithFee` double-count behaviour Lombard acknowledges as expected.
+ *      Use `type(uint96).max` with a short `window` for a practical unlimited cap.
  *      Rate limits are keyed by minter address, not role membership: revoking and re-granting `MINTER_ROLE` does not
  *      reset or clear `minterRateLimits` (intended; `DEFAULT_ADMIN_ROLE` must reconfigure or accept prior state).
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
@@ -94,6 +98,8 @@ abstract contract BaseLBTC is
     ///      Non-zero `limit`: if the new limit is below decayed in-flight, in-flight is capped
     ///      to the new limit so the tighter cap applies immediately (see {RateLimitsV2.setRateLimit}).
     ///      Revoking and re-granting `MINTER_ROLE` for `minter` does not change this limit state.
+    ///      When `minter` is {AssetRouter}, size the limit for fee mints on redeem paths and for
+    ///      `amount + fee` on StakedLBTC `mintWithFee` (see {AssetRouter} `@dev`).
     /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @param config Rate limit configuration (`limit`, `window`).
     /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`

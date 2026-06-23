@@ -401,6 +401,9 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         return (action.recipient, action.amount);
     }
 
+    /// @dev Proof mint consumes the `address(this)` rate-limit bucket; the commission is moved
+    ///      via `_transfer` to treasury (not a second mint), so only `amount` counts against
+    ///      the bucket. Unlike {AssetRouter._mintWithFee}, this path does not double-count fees.
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
