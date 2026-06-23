@@ -1,0 +1,197 @@
+# Shard: 0x2394ffE3Dc4BFf6876f3B86A13a41d3A02222EaB
+usdc_approve_aave:
+  destinationType: "ERC20"
+  sender: "0x8150532B41bf7f992B58C531432399dD9640cb28"
+  to: "0x0a215d8ba66387dca84b284d18c3b4ec3de6e54a"
+  value: "0"
+  dataLength: 68
+  selector: "approve(address,uint256)"
+  constraints:
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008bab6d1b75f19e9ed9fce8b9bd338844ff79ae27"
+
+aave_supply_any:
+  destinationType: "AAVE_v3"
+  sender: "0x8150532B41bf7f992B58C531432399dD9640cb28"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 132
+  selector: "supply(address,uint256,address,uint16)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000002394ffE3Dc4BFf6876f3B86A13a41d3A02222EaB"
+
+aave_borrow_any:
+  destinationType: "AAVE_v3"
+  sender: "0x8150532B41bf7f992B58C531432399dD9640cb28"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 164
+  selector: "borrow(address,uint256,uint256,uint16,address)"
+  constraints:
+    - offset: 128
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000002394ffE3Dc4BFf6876f3B86A13a41d3A02222EaB"
+
+safe_wallet_approve_any_to_aave_pool:
+  destinationType: "ERC20"
+  sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
+  value: "0"
+  dataLength: 68
+  selector: "approve(address,uint256)"
+  constraints:
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008bab6d1b75f19e9ed9fce8b9bd338844ff79ae27"
+
+safe_wallet_supply_any_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
+  sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 132
+  selector: "supply(address,uint256,address,uint16)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+safe_wallet_withdraw_any_to_shard:
+  destinationType: "AAVE_v3"
+  sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 100
+  selector: "withdraw(address,uint256,address)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+
+safe_wallet_repay_any_mode_2_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
+  sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 132
+  selector: "repay(address,uint256,uint256,address)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000002"
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+
+safe_wallet_set_user_use_reserve_as_collateral_any_true:
+  destinationType: "AAVE_v3"
+  sender: "0x55EAB50d87f4237699AD60E0F8645e45B07e7fb0"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 68
+  selector: "setUserUseReserveAsCollateral(address,bool)"
+  constraints:
+    - offset: 32
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000001"
+
+eoa_approve_any_to_aave_pool:
+  destinationType: "ERC20"
+  sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
+  value: "0"
+  dataLength: 68
+  selector: "approve(address,uint256)"
+  constraints:
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008bab6d1b75f19e9ed9fce8b9bd338844ff79ae27"
+
+eoa_supply_any_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
+  sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 132
+  selector: "supply(address,uint256,address,uint16)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+eoa_withdraw_any_to_shard:
+  destinationType: "AAVE_v3"
+  sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 100
+  selector: "withdraw(address,uint256,address)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+
+eoa_repay_any_mode_2_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
+  sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 132
+  selector: "repay(address,uint256,uint256,address)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000002"
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+
+eoa_set_user_use_reserve_as_collateral_any_true:
+  destinationType: "AAVE_v3"
+  sender: "0x659579f1460c38c3ce3288b47b074646cef855fc"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 68
+  selector: "setUserUseReserveAsCollateral(address,bool)"
+  constraints:
+    - offset: 32
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000001"
+
+borrow_any_mode_2_referral_0_on_behalf_of_shard:
+  destinationType: "AAVE_v3"
+  to: "0x8bAB6d1b75f19e9eD9fCe8b9BD338844fF79aE27"
+  value: "0"
+  dataLength: 164
+  selector: "borrow(address,uint256,uint256,uint16,address)"
+  constraints:
+    - offset: 64
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000002"
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000000000000000000000000000000000000000000"
+    - offset: 128
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000000e05fc53ec94a576c5650e9feaadc5e92d360f06"
+
+erc20_transfer_any_sender_any_token:
+  value: "0"
+  selector: "transfer(address,uint256)"
+
+allow_all_1:
+  sender: "0x564974801D2ffBE736Ed59C9bE39F6c0A4274aE6"
+
+allow_all_2:
+  sender: "0xa53808eBD07DdF06C52A377a1CB724692703928F"
+
+allow_all_testing_wallet:
+  sender: "0x659579F1460c38C3ce3288b47b074646CEF855fc"
+  value: "0"

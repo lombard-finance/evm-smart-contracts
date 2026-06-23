@@ -177,14 +177,12 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
     )) as unknown as IERC20 & Addressable;
     wbtc.address = '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599';
 
-    erc4626Wrapper = await deployContract<ERC4626VaultWrapper & Addressable>('ERC4626VaultWrapper', [
-      owner.address,
-      'Wrapper Token Name',
-      'vLBTC',
-      1n,
-      pauser.address,
-      teller.address
-    ]);
+    erc4626Wrapper = await deployContract<ERC4626VaultWrapper & Addressable>(
+      'ERC4626VaultWrapper',
+      [owner.address, 'Wrapper Token Name', 'vLBTC', 1n, pauser.address, teller.address],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     erc4626Wrapper.address = await erc4626Wrapper.getAddress();
 
     await expect(stakeAndBake.connect(stakeAndBakeOwner).setDepositor(erc4626Wrapper.address))

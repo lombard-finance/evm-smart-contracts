@@ -100,7 +100,10 @@ describe('BridgeTokenAdapter', function () {
       trustedSigner
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -109,13 +112,18 @@ describe('BridgeTokenAdapter', function () {
       );
 
     bridgeToken = await deployContract<BridgeTokenMock>('BridgeTokenMock', [], false);
-    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>('BridgeTokenAdapter', [
-      await consortium.getAddress(),
-      treasury.address,
-      owner.address,
-      0n, //owner delay
-      await bridgeToken.getAddress()
-    ]);
+    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>(
+      'BridgeTokenAdapter',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        owner.address,
+        0n, //owner delay
+        await bridgeToken.getAddress()
+      ],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     await bridgeToken.migrateBridgeRole(bridgeTokenAdapter);
     bridgeTokenAdapter.address = await bridgeTokenAdapter.getAddress();
     bridgeTokenAdapterBytes = encode(['address'], [bridgeTokenAdapter.address]);
@@ -131,7 +139,12 @@ describe('BridgeTokenAdapter', function () {
     );
 
     // Mailbox
-    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, 0n, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
     await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
@@ -142,14 +155,12 @@ describe('BridgeTokenAdapter', function () {
     ratioFeed.address = await ratioFeed.getAddress();
 
     // AssetRouter
-    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [
-      owner.address,
-      0n,
-      LEDGER_CHAIN_ID,
-      BITCOIN_CHAIN_ID,
-      mailbox.address,
-      ethers.ZeroAddress
-    ]);
+    assetRouter = await deployContract<AssetRouter & Addressable>(
+      'AssetRouter',
+      [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     await assetRouter.connect(owner).changeOracle(bridgeTokenAdapter.address, ratioFeed.address);
     await assetRouter.connect(owner).changeToNativeCommission(bridgeTokenAdapter.address, toNativeCommission);
     assetRouter.address = await assetRouter.getAddress();
@@ -821,7 +832,10 @@ describe('BridgeTokenAdapter', function () {
       before(async () => {
         await snapshot.restore();
 
-        bridge = await deployContract<BridgeV2>('BridgeV2', [owner.address, mailbox.address]);
+        bridge = await deployContract<BridgeV2>('BridgeV2', [owner.address, mailbox.address], true, {
+          initializer: 'initialize',
+          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+        });
         await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), bridge);
         bridgeAddressBytes = encode(['address'], [await bridge.getAddress()]);
 

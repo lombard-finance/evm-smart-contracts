@@ -1,5 +1,6 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { verify, getProxyFactoryAt, getProxySalt } from './index';
+import { Addressable } from 'ethers';
 
 export async function create3(
   contract: string,
@@ -11,17 +12,36 @@ export async function create3(
   contractName: string = contract,
   nonce: number = 0
 ): Promise<{ proxy: any; proxyAdmin: any }> {
-  const { ethers, run, upgrades } = hre;
-
-  const factory = await getProxyFactoryAt(ethers, factoryAddr);
-  const saltHash = getProxySalt(ethers, ledgerNetwork, contractName, nonce);
-
-  const impl = await ethers.deployContract(contract);
+  const impl = await hre.ethers.deployContract(contract);
   await impl.waitForDeployment();
 
   const data = impl.interface.encodeFunctionData('initialize', args);
 
-  const tx = await factory.createTransparentProxy(await impl.getAddress(), admin, data, saltHash);
+  await verify(run, await impl.getAddress());
+
+  return deployProxyWithCreate3(
+    impl,
+    data,
+    factoryAddr,
+    getProxySalt(hre.ethers, ledgerNetwork, contractName, nonce),
+    admin,
+    hre
+  );
+}
+
+export async function deployProxyWithCreate3(
+  impl: Addressable,
+  implData: string,
+  factoryAddr: string,
+  saltHash: string,
+  admin: string,
+  hre: HardhatRuntimeEnvironment
+): Promise<{ proxy: any; proxyAdmin: any }> {
+  const { ethers, run, upgrades } = hre;
+
+  const factory = await getProxyFactoryAt(ethers, factoryAddr);
+
+  const tx = await factory.createTransparentProxy(await impl.getAddress(), admin, implData, saltHash);
   await tx.wait();
 
   const proxy = await factory.getDeployed(saltHash);
@@ -30,14 +50,13 @@ export async function create3(
   const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxy);
   console.log('Proxy admin:', proxyAdmin);
 
-  await verify(run, await impl.getAddress());
   await verify(run, proxyAdmin, {
     contract: '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin',
     constructorArguments: [admin]
   });
   await verify(run, proxy, {
     contract: '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy',
-    constructorArguments: [await impl.getAddress(), admin, data]
+    constructorArguments: [await impl.getAddress(), admin, implData]
   });
 
   return { proxy, proxyAdmin };

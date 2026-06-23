@@ -52,16 +52,25 @@ describe('Bridge', function () {
       await getSignersWithPrivateKeys();
 
     // for both chains
-    consortium = await deployContract<Consortium>('Consortium', [deployer.address]);
+    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
-    stakedLbtcSource = await deployContract<StakedLBTC>('StakedLBTC', [treasurySource.address, deployer.address, 0n]);
-    bridgeSource = await deployContract<Bridge>('Bridge', [
-      await stakedLbtcSource.getAddress(),
-      treasurySource.address,
-      deployer.address
-    ]);
+    stakedLbtcSource = await deployContract<StakedLBTC>(
+      'StakedLBTC',
+      [treasurySource.address, deployer.address, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
+    bridgeSource = await deployContract<Bridge>(
+      'Bridge',
+      [await stakedLbtcSource.getAddress(), treasurySource.address, deployer.address],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     bascule = await deployContract<Bascule>(
       'Bascule',
       [admin.address, pauser.address, reporter.address, await stakedLbtcSource.getAddress(), 100],
@@ -69,16 +78,18 @@ describe('Bridge', function () {
     );
 
     // chain 2
-    stakedLbtcDestination = await deployContract<StakedLBTC>('StakedLBTC', [
-      treasuryDestination.address,
-      deployer.address,
-      0n
-    ]);
-    bridgeDestination = await deployContract<Bridge>('Bridge', [
-      await stakedLbtcDestination.getAddress(),
-      treasuryDestination.address,
-      deployer.address
-    ]);
+    stakedLbtcDestination = await deployContract<StakedLBTC>(
+      'StakedLBTC',
+      [treasuryDestination.address, deployer.address, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
+    bridgeDestination = await deployContract<Bridge>(
+      'Bridge',
+      [await stakedLbtcDestination.getAddress(), treasuryDestination.address, deployer.address],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
 
     await stakedLbtcSource
       .connect(deployer)

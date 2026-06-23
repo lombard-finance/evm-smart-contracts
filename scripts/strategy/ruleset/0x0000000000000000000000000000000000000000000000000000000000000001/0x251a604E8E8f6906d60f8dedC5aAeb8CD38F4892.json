@@ -1,0 +1,23 @@
+{
+  "erc20_transfer": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "transfer(address,uint256)",
+    "constraints": []
+  },
+  "erc20_approve": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "approve(address,uint256)",
+    "constraints": []
+  },
+  "erc20_transfer_to_fixed_recipient": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "transfer(address,uint256)",
+    "constraints": [
+      {
+        "offset": 0,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x0000000000000000000000007C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+      }
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import type { DeployProxyOptions } from '@openzeppelin/hardhat-upgrades/dist/utils/options';
 import { config, ethers, upgrades } from 'hardhat';
 import { impersonateAccount } from '@nomicfoundation/hardhat-network-helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
@@ -260,10 +261,11 @@ export async function signPayload(
 export async function deployContract<T extends BaseContract>(
   contractName: string,
   args: any[],
-  isProxy: boolean = true
+  isProxy: boolean = true,
+  opts: DeployProxyOptions = {}
 ): Promise<T> {
   const factory = await ethers.getContractFactory(contractName);
-  const contract = await (isProxy ? upgrades.deployProxy(factory, args) : factory.deploy(...args));
+  const contract = await (isProxy ? upgrades.deployProxy(factory, args, opts) : factory.deploy(...args));
   await contract.waitForDeployment();
 
   return factory.attach(contract.target) as T;
@@ -281,7 +283,12 @@ export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer
 }
 
 export async function initStakedLBTC(owner: string, treasury: string, initialOwnerDelay: bigint = 0n) {
-  const lbtc = await deployContract<StakedLBTC & Addressable>('StakedLBTC', [treasury, owner, initialOwnerDelay]);
+  const lbtc = await deployContract<StakedLBTC & Addressable>(
+    'StakedLBTC',
+    [treasury, owner, initialOwnerDelay],
+    true,
+    { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+  );
   lbtc.address = await lbtc.getAddress();
   return lbtc;
 }
@@ -293,17 +300,18 @@ export async function initNativeLBTC(
   initialOwnerDelay: bigint = 0n
 ): Promise<NativeLBTC & Addressable> {
   if (consortium === ethers.ZeroAddress) {
-    const c = await deployContract<Consortium>('ConsortiumMock', [owner]);
+    const c = await deployContract<Consortium>('ConsortiumMock', [owner], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium = await c.getAddress();
   }
-  const lbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
-    consortium,
-    treasury,
-    'Native LBTC',
-    'nativeLBTC',
-    owner,
-    initialOwnerDelay
-  ]);
+  const lbtc = await deployContract<NativeLBTC & Addressable>(
+    'NativeLBTC',
+    [consortium, treasury, 'Native LBTC', 'nativeLBTC', owner, initialOwnerDelay],
+    true,
+    { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+  );
   lbtc.address = await lbtc.getAddress();
   return lbtc;
 }

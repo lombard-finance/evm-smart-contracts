@@ -3,7 +3,7 @@ import { ethers, network, upgrades } from 'hardhat';
 import { BTCBPMM, WBTCMock, StakedLBTC } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
-import { initStakedLBTC } from './helpers';
+import { initStakedLBTC, deployContract } from './helpers';
 
 describe('BTCBPMM', function () {
   let pmm: BTCBPMM;
@@ -20,7 +20,12 @@ describe('BTCBPMM', function () {
 
   async function deploy<T>(contractName: string, asType: string, args: any[] = [], isProxy: boolean = true) {
     const factory = await ethers.getContractFactory(contractName);
-    const contract = isProxy ? await upgrades.deployProxy(factory, args) : await factory.deploy(...args);
+    const contract = isProxy
+      ? await deployContract(contractName, args, true, {
+          initializer: 'initialize',
+          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+        })
+      : await factory.deploy(...args);
     await contract.waitForDeployment();
     return (await ethers.getContractFactory(asType)).attach(await contract.getAddress()) as T;
   }

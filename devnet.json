@@ -28,15 +28,25 @@
       "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
     },
     "lombard": {
-      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "ProxyFactory_general": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "ProxyFactory_strategy": "",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
       "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
       "AssetRouter": "0x76329dd2d888424fD203C354498E6d3d4bdEac22",
       "StakedLBTCOracle": "0x62F10cE5b727edf787ea45776bD050308A611508",
-      "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1"
+      "Mailbox": "0xFc736405C56078A17bd25A4F732CDAD358bff7B1",
+      "MultiAssetWithAsyncRedemptionStrategy_beacon": "0x706e76F012c9AEac0F62D20eeb122688A26Ad71c",
+      "RemoteShard_beacon": "0x820a0E0bB2eec313a153c98584573a07ceE7c7C3",
+      "Shard_beacon": "0xd0b479AD08733fd6C63ffdEf3F9c203394699125"
     },
+    "implementations": {
+      "MultiAssetWithAsyncRedemptionStrategy-0.0.1": "",
+      "Shard-0.0.1": "",
+      "RemoteShard-0.0.1": "0x7CD0d5565F6b04Cfe252f645093421F0396C15DE"
+    },
+    "vaults": {},
     "chainlink": {
       "ChainSelector": "16015286601757825753",
       "Router": "0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59",
@@ -90,14 +100,39 @@
     "admin": {
       "Owner": "0x62F10cE5b727edf787ea45776bD050308A611508",
       "TimeLock": "",
-      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508"]
+      "Deployer": ["0x62F10cE5b727edf787ea45776bD050308A611508", "0x8150532B41bf7f992B58C531432399dD9640cb28"]
     },
     "lombard": {
-      "ProxyFactory": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "ProxyFactory_general": "0xF3518F0582fA818Fb1a5F07dDE4C8707558C250a",
+      "ProxyFactory_strategy": "0x9d2b86297f8281e415Dc92269443d5BE4cB20677",
       "LBTC": "0x731eFa688F3679688cf60A3993b8658138953ED6",
+      "NativeLBTC": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
+      "StakedLBTCOracle": "0x64E5f2bb0D13D20F12683AF7cA4E5D2bac5933C3",
       "Consortium": "0x9Fc4c639efDc61ae53D4D419328F488d7413e5C4",
       "Bridge": "0xca571682D1478Ab3f7fcBCbadE6E4954DE3a9676",
-      "PoR": "0xD4BF82406b2E33bE3013881DFbf17A763046517a"
+      "PoR": "0xD4BF82406b2E33bE3013881DFbf17A763046517a",
+      "RemoteShard_beacon": "0x610c818DA2F54f1e577dE171DE728E2f8FddF7dC",
+      "Shard_beacon": "0x1D1c435Cb2A7a1b10E0c104225bEa151eC5cdDBd",
+      "DirectConverter": "0xd3d7EEDf9083C1887725050aFcfBC01c1C10e115",
+      "BlocklistOracle": "0x3F9Ee8B4518DBa6e3d65F28cd79525D198B4813f"
+    },
+    "implementations": {
+      "MultiAssetWithAsyncRedemptionStrategy-0.0.1": "0x07895A1F53638ba851132BA5cd77EF3B0Fb16faB",
+      "Shard-0.0.1": "0xfbb74Eff00E276d35299b08De55A69090fdBF01B",
+      "RemoteShard-0.0.1": "0xc6EcAFC3c31fd86f3Eb0E87aBFA1FE0881FD08B1"
+    },
+    "strategies": [
+      {
+        "name": "BTC.b Test Vault'",
+        "asset": "0x600e4006278EB11FA1691cA0FE6C5fcfC4992d58",
+        "strategy": "0x14Cd5e82A31A48e0831821FD5FEFdd7f82573348",
+        "remotes": {
+          "sepolia": "0x572FbFEF58EAa9Ce4C7F0BB64aF98e44005Fc377"
+        }
+      }
+    ],
+    "mocks": {
+      "TokenMock_BTCt": "0xd0b479AD08733fd6C63ffdEf3F9c203394699125"
     },
     "BTCB": {
       "BTCB": "0xdd48f288874c7226603cCC98cab0661b3bd5721A",

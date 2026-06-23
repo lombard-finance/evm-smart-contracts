@@ -85,7 +85,10 @@ describe('NativeLBTC', function () {
       trustedSigner
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -93,14 +96,19 @@ describe('NativeLBTC', function () {
         getPayloadForAction([1, [notary1.publicKey, notary2.publicKey], [1, 1], 2, 1], NEW_VALSET)
       );
 
-    nativeLbtc = await deployContract<NativeLBTC & Addressable>('NativeLBTC', [
-      await consortium.getAddress(),
-      treasury.address,
-      'Lombard Liquid Bitcoin',
-      'XLBTC',
-      owner.address,
-      0n //owner delay
-    ]);
+    nativeLbtc = await deployContract<NativeLBTC & Addressable>(
+      'NativeLBTC',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        'Lombard Liquid Bitcoin',
+        'XLBTC',
+        owner.address,
+        0n //owner delay
+      ],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     nativeLbtc.address = await nativeLbtc.getAddress();
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 
@@ -109,6 +117,7 @@ describe('NativeLBTC', function () {
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn.address);
+    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<BasculeV3>(
       'BasculeV3',
@@ -117,7 +126,12 @@ describe('NativeLBTC', function () {
     );
 
     // Mailbox
-    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, 0n, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
     await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
@@ -128,14 +142,12 @@ describe('NativeLBTC', function () {
     ratioFeed.address = await ratioFeed.getAddress();
 
     // AssetRouter
-    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [
-      owner.address,
-      0n,
-      LEDGER_CHAIN_ID,
-      BITCOIN_CHAIN_ID,
-      mailbox.address,
-      ethers.ZeroAddress
-    ]);
+    assetRouter = await deployContract<AssetRouter & Addressable>(
+      'AssetRouter',
+      [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     await assetRouter.connect(owner).changeOracle(nativeLbtc.address, ratioFeed.address);
     await assetRouter.connect(owner).changeToNativeCommission(nativeLbtc.address, toNativeCommission);
     assetRouter.address = await assetRouter.getAddress();
@@ -418,13 +430,13 @@ describe('NativeLBTC', function () {
           );
         });
 
-        it('unpauseMintBurn() reverts when called by not DEFAULT_ADMIN_ROLE', async function () {
+        it('unpauseMintBurn() reverts when called by not MANAGER_ROLE', async function () {
           await expect(nativeLbtc.connect(pauserMintBurn).unpauseMintBurn())
             .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
-            .withArgs(pauserMintBurn.address, await nativeLbtc.DEFAULT_ADMIN_ROLE());
+            .withArgs(pauserMintBurn.address, await nativeLbtc.MANAGER_ROLE());
         });
 
-        it('unpauseMintBurn() DEFAULT_ADMIN_ROLE can unpause', async function () {
+        it('unpauseMintBurn() MANAGER_ROLE can unpause', async function () {
           await expect(nativeLbtc.connect(owner).unpauseMintBurn())
             .to.emit(nativeLbtc, 'MintBurnPauseChanged')
             .withArgs(false);

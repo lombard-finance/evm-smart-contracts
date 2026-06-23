@@ -57,7 +57,10 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
     [_, owner, signer1, signer2, signer3, notary1, notary2, operator, pauser, treasury, trustedSigner] =
       await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -67,13 +70,18 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
 
     bridgeToken = await deployContract<BridgeTokenMock & Addressable>('BridgeTokenMock', [], false);
     bridgeToken.address = await bridgeToken.getAddress();
-    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>('BridgeTokenAdapter', [
-      await consortium.getAddress(),
-      treasury.address,
-      owner.address,
-      0n, //owner delay
-      await bridgeToken.getAddress()
-    ]);
+    bridgeTokenAdapter = await deployContract<BridgeTokenAdapter & Addressable>(
+      'BridgeTokenAdapter',
+      [
+        await consortium.getAddress(),
+        treasury.address,
+        owner.address,
+        0n, //owner delay
+        await bridgeToken.getAddress()
+      ],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     bridgeTokenAdapter.address = await bridgeTokenAdapter.getAddress();
     await bridgeToken.migrateBridgeRole(bridgeTokenAdapter);
 
@@ -88,7 +96,9 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
         owner.address,
         pauser.address,
         1_000_000
-      ]
+      ],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
     );
     stakeAndBakeForNativeToken.address = await stakeAndBakeForNativeToken.getAddress();
 
@@ -357,16 +367,21 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
 
     it('stakeAndBake: rejects when depositor is not set', async function () {
       await snapshot.restore();
-      const stakeAndBake = await deployContract<StakeAndBakeNativeToken & Addressable>('StakeAndBakeNativeToken', [
-        bridgeToken.address,
-        bridgeTokenAdapter.address,
-        owner.address,
-        operator.address,
-        1,
-        owner.address,
-        pauser.address,
-        1_000_000
-      ]);
+      const stakeAndBake = await deployContract<StakeAndBakeNativeToken & Addressable>(
+        'StakeAndBakeNativeToken',
+        [
+          bridgeToken.address,
+          bridgeTokenAdapter.address,
+          owner.address,
+          operator.address,
+          1,
+          owner.address,
+          pauser.address,
+          1_000_000
+        ],
+        true,
+        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      );
       stakeAndBake.address = await stakeAndBake.getAddress();
 
       const teller = await deployContract<TellerWithMultiAssetSupportMock & Addressable>(
