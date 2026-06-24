@@ -63,11 +63,12 @@ describe('Bridge', function () {
       true,
       true
     );
-    bridgeSource = await deployContract<Bridge>('Bridge', [
-      await stakedLbtcSource.getAddress(),
-      treasurySource.address,
-      deployer.address
-    ]);
+    bridgeSource = await deployContract<Bridge>(
+      'Bridge',
+      [await stakedLbtcSource.getAddress(), treasurySource.address, deployer.address],
+      true,
+      true
+    );
     bascule = await deployContract<Bascule>(
       'Bascule',
       [admin.address, pauser.address, reporter.address, await stakedLbtcSource.getAddress(), 100],
@@ -81,11 +82,12 @@ describe('Bridge', function () {
       true,
       true
     );
-    bridgeDestination = await deployContract<Bridge>('Bridge', [
-      await stakedLbtcDestination.getAddress(),
-      treasuryDestination.address,
-      deployer.address
-    ]);
+    bridgeDestination = await deployContract<Bridge>(
+      'Bridge',
+      [await stakedLbtcDestination.getAddress(), treasuryDestination.address, deployer.address],
+      true,
+      true
+    );
 
     await stakedLbtcSource
       .connect(deployer)

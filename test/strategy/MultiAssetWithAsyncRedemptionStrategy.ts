@@ -1510,7 +1510,7 @@ describe('StakedLBTC as deposit token', function () {
     [admin, strategyDeployer, , , redeemOperator, user, treasury, operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
-    const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
+    const wbtcProxy = await deployContract('WBTCMock', [], true, true);
     lbtcUnderlying = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
     (lbtcUnderlying as WBTCMock & { address: string }).address = await lbtcUnderlying.getAddress();
 
@@ -1721,7 +1721,7 @@ describe('Chainlink as deposit token', function () {
     [admin, strategyDeployer, , , redeemOperator, user, , operator] = await getSignersWithPrivateKeys();
 
     const wbtcFactory = await ethers.getContractFactory('WBTCMock');
-    const wbtcProxy = await deployContract('WBTCMock', [], true, { initializer: 'initialize' });
+    const wbtcProxy = await deployContract('WBTCMock', [], true, true);
     depositToken = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
     (depositToken as WBTCMock & { address: string }).address = await depositToken.getAddress();
 

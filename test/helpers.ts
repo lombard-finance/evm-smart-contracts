@@ -23,7 +23,13 @@ export const UNLIMITED_MINTER_CONFIG = {
   window: 1n
 };
 export const PROXY_DEPLOY_OPTS: DeployProxyOptions = {
-  unsafeAllow: ['constructor', 'external-library-linking']
+  unsafeAllow: [
+    'constructor',
+    'external-library-linking',
+    'missing-initializer',
+    'missing-initializer-call',
+    'incorrect-initializer-order'
+  ]
 };
 export const LEDGER_CHAIN_ID: string = '0x0387b25e8e61f2ce4838b04795b231f09ee73ffd391da018bef4bc5c4975897b';
 export const BITCOIN_CHAIN_ID: string = encode(
