@@ -88,7 +88,10 @@ describe('StakedLBTC', function () {
       signer3
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -134,6 +137,8 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -142,7 +147,12 @@ describe('StakedLBTC', function () {
     );
 
     // Mailbox
-    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, 0n, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
     await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
@@ -153,14 +163,12 @@ describe('StakedLBTC', function () {
     ratioFeed.address = await ratioFeed.getAddress();
 
     // AssetRouter
-    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [
-      owner.address,
-      0n,
-      LEDGER_CHAIN_ID,
-      BITCOIN_CHAIN_ID,
-      mailbox.address,
-      ethers.ZeroAddress
-    ]);
+    assetRouter = await deployContract<AssetRouter & Addressable>(
+      'AssetRouter',
+      [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
     await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);
@@ -467,13 +475,13 @@ describe('StakedLBTC', function () {
           );
         });
 
-        it('unpauseMintBurn() reverts when called by not DEFAULT_ADMIN_ROLE', async function () {
+        it('unpauseMintBurn() reverts when called by not MANAGER_ROLE', async function () {
           await expect(stakedLbtc.connect(pauserMintBurn).unpauseMintBurn())
             .to.revertedWithCustomError(stakedLbtc, 'AccessControlUnauthorizedAccount')
-            .withArgs(pauserMintBurn.address, await stakedLbtc.DEFAULT_ADMIN_ROLE());
+            .withArgs(pauserMintBurn.address, await stakedLbtc.MANAGER_ROLE());
         });
 
-        it('unpauseMintBurn() DEFAULT_ADMIN_ROLE can unpause', async function () {
+        it('unpauseMintBurn() MANAGER_ROLE can unpause', async function () {
           await expect(stakedLbtc.connect(owner).unpauseMintBurn())
             .to.emit(stakedLbtc, 'MintBurnPauseChanged')
             .withArgs(false);

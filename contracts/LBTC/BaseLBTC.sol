@@ -64,6 +64,8 @@ abstract contract BaseLBTC is
     bytes32 public constant MINT_BURN_PAUSER_ROLE =
         keccak256("MINT_BURN_PAUSER_ROLE");
 
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant ERC20StorageLocation =
         0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
@@ -228,8 +230,8 @@ abstract contract BaseLBTC is
     }
 
     /// @notice Clears mint/burn guard.
-    /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
-    function unpauseMintBurn() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @custom:access Caller must have `MANAGER_ROLE`
+    function unpauseMintBurn() external onlyRole(MANAGER_ROLE) {
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
         if (!$.mintBurnPaused) {
             revert MintBurnExpectedPaused();

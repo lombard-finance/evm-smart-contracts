@@ -23,12 +23,12 @@ describe.skip('FBTCPartnerVault', function () {
 
     fbtc = await deployContract<WBTCMock>('WBTCMock', []);
 
-    partnerVault = await deployContract<FBTCPartnerVault>('FBTCPartnerVault', [
-      deployer.address,
-      await fbtc.getAddress(),
-      await lbtc.getAddress(),
-      oneLbtc
-    ]);
+    partnerVault = await deployContract<FBTCPartnerVault>(
+      'FBTCPartnerVault',
+      [deployer.address, await fbtc.getAddress(), await lbtc.getAddress(), oneLbtc],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
 
     lockedFbtc = await deployContract<LockedFBTCMock>('LockedFBTCMock', [await fbtc.getAddress()], false);
 

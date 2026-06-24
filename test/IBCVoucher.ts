@@ -30,12 +30,12 @@ describe('IBCVoucher', function () {
 
     lbtc = await initStakedLBTC(admin.address, treasury.address);
 
-    ibcVoucher = await deployContract<IBCVoucher>('IBCVoucher', [
-      await lbtc.getAddress(),
-      admin.address,
-      fee,
-      treasury.address
-    ]);
+    ibcVoucher = await deployContract<IBCVoucher>(
+      'IBCVoucher',
+      [await lbtc.getAddress(), admin.address, fee, treasury.address],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
 
     // set deployer as minter
     await lbtc.connect(admin).grantRole(await lbtc.MINTER_ROLE(), admin.address);

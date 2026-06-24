@@ -18,6 +18,7 @@ contract StakedLBTCOracle is
 {
     error WrongRatioSwitchTime();
     error RatioInitializedAlready();
+    error StakedLBTCOracle_ZeroRatio();
     error TooBigRatioChange();
     error WrongToken();
     error UnexpectedTimestampFormat(uint256 ts);
@@ -45,6 +46,7 @@ contract StakedLBTCOracle is
         address token;
     }
 
+    /// @custom:storage-location erc7201:lombardfinance.storage.StakedLBTCOracle
     struct StakedLBTCOracleStorage {
         INotaryConsortium consortium;
         TokenDetails tokenDetails;
@@ -66,6 +68,7 @@ contract StakedLBTCOracle is
     constructor() {
         _disableInitializers();
     }
+
     function initialize(
         address owner_,
         address consortium_,
@@ -216,7 +219,9 @@ contract StakedLBTCOracle is
         _setNewRatio(ratio_, switchTime_);
     }
 
+    /// @dev `ratio_` must be non-zero: `IOracle.ratio()` is a divisor in converters and rate helpers.
     function _setNewRatio(uint256 ratio_, uint256 switchTime_) internal {
+        if (ratio_ == 0) revert StakedLBTCOracle_ZeroRatio();
         StakedLBTCOracleStorage storage $ = _getStakedLBTCOracleStorage();
         if (block.timestamp >= $.switchTime) {
             $.prevRatio = $.currRatio;
@@ -272,6 +277,7 @@ contract StakedLBTCOracle is
         }
         return ($.prevRatio, $.prevSwitchTime);
     }
+
     /// @dev not zero
     function _changeConsortium(address newVal) internal {
         Assert.zeroAddress(newVal);

@@ -36,7 +36,10 @@ describe('StakedLBTCOracle', function () {
 
     [_, owner, treasury, notary1, notary2, signer1] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -54,8 +57,8 @@ describe('StakedLBTCOracle', function () {
 
     defaultSwitchTime = (await time.latest()) + 3600;
     const oracleFactory = await ethers.getContractFactory('StakedLBTCOracle');
-    const oracleContract = await upgrades.deployProxy(
-      oracleFactory,
+    const oracleContract = await deployContract(
+      'StakedLBTCOracle',
       [
         owner.address,
         consortium.address,
@@ -65,11 +68,10 @@ describe('StakedLBTCOracle', function () {
         defaultSwitchTime,
         defaultMaxAheadInterval
       ],
-      { initializer: 'initialize', unsafeAllow: ['constructor'] }
+      true,
+      true
     );
-    await oracleContract.waitForDeployment();
-    oracle = (await oracleFactory.attach(await oracleContract.getAddress())) as StakedLBTCOracle & Addressable;
-    oracle.address = await oracle.getAddress();
+    oracle = oracleContract as StakedLBTCOracle & Addressable;
 
     snapshot = await takeSnapshot();
   });

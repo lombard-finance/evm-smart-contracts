@@ -7,9 +7,11 @@
   "scripts": {
     "format": "prettier --write './**/*.{sol,ts,js,json}'",
     "format:check": "prettier --check './**/*.{sol,ts,js,json}'",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "test:fork": "HARDHAT_FORK=1 hardhat test fork-tests/**/*.ts"
   },
   "devDependencies": {
+    "@chainlink/contracts": "1.4.0",
     "@chainlink/contracts-ccip": "1.6.1",
     "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.9",
     "@layerzerolabs/lz-evm-oapp-v2": "^3.0.7",
@@ -28,6 +30,7 @@
     "@openzeppelin/contracts": "5.0.2",
     "@openzeppelin/contracts-upgradeable": "5.0.2",
     "@openzeppelin/hardhat-upgrades": "^3.1.0",
+    "@openzeppelin/merkle-tree": "^1.0.8",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
