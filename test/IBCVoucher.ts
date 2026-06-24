@@ -34,7 +34,7 @@ describe('IBCVoucher', function () {
       'IBCVoucher',
       [await lbtc.getAddress(), admin.address, fee, treasury.address],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
 
     // set deployer as minter

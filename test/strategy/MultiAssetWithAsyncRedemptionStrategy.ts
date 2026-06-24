@@ -1514,10 +1514,12 @@ describe('StakedLBTC as deposit token', function () {
     lbtcUnderlying = wbtcFactory.attach(await wbtcProxy.getAddress()) as WBTCMock;
     (lbtcUnderlying as WBTCMock & { address: string }).address = await lbtcUnderlying.getAddress();
 
-    stakedToken = await deployContract<StakedLBTCMock>('StakedLBTCMock', [treasury.address, admin.address, 0], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer', 'missing-initializer-call']
-    });
+    stakedToken = await deployContract<StakedLBTCMock>(
+      'StakedLBTCMock',
+      [treasury.address, admin.address, 0],
+      true,
+      true
+    );
     (stakedToken as StakedLBTCMock & { address: string }).address = await stakedToken.getAddress();
 
     const oracleFactory = await ethers.getContractFactory('RatioFeedMock');

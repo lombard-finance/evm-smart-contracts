@@ -53,10 +53,7 @@ describe('Bridge', function () {
       await getSignersWithPrivateKeys();
 
     // for both chains
-    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, true);
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1

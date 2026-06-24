@@ -183,7 +183,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
       'ERC4626VaultWrapper',
       [owner.address, 'Wrapper Token Name', 'vLBTC', 1n, pauser.address, teller.address],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     erc4626Wrapper.address = await erc4626Wrapper.getAddress();
 

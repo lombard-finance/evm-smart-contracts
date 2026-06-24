@@ -56,10 +56,7 @@ describe('BridgeV2', function () {
     [deployer, owner, pauser, treasury, minter, notary, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
     // Consortium
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [notary.publicKey], [1], 1, 1], NEW_VALSET));
 
@@ -68,7 +65,7 @@ describe('BridgeV2', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     smailbox.address = await smailbox.getAddress();
     await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), treasury);
@@ -78,7 +75,7 @@ describe('BridgeV2', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     dmailbox.address = await dmailbox.getAddress();
     await dmailbox.connect(owner).grantRole(await dmailbox.TREASURER_ROLE(), treasury);
@@ -90,16 +87,10 @@ describe('BridgeV2', function () {
     await dmailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]), 2);
 
     // Bridges
-    sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, true);
     sbridge.address = await sbridge.getAddress();
     sBridgeBytes = encode(['address'], [sbridge.address]);
-    dbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, dmailbox.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    dbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, dmailbox.address], true, true);
     dbridge.address = await dbridge.getAddress();
     dBridgeBytes = encode(['address'], [dbridge.address]);
 
@@ -157,10 +148,12 @@ describe('BridgeV2', function () {
         await snapshot.restore();
         globalNonce = 0;
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
       });
 
@@ -210,10 +203,12 @@ describe('BridgeV2', function () {
         await snapshot.restore();
         globalNonce = 1;
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
         await sbridge.connect(owner).setDestinationBridge(dChain, dBridgeBytes);
       });
@@ -285,10 +280,12 @@ describe('BridgeV2', function () {
         await snapshot.restore();
         globalNonce = 1;
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
         await sbridge.connect(owner).setDestinationBridge(dChain, dBridgeBytes);
         await sbridge.connect(owner).addDestinationToken(dChain, sToken, dToken);
@@ -760,10 +757,12 @@ describe('BridgeV2', function () {
       beforeEach(async () => {
         await snapshot.restore();
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
       });
 

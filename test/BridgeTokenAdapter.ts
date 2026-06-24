@@ -103,10 +103,7 @@ describe('BridgeTokenAdapter', function () {
       trustedSigner
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -147,7 +144,7 @@ describe('BridgeTokenAdapter', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
@@ -163,7 +160,7 @@ describe('BridgeTokenAdapter', function () {
       'AssetRouter',
       [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     await assetRouter.connect(owner).changeOracle(bridgeTokenAdapter.address, ratioFeed.address);
     await assetRouter.connect(owner).changeToNativeCommission(bridgeTokenAdapter.address, toNativeCommission);
@@ -838,10 +835,7 @@ describe('BridgeTokenAdapter', function () {
       before(async () => {
         await snapshot.restore();
 
-        bridge = await deployContract<BridgeV2>('BridgeV2', [owner.address, mailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        bridge = await deployContract<BridgeV2>('BridgeV2', [owner.address, mailbox.address], true, true);
         await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), bridge);
         await bridgeTokenAdapter.connect(owner).setMinterLimit(bridge, UNLIMITED_MINTER_CONFIG);
         bridgeAddressBytes = encode(['address'], [await bridge.getAddress()]);

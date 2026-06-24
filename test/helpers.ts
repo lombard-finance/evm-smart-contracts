@@ -309,10 +309,7 @@ export async function initNativeLBTC(
   initialOwnerDelay: bigint = 0n
 ): Promise<NativeLBTC & Addressable> {
   if (consortium === ethers.ZeroAddress) {
-    const c = await deployContract<Consortium>('ConsortiumMock', [owner], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    const c = await deployContract<Consortium>('ConsortiumMock', [owner], true, true);
     consortium = await c.getAddress();
   }
   const lbtc = await deployContract<NativeLBTC & Addressable>(

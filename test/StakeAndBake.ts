@@ -70,10 +70,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -86,7 +83,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       'StakeAndBake',
       [stakedLbtc.address, owner.address, operator.address, 1, owner.address, pauser.address, 1_000_000],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     stakeAndBake.address = await stakeAndBake.getAddress();
 
@@ -95,7 +92,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
@@ -111,7 +108,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       'AssetRouter',
       [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
@@ -748,7 +745,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
         'StakeAndBake',
         [stakedLbtc.address, owner.address, operator.address, 1, owner.address, pauser.address, 1_000_000],
         true,
-        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        true
       );
       stakeAndBake.address = await stakeAndBake.getAddress();
 
