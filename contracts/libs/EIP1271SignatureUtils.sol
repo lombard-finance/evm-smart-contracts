@@ -24,7 +24,7 @@ library EIP1271SignatureUtils {
         bytes32 digest,
         bytes memory signature
     ) internal view returns (bool) {
-        if (signer.code.length != 0) {
+        if (!isEoaAccount(signer)) {
             if (
                 IERC1271(signer).isValidSignature(digest, signature) !=
                 EIP1271_MAGICVALUE
@@ -37,5 +37,20 @@ library EIP1271SignatureUtils {
             }
         }
         return true;
+    }
+
+    function isEoaAccount(address account) internal view returns (bool) {
+        if (account.code.length == 0) {
+            return true;
+        }
+        if (
+            account.code.length == 23 &&
+            account.code[0] == 0xef &&
+            account.code[1] == 0x01 &&
+            account.code[2] == 0x00
+        ) {
+            return true;
+        }
+        return false;
     }
 }
