@@ -93,8 +93,15 @@ export async function getProxyFactoryAt(ethers: any, address: string = DEFAULT_P
 /*
  * @return keccak256(finance.lombard.v1.{ledger-network}.{contractName})
  */
-export function getProxySalt(ethers: any, ledgerNetwork: string, contractName: string) {
-  return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}`);
+export function getProxySalt(ethers: any, ledgerNetwork: string, contractName: string, nonce: number = 0) {
+  if (nonce === 0) {
+    return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}`);
+  }
+  if (nonce < 0) {
+    throw new Error('Nonce must be greater than 0');
+  }
+
+  return ethers.id(`finance.lombard.v1.${ledgerNetwork}.${contractName}.${nonce}`);
 }
 
 /**
@@ -124,4 +131,16 @@ export function checkEIP165InterfaceId(
     },
     'latest'
   ]) as Promise<boolean>;
+}
+
+export async function getOwnersOrDefault(
+  hre: HardhatRuntimeEnvironment,
+  adminCandidate: string,
+  upgradeAdminCandidate: string
+): Promise<{ owner: string; upgradeAdmin: string }> {
+  const [signer] = await hre.ethers.getSigners();
+  let owner = hre.ethers.isAddress(adminCandidate) ? adminCandidate : await signer.getAddress();
+  let upgradeAdmin = hre.ethers.isAddress(upgradeAdminCandidate) ? upgradeAdminCandidate : owner;
+
+  return { owner, upgradeAdmin };
 }

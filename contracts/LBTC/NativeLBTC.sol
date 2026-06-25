@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
@@ -15,12 +14,9 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  * @title ERC20 representation of Liquid Bitcoin
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact legal@lombard.finance
  */
-contract NativeLBTC is
-    INativeLBTC,
-    BaseLBTC,
-    AccessControlDefaultAdminRulesUpgradeable
-{
+contract NativeLBTC is INativeLBTC, BaseLBTC {
     /// @custom:storage-location erc7201:lombardfinance.storage.NativeLBTC
     struct NativeLBTCStorage {
         // slot: 20 + 8 + 1 | 29/32
@@ -50,9 +46,7 @@ contract NativeLBTC is
     bytes32 private constant NATIVE_LBTC_STORAGE_LOCATION =
         0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
 
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
@@ -107,14 +101,6 @@ contract NativeLBTC is
         _changeTreasury(newValue);
     }
 
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
-    }
-
     /**
      * Change the address of the Bascule drawbridge contract.
      * Setting the address to 0 disables the Bascule check.
@@ -148,9 +134,8 @@ contract NativeLBTC is
 
     /// GETTERS ///
 
-    /**
-     * @notice Returns the current maximum mint fee
-     */
+    /// @notice Returns the maximum mint commission for this token from the asset router.
+    /// @return mintFee The configured max mint commission (reverts if asset router is not set).
     function getMintFee() external view returns (uint256) {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         if (address($.assetRouter) == address(0)) {
@@ -186,12 +171,9 @@ contract NativeLBTC is
         return address(_getNativeLBTCStorage().assetRouter);
     }
 
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     *
-     * Because NativeLBTC repsents BTC we use the same decimals.
-     *
-     */
+    /// @notice Token decimals for user-facing amounts (same as BTC).
+    /// @dev NativeLBTC represents BTC; precision matches satoshi-style 1e8 units.
+    /// @return Always 8 (BTC-style decimals).
     function decimals() public view virtual override returns (uint8) {
         return 8;
     }
@@ -232,9 +214,8 @@ contract NativeLBTC is
         return redeemForBtcMinAmount;
     }
 
-    /**
-     * Get Bascule contract.
-     */
+    /// @notice Deposit monitor (Bascule) contract configured for this deployment.
+    /// @return bascule The `IBascule` instance stored in NativeLBTC storage.
     function Bascule() external view returns (IBascule) {
         return _getNativeLBTCStorage().bascule;
     }
@@ -250,7 +231,7 @@ contract NativeLBTC is
     function mint(
         address to,
         uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _mint(to, amount);
     }
 
@@ -263,7 +244,7 @@ contract NativeLBTC is
     function batchMint(
         address[] calldata to,
         uint256[] calldata amount
-    ) external onlyRole(MINTER_ROLE) {
+    ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _batchMint(to, amount);
     }
 
@@ -275,7 +256,7 @@ contract NativeLBTC is
     function mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
-    ) public nonReentrant {
+    ) public nonReentrant whenMintBurnAllowed {
         _mint(rawPayload, proof);
     }
 
@@ -287,7 +268,7 @@ contract NativeLBTC is
     function batchMintV1(
         bytes[] calldata payload,
         bytes[] calldata proof
-    ) external {
+    ) external whenMintBurnAllowed {
         Assert.equalLength(payload.length, proof.length);
 
         for (uint256 i; i < payload.length; ++i) {
@@ -315,7 +296,7 @@ contract NativeLBTC is
         bytes calldata proof,
         bytes calldata feePayload,
         bytes calldata userSignature
-    ) external onlyRole(CLAIMER_ROLE) {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         _mintWithFee(mintPayload, proof, feePayload, userSignature);
     }
 
@@ -331,7 +312,7 @@ contract NativeLBTC is
         bytes[] calldata proof,
         bytes[] calldata feePayload,
         bytes[] calldata userSignature
-    ) external onlyRole(CLAIMER_ROLE) {
+    ) external onlyRole(CLAIMER_ROLE) whenMintBurnAllowed {
         Assert.equalLength(mintPayload.length, proof.length);
         Assert.equalLength(mintPayload.length, feePayload.length);
         Assert.equalLength(mintPayload.length, userSignature.length);
@@ -362,7 +343,7 @@ contract NativeLBTC is
     function redeemForBtc(
         bytes calldata scriptPubkey,
         uint256 amount
-    ) external {
+    ) external whenMintBurnAllowed {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
         if (address($.assetRouter) == address(0)) {
             revert AssetRouterNotSet();
@@ -375,24 +356,19 @@ contract NativeLBTC is
         );
     }
 
-    /**
-     * @dev Burns NativeLBTC
-     *
-     * @param amount Amount of NativeLBTC to burn
-     */
-    function burn(uint256 amount) external {
+    /// @notice Burns caller's NativeLBTC balance.
+    /// @param amount Amount of NativeLBTC to burn from `msg.sender`.
+    function burn(uint256 amount) external whenMintBurnAllowed {
         _burn(_msgSender(), amount);
     }
 
-    /**
-     * @dev Allows minters to burn NativeLBTC
-     *
-     * @param amount Amount of NativeLBTC to burn
-     */
+    /// @notice Burns NativeLBTC from an arbitrary holder; minter-only.
+    /// @param from Account whose NativeLBTC balance is burned.
+    /// @param amount Amount of NativeLBTC to burn.
     function burn(
         address from,
         uint256 amount
-    ) external override onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
         _burn(from, amount);
     }
 
@@ -422,13 +398,7 @@ contract NativeLBTC is
             rawPayload[4:]
         );
 
-        _validateAndMint(
-            action.recipient,
-            action.amount,
-            action.amount,
-            rawPayload,
-            proof
-        );
+        _validateAndMint(action.recipient, action.amount, rawPayload, proof);
         return (action.recipient, action.amount);
     }
 
@@ -478,13 +448,10 @@ contract NativeLBTC is
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,
-        uint256 depositAmount,
         bytes calldata payload,
         bytes calldata proof
     ) internal {
         NativeLBTCStorage storage $ = _getNativeLBTCStorage();
-
-        if (amountToMint > depositAmount) revert InvalidMintAmount();
 
         /// make sure that hash of payload not used before
         /// need to check sha256 hash from payload without selector
@@ -497,7 +464,7 @@ contract NativeLBTC is
         $.usedPayloads[payloadHash] = true;
 
         // Confirm deposit against Bascule
-        _confirmDeposit($, legacyHash, depositAmount);
+        _confirmDeposit($, legacyHash, amountToMint);
 
         // Actually mint
         _mint(recipient, amountToMint);

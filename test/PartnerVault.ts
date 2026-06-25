@@ -23,22 +23,21 @@ describe.skip('FBTCPartnerVault', function () {
 
     fbtc = await deployContract<WBTCMock>('WBTCMock', []);
 
-    partnerVault = await deployContract<FBTCPartnerVault>('FBTCPartnerVault', [
-      deployer.address,
-      await fbtc.getAddress(),
-      await lbtc.getAddress(),
-      oneLbtc
-    ]);
+    partnerVault = await deployContract<FBTCPartnerVault>(
+      'FBTCPartnerVault',
+      [deployer.address, await fbtc.getAddress(), await lbtc.getAddress(), oneLbtc],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
 
     lockedFbtc = await deployContract<LockedFBTCMock>('LockedFBTCMock', [await fbtc.getAddress()], false);
 
     await lbtc.changeTreasuryAddress(treasury.address);
 
     // set partner vault as minter for lbtc
-    await lbtc.addMinter(await partnerVault.getAddress());
+    await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await partnerVault.getAddress());
 
     // Initialize the permit module
-    await lbtc.reinitialize();
 
     // Set lockedFbtc contract on partner vault
     partnerVault.setLockedFbtc(await lockedFbtc.getAddress());

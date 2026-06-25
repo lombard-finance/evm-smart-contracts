@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { DEFAULT_PROXY_FACTORY } from '../helpers/constants';
 import { create3 } from '../helpers/create3Deployment';
+import { getOwnersOrDefault } from '../helpers';
 
 /*
  * After deployment:
@@ -10,6 +11,7 @@ import { create3 } from '../helpers/create3Deployment';
 task('deploy-oracle', 'Deploys the Oracle contract via create3')
   .addParam('ledgerNetwork', 'The network name of ledger', 'mainnet')
   .addParam('admin', 'The address of the owner', 'self')
+  .addParam('upgradeAdmin', 'The address of the owner', 'self')
   .addParam('consortium', 'The address of LombardConsortium')
   .addParam('token', 'The address of StakedLBTC token')
   .addParam('denom', 'The hash of token denominator')
@@ -25,6 +27,7 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
     const {
       ledgerNetwork,
       admin: adminArg,
+      upgradeAdmin: upgradeAdminArg,
       proxyFactoryAddr,
       consortium,
       token,
@@ -34,15 +37,14 @@ task('deploy-oracle', 'Deploys the Oracle contract via create3')
       maxInterval
     } = taskArgs;
 
-    const [signer] = await hre.ethers.getSigners();
-    let owner = hre.ethers.isAddress(adminArg) ? adminArg : await signer.getAddress();
+    const { owner, upgradeAdmin: upgradeOwner } = await getOwnersOrDefault(hre, adminArg, upgradeAdminArg);
 
     await create3(
       'StakedLBTCOracle',
       [owner, consortium, token, denom, ratio, switchTime, maxInterval],
       proxyFactoryAddr,
       ledgerNetwork,
-      owner,
+      upgradeOwner,
       hre
     );
   });

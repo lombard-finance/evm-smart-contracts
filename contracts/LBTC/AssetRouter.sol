@@ -871,6 +871,7 @@ contract AssetRouter is
         $.nativeToken = newValue;
         bytes32 key = keccak256(abi.encode(prevValue, LChainId.get()));
         delete $.routes[key];
+        _revokeRole(CALLER_ROLE, prevValue);
         emit AssetRouter_NativeTokenChanged(prevValue, newValue);
     }
 

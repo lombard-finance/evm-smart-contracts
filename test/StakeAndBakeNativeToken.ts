@@ -60,7 +60,10 @@ describe('StakeAndBakeForNativeToken', function () {
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury, trustedSigner] =
       await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -68,7 +71,6 @@ describe('StakeAndBakeForNativeToken', function () {
 
     nativeLbtc = await initNativeLBTC(owner.address, treasury.address, consortium.address);
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
-    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.OPERATOR_ROLE(), operator);
 
     stakeAndBakeForNativeToken = await deployContract<StakeAndBakeNativeToken & Addressable>(
       'StakeAndBakeNativeToken',
@@ -81,7 +83,9 @@ describe('StakeAndBakeForNativeToken', function () {
         owner.address,
         pauser.address,
         1_000_000
-      ]
+      ],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
     );
     stakeAndBakeForNativeToken.address = await stakeAndBakeForNativeToken.getAddress();
 

@@ -3,7 +3,7 @@ import { ethers, network, upgrades } from 'hardhat';
 import { WBTCMock, StakedLBTC, CBBTCPMM } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
-import { initStakedLBTC } from './helpers';
+import { initStakedLBTC, deployContract } from './helpers';
 
 describe('CBBTCPMM', function () {
   let pmm: CBBTCPMM;
@@ -21,7 +21,12 @@ describe('CBBTCPMM', function () {
 
   async function deploy<T>(contractName: string, asType: string, args: any[] = [], isProxy: boolean = true) {
     const factory = await ethers.getContractFactory(contractName);
-    const contract = isProxy ? await upgrades.deployProxy(factory, args) : await factory.deploy(...args);
+    const contract = isProxy
+      ? await deployContract(contractName, args, true, {
+          initializer: 'initialize',
+          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+        })
+      : await factory.deploy(...args);
     await contract.waitForDeployment();
     return (await ethers.getContractFactory(asType)).attach(await contract.getAddress()) as T;
   }
@@ -154,14 +159,15 @@ describe('CBBTCPMM', function () {
 
     it('should fail to swap if PMM is not whitelisted as minter', async function () {
       await cbbtc.connect(signer1).approve(await pmm.getAddress(), ethers.parseUnits('1', 8));
+      const minterRole = await lbtc.MINTER_ROLE();
       await expect(pmm.connect(signer1).swapCBBTCToLBTC(ethers.parseUnits('1', 8)))
-        .to.be.revertedWithCustomError(lbtc, 'UnauthorizedAccount')
-        .withArgs(await pmm.getAddress());
+        .to.be.revertedWithCustomError(lbtc, 'AccessControlUnauthorizedAccount')
+        .withArgs(await pmm.getAddress(), minterRole);
     });
 
     describe('With whitelisted minter', function () {
       beforeEach(async function () {
-        await lbtc.addMinter(await pmm.getAddress());
+        await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await pmm.getAddress());
       });
 
       it('should allow swaps', async function () {

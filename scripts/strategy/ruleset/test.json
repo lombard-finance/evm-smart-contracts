@@ -1,0 +1,34 @@
+{
+  "rule_01": {
+    "description": "some useful description about this particular rule",
+    "destinationType": "ERC20",
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "constraints": []
+  },
+  "rule_02": {
+    "destinationType": "ERC20",
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "value": "0",
+    "selector": "transfer(address,uint256)",
+    "constraints": []
+  },
+  "rule_03": {
+    "destinationType": "ERC20",
+    "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "transfer(address,uint256)",
+    "constraints": [
+      {
+        "offset": 0,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x0000000000000000000000007C28818D63A4EFcDCDCEe8FB6CeAa5a135E23Cce"
+      }
+    ]
+  },
+  "rule_04": {
+    "destinationType": "ERC20",
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "sender": "",
+    "value": "100000"
+  }
+}

@@ -8,6 +8,10 @@ node_modules
 /cache
 /artifacts
 
+# Agents
+.cursor
+.claude
+
 # TypeChain files
 /typechain
 /typechain-types

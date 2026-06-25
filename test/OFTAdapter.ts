@@ -38,7 +38,7 @@ describe('OFTAdapter', function () {
       [await lbtc.getAddress(), await aLZEndpoint.getAddress(), deployer.address],
       false
     );
-    await lbtc.addMinter(await aBMOFTAdapter.getAddress());
+    await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await aBMOFTAdapter.getAddress());
 
     aOFTAdapter = await deployContract<LBTCOFTAdapter>(
       'LBTCOFTAdapter',
@@ -51,7 +51,7 @@ describe('OFTAdapter', function () {
       [await lbtc.getAddress(), await bLZEndpoint.getAddress(), deployer.address],
       false
     );
-    await lbtc.addMinter(await bBMOFTAdapter.getAddress());
+    await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await bBMOFTAdapter.getAddress());
 
     await aOFTAdapter.setPeer(bEid, encode(['address'], [await bBMOFTAdapter.getAddress()]));
     await bBMOFTAdapter.setPeer(aEid, encode(['address'], [await aOFTAdapter.getAddress()]));
@@ -59,7 +59,7 @@ describe('OFTAdapter', function () {
     await aLZEndpoint.setDestLzEndpoint(await bBMOFTAdapter.getAddress(), await bLZEndpoint.getAddress());
     await bLZEndpoint.setDestLzEndpoint(await aOFTAdapter.getAddress(), await aLZEndpoint.getAddress());
 
-    await lbtc.addMinter(deployer);
+    await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), deployer.address);
     // rate limits (inbound)
     await aOFTAdapter.setRateLimits(
       [

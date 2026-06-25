@@ -10,7 +10,7 @@ import './tasks';
 
 const config: HardhatUserConfig = {
   gasReporter: {
-    enabled: true,
+    enabled: process.env.HARDHAT_DISABLE_GAS_REPORTER !== '1',
     currency: 'USD',
     L1: 'ethereum',
     coinmarketcap: vars.get('CMC_API_KEY', ''),
@@ -373,13 +373,30 @@ const config: HardhatUserConfig = {
       gasMultiplier: 2,
       gas: 8_000_000
     },
+    optimism: {
+      loggingEnabled: true,
+      url: vars.get('OPTIMISM_ETH_RPC', 'https://mainnet.optimism.io'),
+      chainId: 10,
+      accounts: [vars.get('DEPLOYER_SK', '0x0000000000000000000000000000000000000000000000000000000000000001')],
+      timeout: 90_000,
+      gas: 8_000_000
+    },
     hardhat: {
-      forking: {
-        url: 'https://ethereum-rpc.publicnode.com',
-        blockNumber: 23983296
-      },
+      // Must match test/helpers CHAIN_ID (bytes32(1)) and LChainId.get() in contracts.
       chainId: 1,
-      initialBaseFeePerGas: 0
+      initialBaseFeePerGas: 0,
+      blockGasLimit: 60_000_000,
+      // Forking is only supported on the network named "hardhat" (in-process).
+      // A separate name like hardhatFork is an HTTP network and requires url;
+      // it does not enable local fork simulation.
+      ...(process.env.HARDHAT_FORK === '1'
+        ? {
+            forking: {
+              url: vars.get('MAINNET_RPC', 'https://eth-mainnet.public.blastapi.io'),
+              blockNumber: Number(vars.get('FORKING_BLOCK', '23983296'))
+            }
+          }
+        : {})
     }
   },
   etherscan: {

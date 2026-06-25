@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { ethers, network, upgrades } from 'hardhat';
 import { PoR } from '../typechain-types'; // Adjust the import based on your typechain output
 import { Signer } from 'ethers';
+import { deployContract } from './helpers';
 
 describe('PoR', function () {
   let por: PoR;
@@ -16,8 +17,7 @@ describe('PoR', function () {
   beforeEach(async () => {
     [owner, operator] = await ethers.getSigners();
     const PoRFactory = await ethers.getContractFactory('PoR');
-    const contract = await upgrades.deployProxy(PoRFactory, [await owner.getAddress()]);
-    await contract.waitForDeployment();
+    const contract = await deployContract('PoR', [await owner.getAddress()], true, { initializer: 'initialize' });
 
     por = PoRFactory.attach(await contract.getAddress()) as PoR;
     //grant operator role to operator

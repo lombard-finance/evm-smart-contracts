@@ -70,7 +70,10 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -78,21 +81,22 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     stakedLbtc = await initStakedLBTC(owner.address, treasury.address);
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
-    await stakedLbtc.connect(owner).changeOperator(operator.address);
 
-    stakeAndBake = await deployContract<StakeAndBake & Addressable>('StakeAndBake', [
-      stakedLbtc.address,
-      owner.address,
-      operator.address,
-      1,
-      owner.address,
-      pauser.address,
-      1_000_000
-    ]);
+    stakeAndBake = await deployContract<StakeAndBake & Addressable>(
+      'StakeAndBake',
+      [stakedLbtc.address, owner.address, operator.address, 1, owner.address, pauser.address, 1_000_000],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     stakeAndBake.address = await stakeAndBake.getAddress();
 
     // Mailbox
-    mailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    mailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, 0n, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
     await mailbox.connect(owner).grantRole(await mailbox.PAUSER_ROLE(), pauser);
@@ -103,14 +107,12 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
     ratioFeed.address = await ratioFeed.getAddress();
 
     // AssetRouter
-    assetRouter = await deployContract<AssetRouter & Addressable>('AssetRouter', [
-      owner.address,
-      0n,
-      LEDGER_CHAIN_ID,
-      BITCOIN_CHAIN_ID,
-      mailbox.address,
-      ethers.ZeroAddress
-    ]);
+    assetRouter = await deployContract<AssetRouter & Addressable>(
+      'AssetRouter',
+      [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
     await assetRouter.connect(owner).changeOracle(stakedLbtc.address, ratioFeed.address);
@@ -121,7 +123,7 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
 
     await mailbox.connect(owner).setSenderConfig(assetRouter.address, 516, true);
     await stakedLbtc.connect(owner).changeAssetRouter(assetRouter.address);
-    await stakedLbtc.connect(owner).addMinter(assetRouter.address);
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
 
     vault = await deployContract<ERC4626Mock & Addressable>('ERC4626Mock', [stakedLbtc.address], false);
     vault.address = await vault.getAddress();
@@ -137,7 +139,6 @@ describe('TellerWithMultiAssetSupportDepositor', function () {
       .withArgs(erc4626Depositor.address);
 
     // Initialize the permit module
-    await stakedLbtc.connect(owner).reinitialize();
 
     snapshot = await takeSnapshot();
     snapshotTimestamp = await time.latest();

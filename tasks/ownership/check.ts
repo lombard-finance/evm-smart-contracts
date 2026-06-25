@@ -8,7 +8,10 @@ import { AdminBucket } from './admin-bucket';
 
 const IGNORE_SCOPE_LIST: string[] = [
   'admin', // ignored, because used as source of possible admins
-  'deprecated'
+  'deprecated',
+  'mocks',
+  'strategies',
+  'implementations'
 ];
 const IGNORE_CONTRACT_LIST = [
   'ThresholdKey',

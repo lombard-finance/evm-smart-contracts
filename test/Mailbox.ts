@@ -52,23 +52,31 @@ describe('Mailbox', function () {
     lChainId = encode(['uint256'], [chainId]);
 
     // for both chains
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address]);
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address], true, {
+      initializer: 'initialize',
+      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
+    });
     consortium.address = await consortium.getAddress();
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [notary.publicKey], [1], 1, 1], NEW_VALSET));
 
-    smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
-      owner.address,
-      consortium.address,
-      DEFAULT_FEE_PER_BYTE,
-      0n
-    ]);
+    smailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, DEFAULT_FEE_PER_BYTE, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     smailbox.address = await smailbox.getAddress();
     sMailboxBytes = encode(['address'], [smailbox.address]);
     await smailbox.connect(owner).grantRole(await smailbox.PAUSER_ROLE(), pauser);
     await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), treasury);
     await smailbox.connect(owner).setDefaultMaxPayloadSize(1000);
 
-    dmailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+    dmailbox = await deployContract<Mailbox & Addressable>(
+      'Mailbox',
+      [owner.address, consortium.address, 0n, 0n],
+      true,
+      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    );
     dmailbox.address = await dmailbox.getAddress();
     dMailboxBytes = encode(['address'], [dmailbox.address]);
     await dmailbox.connect(owner).grantRole(await smailbox.PAUSER_ROLE(), pauser);
@@ -340,7 +348,12 @@ describe('Mailbox', function () {
       before(async () => {
         await snapshot.restore();
         globalNonce = 1;
-        smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+        smailbox = await deployContract<Mailbox & Addressable>(
+          'Mailbox',
+          [owner.address, consortium.address, 0n, 0n],
+          true,
+          { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        );
         smailbox.address = await smailbox.getAddress();
         await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes, 1);
       });
@@ -402,7 +415,12 @@ describe('Mailbox', function () {
         await snapshot.restore();
         globalNonce = 1;
         configSender = signer2;
-        smailbox = await deployContract<Mailbox & Addressable>('Mailbox', [owner.address, consortium.address, 0n, 0n]);
+        smailbox = await deployContract<Mailbox & Addressable>(
+          'Mailbox',
+          [owner.address, consortium.address, 0n, 0n],
+          true,
+          { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        );
         smailbox.address = await smailbox.getAddress();
         await smailbox.connect(owner).enableMessagePath(lChainId, dMailboxBytes, 1);
 
@@ -615,9 +633,9 @@ describe('Mailbox', function () {
       globalNonce = 1;
 
       const rndAddr = ethers.Wallet.createRandom();
-      token = await initStakedLBTC(owner.address, rndAddr.address, rndAddr.address);
+      token = await initStakedLBTC(owner.address, rndAddr.address);
       dummy = signer2;
-      await token.connect(owner).addMinter(owner);
+      await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 
@@ -1000,12 +1018,12 @@ describe('Mailbox', function () {
       });
 
       it('other mailbox on dst chain can receive this message', async () => {
-        const newDstMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
-          owner.address,
-          consortium.address,
-          0n,
-          0n
-        ]);
+        const newDstMailbox = await deployContract<Mailbox & Addressable>(
+          'Mailbox',
+          [owner.address, consortium.address, 0n, 0n],
+          true,
+          { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        );
         newDstMailbox.address = await newDstMailbox.getAddress();
         await newDstMailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]), 2);
 
@@ -1194,12 +1212,12 @@ describe('Mailbox', function () {
 
       before(async () => {
         await snapshot.restore();
-        unknownMailbox = await deployContract<Mailbox & Addressable>('Mailbox', [
-          owner.address,
-          consortium.address,
-          0,
-          0n
-        ]);
+        unknownMailbox = await deployContract<Mailbox & Addressable>(
+          'Mailbox',
+          [owner.address, consortium.address, 0, 0n],
+          true,
+          { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        );
         unknownMailbox.address = await unknownMailbox.getAddress();
       });
       let nonce = 1;
