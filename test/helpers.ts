@@ -305,6 +305,7 @@ export async function initStakedLBTC(owner: string, treasury: string, initialOwn
     true
   );
   lbtc.address = await lbtc.getAddress();
+  await lbtc.connect(await ethers.getSigner(owner)).grantRole(await lbtc.MANAGER_ROLE(), owner);
   return lbtc;
 }
 
@@ -325,7 +326,9 @@ export async function initNativeLBTC(
     true
   );
   lbtc.address = await lbtc.getAddress();
-  await lbtc.connect(await ethers.getSigner(owner)).setMinterLimit(lbtc.address, UNLIMITED_MINTER_CONFIG);
+  const ownerSigner = await ethers.getSigner(owner);
+  await lbtc.connect(ownerSigner).grantRole(await lbtc.MANAGER_ROLE(), owner);
+  await lbtc.connect(ownerSigner).setMinterLimit(lbtc.address, UNLIMITED_MINTER_CONFIG);
   return lbtc;
 }
 

@@ -32,8 +32,6 @@ contract BridgeTokenAdapter is
         address indexed newValue
     );
 
-    error InvalidRecipient(address expected, address actual);
-
     /// @custom:storage-location erc7201:lombardfinance.storage.BridgeTokenAdapter
     struct BridgeTokenAdapterStorage {
         // slot: 20 + 8 + 1 | 29/32
@@ -58,6 +56,8 @@ contract BridgeTokenAdapter is
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     /// @notice The minter role is able to mint new tokens.
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    /// @notice The manager role may configure minter rate limits.
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -207,11 +207,11 @@ contract BridgeTokenAdapter is
 
     /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
     /// @dev `limit` = `0` deletes the minter's mapping entry (unset; mints revert until reconfigured).
-    /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
+    /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
         RateLimitsV2.Config memory config
-    ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external override onlyRole(MANAGER_ROLE) {
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
         if (config.limit == 0) {
             delete $.minterRateLimits[minter];
@@ -341,35 +341,6 @@ contract BridgeTokenAdapter is
 
             _mintV1(payload[i], proof[i]);
         }
-    }
-
-    /// TODO: remove after used
-    /// @dev Allows to skip minting if recipient is address(this)
-    /// @notice accept Btc deposited to adapter, but not mint
-    /// @param payload The deposit payload to spend without mint
-    /// @param proof The consortium signatures
-    function spendDeposit(
-        bytes calldata payload,
-        bytes calldata proof
-    ) external {
-        Assert.selector(payload, Actions.DEPOSIT_BTC_ACTION_V1);
-        Actions.DepositBtcActionV1 memory action = Actions.depositBtcV1(
-            payload[4:]
-        );
-        BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
-
-        bytes32 payloadHash = sha256(payload);
-        if ($.usedPayloads[payloadHash]) {
-            revert PayloadAlreadyUsed();
-        }
-        $.consortium.checkProof(payloadHash, proof);
-        $.usedPayloads[payloadHash] = true;
-
-        if (action.recipient != address(this)) {
-            revert InvalidRecipient(address(this), action.recipient);
-        }
-
-        emit MintProofConsumed(action.recipient, payloadHash, payload);
     }
 
     /// @dev Implements [transferFrom] to mimic ERC20 token behaviour. Expose to caller ability to spend [BridgeToken] allowed to the adapter.

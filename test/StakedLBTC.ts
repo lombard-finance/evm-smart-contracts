@@ -122,6 +122,8 @@ describe('StakedLBTC', function () {
     nativeLbtcBytes = encode(['address'], [nativeLBTC.address]);
 
     // Minter
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MANAGER_ROLE(), owner);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), minter);
     await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
@@ -134,8 +136,6 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
-    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -2144,6 +2144,7 @@ describe('StakedLBTC', function () {
         true
       );
       stakedLbtc.address = await stakedLbtc.getAddress();
+      await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
       await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
       const sender = signer1;

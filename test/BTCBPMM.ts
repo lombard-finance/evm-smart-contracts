@@ -163,6 +163,7 @@ describe('BTCBPMM', function () {
 
     describe('With whitelisted minter', function () {
       beforeEach(async function () {
+        await lbtc.connect(deployer).grantRole(await lbtc.MANAGER_ROLE(), deployer.address);
         await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await pmm.getAddress());
         await lbtc.connect(deployer).setMinterLimit(await pmm.getAddress(), UNLIMITED_MINTER_CONFIG);
       });

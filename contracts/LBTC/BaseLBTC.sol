@@ -28,7 +28,7 @@ import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
  *      `mintWithFee` double-count behaviour Lombard acknowledges as expected.
  *      Use `type(uint96).max` with a short `window` for a practical unlimited cap.
  *      Rate limits are keyed by minter address, not role membership: revoking and re-granting `MINTER_ROLE` does not
- *      reset or clear `minterRateLimits` (intended; `DEFAULT_ADMIN_ROLE` must reconfigure or accept prior state).
+ *      reset or clear `minterRateLimits` (intended; `MANAGER_ROLE` must reconfigure or accept prior state).
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
  *      Shared namespaced state for `BaseLBTC` lives in `BaseLBTCStorage`; extend that struct when adding base-level fields.
  * @custom:security-contact legal@lombard.finance
@@ -104,11 +104,11 @@ abstract contract BaseLBTC is
     ///      `amount + fee` on StakedLBTC `mintWithFee` (see {AssetRouter}).
     /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @param config Rate limit configuration (`limit`, `window`).
-    /// @custom:access Caller must have `DEFAULT_ADMIN_ROLE`
+    /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
         RateLimitsV2.Config memory config
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(MANAGER_ROLE) {
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
         if (config.limit == 0) {
             delete $.minterRateLimits[minter];

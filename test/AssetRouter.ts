@@ -134,6 +134,8 @@ describe('AssetRouter', function () {
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 
     // Minter
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
+    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MANAGER_ROLE(), owner);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);

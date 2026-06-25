@@ -68,6 +68,7 @@ interface IBaseLBTC {
     function isRedeemsEnabled() external view returns (bool);
 
     /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
+    /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
         RateLimitsV2.Config memory config

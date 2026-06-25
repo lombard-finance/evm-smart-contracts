@@ -82,6 +82,7 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
     );
     bridgeTokenAdapter.address = await bridgeTokenAdapter.getAddress();
     await bridgeToken.migrateBridgeRole(bridgeTokenAdapter);
+    await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MANAGER_ROLE(), owner);
     await bridgeTokenAdapter.connect(owner).setMinterLimit(bridgeTokenAdapter.address, UNLIMITED_MINTER_CONFIG);
 
     stakeAndBakeForNativeToken = await deployContract<StakeAndBakeNativeToken & Addressable>(

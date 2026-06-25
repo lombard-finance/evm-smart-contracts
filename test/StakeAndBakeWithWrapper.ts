@@ -113,6 +113,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
     //   console.log(`LBTC transfer from (${from}) to (${to}) ${amount}`);
     // });
     lbtcOwner = await impersonateWithEth('0x055E84e7FE8955E2781010B866f10Ef6E1E77e59');
+    await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.MANAGER_ROLE(), lbtcOwner);
     await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.OPERATOR_ROLE(), operator.address);
     await stakedLbtc.connect(lbtcOwner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await stakedLbtc.connect(lbtcOwner).setMinterLimit(minter, UNLIMITED_MINTER_CONFIG);

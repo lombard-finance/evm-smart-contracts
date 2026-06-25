@@ -38,6 +38,7 @@ describe('IBCVoucher', function () {
     );
 
     // set deployer as minter
+    await lbtc.connect(admin).grantRole(await lbtc.MANAGER_ROLE(), admin.address);
     await lbtc.connect(admin).grantRole(await lbtc.MINTER_ROLE(), admin.address);
     await lbtc.connect(admin).setMinterLimit(admin.address, UNLIMITED_MINTER_CONFIG);
     // IBC Voucher needs to be minter

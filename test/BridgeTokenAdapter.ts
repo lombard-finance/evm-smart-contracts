@@ -129,6 +129,7 @@ describe('BridgeTokenAdapter', function () {
     bridgeTokenAdapterBytes = encode(['address'], [bridgeTokenAdapter.address]);
 
     // Roles
+    await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MANAGER_ROLE(), owner);
     await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MINTER_ROLE(), minter);
     await bridgeTokenAdapter.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.PAUSER_ROLE(), pauser);
@@ -508,21 +509,6 @@ describe('BridgeTokenAdapter', function () {
         expect(await bascule.depositHistory(depositId)).to.be.eq(2); //WITHDRAWN
         const totalSupplyAfter = await bridgeToken.totalSupply();
         expect(totalSupplyAfter - totalSupplyBefore).to.be.eq(amount);
-      });
-
-      it('spendDeposit() spend payload without mint', async function () {
-        const totalSupplyBefore = await bridgeToken.totalSupply();
-
-        const recipient = bridgeTokenAdapter;
-        const { payload, proof, payloadHash } = await defaultData(recipient, randomBigInt(8));
-
-        // @ts-ignore
-        const tx = bridgeTokenAdapter.connect(signer1).spendDeposit(payload, proof);
-        await expect(tx).to.not.emit(bridgeToken, 'Transfer');
-        await expect(tx).to.not.emit(bridgeToken, 'Mint');
-        await expect(tx).to.emit(bridgeTokenAdapter, 'MintProofConsumed').withArgs(recipient, payloadHash, payload);
-        const totalSupplyAfter = await bridgeToken.totalSupply();
-        expect(totalSupplyAfter).to.be.eq(totalSupplyBefore);
       });
 
       const invalidArgs = [

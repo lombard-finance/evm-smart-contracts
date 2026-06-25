@@ -120,13 +120,13 @@ describe('NativeLBTC', function () {
     nativeLbtcBytes = encode(['address'], [nativeLbtc.address]);
 
     // Roles
+    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MANAGER_ROLE(), owner);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINTER_ROLE(), minter);
     await nativeLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     await nativeLbtc.connect(owner).setMinterLimit(nativeLbtc.address, UNLIMITED_MINTER_CONFIG);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.CLAIMER_ROLE(), claimer);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.PAUSER_ROLE(), pauser);
     await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn.address);
-    await nativeLbtc.connect(owner).grantRole(await nativeLbtc.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<BasculeV3>(
       'BasculeV3',
@@ -564,10 +564,10 @@ describe('NativeLBTC', function () {
           .to.changeTokenBalance(nativeLbtc, signer1, amount);
       });
 
-      it('setMinterLimit() reverts for non-admin', async function () {
+      it('setMinterLimit() reverts for non-manager', async function () {
         await expect(nativeLbtc.connect(signer1).setMinterLimit(minter.address, mintConfig))
           .to.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount')
-          .withArgs(signer1.address, DEFAULT_ADMIN_ROLE);
+          .withArgs(signer1.address, await nativeLbtc.MANAGER_ROLE());
       });
     });
 
@@ -2167,10 +2167,10 @@ describe('NativeLBTC', function () {
           .to.be.revertedWithCustomError(rateLimits, 'MalformedRateLimit');
       });
 
-      it('setMinterLimit() reverts when called by not an owner', async function () {
+      it('setMinterLimit() reverts when called by not a manager', async function () {
         // prettier-ignore
         await expect(nativeLbtc.connect(signer1).setMinterLimit(minter.address, limitConfig))
-          .to.be.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount').withArgs(signer1.address, DEFAULT_ADMIN_ROLE);
+          .to.be.revertedWithCustomError(nativeLbtc, 'AccessControlUnauthorizedAccount').withArgs(signer1.address, await nativeLbtc.MANAGER_ROLE());
       });
     });
   });
