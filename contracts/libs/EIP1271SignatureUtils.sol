@@ -16,7 +16,8 @@ library EIP1271SignatureUtils {
 
     /**
      * @notice Checks @param signature is a valid signature of @param digest from @param signer.
-     * If the `signer` contains no code -- i.e. it is not (yet, at least) a contract address, then checks using standard ECDSA logic
+     * If the `signer` contains no code -- i.e. it is not (yet, at least) a contract address, then checks using standard ECDSA logic.
+     * If the `signer` contains the code and it is EIP-7702 delegation (23 bytes starting with `0xef0100`), then ECDSA logic is used.
      * Otherwise, passes on the signature to the signer to verify the signature and checks that it returns the `EIP1271_MAGICVALUE`.
      */
     function checkSignature(
