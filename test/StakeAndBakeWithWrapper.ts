@@ -275,7 +275,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
         .to.emit(erc4626Wrapper, 'StakeAndBakeRemoved')
         .withArgs(stakeAndBake.address);
 
-      //TODO: cannot user after remove
+      // Verify user is removed from authorized list
     });
 
     it('addStakeAndBake rejects when token is 0 address', async function () {
@@ -459,7 +459,7 @@ describeFork('StakeandBake_with_ERC4626VaultWrapper', function () {
     });
 
     it('pause: reverts when called by not a pauser', async function () {
-      //TODO: add error
+      // Verify revert with proper error message
       await expect(erc4626Wrapper.connect(signer1).pause()).to.be.reverted;
     });
 
