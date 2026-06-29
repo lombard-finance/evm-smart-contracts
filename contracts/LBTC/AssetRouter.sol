@@ -779,7 +779,7 @@ contract AssetRouter is
             );
             Assert.feeApproval(digest, recipient, userSignature);
         }
-        if (amount < fee) {
+        if (amount <= fee) {
             revert AssetRouter_FeeGreaterThanAmount();
         }
         if (fee > 0) {

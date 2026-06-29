@@ -1098,9 +1098,20 @@ describe('AssetRouter', function () {
           .withArgs(signer1.address, await assetRouter.CLAIMER_ROLE());
       });
 
-      it('mintWithFee() reverts when mint amount equals fee', async function () {
+      it('mintWithFee() reverts when fee greater than mint amount', async function () {
         const amount = randomBigInt(3);
         const fee = amount + 1n;
+        const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount, fee);
+        await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, fee);
+        await expect(
+          // @ts-ignore
+          assetRouter.connect(claimer).mintWithFee(payload, proof, feeApprovalPayload, userSignature)
+        ).to.revertedWithCustomError(assetRouter, 'AssetRouter_FeeGreaterThanAmount');
+      });
+
+      it('mintWithFee() reverts when mint amount equals fee', async function () {
+        const amount = randomBigInt(3);
+        const fee = amount;
         const { payload, proof, feeApprovalPayload, userSignature } = await defaultData(signer1, amount, fee);
         await assetRouter.connect(operator).setMaxMintCommission(stakedLbtc.address, fee);
         await expect(
