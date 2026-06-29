@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ERC20Upgradeable, IERC20} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAssetRouter} from "./interfaces/IAssetRouter.sol";
 import {IStakedLBTC} from "./interfaces/IStakedLBTC.sol";
 import {Assert} from "./libraries/Assert.sol";
@@ -15,8 +13,6 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  * @custom:security-contact legal@lombard.finance
  */
 contract StakedLBTC is IStakedLBTC, BaseLBTC {
-    using SafeERC20 for IERC20;
-
     /// @dev the storage name differs, because contract was renamed from LBTC
     /// @custom:storage-location erc7201:lombardfinance.storage.LBTC
     struct StakedLBTCStorage {
