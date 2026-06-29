@@ -465,7 +465,7 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Checks that the deposit was validated by the Bascule drawbridge.
-    /// @param $ NativeLBTC storage.
+    /// @param $ BridgeTokenAdapter storage.
     /// @param depositID The unique ID of the deposit.
     /// @param amount The withdrawal amount.
     function _confirmDeposit(
@@ -502,7 +502,7 @@ contract BridgeTokenAdapter is
         emit TreasuryAddressChanged(prevValue, newValue);
     }
 
-    /// @dev `treasury` not zero
+    /// @dev `bridgeToken` not zero
     function _changeBridgeToken(address newValue) internal {
         Assert.zeroAddress(newValue);
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
