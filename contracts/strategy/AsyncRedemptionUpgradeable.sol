@@ -47,7 +47,7 @@ abstract contract AsyncRedemptionUpgradeable is
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
     function setRedeemFeeBps(uint16 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)
-            revert AsyncRedemption_RedeemFeeBpsTooHigh(bps);
+            revert AsyncRedemption_RedeemFeeBpsTooHigh();
         _getAsyncRedemptionStorage().redeemFeeBps = bps;
         emit RedeemFeeBpsSet(bps);
     }
@@ -92,7 +92,6 @@ abstract contract AsyncRedemptionUpgradeable is
         address owner,
         address caller
     ) private returns (uint256 requestId) {
-        _requireBlocklistAllows(owner);
         _accrueManagementFee();
 
         address treasury_ = feeTreasury();
@@ -107,15 +106,12 @@ abstract contract AsyncRedemptionUpgradeable is
         }
         // check that enough shares are left for the request
         if (feeShares >= shares) {
-            revert AsyncRedemption_FeeSharesGreaterThanShares(
-                feeShares,
-                shares
-            );
+            revert AsyncRedemption_FeeSharesGreaterThanShares();
         }
         uint256 netShares = shares - feeShares;
         uint256 assets = _convertToAssets(netShares, Math.Rounding.Floor);
         if (assets == 0) {
-            revert AsyncRedemption_ZeroAssets(netShares);
+            revert AsyncRedemption_ZeroAssets();
         }
         requestId = ++$.nextRequestId;
         RedeemRequest storage rq = $.redeemRequestById[requestId];
@@ -145,6 +141,8 @@ abstract contract AsyncRedemptionUpgradeable is
     }
 
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
+    /// @dev Payout per request is `min(pendingAssets, shares × current pricePerShare)` so a PPS drop
+    ///      after the request cannot pay more than current NAV for the burned shares.
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
     ) external onlyRole(PAY_REDEMPTIONS_ROLE) nonReentrant {
@@ -169,16 +167,21 @@ abstract contract AsyncRedemptionUpgradeable is
             // requestRedeem -> fulfill that could be used to manipulate the
             // fee share base while paying out atomically.
             if (block.number <= requestBlock) {
-                revert AsyncRedemption_FulfillTooEarly(rid, requestBlock);
+                revert AsyncRedemption_FulfillTooEarly(rid);
             }
+
+            uint256 payout = Math.min(
+                assets,
+                _convertToAssets(shares, Math.Rounding.Floor)
+            );
 
             $.totalPendingShares -= shares;
             $.totalPendingAssets -= assets;
             $.ownerPendingAssets[owner] -= assets;
             delete $.redeemRequestById[rid];
 
-            asset_.safeTransfer(owner, assets);
-            emit Redeem(msgSender, owner, assets, shares);
+            asset_.safeTransfer(owner, payout);
+            emit Redeem(msgSender, owner, payout, shares);
         }
 
         emit RedeemRequestsFulfilled(requestIds);

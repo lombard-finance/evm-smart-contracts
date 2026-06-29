@@ -59,24 +59,16 @@ interface IAsyncRedemption {
     /// @notice Fee shares sent to treasury on a redemption request.
     event RedeemFeeCharged(address indexed treasury, uint256 feeShares);
 
-    /// @param bps The redeem fee rate that failed validation (must be < 10_000).
-    error AsyncRedemption_RedeemFeeBpsTooHigh(uint16 bps);
+    /// @dev The redeem fee rate failed validation (must be < 10_000).
+    error AsyncRedemption_RedeemFeeBpsTooHigh();
 
     error AsyncRedemption_NothingToFulfill(uint256 requestId);
 
-    /// @param feeShares The redeem fee shares that failed validation (must be < shares).
-    error AsyncRedemption_FeeSharesGreaterThanShares(
-        uint256 feeShares,
-        uint256 shares
-    );
+    /// @dev The redeem fee shares failed validation (must be < shares).
+    error AsyncRedemption_FeeSharesGreaterThanShares();
 
-    error AsyncRedemption_ZeroAssets(uint256 shares);
+    error AsyncRedemption_ZeroAssets();
 
     /// @notice A request cannot be fulfilled in the same block it was created in.
-    /// @param requestId The request whose fulfillment was attempted too early.
-    /// @param requestBlock Block in which the request was created.
-    error AsyncRedemption_FulfillTooEarly(
-        uint256 requestId,
-        uint256 requestBlock
-    );
+    error AsyncRedemption_FulfillTooEarly(uint256 requestId);
 }
