@@ -28,6 +28,14 @@ import {Validation} from "./libraries/Validation.sol";
  *      mints go through the token's `MINTER_ROLE` entrypoint and consume the {AssetRouter}
  *      minter rate-limit bucket; burns do not release bucket capacity.
  *
+ *      For `StakedLBTC` there is no separate per-token proof-mint bucket: ordinary release/proof
+ *      claims also reach `StakedLBTC.mint(address,uint256)` with `msg.sender == AssetRouter`
+ *      (via `handlePayload`), so release claims, redeem-fee mints, and `mintWithFee` fee legs all
+ *      share the single `minterRateLimits[AssetRouter]` bucket. This single AssetRouter-wide quota
+ *      is intended: the limit must be sized for aggregate throughput across all of these flows, and
+ *      short-window cross-user contention (one user's fee or release traffic temporarily reducing
+ *      another user's available capacity, up to a transient `RateLimitExceeded`) is expected.
+ *
  *      Lombard acknowledges the following expected behaviour when the AssetRouter bucket is
  *      tight or exhausted:
  *      - `redeem` / `redeemForBtc` may revert on the fee mint even though the operation is
@@ -35,10 +43,15 @@ import {Validation} from "./libraries/Validation.sol";
  *      - `mintWithFee` (StakedLBTC) counts both the deposit mint and the fee mint against the
  *        same bucket (`amount + fee` consumed; net supply increase is only `amount`). A deposit
  *        with `amount == remainingCapacity` can revert on the fee step.
+ *      - An inbound StakedLBTC release claim can revert with `RateLimitExceeded` if unrelated
+ *        fee/release traffic has exhausted the shared bucket within the window, and vice-versa.
  *
- *      NativeLBTC proof mints with fee use `_transfer` for the commission and are not subject to
- *      this double-count on the AssetRouter bucket. Operators sizing the AssetRouter limit should
- *      budget for fee mints on redeem and StakedLBTC deposit paths.
+ *      NativeLBTC and BridgeTokenAdapter proof mints instead consume their own `address(this)`
+ *      bucket, and NativeLBTC proof mints with fee use `_transfer` for the commission, so they are
+ *      not subject to this double-count or to StakedLBTC release/fee contention on the AssetRouter
+ *      bucket. Operators sizing the AssetRouter limit should budget for fee mints on redeem and
+ *      StakedLBTC deposit paths plus StakedLBTC release-claim throughput; see
+ *      `docs/operator-rate-limits.md`.
  */
 contract AssetRouter is
     IAssetRouter,
