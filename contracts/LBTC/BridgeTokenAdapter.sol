@@ -198,6 +198,12 @@ contract BridgeTokenAdapter is
 
     /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
     /// @dev `limit` = `0` deletes the minter's mapping entry (unset; mints revert until reconfigured).
+    ///      When `minter` is `address(this)`, the bucket is a single PROTOCOL-WIDE proof-mint quota
+    ///      shared by ALL permissionless proof mints (`mintV1`, `batchMintV1`). It is not per-recipient
+    ///      or per-caller: size `limit` for aggregate proof-mint throughput across the whole `window`
+    ///      and expect short-window cross-user contention (one user's heavy-but-legitimate proof mints
+    ///      can transiently exhaust the bucket and revert others' unrelated proof mints with
+    ///      `RateLimitExceeded` until it decays).
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
@@ -377,6 +383,13 @@ contract BridgeTokenAdapter is
     /// PRIVATE FUNCTIONS ///
 
     /// @notice Mint using payload
+    /// @dev Consumes the proof-mint rate-limit bucket keyed by `address(this)`. This is a single,
+    ///      protocol-wide quota shared by ALL permissionless proof mints (`mintV1`, `batchMintV1`) —
+    ///      it is NOT per-recipient or per-caller. Heavy but fully legitimate proof-mint activity from
+    ///      one user can temporarily exhaust the bucket and make other users' unrelated proof mints
+    ///      revert with `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s
+    ///      `limit` for aggregate proof-mint throughput across the whole window, and expect
+    ///      short-window contention.
     function _mintV1(
         bytes calldata rawPayload,
         bytes calldata proof

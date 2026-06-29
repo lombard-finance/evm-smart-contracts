@@ -102,6 +102,12 @@ abstract contract BaseLBTC is
     ///      Revoking and re-granting `MINTER_ROLE` for `minter` does not change this limit state.
     ///      When `minter` is {AssetRouter}, size the limit for fee mints on redeem paths and for
     ///      `amount + fee` on StakedLBTC `mintWithFee` (see {AssetRouter}).
+    ///      When `minter` is `address(this)`, the bucket is a single PROTOCOL-WIDE proof-mint quota
+    ///      shared by ALL permissionless proof mints (and, on NativeLBTC, the `CLAIMER_ROLE` fee
+    ///      paths). It is not per-recipient or per-caller: size `limit` for aggregate proof-mint
+    ///      throughput across the whole `window` and expect short-window cross-user contention (one
+    ///      user's heavy-but-legitimate proof mints can transiently exhaust the bucket and revert
+    ///      others' unrelated proof mints with `RateLimitExceeded` until it decays).
     /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @param config Rate limit configuration (`limit`, `window`).
     /// @custom:access Caller must have `MANAGER_ROLE`
