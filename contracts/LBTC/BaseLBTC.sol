@@ -21,11 +21,19 @@ import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
  *      `MINT_BURN_PAUSER_ROLE` toggles `mintBurnPaused`; concrete contracts attach `whenMintBurnAllowed` to every external path that mints or burns
  *      so ERC20 transfers stay cheap (no guard in `_update`). New supply-changing entrypoints must use that modifier.
  *      `MINTER_ROLE` holders mint through `_mintWithLimit` / `_batchMintWithLimit`; per-minter leaky-bucket limits
- *      are configured with `setMinterLimit`. Proof-mint paths consume the bucket keyed by
- *      `address(this)` at the call site. {AssetRouter} holds `MINTER_ROLE` on its own bucket:
- *      fee collection there uses mint-to-treasury (not transfer) and consumes that bucket without
- *      burns releasing capacity — see {AssetRouter} for redeem blocking and StakedLBTC
- *      `mintWithFee` double-count behaviour Lombard acknowledges as expected.
+ *      are configured with `setMinterLimit`. Proof-mint paths on `NativeLBTC` / `BridgeTokenAdapter`
+ *      consume the bucket keyed by `address(this)` at the call site. {AssetRouter} holds
+ *      `MINTER_ROLE` and mints through these tokens as `msg.sender == AssetRouter`, so it consumes
+ *      the single `minterRateLimits[AssetRouter]` bucket. Fee collection there uses mint-to-treasury
+ *      (not transfer) and consumes that bucket without burns releasing capacity.
+ *      For `StakedLBTC` specifically there is no `address(this)` proof bucket: every inbound mint —
+ *      ordinary release/proof claims (`AssetRouter.handlePayload` -> `StakedLBTC.mint(address,uint256)`),
+ *      redeem-fee mints, and the fee leg of `mintWithFee` — all draw from the same
+ *      `minterRateLimits[AssetRouter]` bucket. This sharing is intended (single AssetRouter-wide quota):
+ *      the limit must be sized for aggregate throughput, and short-window cross-user contention
+ *      (one user's fee/release traffic temporarily reducing another user's available capacity) is
+ *      expected and acknowledged by Lombard. See {AssetRouter} for redeem blocking and the
+ *      `mintWithFee` double-count behaviour, and `docs/operator-rate-limits.md` for sizing guidance.
  *      Use `type(uint96).max` with a short `window` for a practical unlimited cap.
  *      Rate limits are keyed by minter address, not role membership: revoking and re-granting `MINTER_ROLE` does not
  *      reset or clear `minterRateLimits` (intended; `MANAGER_ROLE` must reconfigure or accept prior state).
