@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IBascule} from "../bascule/interfaces/IBascule.sol";
 import {INativeLBTC} from "./interfaces/INativeLBTC.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
@@ -148,14 +147,6 @@ contract BridgeTokenAdapter is
         address newVal
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _changeAssetRouter(newVal);
-    }
-
-    /// @dev mainly used for migration testing TODO: remove later
-    /// @param newVal The address of the new BridgeToken contact
-    function changeBridgeToken(
-        address newVal
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeBridgeToken(newVal);
     }
 
     /// GETTERS ///
@@ -465,7 +456,7 @@ contract BridgeTokenAdapter is
     }
 
     /// @dev Checks that the deposit was validated by the Bascule drawbridge.
-    /// @param $ NativeLBTC storage.
+    /// @param $ BridgeTokenAdapter storage.
     /// @param depositID The unique ID of the deposit.
     /// @param amount The withdrawal amount.
     function _confirmDeposit(
@@ -502,7 +493,7 @@ contract BridgeTokenAdapter is
         emit TreasuryAddressChanged(prevValue, newValue);
     }
 
-    /// @dev `treasury` not zero
+    /// @dev `bridgeToken` not zero
     function _changeBridgeToken(address newValue) internal {
         Assert.zeroAddress(newValue);
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();

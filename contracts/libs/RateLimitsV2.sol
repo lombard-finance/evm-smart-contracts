@@ -67,6 +67,11 @@ library RateLimitsV2 {
 
     /// @dev Checkpoints decayed in-flight at `block.timestamp`, then stores `config`. If decayed
     ///      in-flight exceeds `config.limit`, it is capped so the new limit applies immediately.
+    ///      Reverts {MalformedRateLimit} when `config.limit == 0` or `config.window == 0`.
+    ///      Note: the LBTC wrappers (`BaseLBTC.setMinterLimit`, `BridgeTokenAdapter.setMinterLimit`)
+    ///      intercept `config.limit == 0` and delete the minter entry before calling this function,
+    ///      so the `config.limit == 0` guard here is unreachable from those paths; it is retained
+    ///      as a safety net for direct library callers.
     function setRateLimit(Data storage rl, Config memory config) public {
         if (config.limit == 0 || config.window == 0) {
             revert MalformedRateLimit();
