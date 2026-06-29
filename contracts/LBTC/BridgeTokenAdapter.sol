@@ -149,14 +149,6 @@ contract BridgeTokenAdapter is
         _changeAssetRouter(newVal);
     }
 
-    /// @dev mainly used for migration testing TODO: remove later
-    /// @param newVal The address of the new BridgeToken contact
-    function changeBridgeToken(
-        address newVal
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _changeBridgeToken(newVal);
-    }
-
     /// GETTERS ///
 
     /// @return consortium The consortium contract address
