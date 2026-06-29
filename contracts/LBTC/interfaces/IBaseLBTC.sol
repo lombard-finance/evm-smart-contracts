@@ -39,7 +39,7 @@ interface IBaseLBTC {
     );
 
     event BatchMintSkipped(bytes32 indexed payloadHash, bytes payload);
-    event AssetRouterChanged(address indexed newVal, address indexed prevVal);
+    event AssetRouterChanged(address indexed prevVal, address indexed newVal);
     event MinterLimitSet(address indexed minter, uint256 limit, uint256 window);
 
     function burn(uint256 amount) external;
