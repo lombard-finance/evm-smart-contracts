@@ -447,6 +447,13 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         emit FeeCharged(fee, userSignature);
     }
 
+    /// @dev Consumes the proof-mint rate-limit bucket keyed by `address(this)`. This is a single,
+    ///      protocol-wide quota shared by ALL permissionless proof mints (`mintV1`, `batchMintV1`)
+    ///      and the `CLAIMER_ROLE` fee paths (`mintV1WithFee`, `batchMintV1WithFee`) — it is NOT
+    ///      per-recipient or per-caller. Heavy but fully legitimate proof-mint activity from one user
+    ///      can temporarily exhaust the bucket and make other users' unrelated proof mints revert with
+    ///      `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s `limit` for
+    ///      aggregate proof-mint throughput across the whole window, and expect short-window contention.
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,
