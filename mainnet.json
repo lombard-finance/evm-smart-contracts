@@ -34,7 +34,7 @@
     "strategies": [
       {
         "symbol": "BTCoc",
-        "address": "0xD0CdA8cd1A9E2f33b0c18521707aDA3Aa1947fe2",
+        "address": "0xf14F678d9c05798ba61652a950a05D74aD2E0A6C",
         "implementation": "MAWARS-0.0.1",
         "shards": {
           "btcoc-main": {
