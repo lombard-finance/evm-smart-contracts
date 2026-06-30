@@ -25,7 +25,8 @@
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
       "GMPBasculeV1": "0xC3ecFE771564e3f28CFB7a9b203F4d10279338eD",
-      "BlocklistOracle": "0xc94B1E74aa3B5695D25b323cd0333fc2dBaada16"
+      "BlocklistOracle": "0xc94B1E74aa3B5695D25b323cd0333fc2dBaada16",
+      "DirectConverter": "0x6647Bf1C4214096B97145E0B23CF41C54A46CDd3"
     },
     "implementations": {
       "MAWARS-0.0.1": "0xd0cda8cd1a9e2f33b0c18521707ada3aa1947fe2",
