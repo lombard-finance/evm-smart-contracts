@@ -54,11 +54,11 @@ lbtc_approve_symbiotic_vault:
     # spender == Symbiotic vault
     - offset: 0
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      expected: "0x000000000000000000000000dc47953c816531a8ca9e1d461ab53687d48eea26"
+      expected: "0x000000000000000000000000087cbb1a89aa038a167e27588b5ec01484b40fb7"
 
 symbiotic_deposit:
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
-  to: "0xdC47953c816531a8CA9E1D461AB53687d48EEA26"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
   dataLength: 68
   selector: "deposit(address,uint256)"
@@ -70,7 +70,7 @@ symbiotic_deposit:
 
 symbiotic_claim:
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
-  to: "0xdC47953c816531a8CA9E1D461AB53687d48EEA26"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
   dataLength: 68
   selector: "claim(address,uint256)"
@@ -82,7 +82,7 @@ symbiotic_claim:
 
 symbiotic_redeem:
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
-  to: "0xdC47953c816531a8CA9E1D461AB53687d48EEA26"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
   dataLength: 68
   selector: "redeem(address,uint256)"
@@ -94,7 +94,7 @@ symbiotic_redeem:
 
 symbiotic_withdraw:
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
-  to: "0xdC47953c816531a8CA9E1D461AB53687d48EEA26"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
   dataLength: 68
   selector: "withdraw(address,uint256)"
