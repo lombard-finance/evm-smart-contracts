@@ -259,8 +259,7 @@ abstract contract MultiAssetDepositUpgradeable is
         if (netAssets == 0) revert Strategy_ZeroAmount();
         if (feeAssets > 0) {
             address tr = feeTreasury();
-            if (tr == address(0))
-                revert StrategyDeposit_FeeTreasuryNotSet();
+            if (tr == address(0)) revert StrategyDeposit_FeeTreasuryNotSet();
             IERC20(depositAsset).safeTransfer(tr, feeAssets);
             emit DepositFeeTransferred(depositAsset, tr, feeAssets);
         }
