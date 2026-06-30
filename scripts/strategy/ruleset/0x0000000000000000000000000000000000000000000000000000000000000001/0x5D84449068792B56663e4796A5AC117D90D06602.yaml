@@ -1,5 +1,6 @@
 # Shard: 0xDde9898A9f80aF2d9fbBb48B92FB2677a3b62dFD
 asset_router_deposit:
+  destinationType: "LombardRouter"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
   value: "0"
@@ -16,6 +17,7 @@ asset_router_deposit:
       expected: "0x0000000000000000000000008236a87084f8b84306f72007f36f2618a5634494"
 
 asset_router_redeem:
+  destinationType: "LombardRouter"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
   value: "0"
@@ -57,6 +59,7 @@ lbtc_approve_symbiotic_vault:
       expected: "0x000000000000000000000000087cbb1a89aa038a167e27588b5ec01484b40fb7"
 
 symbiotic_deposit:
+  destinationType: "SymbioticVault"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
@@ -69,6 +72,7 @@ symbiotic_deposit:
       expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
 
 symbiotic_claim:
+  destinationType: "SymbioticVault"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
@@ -81,6 +85,7 @@ symbiotic_claim:
       expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
 
 symbiotic_redeem:
+  destinationType: "SymbioticVault"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
@@ -93,6 +98,7 @@ symbiotic_redeem:
       expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
 
 symbiotic_withdraw:
+  destinationType: "SymbioticVault"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
   value: "0"
