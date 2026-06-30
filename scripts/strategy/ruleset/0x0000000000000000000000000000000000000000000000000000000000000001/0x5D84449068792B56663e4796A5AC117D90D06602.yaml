@@ -21,29 +21,17 @@ asset_router_redeem:
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
   value: "0"
-  dataLength: 196
-  selector: "redeem(address,bytes32,address,bytes32,bytes32,uint256)"
+  dataLength: 100
+  selector: "redeem(address,address,uint256)"
   constraints:
     # fromAddress == shard
     - offset: 0
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
-    # tolChainId == ethereum (1)
+    # fromToken == StakedLBTC
     - offset: 32
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      expected: "0x0000000000000000000000000000000000000000000000000000000000000001"
-    # fromToken == StakedLBTC
-    - offset: 64
-      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       expected: "0x0000000000000000000000008236a87084f8b84306f72007f36f2618a5634494"
-    # toToken == BTC.b
-    - offset: 96
-      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      expected: "0x000000000000000000000000b0f70c0bd6fd87dbeb7c10dc692a2a6106817072"
-    # recipient == shard
-    - offset: 128
-      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
 
 lbtc_approve_symbiotic_vault:
   destinationType: "ERC20"
