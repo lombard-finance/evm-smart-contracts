@@ -43,7 +43,8 @@ asset_router_redeem:
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
 
-symbiotic_approve:
+lbtc_approve_symbiotic_vault:
+  destinationType: "ERC20"
   sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
   to: "0x8236a87084f8B84306f72007F36F2618A5634494"
   value: "0"
