@@ -75,9 +75,7 @@ describe('Shard & RemoteShard', function () {
 
     strategyToken = await deployContract<TokenMock>('TokenMock', ['Strategy Token', 'STK', 18], false);
 
-    const mockStrategyFactory = await ethers.getContractFactory('MockStrategyForShard');
-    mockStrategy = (await mockStrategyFactory.deploy()) as unknown as MockStrategyForShard;
-    await mockStrategy.waitForDeployment();
+    mockStrategy = await deployContract<MockStrategyForShard>('MockStrategyForShard', [], false);
 
     const fundingStratProxy = await deployContract('Shard', [
       await mockStrategy.getAddress(),

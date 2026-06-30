@@ -56,6 +56,6 @@ contract MultiAssetWithAsyncRedemptionStrategy is
 
     /// @notice Human-readable build label for off-chain integrations.
     function version() external pure override returns (string memory) {
-        return "MultiAssetWithAsyncRedemptionStrategy-0.0.1";
+        return "MAWARS-0.0.1";
     }
 }

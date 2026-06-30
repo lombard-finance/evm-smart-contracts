@@ -272,18 +272,27 @@ export async function signPayload(
   };
 }
 
+export async function advanceTime(seconds: number): Promise<void> {
+  await ethers.provider.send('evm_increaseTime', [seconds]);
+  await ethers.provider.send('evm_mine', []);
+}
+
+export const proxyOpts: DeployProxyOptions = { initializer: 'initialize', unsafeAllow: ['constructor'] };
+
 export async function deployContract<T extends BaseContract>(
   contractName: string,
   args: any[],
   isProxy: boolean = true,
-  useProxyDeployOpts: boolean = false
-): Promise<T> {
+  proxyOpts: boolean | DeployProxyOptions = false
+): Promise<T & Addressable> {
   const { factory } = await getContractFactoryWithLibraries(hre, contractName);
-  const proxyOptions = isProxy && useProxyDeployOpts ? PROXY_DEPLOY_OPTS : undefined;
-  const contract = await (isProxy ? upgrades.deployProxy(factory, args, proxyOptions) : factory.deploy(...args));
+  const proxyOptions = typeof proxyOpts === 'boolean' ? (proxyOpts ? PROXY_DEPLOY_OPTS : undefined) : proxyOpts;
+  const contract = (await (isProxy ? upgrades.deployProxy(factory, args, proxyOptions) : factory.deploy(...args))) as T &
+    Addressable;
   await contract.waitForDeployment();
 
-  return factory.attach(contract.target) as T;
+  contract.address = await contract.getAddress();
+  return contract;
 }
 
 export async function getSignersWithPrivateKeys(phrase?: string): Promise<Signer[]> {

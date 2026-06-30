@@ -40,10 +40,10 @@ interface IFeeManager {
         uint256 newHighWaterMark
     );
 
-    /// @param bps The management fee rate that failed validation (must be < 10_000).
-    error FeeManager_ManagementFeeBpsTooHigh(uint16 bps);
-    /// @param bps The performance fee rate that failed validation (must be < 10_000).
-    error FeeManager_PerformanceFeeBpsTooHigh(uint16 bps);
+    /// @dev The management fee rate failed validation (must be < 10_000).
+    error FeeManager_ManagementFeeBpsTooHigh();
+    /// @dev The performance fee rate failed validation (must be < 10_000).
+    error FeeManager_PerformanceFeeBpsTooHigh();
     /// @dev Accrued fee shares require a non-zero recipient when settling via fee `bps` setters.
     error FeeManager_FeeRecipientRequired();
     /// @param pricePerShare Current `pricePerShare` when the harvest was attempted.

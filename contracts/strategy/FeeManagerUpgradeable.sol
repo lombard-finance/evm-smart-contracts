@@ -76,7 +76,7 @@ abstract contract FeeManagerUpgradeable is
         uint16 bps
     ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (bps >= _BPS_DENOMINATOR)
-            revert FeeManager_ManagementFeeBpsTooHigh(bps);
+            revert FeeManager_ManagementFeeBpsTooHigh();
         _accrueManagementFee();
         _getFeeManagerStorage().managementFeeBps = bps;
         emit ManagementFeeBpsSet(_msgSender(), bps);
@@ -112,7 +112,7 @@ abstract contract FeeManagerUpgradeable is
         bool forfeitAccrued
     ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (bps >= _BPS_DENOMINATOR)
-            revert FeeManager_PerformanceFeeBpsTooHigh(bps);
+            revert FeeManager_PerformanceFeeBpsTooHigh();
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         _harvestPerformanceFee($, feeRecipient, forfeitAccrued);
         $.performanceFeeBps = bps;
