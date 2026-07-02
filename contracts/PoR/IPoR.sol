@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// @custom:security-contact security@lombard.finance
 interface IPoR {
     /// @notice Error thrown when the lengths of the arrays do not match.
     error ArrayLengthMismatch();

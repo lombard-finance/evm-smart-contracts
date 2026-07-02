@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {EIP1271SignatureUtils} from "../../libs/EIP1271SignatureUtils.sol";
 
 /// @dev collection of assertions used in ERC20 contracts
+/// @custom:security-contact security@lombard.finance
 library Assert {
     error InvalidDustFeeRate();
     error NonEqualLength(uint256 a, uint256 b);

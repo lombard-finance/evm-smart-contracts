@@ -12,7 +12,7 @@ struct CallVerificationInput {
 
 /// @title IMerkleCallAllowlist
 /// @notice Merkle-root–governed allowlist for validating arbitrary `(sender, to, value, data)` tuples off-chain and verifying on-chain.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 interface IMerkleCallAllowlist {
     /// @notice Emitted when the active Merkle root changes.
     event AllowlistRootUpdated(

@@ -7,7 +7,7 @@ pragma solidity 0.8.24;
 ///      posted `pricePerShare`; `totalAssets()` may overstate economic NAV until the next `postPricePerShare`
 ///      reconciles fee-minted supply against operator NAV.
 ///      Management fee share math uses full `totalSupply()`; treasury-held fee shares compound into later accruals.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 interface IFeeManager {
     /// @notice Annual management fee rate was updated (bps).
     event ManagementFeeBpsSet(address indexed account, uint16 bps);

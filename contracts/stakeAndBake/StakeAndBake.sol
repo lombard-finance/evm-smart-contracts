@@ -15,6 +15,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * stake their BTC and deposit it in a vault in the same transaction.
  * @author Lombard.Finance
  * @notice This contract is a part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract StakeAndBake is
     AccessControlUpgradeable,

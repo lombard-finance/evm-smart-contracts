@@ -16,7 +16,7 @@ import {RateLimits} from "../libs/RateLimits.sol";
 /// @title ERC20 Token Bridge
 /// @author Lombard.Finance
 /// @notice The contract is a part of Lombard Finance protocol. The bridge utilize GMP for cross-chain communication.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract BridgeV2 is
     IBridgeV2,
     IHandler,

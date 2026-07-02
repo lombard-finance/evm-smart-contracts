@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
 import {IBaseLBTC} from "../../LBTC/interfaces/IBaseLBTC.sol";
 
+/// @custom:security-contact security@lombard.finance
 contract LBTCBurnMintOFTAdapter is OFTAdapter, EfficientRateLimitedOFTAdapter {
     using SafeERC20 for IERC20;
 

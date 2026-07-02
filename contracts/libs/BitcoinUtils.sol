@@ -14,6 +14,7 @@ uint256 constant BASE_SPEND_COST = 49; // 32 (txid) + 4 (vout) + 1 (scriptSig si
 uint256 constant NON_WITNESS_INPUT_SIZE = 107; // Used for non-witness outputs (P2PKH, P2SH)
 uint256 constant WITNESS_INPUT_SIZE = 26; // floor(107 / 4), used for witness outputs (P2WPKH, P2WSH, P2TR)
 
+/// @custom:security-contact security@lombard.finance
 library BitcoinUtils {
     enum OutputType {
         UNSUPPORTED,

@@ -10,6 +10,7 @@ import {Actions} from "../libs/Actions.sol";
 import {Assert} from "./libraries/Assert.sol";
 import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
 
+/// @custom:security-contact security@lombard.finance
 contract StakedLBTCOracle is
     IOracle,
     AggregatorV3Interface,

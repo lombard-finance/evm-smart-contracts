@@ -19,6 +19,7 @@ import {GMPUtils} from "./libs/GMPUtils.sol";
  * @title Mailbox to send/receive messages by Lombard Generalized Message Passing Protocol
  * @author Lombard.Finance
  * @notice The contract is a part of Lombard Generalized Message Passing protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract Mailbox is
     IMailbox,

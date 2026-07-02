@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 interface IBlocklistOracle {
     /// @dev Why {check} rejected the account.
     enum DenialReason {

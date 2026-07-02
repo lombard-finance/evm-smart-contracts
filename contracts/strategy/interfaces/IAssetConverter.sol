@@ -6,7 +6,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @title IAssetConverter
 /// @notice Per-token adapter: converts between that ERC-20’s native amounts and the strategy’s **base accounting units** (same scale as `pricePerShare` / `_convertToShares` / `_convertToAssets`).
 /// @dev Rounding direction is caller-controlled and affects whether the strategy favors itself or the user on boundary wei.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 interface IAssetConverter {
     /// @notice Convert `tokenAmount` of the deposit asset into base accounting units (e.g. oracle-priced BTC wei).
     /// @param tokenAmount Amount in the deposit token’s decimals.

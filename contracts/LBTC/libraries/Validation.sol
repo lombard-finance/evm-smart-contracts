@@ -5,6 +5,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BitcoinUtils} from "../../libs/BitcoinUtils.sol";
 
 /// @dev collection of validations used in ERC20 contracts
+/// @custom:security-contact security@lombard.finance
 library Validation {
     error AmountLessThanCommission(uint256 fee);
     error AmountBelowMinLimit(uint256 dustLimit);

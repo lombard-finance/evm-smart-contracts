@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
+/// @custom:security-contact security@lombard.finance
 interface IBridgeToken is IERC20Metadata {
     function mint(
         address to,

@@ -3,6 +3,7 @@
 
 pragma solidity 0.8.24;
 
+/// @custom:security-contact security@lombard.finance
 interface ITimelockController {
     /**
      * @dev Returns whether an id corresponds to a registered operation. This

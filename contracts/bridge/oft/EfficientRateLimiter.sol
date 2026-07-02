@@ -10,6 +10,7 @@ import {RateLimits} from "../../libs/RateLimits.sol";
  * contracts requiring rate limiting capabilities to protect resources or services from excessive use.
  * @dev A flexible rate limit that grows during congestive periods and shrinks during calm periods could give some
  * leeway when someone tries to forcefully congest the network, while still preventing huge amounts to be sent at once.
+ * @custom:security-contact security@lombard.finance
  */
 abstract contract EfficientRateLimiter {
     // Tracks rate limits for outbound transactions to a dstEid.

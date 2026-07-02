@@ -8,6 +8,7 @@ pragma solidity 0.8.24;
  * and contract call.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 interface IDepositor {
     /**

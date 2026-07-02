@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+/// @custom:security-contact security@lombard.finance
 library FeeUtils {
     uint256 constant MAX_COMMISSION = 10000; // 100%
 

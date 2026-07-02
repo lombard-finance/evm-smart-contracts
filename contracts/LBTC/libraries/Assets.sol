@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {GMPUtils} from "../../gmp/libs/GMPUtils.sol";
 
+/// @custom:security-contact security@lombard.finance
 library Assets {
     /// @dev Error thrown when payload length is too big
     error Assets_InvalidPayloadSize(uint256 expected, uint256 actual);
