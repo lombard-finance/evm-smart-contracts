@@ -122,11 +122,31 @@ lifi_swap_usdc_to_btcb:
     - offset: 96
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
-    # swapData[1].sendingAssetId == USDC
-    - offset: 960
+    # swapData[0].sendingAssetId == USDC
+    - offset: 480
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       expected: "0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-    # swapData[1].receivingAssetId == BTC.b (NativeLBTC)
-    - offset: 992
+    # swapData[0].receivingAssetId == BTC.b (NativeLBTC)
+    - offset: 512
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000b0f70c0bd6fd87dbeb7c10dc692a2a6106817072"
+
+lifi_single_swap_usdc_to_btcb:
+  destinationType: "LiFiSwap"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+  value: "0"
+  selector: "swapTokensSingleV3ERC20ToERC20(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool))"
+  constraints:
+    # receiver == shard
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+    # swapData.sendingAssetId == USDC
+    - offset: 416
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    # swapData.receivingAssetId == BTC.b (NativeLBTC)
+    - offset: 448
       mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       expected: "0x000000000000000000000000b0f70c0bd6fd87dbeb7c10dc692a2a6106817072"
