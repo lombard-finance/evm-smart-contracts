@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IPoR} from "./IPoR.sol";
+/// @custom:security-contact security@lombard.finance
 contract PoR is AccessControlUpgradeable, IPoR {
     struct AddressData {
         string addressStr;

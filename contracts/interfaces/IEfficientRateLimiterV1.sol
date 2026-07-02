@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 // @dev deprecated interface for bindings
+/// @custom:security-contact security@lombard.finance
 interface IEfficientRateLimiterV1 {
     struct RateLimitConfig {
         uint32 eid;

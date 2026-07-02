@@ -14,7 +14,7 @@ import {IShard} from "../interfaces/IShard.sol";
 /// later via {setValidator} by `DEFAULT_ADMIN_ROLE`. `exec` reads the current validator on every
 /// call, so a replacement can take effect between off-chain proof generation and on-chain execution.
 /// Plain ETH may be received via {receive} to build balance for `exec` forwards; `msg.value` on `exec` also credits the contract.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 abstract contract ShardBaseUpgradeable is
     IShard,
     AccessControlUpgradeable,

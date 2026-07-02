@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EfficientRateLimitedOFTAdapter} from "./EfficientRateLimitedOFTAdapter.sol";
 import {IBaseLBTC} from "../../LBTC/interfaces/IBaseLBTC.sol";
 
+/// @custom:security-contact security@lombard.finance
 contract LBTCOFTAdapter is EfficientRateLimitedOFTAdapter {
     constructor(
         address _token,

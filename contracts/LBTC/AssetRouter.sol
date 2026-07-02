@@ -23,6 +23,7 @@ import {Validation} from "./libraries/Validation.sol";
  * @title Router to store xxxLBTC Staking paths and token's name.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract AssetRouter is
     IAssetRouter,

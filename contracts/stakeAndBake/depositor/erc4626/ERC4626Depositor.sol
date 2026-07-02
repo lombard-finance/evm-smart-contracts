@@ -11,6 +11,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @title Depositor for an ERC4626 vault.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract ERC4626Depositor is IDepositor, ReentrancyGuard {
     using SafeERC20 for IERC20;

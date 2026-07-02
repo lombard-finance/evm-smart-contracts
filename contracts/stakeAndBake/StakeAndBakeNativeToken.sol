@@ -16,6 +16,7 @@ import {Actions} from "../libs/Actions.sol";
  * stake their BTC and deposit it in a vault in the same transaction.
  * @author Lombard.Finance
  * @notice This contract is a part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract StakeAndBakeNativeToken is
     AccessControlUpgradeable,

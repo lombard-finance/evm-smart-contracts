@@ -13,7 +13,7 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 ///      `managementFeeTreasury` compound into later accruals (intended; treasury balance is not excluded).
 ///      Fee mints dilute holders by increasing `totalSupply` without asset inflow; posted `pricePerShare` is unchanged,
 ///      so `totalAssets()` may overstate backing until the next `postPricePerShare` reconciles against operator NAV.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 abstract contract FeeManagerUpgradeable is
     StrategyBaseUpgradeable,
     IFeeManager

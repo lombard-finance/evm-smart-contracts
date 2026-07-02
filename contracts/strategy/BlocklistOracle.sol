@@ -8,7 +8,7 @@ import {IBlocklistOracle} from "./interfaces/IBlocklistOracle.sol";
 import {ISanctionList} from "./interfaces/ISanctionList.sol";
 
 /// @title BlocklistOracle
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract BlocklistOracle is
     AccessControlDefaultAdminRulesUpgradeable,
     IBlocklistOracle

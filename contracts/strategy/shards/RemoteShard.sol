@@ -7,7 +7,7 @@ import {ShardBaseUpgradeable} from "./ShardBaseUpgradeable.sol";
 /// @title RemoteShard
 /// @notice Shard deployment using only validator-gated `exec` (no `pullFromStrategy` / `pushToStrategy` strategy wiring).
 /// @dev Use when outbound liquidity is handled purely via approved external calls rather than `IStrategy.requestFunding`.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract RemoteShard is ShardBaseUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

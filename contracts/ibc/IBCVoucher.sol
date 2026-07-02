@@ -12,6 +12,7 @@ import {IBaseLBTC} from "../LBTC/interfaces/IBaseLBTC.sol";
 /// @title ERC20 intermediary token
 /// @author Lombard.Finance
 /// @notice The contracts is a part of Lombard.Finace protocol
+/// @custom:security-contact security@lombard.finance
 contract IBCVoucher is
     IIBCVoucher,
     ERC20PausableUpgradeable,

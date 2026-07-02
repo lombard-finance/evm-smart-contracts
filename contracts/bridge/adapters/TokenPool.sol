@@ -9,7 +9,7 @@ import {TokenPool} from "@chainlink/contracts-ccip/contracts/pools/TokenPool.sol
 import {CLAdapter} from "./CLAdapter.sol";
 
 /// @dev NOT TESTED AFTER UPGRADE OF CCIP TO 1.6.0
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract LombardTokenPool is TokenPool {
     CLAdapter public adapter;
 

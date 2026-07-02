@@ -11,6 +11,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 /// @title The contract utilizes consortium governance functions using multisignature verification
 /// @author Lombard.Finance
 /// @notice The contracts are a part of the Lombard.Finance protocol
+/// @custom:security-contact security@lombard.finance
 contract Consortium is Ownable2StepUpgradeable, INotaryConsortium {
     struct ValidatorSet {
         /// @notice addresses of the signers

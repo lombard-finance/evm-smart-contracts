@@ -7,6 +7,7 @@ import {RateLimits} from "../../libs/RateLimits.sol";
 
 /**
  * @title OFT Adapter contract with EfficientRateLimiter
+ * @custom:security-contact security@lombard.finance
  */
 abstract contract EfficientRateLimitedOFTAdapter is
     OFTAdapter,

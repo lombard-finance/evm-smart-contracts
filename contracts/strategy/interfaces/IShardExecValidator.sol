@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 /// @title IShardExecValidator
 /// @notice Minimal policy hook for Shard / RemoteShard `exec`.
 /// @dev Encoding of `validatorArgs` is implementation-defined (e.g. ABI-encoded `CallVerificationInput` for `MerkleAllowlistValidator`).
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 interface IShardExecValidator {
     /// @notice Whether an `exec` call with the given fields is permitted by policy.
     /// @param sender Logical caller passed by the shard (usually `msg.sender` of `exec`).

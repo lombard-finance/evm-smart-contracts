@@ -46,7 +46,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 ///
 ///      `baseDecimals` must equal the strategy underlying asset's decimal count
 ///      (e.g. 8 for BTC/LBTC, 18 for WETH).
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract ChainlinkConverter is IAssetConverter {
     error ChainlinkConverterStaleAnswer();
     error ChainlinkConverterFutureAnswer();

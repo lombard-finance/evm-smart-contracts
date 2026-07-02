@@ -5,6 +5,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {GMPUtils} from "./libs/GMPUtils.sol";
 import {MessagePath} from "./libs/MessagePath.sol";
 
+/// @custom:security-contact security@lombard.finance
 interface IHandler is IERC165 {
     ///
     /// @return Could return some result, that will be emitted in `MessageHandled` event
