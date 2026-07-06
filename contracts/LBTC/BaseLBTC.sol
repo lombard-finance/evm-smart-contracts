@@ -121,7 +121,7 @@ abstract contract BaseLBTC is
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
-        RateLimitsV2.Config memory config
+        RateLimitsV2.Config calldata config
     ) external onlyRole(MANAGER_ROLE) {
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
         if (config.limit == 0) {
