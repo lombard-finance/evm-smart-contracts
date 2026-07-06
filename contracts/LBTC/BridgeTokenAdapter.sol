@@ -204,6 +204,8 @@ contract BridgeTokenAdapter is
     ///      and expect short-window cross-user contention (one user's heavy-but-legitimate proof mints
     ///      can transiently exhaust the bucket and revert others' unrelated proof mints with
     ///      `RateLimitExceeded` until it decays).
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
+    /// @param config Rate limit configuration (`limit`, `window`).
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
@@ -220,6 +222,11 @@ contract BridgeTokenAdapter is
     }
 
     /// @notice Returns rate-limit state for `minter`.
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
+    /// @return limit Configured limit; `0` if unset.
+    /// @return window Configured window in seconds; `0` if unset.
+    /// @return amountInFlight Decayed in-flight amount at `block.timestamp`.
+    /// @return remaining Remaining mint allowance; `0` when unset.
     function getMinterLimit(
         address minter
     )

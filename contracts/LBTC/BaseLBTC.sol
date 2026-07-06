@@ -134,6 +134,7 @@ abstract contract BaseLBTC is
     }
 
     /// @notice Returns rate-limit state for `minter`.
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @return limit Configured limit; `0` if unset.
     /// @return window Configured window in seconds; `0` if unset.
     /// @return amountInFlight Decayed in-flight amount at `block.timestamp`.
