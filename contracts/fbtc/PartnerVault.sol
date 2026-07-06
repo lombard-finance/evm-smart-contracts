@@ -22,6 +22,7 @@ interface LockedFBTC {
  * @title Partner Vault implementation for integration with FBTC
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract FBTCPartnerVault is
     PausableUpgradeable,

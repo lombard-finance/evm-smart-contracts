@@ -5,6 +5,7 @@ import {CREATE3} from "solmate/src/utils/CREATE3.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
+/// @custom:security-contact security@lombard.finance
 contract ProxyFactory is AccessControl {
     error ProxyFactory_ZeroAddress();
 

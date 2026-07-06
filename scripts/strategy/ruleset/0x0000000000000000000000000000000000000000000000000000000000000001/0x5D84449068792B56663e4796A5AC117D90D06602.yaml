@@ -1,0 +1,152 @@
+# Shard: 0xDde9898A9f80aF2d9fbBb48B92FB2677a3b62dFD
+asset_router_deposit:
+  destinationType: "LombardRouter"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
+  value: "0"
+  dataLength: 100
+  selector: "deposit(address,address,uint256)"
+  constraints:
+    # fromAddress == shard
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+    # toToken == StakedLBTC
+    - offset: 32
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008236a87084f8b84306f72007f36f2618a5634494"
+
+asset_router_redeem:
+  destinationType: "LombardRouter"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac"
+  value: "0"
+  dataLength: 100
+  selector: "redeem(address,address,uint256)"
+  constraints:
+    # fromAddress == shard
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+    # fromToken == StakedLBTC
+    - offset: 32
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000008236a87084f8b84306f72007f36f2618a5634494"
+
+lbtc_approve_symbiotic_vault:
+  destinationType: "ERC20"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x8236a87084f8B84306f72007F36F2618A5634494"
+  value: "0"
+  dataLength: 68
+  selector: "approve(address,uint256)"
+  constraints:
+    # spender == Symbiotic vault
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000087cbb1a89aa038a167e27588b5ec01484b40fb7"
+
+symbiotic_deposit:
+  destinationType: "SymbioticVault"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
+  value: "0"
+  dataLength: 68
+  selector: "deposit(address,uint256)"
+  constraints:
+    # onBehalfOf == shard
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+
+symbiotic_claim:
+  destinationType: "SymbioticVault"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
+  value: "0"
+  dataLength: 68
+  selector: "claim(address,uint256)"
+  constraints:
+    # recipient == shard
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+
+symbiotic_redeem:
+  destinationType: "SymbioticVault"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
+  value: "0"
+  dataLength: 68
+  selector: "redeem(address,uint256)"
+  constraints:
+    # claimer == shard
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+
+symbiotic_withdraw:
+  destinationType: "SymbioticVault"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x087cbb1a89aa038a167e27588b5ec01484b40fb7"
+  value: "0"
+  dataLength: 68
+  selector: "withdraw(address,uint256)"
+  constraints:
+    # claimer == shard
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+
+usdc_approve_lifi:
+  destinationType: "ERC20"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  value: "0"
+  dataLength: 68
+  selector: "approve(address,uint256)"
+  constraints:
+    # spender == LiFi Diamond
+    - offset: 0
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae"
+
+lifi_swap_usdc_to_btcb:
+  destinationType: "LiFiSwap"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+  value: "0"
+  selector: "swapTokensMultipleV3ERC20ToERC20(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool)[])"
+  constraints:
+    # receiver == shard
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+    # swapData[0].sendingAssetId == USDC
+    - offset: 480
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    # swapData[0].receivingAssetId == BTC.b (NativeLBTC)
+    - offset: 512
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000b0f70c0bd6fd87dbeb7c10dc692a2a6106817072"
+
+lifi_single_swap_usdc_to_btcb:
+  destinationType: "LiFiSwap"
+  sender: "0x653d5c6CEf72822e7C409ecB5c46C5c2858E5F2A"
+  to: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+  value: "0"
+  selector: "swapTokensSingleV3ERC20ToERC20(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool))"
+  constraints:
+    # receiver == shard
+    - offset: 96
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000dde9898a9f80af2d9fbbb48b92fb2677a3b62dfd"
+    # swapData.sendingAssetId == USDC
+    - offset: 416
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    # swapData.receivingAssetId == BTC.b (NativeLBTC)
+    - offset: 448
+      mask: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      expected: "0x000000000000000000000000b0f70c0bd6fd87dbeb7c10dc692a2a6106817072"

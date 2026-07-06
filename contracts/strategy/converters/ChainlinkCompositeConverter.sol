@@ -28,7 +28,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 ///
 ///      Both feeds are checked for positive answer, future `updatedAt`, and staleness (`heartbeat`). `baseDecimals` must
 ///      match the strategy underlying’s decimals (e.g. 8 for BTC/LBTC).
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract ChainlinkCompositeConverter is IAssetConverter {
     error ChainlinkCompositeConverter_StaleAnswer();
     error ChainlinkCompositeConverter_FutureAnswer();

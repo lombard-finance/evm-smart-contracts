@@ -7,6 +7,7 @@ import {INotaryConsortium} from "../consortium/INotaryConsortium.sol";
  * @title Consortium Consumer interface
  * @author Lombard.Finance
  * @notice Common interface for contracts who verify signatures with `INotaryConsortium`
+ * @custom:security-contact security@lombard.finance
  */
 interface IConsortiumConsumer {
     event ConsortiumChanged(

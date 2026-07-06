@@ -8,6 +8,7 @@ import "./IDepositNotarizationBlacklist.sol";
  * @title DepositNotarizationBlacklist
  * @dev This contract allows to manage a blacklist of transaction outputs in order for notarization process
  * to ignore them.
+ * @custom:security-contact security@lombard.finance
  */
 contract DepositNotarizationBlacklist is
     IDepositNotarizationBlacklist,

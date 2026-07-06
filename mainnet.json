@@ -15,7 +15,8 @@
       "LombardTokenPool": "0xac82d09D3BaE049C2119f5940ad517E6f1e9E453"
     },
     "lombard": {
-      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "ProxyFactory_general": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "ProxyFactory_strategies": "0x4cfdca28291f796e4ad511521c90da56206b075d",
       "StakedLBTC": "0x8236a87084f8B84306f72007F36F2618A5634494",
       "NativeLBTC": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
       "Consortium": "0xdad58dfa5c1a7a34419afdbe1f0d610efeea95e4",
@@ -23,8 +24,29 @@
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
       "BridgeV2": "0x451c54981C7DA5d95901b770C540547cF5FE0A2D",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
-      "GMPBasculeV1": "0xC3ecFE771564e3f28CFB7a9b203F4d10279338eD"
+      "GMPBasculeV1": "0xC3ecFE771564e3f28CFB7a9b203F4d10279338eD",
+      "BlocklistOracle": "0xc94B1E74aa3B5695D25b323cd0333fc2dBaada16",
+      "DirectConverter": "0x6647Bf1C4214096B97145E0B23CF41C54A46CDd3",
+      "ChainlinkConverter_StakedLBTC": "0xecc0282C71bA63d58c0dD2282125566045A8F777"
     },
+    "implementations": {
+      "MAWARS-0.0.1": "0xd0cda8cd1a9e2f33b0c18521707ada3aa1947fe2",
+      "Shard": "0x7500d12d1fe6405376fFceB184f71C3112D40A4c"
+    },
+    "strategies": [
+      {
+        "symbol": "BTCoc",
+        "address": "0xf14F678d9c05798ba61652a950a05D74aD2E0A6C",
+        "implementation": "MAWARS-0.0.1",
+        "shards": {
+          "btcoc-main": {
+            "network": "mainnet",
+            "Shard": "0xDde9898A9f80aF2d9fbBb48B92FB2677a3b62dFD",
+            "MerkleAllowlistValidator": "0x5D84449068792B56663e4796A5AC117D90D06602"
+          }
+        }
+      }
+    ],
     "fbtc": {
       "FBTCPartnerVault": "0x838F0C257aB27856EE9be57f776b186140834b58",
       "FBTC": "0xC96dE26018A54D51c097160568752c4E3BD6C364",

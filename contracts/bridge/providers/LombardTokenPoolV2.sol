@@ -12,7 +12,7 @@ import {IBridgeV2} from "../IBridgeV2.sol";
 import {IMailbox} from "../../gmp/IMailbox.sol";
 
 /// @notice CCIP TokenPool compatible with BridgeV2 and CCIP 1.6.1
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract LombardTokenPoolV2 is TokenPool, ITypeAndVersion {
     using SafeERC20 for IERC20Metadata;
 

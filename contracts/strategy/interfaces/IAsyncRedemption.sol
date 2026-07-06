@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 /// @title IAsyncRedemption
 /// @notice Asynchronous redemption: optional redeem fee in shares, pending requests, and operator-settled fulfillment.
 /// @dev This implementation does not use ERC-4626 `withdraw` / `redeem` for settlement; underlying is paid on `fulfillRedeemRequests`.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 interface IAsyncRedemption {
     /// @dev Per `requestRedeem` ticket; global totals mirror open requests.
     /// @dev `owner` and `requestBlock` pack into a single storage slot (160 + 96 bits).

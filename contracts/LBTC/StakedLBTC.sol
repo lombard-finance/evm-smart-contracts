@@ -10,7 +10,7 @@ import {BaseLBTC} from "./BaseLBTC.sol";
  * @title ERC20 representation of Lombard Staked Bitcoin
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
- * @custom:security-contact legal@lombard.finance
+ * @custom:security-contact security@lombard.finance
  */
 contract StakedLBTC is IStakedLBTC, BaseLBTC {
     /// @dev the storage name differs, because contract was renamed from LBTC

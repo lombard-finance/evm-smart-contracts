@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// @custom:security-contact security@lombard.finance
 interface IOracle {
     event Oracle_RatioChanged(
         uint256 prevVal,

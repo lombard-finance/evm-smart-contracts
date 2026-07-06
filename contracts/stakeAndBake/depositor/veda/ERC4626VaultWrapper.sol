@@ -20,7 +20,7 @@ import {ITeller} from "./ITeller.sol";
  *         so that users will receive this wrapper's tokens instead of LBTCv when they do deposit or use StakeAndBake feature.
  *         This contract uses ERC20 pause function. That means all functions that presume any kind of token transfer (deposit,
  *         withdraw, mint, redeem, transfer etc.) will revert when this contract is paused.
- * @custom:security-contact legal@lombard.finance
+ * @custom:security-contact security@lombard.finance
  */
 contract ERC4626VaultWrapper is
     IDepositor,

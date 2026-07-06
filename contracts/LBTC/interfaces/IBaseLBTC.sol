@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {RateLimitsV2} from "../../libs/RateLimitsV2.sol";
 
+/// @custom:security-contact security@lombard.finance
 interface IBaseLBTC {
     error RedeemForBtcDisabled();
     error PayloadAlreadyUsed();

@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @title An interface over the TellerWithMultiAssetSupport contract.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 interface ITeller {
     /// @dev TellerWithMultiAssetSupport without version

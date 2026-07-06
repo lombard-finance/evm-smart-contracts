@@ -39,7 +39,7 @@ import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
  *      reset or clear `minterRateLimits` (intended; `MANAGER_ROLE` must reconfigure or accept prior state).
  *      Concrete contracts must call `__AccessControlDefaultAdminRules_init` in their `initializer` before other inits.
  *      Shared namespaced state for `BaseLBTC` lives in `BaseLBTCStorage`; extend that struct when adding base-level fields.
- * @custom:security-contact legal@lombard.finance
+ * @custom:security-contact security@lombard.finance
  */
 abstract contract BaseLBTC is
     IBaseLBTC,

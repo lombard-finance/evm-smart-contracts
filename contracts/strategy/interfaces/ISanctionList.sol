@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 /// @dev https://go.chainalysis.com/chainalysis-oracle-docs.html
+/// @custom:security-contact security@lombard.finance
 interface ISanctionList {
     function isSanctioned(address addr) external view returns (bool);
 }

@@ -52,6 +52,7 @@ import {Validation} from "./libraries/Validation.sol";
  *      bucket. Operators sizing the AssetRouter limit should budget for fee mints on redeem and
  *      StakedLBTC deposit paths plus StakedLBTC release-claim throughput; see
  *      `docs/operator-rate-limits.md`.
+ * @custom:security-contact security@lombard.finance
  */
 contract AssetRouter is
     IAssetRouter,

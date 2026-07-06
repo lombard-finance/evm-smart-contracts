@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+/// @custom:security-contact security@lombard.finance
 interface INotaryConsortium {
     /// @dev Error thrown when signature payload is already used
     error PayloadAlreadyUsed();

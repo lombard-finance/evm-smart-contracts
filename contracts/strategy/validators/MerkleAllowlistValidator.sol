@@ -15,7 +15,7 @@ import {IShardExecValidator} from "../interfaces/IShardExecValidator.sol";
 /// Solidity decoders accept in-bounds but non-canonical dynamic offsets; calldata can therefore satisfy constraints on bytes inside a dynamic payload
 /// while the callee decodes that argument from a different region. For sound policy, any rule that pins bytes inside a dynamic argument MUST also pin
 /// the corresponding head word(s) — typically the dynamic offset and length — and SHOULD pin exact `data.length` (`FLAG_DATA_LENGTH`) when feasible.
-/// @custom:security-contact legal@lombard.finance
+/// @custom:security-contact security@lombard.finance
 contract MerkleAllowlistValidator is
     Ownable2Step,
     IMerkleCallAllowlist,

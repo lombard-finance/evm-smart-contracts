@@ -8,6 +8,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  * @title Library of utilities for making EIP1271-compliant signature checks.
  * @author Lombard.Finance
  * @notice The contracts is a part of Lombard.Finace protocol
+ * @custom:security-contact security@lombard.finance
  */
 library EIP1271SignatureUtils {
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")

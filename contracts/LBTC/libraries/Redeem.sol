@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// @custom:security-contact security@lombard.finance
 library Redeem {
     // bytes4(keccak256("payload(uint256,uint256,bytes32,bytes)")
     bytes4 internal constant REQUEST_SELECTOR = 0xf86c9e7b;

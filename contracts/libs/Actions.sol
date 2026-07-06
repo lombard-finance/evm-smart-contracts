@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// @custom:security-contact security@lombard.finance
 library Actions {
     /// @dev toChain, recipient, amount, txid are validated
     struct DepositBtcActionV0 {

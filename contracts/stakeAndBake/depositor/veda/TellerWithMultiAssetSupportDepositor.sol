@@ -11,6 +11,7 @@ import {ITeller} from "./ITeller.sol";
  * @title Depositor for the `BoringVault` vault.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @custom:security-contact security@lombard.finance
  */
 contract TellerWithMultiAssetSupportDepositor is IDepositor, ReentrancyGuard {
     using SafeERC20 for IERC20;

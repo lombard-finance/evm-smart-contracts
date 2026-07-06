@@ -5,6 +5,7 @@ import {IMailbox} from "../../gmp/IMailbox.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IGMPBascule} from "../../bascule/interfaces/IGMPBascule.sol";
 
+/// @custom:security-contact security@lombard.finance
 interface IAssetRouter {
     // Describes types of possible routes. UNKNOWN means no route or disabled route
     enum RouteType {
