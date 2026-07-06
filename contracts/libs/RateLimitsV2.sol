@@ -6,8 +6,11 @@ pragma solidity 0.8.24;
  * @notice Gas-optimized successor to {RateLimits}.
  *
  * @dev Decay math matches {RateLimits}: a continuous linear-decay (leaky-bucket) limiter where
- *      `amountInFlight` decays towards zero over `window`. Configuration and error semantics
- *      are tightened vs V1: `setRateLimit` rejects `window == 0`, caps decayed in-flight to the
+ *      `amountInFlight` decays towards zero at `limit / window` per second (no period reset).
+ *      `limit` is bucket capacity — the maximum instantaneous in-flight amount — not a hard cap on
+ *      total mintable volume over any `window`-length interval; in the worst case a caller can
+ *      consume up to ~2× `limit` over `window` seconds (full burst, full decay, full burst again).
+ *      Configuration and error semantics are tightened vs V1: `setRateLimit` rejects `window == 0`, caps decayed in-flight to the
  *      new limit on reconfigure, and `updateLimit` reverts {RateLimitNotConfigured} when unset
  *      (V1 allowed updates against a zero limit). {RateLimitExceeded} carries revert args.
  *
@@ -27,10 +30,11 @@ pragma solidity 0.8.24;
 library RateLimitsV2 {
     /**
      * @notice Packed rate-limit state. All four fields share one storage slot.
-     * @param amountInFlight The amount in the current window at `lastUpdated`.
-     * @param limit Maximum allowed amount within a `window`.
+     * @param amountInFlight Outstanding amount checkpointed at `lastUpdated`; decays linearly toward zero between updates.
+     * @param limit Bucket capacity: maximum instantaneous `amountInFlight`. Not a per-window mint cap — up to ~2× `limit`
+     *              can be consumed over any `window`-length interval in the worst case.
      * @param lastUpdated Timestamp the limit was last checked/updated.
-     * @param window Duration of the rate-limiting window, in seconds.
+     * @param window Time in seconds for a full bucket (`amountInFlight == limit`) to drain to zero at rate `limit / window` per second.
      */
     struct Data {
         uint96 amountInFlight;
@@ -41,8 +45,8 @@ library RateLimitsV2 {
 
     /**
      * @notice Rate-limit configuration.
-     * @param limit Maximum allowed amount within a `window`.
-     * @param window Duration of the rate-limiting window, in seconds.
+     * @param limit Bucket capacity: maximum instantaneous in-flight amount (see {Data.limit}).
+     * @param window Drain time for a full bucket; sets decay rate `limit / window` per second (see {Data.window}).
      */
     struct Config {
         uint96 limit;
@@ -52,7 +56,7 @@ library RateLimitsV2 {
     /// @notice Thrown when an amount exceeds the rate limit.
     /// @param requested Amount that was requested.
     /// @param remaining Remaining capacity at `block.timestamp` before applying `requested`.
-    /// @param limit Configured limit for the window.
+    /// @param limit Configured bucket capacity (maximum instantaneous in-flight amount).
     error RateLimitExceeded(
         uint256 requested,
         uint256 remaining,
