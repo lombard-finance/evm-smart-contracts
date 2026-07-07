@@ -23,6 +23,7 @@ pragma solidity 0.8.24;
  *          `block.timestamp - lastUpdated` wraps large, the bucket reads as fully decayed, and
  *          the cap stops constraining (fails open, not locked)
  *        - window          uint32  seconds, max ~136 years
+ * @custom:security-contact security@lombard.finance
  */
 library RateLimitsV2 {
     /**
