@@ -93,6 +93,14 @@ library RateLimitsV2 {
         rl.window = config.window;
     }
 
+    /**
+     * @notice Returns decayed in-flight usage and remaining capacity at `block.timestamp`.
+     * @param rl The rate limit state to query.
+     * @return currentAmountInFlight Decayed in-flight amount at `block.timestamp`; `0` when unset
+     *         (`limit == 0`) or when the full `window` has elapsed since `lastUpdated`.
+     * @return remainingCapacity Mint allowance still available within the current window; `0` when
+     *         unset (`limit == 0`).
+     */
     function availableAmount(
         Data storage rl
     )
