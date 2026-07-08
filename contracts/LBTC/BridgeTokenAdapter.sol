@@ -208,7 +208,7 @@ contract BridgeTokenAdapter is
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
-        RateLimitsV2.Config memory config
+        RateLimitsV2.Config calldata config
     ) external override onlyRole(MANAGER_ROLE) {
         BridgeTokenAdapterStorage storage $ = _getBridgeTokenAdapterStorage();
         if (config.limit == 0) {
