@@ -200,10 +200,11 @@ contract BridgeTokenAdapter is
     /// @dev `limit` = `0` deletes the minter's mapping entry (unset; mints revert until reconfigured).
     ///      When `minter` is `address(this)`, the bucket is a single PROTOCOL-WIDE proof-mint quota
     ///      shared by ALL permissionless proof mints (`mintV1`, `batchMintV1`). It is not per-recipient
-    ///      or per-caller: size `limit` for aggregate proof-mint throughput across the whole `window`
-    ///      and expect short-window cross-user contention (one user's heavy-but-legitimate proof mints
-    ///      can transiently exhaust the bucket and revert others' unrelated proof mints with
-    ///      `RateLimitExceeded` until it decays).
+    ///      or per-caller: size `limit` as bucket capacity (peak burst), not as a per-`window` volume
+    ///      cap — sustained throughput is ~`limit / window` per second and up to ~2× `limit` can be
+    ///      consumed over any `window`-length interval. Expect short-window cross-user contention (one
+    ///      user's heavy-but-legitimate proof mints can transiently exhaust the bucket and revert others'
+    ///      unrelated proof mints with `RateLimitExceeded` until it decays).
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
@@ -388,8 +389,9 @@ contract BridgeTokenAdapter is
     ///      it is NOT per-recipient or per-caller. Heavy but fully legitimate proof-mint activity from
     ///      one user can temporarily exhaust the bucket and make other users' unrelated proof mints
     ///      revert with `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s
-    ///      `limit` for aggregate proof-mint throughput across the whole window, and expect
-    ///      short-window contention.
+    ///      `limit` as bucket capacity (peak burst), not as a per-window volume cap — sustained
+    ///      throughput is ~`limit / window` per second and up to ~2× `limit` can be consumed over any
+    ///      `window`-length interval. Expect short-window contention.
     function _mintV1(
         bytes calldata rawPayload,
         bytes calldata proof
