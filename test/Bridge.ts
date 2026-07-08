@@ -18,7 +18,8 @@ import {
   getSignersWithPrivateKeys,
   NEW_VALSET,
   signDepositBridgePayload,
-  Signer
+  Signer,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
@@ -52,10 +53,7 @@ describe('Bridge', function () {
       await getSignersWithPrivateKeys();
 
     // for both chains
-    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, true);
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [signer1.publicKey], [1], 1, 1], NEW_VALSET));
 
     // chain 1
@@ -63,13 +61,13 @@ describe('Bridge', function () {
       'StakedLBTC',
       [treasurySource.address, deployer.address, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     bridgeSource = await deployContract<Bridge>(
       'Bridge',
       [await stakedLbtcSource.getAddress(), treasurySource.address, deployer.address],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -82,13 +80,13 @@ describe('Bridge', function () {
       'StakedLBTC',
       [treasuryDestination.address, deployer.address, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     bridgeDestination = await deployContract<Bridge>(
       'Bridge',
       [await stakedLbtcDestination.getAddress(), treasuryDestination.address, deployer.address],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
 
     await stakedLbtcSource
@@ -105,6 +103,17 @@ describe('Bridge', function () {
     await stakedLbtcDestination
       .connect(deployer)
       .grantRole(await stakedLbtcDestination.MINTER_ROLE(), deployer.address);
+
+    await stakedLbtcSource.connect(deployer).grantRole(await stakedLbtcSource.MANAGER_ROLE(), deployer.address);
+    await stakedLbtcDestination
+      .connect(deployer)
+      .grantRole(await stakedLbtcDestination.MANAGER_ROLE(), deployer.address);
+    await stakedLbtcSource.connect(deployer).setMinterLimit(await bridgeSource.getAddress(), UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcDestination
+      .connect(deployer)
+      .setMinterLimit(await bridgeDestination.getAddress(), UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcSource.connect(deployer).setMinterLimit(deployer.address, UNLIMITED_MINTER_CONFIG);
+    await stakedLbtcDestination.connect(deployer).setMinterLimit(deployer.address, UNLIMITED_MINTER_CONFIG);
 
     // set rate limits
     const oo = {

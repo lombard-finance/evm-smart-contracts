@@ -60,10 +60,7 @@ describe('StakeAndBakeForNativeToken', function () {
     [_, owner, signer1, signer2, signer3, notary1, operator, pauser, treasury, trustedSigner] =
       await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -85,7 +82,7 @@ describe('StakeAndBakeForNativeToken', function () {
         1_000_000
       ],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     stakeAndBakeForNativeToken.address = await stakeAndBakeForNativeToken.getAddress();
 

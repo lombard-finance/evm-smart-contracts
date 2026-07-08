@@ -23,6 +23,35 @@ import {Validation} from "./libraries/Validation.sol";
  * @title Router to store xxxLBTC Staking paths and token's name.
  * @author Lombard.Finance
  * @notice This contract is part of the Lombard.Finance protocol
+ * @dev Fee collection on redeem and StakedLBTC deposit paths uses burn-then-mint to treasury
+ *      (not a user transfer) so callers do not need a separate fee approval. Those treasury
+ *      mints go through the token's `MINTER_ROLE` entrypoint and consume the {AssetRouter}
+ *      minter rate-limit bucket; burns do not release bucket capacity.
+ *
+ *      For `StakedLBTC` there is no separate per-token proof-mint bucket: ordinary release/proof
+ *      claims also reach `StakedLBTC.mint(address,uint256)` with `msg.sender == AssetRouter`
+ *      (via `handlePayload`), so release claims, redeem-fee mints, and `mintWithFee` fee legs all
+ *      share the single `minterRateLimits[AssetRouter]` bucket. This single AssetRouter-wide quota
+ *      is intended: the limit must be sized for aggregate throughput across all of these flows, and
+ *      short-window cross-user contention (one user's fee or release traffic temporarily reducing
+ *      another user's available capacity, up to a transient `RateLimitExceeded`) is expected.
+ *
+ *      Lombard acknowledges the following expected behaviour when the AssetRouter bucket is
+ *      tight or exhausted:
+ *      - `redeem` / `redeemForBtc` may revert on the fee mint even though the operation is
+ *        net supply-reducing (user burns `amount + fee`).
+ *      - `mintWithFee` (StakedLBTC) counts both the deposit mint and the fee mint against the
+ *        same bucket (`amount + fee` consumed; net supply increase is only `amount`). A deposit
+ *        with `amount == remainingCapacity` can revert on the fee step.
+ *      - An inbound StakedLBTC release claim can revert with `RateLimitExceeded` if unrelated
+ *        fee/release traffic has exhausted the shared bucket within the window, and vice-versa.
+ *
+ *      NativeLBTC and BridgeTokenAdapter proof mints instead consume their own `address(this)`
+ *      bucket, and NativeLBTC proof mints with fee use `_transfer` for the commission, so they are
+ *      not subject to this double-count or to StakedLBTC release/fee contention on the AssetRouter
+ *      bucket. Operators sizing the AssetRouter limit should budget for fee mints on redeem and
+ *      StakedLBTC deposit paths plus StakedLBTC release-claim throughput; see
+ *      `docs/operator-rate-limits.md`.
  * @custom:security-contact security@lombard.finance
  */
 contract AssetRouter is
@@ -568,6 +597,10 @@ contract AssetRouter is
         );
     }
 
+    /// @dev Sends the redeem GMP message, mints `fee` to treasury, then burns `amount + fee`
+    ///      from `fromAddress`. The fee mint consumes the AssetRouter minter rate-limit bucket.
+    ///      If the bucket lacks capacity for `fee`, the whole redeem reverts — expected and
+    ///      acknowledged by Lombard.
     function _redeem(
         AssetRouterStorage storage $,
         address fromAddress,
@@ -720,6 +753,10 @@ contract AssetRouter is
         return (success, recipient, token, amount);
     }
 
+    /// @dev Mints the deposit to `recipient`, then burns `fee` from `recipient` and mints it
+    ///      to treasury. Both mints consume the AssetRouter minter rate-limit bucket (`amount +
+    ///      fee` total; net supply increase is `amount`). Double-counting is expected and
+    ///      acknowledged by Lombard.
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
@@ -756,7 +793,7 @@ contract AssetRouter is
             );
             Assert.feeApproval(digest, recipient, userSignature);
         }
-        if (amount < fee) {
+        if (amount <= fee) {
             revert AssetRouter_FeeGreaterThanAmount();
         }
         if (fee > 0) {

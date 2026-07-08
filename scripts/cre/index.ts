@@ -1,6 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { verify } from '../helpers';
 import { BytesLike } from 'ethers';
+import { deployLinkedImplementation, implementationVerifyOptions, LinkedLibraries } from '../helpers/linkedLibraries';
 
 export class CustomRuntimeEnvironment {
   constructor(private readonly hre: HardhatRuntimeEnvironment) {}
@@ -24,19 +25,18 @@ export class CustomRuntimeEnvironment {
     return proxyAdmin;
   }
 
-  async deployImplementation(contract: string): Promise<string> {
+  async deployImplementation(contract: string, libraries: LinkedLibraries = {}): Promise<string> {
     // TODO: verify storage
 
     console.log(`Deploying ${contract} implementation`);
 
-    const impl = await this.hre.ethers.deployContract(contract);
-    await impl.waitForDeployment();
+    const { impl, libraries: linkedLibraries } = await deployLinkedImplementation(this.hre, contract, libraries);
 
     const addr = await impl.getAddress();
 
     console.log(`New implementation of ${contract} deployed at ${addr}, verifying...`);
 
-    await verify(this.hre.run, addr);
+    await verify(this.hre.run, addr, implementationVerifyOptions(this.hre, contract, linkedLibraries));
 
     return addr;
   }

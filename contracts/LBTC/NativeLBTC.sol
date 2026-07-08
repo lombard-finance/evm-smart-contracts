@@ -47,7 +47,6 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         0xb773c428c0cecc1b857b133b10e11481edd580cedc90e62754fff20b7c0d6000;
 
     bytes32 public constant CLAIMER_ROLE = keccak256("CLAIMER_ROLE");
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @dev https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#initializing_the_implementation_contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -232,7 +231,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         address to,
         uint256 amount
     ) external override onlyRole(MINTER_ROLE) whenMintBurnAllowed {
-        _mint(to, amount);
+        _mintWithLimit(to, amount);
     }
 
     /**
@@ -245,7 +244,7 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         address[] calldata to,
         uint256[] calldata amount
     ) external onlyRole(MINTER_ROLE) whenMintBurnAllowed {
-        _batchMint(to, amount);
+        _batchMintWithLimit(to, amount);
     }
 
     /**
@@ -402,6 +401,9 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         return (action.recipient, action.amount);
     }
 
+    /// @dev Proof mint consumes the `address(this)` rate-limit bucket; the commission is moved
+    ///      via `_transfer` to treasury (not a second mint), so only `amount` counts against
+    ///      the bucket. Unlike {AssetRouter._mintWithFee}, this path does not double-count fees.
     function _mintWithFee(
         bytes calldata mintPayload,
         bytes calldata proof,
@@ -445,6 +447,15 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         emit FeeCharged(fee, userSignature);
     }
 
+    /// @dev Consumes the proof-mint rate-limit bucket keyed by `address(this)`. This is a single,
+    ///      protocol-wide quota shared by ALL permissionless proof mints (`mintV1`, `batchMintV1`)
+    ///      and the `CLAIMER_ROLE` fee paths (`mintV1WithFee`, `batchMintV1WithFee`) — it is NOT
+    ///      per-recipient or per-caller. Heavy but fully legitimate proof-mint activity from one user
+    ///      can temporarily exhaust the bucket and make other users' unrelated proof mints revert with
+    ///      `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s `limit` as
+    ///      bucket capacity (peak burst), not as a per-window volume cap — sustained throughput is
+    ///      ~`limit / window` per second and up to ~2× `limit` can be consumed over any `window`-length
+    ///      interval. Expect short-window contention.
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,
@@ -466,7 +477,8 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
         // Confirm deposit against Bascule
         _confirmDeposit($, legacyHash, amountToMint);
 
-        // Actually mint
+        // Actually mint (contract-level bucket; caller is not `MINTER_ROLE`)
+        _consumeMinterLimit(address(this), amountToMint);
         _mint(recipient, amountToMint);
 
         emit MintProofConsumed(recipient, payloadHash, payload);

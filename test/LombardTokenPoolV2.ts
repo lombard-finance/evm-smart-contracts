@@ -14,10 +14,7 @@ describe('LombardTokenPoolV2', function () {
     [deployer, owner, router, rmnProxy, mailbox] = await getSignersWithPrivateKeys();
 
     const tokenWithDecimals = await deployContract('BridgeTokenMock', [], false);
-    const bridge = await deployContract('BridgeV2', [owner.address, mailbox.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    const bridge = await deployContract('BridgeV2', [owner.address, mailbox.address], true, true);
 
     tokenPool = await deployContract(
       'LombardTokenPoolV2',

@@ -1,5 +1,6 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { verify, getProxyFactoryAt, getProxySalt } from './index';
+import { deployLinkedImplementation, implementationVerifyOptions, LinkedLibraries } from './linkedLibraries';
 import { Addressable } from 'ethers';
 
 export async function create3(
@@ -10,14 +11,12 @@ export async function create3(
   admin: string,
   hre: HardhatRuntimeEnvironment,
   contractName: string = contract,
-  nonce: number = 0
+  nonce: number = 0,
+  libraries: LinkedLibraries = {}
 ): Promise<{ proxy: any; proxyAdmin: any }> {
-  const impl = await hre.ethers.deployContract(contract);
-  await impl.waitForDeployment();
+  const { impl, libraries: linkedLibraries } = await deployLinkedImplementation(hre, contract, libraries);
 
   const data = impl.interface.encodeFunctionData('initialize', args);
-
-  await verify(run, await impl.getAddress());
 
   return deployProxyWithCreate3(
     impl,
@@ -25,7 +24,9 @@ export async function create3(
     factoryAddr,
     getProxySalt(hre.ethers, ledgerNetwork, contractName, nonce),
     admin,
-    hre
+    hre,
+    contract,
+    linkedLibraries
   );
 }
 
@@ -35,7 +36,9 @@ export async function deployProxyWithCreate3(
   factoryAddr: string,
   saltHash: string,
   admin: string,
-  hre: HardhatRuntimeEnvironment
+  hre: HardhatRuntimeEnvironment,
+  contract?: string,
+  linkedLibraries: LinkedLibraries = {}
 ): Promise<{ proxy: any; proxyAdmin: any }> {
   const { ethers, run, upgrades } = hre;
 
@@ -50,6 +53,11 @@ export async function deployProxyWithCreate3(
   const proxyAdmin = await upgrades.erc1967.getAdminAddress(proxy);
   console.log('Proxy admin:', proxyAdmin);
 
+  if (contract) {
+    await verify(run, await impl.getAddress(), implementationVerifyOptions(hre, contract, linkedLibraries));
+  } else {
+    await verify(run, await impl.getAddress());
+  }
   await verify(run, proxyAdmin, {
     contract: '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol:ProxyAdmin',
     constructorArguments: [admin]

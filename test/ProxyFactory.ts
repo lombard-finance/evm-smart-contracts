@@ -1,8 +1,10 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { ProxyFactory, StakedLBTC, WBTCMock } from '../typechain-types';
-import { ethers, network } from 'hardhat';
+import hre, { ethers, network } from 'hardhat';
 import { expect } from 'chai';
 import { takeSnapshot } from '@nomicfoundation/hardhat-network-helpers';
+import { deployLibrary } from '../scripts/helpers/libraryDeployment';
+import { deployLinkedImplementation } from '../scripts/helpers/linkedLibraries';
 
 describe('ProxyFactory', () => {
   let proxyFactory: ProxyFactory;
@@ -20,9 +22,9 @@ describe('ProxyFactory', () => {
     await contract.waitForDeployment();
     proxyFactory = factory.attach(await contract.getAddress()) as ProxyFactory;
 
-    const lbtcFactory = await ethers.getContractFactory('StakedLBTC');
-    lbtcImplementation = (await lbtcFactory.deploy()) as StakedLBTC;
-    await lbtcImplementation.waitForDeployment();
+    const libraries = { RateLimitsV2: await deployLibrary(hre, 'RateLimitsV2') };
+    const { impl } = await deployLinkedImplementation<StakedLBTC>(hre, 'StakedLBTC', libraries);
+    lbtcImplementation = impl;
 
     const wbtcMockFactory = await ethers.getContractFactory('WBTCMock');
     wbtcMockImplementation = (await wbtcMockFactory.deploy()) as WBTCMock;

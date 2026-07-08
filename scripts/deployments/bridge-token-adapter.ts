@@ -1,6 +1,7 @@
 import { task } from 'hardhat/config';
 import { proxyDeployment } from '../helpers/proxyDeployment';
 import { deploy } from '../helpers/simpleDeployment';
+import { parseLibrariesArg } from '../helpers/linkedLibraries';
 
 task('deploy-bridge-token-adapter', 'Deploys the BridgeTokenAdapter contract')
   .addParam('consortium', 'The address of LombardConsortium')
@@ -8,6 +9,7 @@ task('deploy-bridge-token-adapter', 'Deploys the BridgeTokenAdapter contract')
   .addOptionalParam('admin', 'The owner of the proxy', 'self')
   .addOptionalParam('bridgeToken', 'The bridge token contract address', 'mock')
   .addOptionalParam('adminChangeDelay', 'The delay of admin role change', '0')
+  .addOptionalParam('libraries', 'Comma-separated linked libraries as LibraryName:address', '')
   .setAction(async (taskArgs, hre, network) => {
     const { ethers } = hre;
 
@@ -16,7 +18,8 @@ task('deploy-bridge-token-adapter', 'Deploys the BridgeTokenAdapter contract')
       treasury: treasuryArg,
       admin: adminArg,
       adminChangeDelay,
-      bridgeToken: bridgeTokenArg
+      bridgeToken: bridgeTokenArg,
+      libraries
     } = taskArgs;
 
     const [signer] = await hre.ethers.getSigners();
@@ -45,7 +48,8 @@ task('deploy-bridge-token-adapter', 'Deploys the BridgeTokenAdapter contract')
       'BridgeTokenAdapter',
       [consortium, treasury, owner, adminChangeDelay, bridgeToken],
       owner,
-      hre
+      hre,
+      parseLibrariesArg(libraries)
     );
 
     if (bridgeTokenMocked) {

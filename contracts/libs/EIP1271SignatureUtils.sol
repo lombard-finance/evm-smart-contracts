@@ -17,7 +17,8 @@ library EIP1271SignatureUtils {
 
     /**
      * @notice Checks @param signature is a valid signature of @param digest from @param signer.
-     * If the `signer` contains no code -- i.e. it is not (yet, at least) a contract address, then checks using standard ECDSA logic
+     * If the `signer` contains no code -- i.e. it is not (yet, at least) a contract address, then checks using standard ECDSA logic.
+     * If the `signer` contains the code and it is EIP-7702 delegation (23 bytes starting with `0xef0100`), then ECDSA logic is used.
      * Otherwise, passes on the signature to the signer to verify the signature and checks that it returns the `EIP1271_MAGICVALUE`.
      */
     function checkSignature(
@@ -25,7 +26,7 @@ library EIP1271SignatureUtils {
         bytes32 digest,
         bytes memory signature
     ) internal view returns (bool) {
-        if (signer.code.length != 0) {
+        if (!isEoaAccount(signer)) {
             if (
                 IERC1271(signer).isValidSignature(digest, signature) !=
                 EIP1271_MAGICVALUE
@@ -38,5 +39,20 @@ library EIP1271SignatureUtils {
             }
         }
         return true;
+    }
+
+    function isEoaAccount(address account) internal view returns (bool) {
+        if (account.code.length == 0) {
+            return true;
+        }
+        if (
+            account.code.length == 23 &&
+            account.code[0] == 0xef &&
+            account.code[1] == 0x01 &&
+            account.code[2] == 0x00
+        ) {
+            return true;
+        }
+        return false;
     }
 }

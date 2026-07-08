@@ -14,7 +14,8 @@ import {
   NEW_VALSET,
   randomBigInt,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { ethers, network } from 'hardhat';
 import { expect } from 'chai';
@@ -55,10 +56,7 @@ describe('BridgeV2', function () {
     [deployer, owner, pauser, treasury, minter, notary, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
 
     // Consortium
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [deployer.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium.setInitialValidatorSet(getPayloadForAction([1, [notary.publicKey], [1], 1, 1], NEW_VALSET));
 
@@ -67,7 +65,7 @@ describe('BridgeV2', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     smailbox.address = await smailbox.getAddress();
     await smailbox.connect(owner).grantRole(await smailbox.TREASURER_ROLE(), treasury);
@@ -77,7 +75,7 @@ describe('BridgeV2', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     dmailbox.address = await dmailbox.getAddress();
     await dmailbox.connect(owner).grantRole(await dmailbox.TREASURER_ROLE(), treasury);
@@ -89,16 +87,10 @@ describe('BridgeV2', function () {
     await dmailbox.connect(owner).enableMessagePath(lChainId, encode(['address'], [smailbox.address]), 2);
 
     // Bridges
-    sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, true);
     sbridge.address = await sbridge.getAddress();
     sBridgeBytes = encode(['address'], [sbridge.address]);
-    dbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, dmailbox.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    dbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, dmailbox.address], true, true);
     dbridge.address = await dbridge.getAddress();
     dBridgeBytes = encode(['address'], [dbridge.address]);
 
@@ -106,10 +98,13 @@ describe('BridgeV2', function () {
     sLBTC = await initStakedLBTC(owner.address, owner.address);
     sLBTC.address = await sLBTC.getAddress();
     await sLBTC.connect(owner).grantRole(await sLBTC.MINTER_ROLE(), minter.address);
+    await sLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     dLBTC = await initStakedLBTC(owner.address, owner.address);
     dLBTC.address = await dLBTC.getAddress();
     await dLBTC.connect(owner).grantRole(await dLBTC.MINTER_ROLE(), minter.address);
+    await dLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     await dLBTC.connect(owner).grantRole(await dLBTC.MINTER_ROLE(), dbridge.address);
+    await dLBTC.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
 
     // Set paths and map tokens
     await sbridge.connect(owner).setDestinationBridge(lChainId, dBridgeBytes);
@@ -153,10 +148,12 @@ describe('BridgeV2', function () {
         await snapshot.restore();
         globalNonce = 0;
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
       });
 
@@ -206,10 +203,12 @@ describe('BridgeV2', function () {
         await snapshot.restore();
         globalNonce = 1;
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
         await sbridge.connect(owner).setDestinationBridge(dChain, dBridgeBytes);
       });
@@ -281,10 +280,12 @@ describe('BridgeV2', function () {
         await snapshot.restore();
         globalNonce = 1;
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
         await sbridge.connect(owner).setDestinationBridge(dChain, dBridgeBytes);
         await sbridge.connect(owner).addDestinationToken(dChain, sToken, dToken);
@@ -358,6 +359,7 @@ describe('BridgeV2', function () {
       token.address = await token.getAddress();
       dummy = signer2;
       await token.connect(owner).grantRole(await token.MINTER_ROLE(), owner.address);
+      await token.connect(owner).setMinterLimit(owner.address, UNLIMITED_MINTER_CONFIG);
       await token.connect(owner)['mint(address,uint256)'](dummy, e18);
     });
 
@@ -592,6 +594,7 @@ describe('BridgeV2', function () {
       const sLBTC = await initStakedLBTC(owner.address, owner.address);
       sLBTC.address = await sLBTC.getAddress();
       await sLBTC.connect(owner).grantRole(await sLBTC.MINTER_ROLE(), minter.address);
+      await sLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
       await sLBTC.connect(minter)['mint(address,uint256)'](signer1, AMOUNT);
       await sLBTC.connect(signer1).approve(sbridge, AMOUNT);
       let newDstToken = ethers.Wallet.createRandom().address;
@@ -754,10 +757,12 @@ describe('BridgeV2', function () {
       beforeEach(async () => {
         await snapshot.restore();
 
-        sbridge = await deployContract<BridgeV2 & Addressable>('BridgeV2', [owner.address, smailbox.address], true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        });
+        sbridge = await deployContract<BridgeV2 & Addressable>(
+          'BridgeV2',
+          [owner.address, smailbox.address],
+          true,
+          true
+        );
         sbridge.address = await sbridge.getAddress();
       });
 
@@ -994,6 +999,7 @@ describe('BridgeV2', function () {
         const dLBTC2 = await initStakedLBTC(owner.address, owner.address);
         dLBTC2.address = await dLBTC2.getAddress();
         await dLBTC2.connect(owner).grantRole(await dLBTC2.MINTER_ROLE(), dbridge.address);
+        await dLBTC2.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
         await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
 
         const amount = randomBigInt(8);
@@ -1294,6 +1300,7 @@ describe('BridgeV2', function () {
         unknownToken = await initStakedLBTC(owner.address, owner.address);
         unknownToken.address = await unknownToken.getAddress();
         await unknownToken.connect(owner).grantRole(await unknownToken.MINTER_ROLE(), dbridge.address);
+        await unknownToken.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
       });
 
       const args = [
@@ -1439,6 +1446,7 @@ describe('BridgeV2', function () {
       dLBTC2 = await initStakedLBTC(owner.address, owner.address);
       dLBTC2.address = await dLBTC2.getAddress();
       await dLBTC2.connect(owner).grantRole(await dLBTC2.MINTER_ROLE(), dbridge.address);
+      await dLBTC2.connect(owner).setMinterLimit(dbridge.address, UNLIMITED_MINTER_CONFIG);
       await dbridge.connect(owner).addDestinationToken(lChainId, dLBTC2, sLBTC2);
 
       //Link another chain

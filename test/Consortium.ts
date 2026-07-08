@@ -24,10 +24,7 @@ describe('Consortium', function () {
     await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, signer1, signer2, signer3] = await getSignersWithPrivateKeys();
-    lombard = await deployContract<Consortium>('Consortium', [deployer.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    lombard = await deployContract<Consortium>('Consortium', [deployer.address], true, true);
     snapshot = await takeSnapshot();
   });
 
@@ -274,10 +271,7 @@ describe('Consortium with real data', function () {
     await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer] = await getSignersWithPrivateKeys();
-    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium>('Consortium', [deployer.address], true, true);
   });
 
   it('should set initial ValSet', async function () {

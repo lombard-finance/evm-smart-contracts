@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { ethers, network, upgrades } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { WBTCMock, StakedLBTC, CBBTCPMM } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
-import { initStakedLBTC, deployContract } from './helpers';
+import { deployContract, initStakedLBTC, UNLIMITED_MINTER_CONFIG } from './helpers';
 
 describe('CBBTCPMM', function () {
   let pmm: CBBTCPMM;
@@ -19,34 +19,27 @@ describe('CBBTCPMM', function () {
 
   let snapshot: SnapshotRestorer;
 
-  async function deploy<T>(contractName: string, asType: string, args: any[] = [], isProxy: boolean = true) {
-    const factory = await ethers.getContractFactory(contractName);
-    const contract = isProxy
-      ? await deployContract(contractName, args, true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        })
-      : await factory.deploy(...args);
-    await contract.waitForDeployment();
-    return (await ethers.getContractFactory(asType)).attach(await contract.getAddress()) as T;
-  }
-
   before(async function () {
     await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, withdrawalAddress, signer1, signer2, operator, pauser] = await ethers.getSigners();
 
-    cbbtc = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
+    cbbtc = await deployContract<WBTCMock>('WBTCMock', [], true, true);
     await cbbtc.setDecimals(8);
     lbtc = await initStakedLBTC(deployer.address, deployer.address);
-    pmm = await deploy<CBBTCPMM>('CBBTCPMM', 'CBBTCPMM', [
-      await lbtc.getAddress(),
-      await cbbtc.getAddress(),
-      await deployer.getAddress(),
-      ethers.parseUnits('30', 8),
-      await withdrawalAddress.getAddress(),
-      1000 // 10%
-    ]);
+    pmm = await deployContract<CBBTCPMM>(
+      'CBBTCPMM',
+      [
+        await lbtc.getAddress(),
+        await cbbtc.getAddress(),
+        await deployer.getAddress(),
+        ethers.parseUnits('30', 8),
+        await withdrawalAddress.getAddress(),
+        1000 // 10%
+      ],
+      true,
+      true
+    );
 
     await pmm.grantRole(await pmm.OPERATOR_ROLE(), await operator.getAddress());
 
@@ -167,7 +160,9 @@ describe('CBBTCPMM', function () {
 
     describe('With whitelisted minter', function () {
       beforeEach(async function () {
+        await lbtc.connect(deployer).grantRole(await lbtc.MANAGER_ROLE(), deployer.address);
         await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await pmm.getAddress());
+        await lbtc.connect(deployer).setMinterLimit(await pmm.getAddress(), UNLIMITED_MINTER_CONFIG);
       });
 
       it('should allow swaps', async function () {

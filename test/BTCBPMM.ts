@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { ethers, network, upgrades } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { BTCBPMM, WBTCMock, StakedLBTC } from '../typechain-types';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { takeSnapshot, SnapshotRestorer } from '@nomicfoundation/hardhat-network-helpers';
-import { initStakedLBTC, deployContract } from './helpers';
+import { deployContract, initStakedLBTC, UNLIMITED_MINTER_CONFIG } from './helpers';
 
 describe('BTCBPMM', function () {
   let pmm: BTCBPMM;
@@ -18,35 +18,28 @@ describe('BTCBPMM', function () {
 
   let snapshot: SnapshotRestorer;
 
-  async function deploy<T>(contractName: string, asType: string, args: any[] = [], isProxy: boolean = true) {
-    const factory = await ethers.getContractFactory(contractName);
-    const contract = isProxy
-      ? await deployContract(contractName, args, true, {
-          initializer: 'initialize',
-          unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-        })
-      : await factory.deploy(...args);
-    await contract.waitForDeployment();
-    return (await ethers.getContractFactory(asType)).attach(await contract.getAddress()) as T;
-  }
-
   before(async function () {
     await network.provider.request({ method: 'hardhat_reset', params: [] });
 
     [deployer, withdrawalAddress, signer1, signer2, pauser] = await ethers.getSigners();
 
-    btcb = await deploy<WBTCMock>('WBTCMock', 'WBTCMock');
+    btcb = await deployContract<WBTCMock>('WBTCMock', [], true, true);
     // use btcb decimals of 8
     await btcb.setDecimals(18);
     lbtc = await initStakedLBTC(deployer.address, deployer.address);
-    pmm = await deploy<BTCBPMM>('BTCBPMM', 'BTCBPMM', [
-      await lbtc.getAddress(),
-      await btcb.getAddress(),
-      await deployer.getAddress(),
-      ethers.parseUnits('30', 8),
-      await withdrawalAddress.getAddress(),
-      1000 // 10%
-    ]);
+    pmm = await deployContract<BTCBPMM>(
+      'BTCBPMM',
+      [
+        await lbtc.getAddress(),
+        await btcb.getAddress(),
+        await deployer.getAddress(),
+        ethers.parseUnits('30', 8),
+        await withdrawalAddress.getAddress(),
+        1000 // 10%
+      ],
+      true,
+      true
+    );
 
     snapshot = await takeSnapshot();
   });
@@ -170,7 +163,9 @@ describe('BTCBPMM', function () {
 
     describe('With whitelisted minter', function () {
       beforeEach(async function () {
+        await lbtc.connect(deployer).grantRole(await lbtc.MANAGER_ROLE(), deployer.address);
         await lbtc.connect(deployer).grantRole(await lbtc.MINTER_ROLE(), await pmm.getAddress());
+        await lbtc.connect(deployer).setMinterLimit(await pmm.getAddress(), UNLIMITED_MINTER_CONFIG);
       });
 
       it('should allow swaps', async function () {

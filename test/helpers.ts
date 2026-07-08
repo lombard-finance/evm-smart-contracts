@@ -1,10 +1,11 @@
+import hre, { config, ethers, upgrades } from 'hardhat';
 import type { DeployProxyOptions } from '@openzeppelin/hardhat-upgrades/dist/utils/options';
-import { config, ethers, upgrades } from 'hardhat';
 import { impersonateAccount } from '@nomicfoundation/hardhat-network-helpers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { AddressLike, BaseContract, BigNumberish, ContractMethodArgs, randomBytes, Signature } from 'ethers';
 import { Consortium, NativeLBTC, StakedLBTC } from '../typechain-types';
 import { BytesLike } from 'ethers/lib.commonjs/utils/data';
+import { getContractFactoryWithLibraries } from '../scripts/helpers/linkedLibraries';
 
 export type Signer = HardhatEthersSigner & {
   publicKey: string;
@@ -17,6 +18,19 @@ export const CHAIN_ID: string = encode(['uint256'], [1]);
 
 export const e18: bigint = 10n ** 18n;
 export const e8: bigint = 10n ** 8n;
+export const UNLIMITED_MINTER_CONFIG = {
+  limit: (1n << 96n) - 1n,
+  window: 1n
+};
+export const PROXY_DEPLOY_OPTS: DeployProxyOptions = {
+  unsafeAllow: [
+    'constructor',
+    'external-library-linking',
+    'missing-initializer',
+    'missing-initializer-call',
+    'incorrect-initializer-order'
+  ]
+};
 export const LEDGER_CHAIN_ID: string = '0x0387b25e8e61f2ce4838b04795b231f09ee73ffd391da018bef4bc5c4975897b';
 export const BITCOIN_CHAIN_ID: string = encode(
   ['uint256'],
@@ -269,11 +283,13 @@ export async function deployContract<T extends BaseContract>(
   contractName: string,
   args: any[],
   isProxy: boolean = true,
-  opts: DeployProxyOptions = {}
+  proxyOpts: boolean | DeployProxyOptions = false
 ): Promise<T & Addressable> {
-  const factory = await ethers.getContractFactory(contractName);
-  const contract = (await (isProxy ? upgrades.deployProxy(factory, args, opts) : factory.deploy(...args))) as T &
-    Addressable;
+  const { factory } = await getContractFactoryWithLibraries(hre, contractName);
+  const proxyOptions = typeof proxyOpts === 'boolean' ? (proxyOpts ? PROXY_DEPLOY_OPTS : undefined) : proxyOpts;
+  const contract = (await (isProxy
+    ? upgrades.deployProxy(factory, args, proxyOptions)
+    : factory.deploy(...args))) as T & Addressable;
   await contract.waitForDeployment();
 
   contract.address = await contract.getAddress();
@@ -296,9 +312,10 @@ export async function initStakedLBTC(owner: string, treasury: string, initialOwn
     'StakedLBTC',
     [treasury, owner, initialOwnerDelay],
     true,
-    { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    true
   );
   lbtc.address = await lbtc.getAddress();
+  await lbtc.connect(await ethers.getSigner(owner)).grantRole(await lbtc.MANAGER_ROLE(), owner);
   return lbtc;
 }
 
@@ -309,19 +326,19 @@ export async function initNativeLBTC(
   initialOwnerDelay: bigint = 0n
 ): Promise<NativeLBTC & Addressable> {
   if (consortium === ethers.ZeroAddress) {
-    const c = await deployContract<Consortium>('ConsortiumMock', [owner], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    const c = await deployContract<Consortium>('ConsortiumMock', [owner], true, true);
     consortium = await c.getAddress();
   }
   const lbtc = await deployContract<NativeLBTC & Addressable>(
     'NativeLBTC',
     [consortium, treasury, 'Native LBTC', 'nativeLBTC', owner, initialOwnerDelay],
     true,
-    { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+    true
   );
   lbtc.address = await lbtc.getAddress();
+  const ownerSigner = await ethers.getSigner(owner);
+  await lbtc.connect(ownerSigner).grantRole(await lbtc.MANAGER_ROLE(), owner);
+  await lbtc.connect(ownerSigner).setMinterLimit(lbtc.address, UNLIMITED_MINTER_CONFIG);
   return lbtc;
 }
 

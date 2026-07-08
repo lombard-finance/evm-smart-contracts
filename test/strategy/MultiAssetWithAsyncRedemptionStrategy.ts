@@ -2513,10 +2513,12 @@ describe('StakedLBTC as deposit token', function () {
 
     lbtcUnderlying = await deployContract<WBTCMock>('WBTCMock', [], true, { initializer: 'initialize' });
 
-    stakedToken = await deployContract<StakedLBTCMock>('StakedLBTCMock', [treasury.address, admin.address, 0], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer', 'missing-initializer-call']
-    });
+    stakedToken = await deployContract<StakedLBTCMock>(
+      'StakedLBTCMock',
+      [treasury.address, admin.address, 0],
+      true,
+      true
+    );
 
     oracle = await deployContract<RatioFeedMock>('RatioFeedMock', [], false);
 

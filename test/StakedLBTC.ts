@@ -29,7 +29,8 @@ import {
   REDEEM_REQUEST_SELECTOR,
   signDepositBtcV0Payload,
   Signer,
-  signPayload
+  signPayload,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import { AssetRouter, Bascule, Consortium, Mailbox, NativeLBTC, RatioFeedMock, StakedLBTC } from '../typechain-types';
 
@@ -87,10 +88,7 @@ describe('StakedLBTC', function () {
       signer3
     ] = await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -102,7 +100,7 @@ describe('StakedLBTC', function () {
       'StakedLBTC',
       [treasury.address, owner.address, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     stakedLbtc.address = await stakedLbtc.getAddress();
     stakedLbtcBytes = encode(['address'], [stakedLbtc.address]);
@@ -118,14 +116,18 @@ describe('StakedLBTC', function () {
         0n //owner delay
       ],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     nativeLBTC.address = await nativeLBTC.getAddress();
     nativeLbtcBytes = encode(['address'], [nativeLBTC.address]);
 
     // Minter
+    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
+    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MANAGER_ROLE(), owner);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), minter);
+    await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLBTC.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
     // Claimer
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.CLAIMER_ROLE(), claimer);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.CLAIMER_ROLE(), claimer);
@@ -134,8 +136,6 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.PAUSER_ROLE(), pauser);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINT_BURN_PAUSER_ROLE(), pauserMintBurn);
-    await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
-    await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MANAGER_ROLE(), owner);
 
     bascule = await deployContract<Bascule>(
       'Bascule',
@@ -148,7 +148,7 @@ describe('StakedLBTC', function () {
       'Mailbox',
       [owner.address, consortium.address, 0n, 0n],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     mailbox.address = await mailbox.getAddress();
     await mailbox.connect(owner).grantRole(await mailbox.TREASURER_ROLE(), treasury);
@@ -164,7 +164,7 @@ describe('StakedLBTC', function () {
       'AssetRouter',
       [owner.address, 0n, LEDGER_CHAIN_ID, BITCOIN_CHAIN_ID, mailbox.address, ethers.ZeroAddress],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     assetRouter.address = await assetRouter.getAddress();
     assetRouterBytes = encode(['address'], [assetRouter.address]);
@@ -179,6 +179,8 @@ describe('StakedLBTC', function () {
     await nativeLBTC.connect(owner).changeAssetRouter(assetRouter.address);
     await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), assetRouter.address);
     await nativeLBTC.connect(owner).grantRole(await nativeLBTC.MINTER_ROLE(), assetRouter.address);
+    await stakedLbtc.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
+    await nativeLBTC.connect(owner).setMinterLimit(assetRouter.address, UNLIMITED_MINTER_CONFIG);
 
     await assetRouter
       .connect(owner)
@@ -1292,6 +1294,42 @@ describe('StakedLBTC', function () {
       });
     });
 
+    describe('Minter mint limits', function () {
+      const mintLimit = 1_000_000n;
+      const mintWindow = BigInt(DAY);
+      const mintConfig = { limit: mintLimit, window: mintWindow };
+
+      beforeEach(async function () {
+        await snapshot.restore();
+        await stakedLbtc.connect(owner).setMinterLimit(minter.address, mintConfig);
+      });
+
+      it('mint() increments amountInFlight and enforces limit', async function () {
+        const amount = 400_000n;
+        await stakedLbtc.connect(minter)['mint(address,uint256)'](signer1.address, amount);
+        const [limit, , amountInFlight, remaining] = await stakedLbtc.getMinterLimit(minter.address);
+        expect(limit).to.equal(mintLimit);
+        expect(amountInFlight).to.equal(amount);
+        expect(remaining).to.equal(mintLimit - amount);
+      });
+
+      it('batchMint() counts total minted amount against limit', async function () {
+        const first = mintLimit / 2n;
+        const second = mintLimit - first;
+        await stakedLbtc
+          .connect(minter)
+          ['batchMint(address[],uint256[])']([signer1.address, signer2.address], [first, second]);
+        const [, , amountInFlight, remaining] = await stakedLbtc.getMinterLimit(minter.address);
+        expect(amountInFlight).to.equal(mintLimit);
+        expect(remaining).to.equal(0n);
+      });
+
+      it('mint() reverts when minter limit is not configured', async function () {
+        await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), signer2.address);
+        await expect(stakedLbtc.connect(signer2)['mint(address,uint256)'](signer1.address, 1n)).to.be.reverted;
+      });
+    });
+
     describe('Batch mint', function () {
       describe('batchMint(address[],uint256[]) mints to listed addresses', function () {
         const amount1 = randomBigInt(8);
@@ -2103,10 +2141,12 @@ describe('StakedLBTC', function () {
         'StakedLBTC',
         [treasury.address, owner.address, 0n],
         true,
-        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        true
       );
       stakedLbtc.address = await stakedLbtc.getAddress();
+      await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MANAGER_ROLE(), owner);
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
+      await stakedLbtc.connect(owner).setMinterLimit(minter.address, UNLIMITED_MINTER_CONFIG);
       const sender = signer1;
       const amount = randomBigInt(8);
       await stakedLbtc.connect(minter)['mint(address,uint256)'](sender, amount);
@@ -2213,7 +2253,7 @@ describe('StakedLBTC', function () {
         'StakedLBTC',
         [treasury.address, owner.address, 0n],
         true,
-        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        true
       );
       stakedLbtc.address = await stakedLbtc.getAddress();
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);
@@ -2227,7 +2267,7 @@ describe('StakedLBTC', function () {
         'StakedLBTC',
         [treasury.address, owner.address, 0n],
         true,
-        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        true
       );
       const stakedLbtcBytes = encode(['address'], [await stakedLbtc.getAddress()]);
       await stakedLbtc.connect(owner).grantRole(await stakedLbtc.MINTER_ROLE(), minter.address);

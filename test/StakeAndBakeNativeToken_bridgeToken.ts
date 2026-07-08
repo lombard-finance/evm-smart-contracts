@@ -13,7 +13,8 @@ import {
   randomBigInt,
   rawSign,
   signDepositBtcV1Payload,
-  Signer
+  Signer,
+  UNLIMITED_MINTER_CONFIG
 } from './helpers';
 import {
   BridgeTokenAdapter,
@@ -57,10 +58,7 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
     [_, owner, signer1, signer2, signer3, notary1, notary2, operator, pauser, treasury, trustedSigner] =
       await getSignersWithPrivateKeys();
 
-    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, {
-      initializer: 'initialize',
-      unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order']
-    });
+    consortium = await deployContract<Consortium & Addressable>('Consortium', [owner.address], true, true);
     consortium.address = await consortium.getAddress();
     await consortium
       .connect(owner)
@@ -80,10 +78,12 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
         await bridgeToken.getAddress()
       ],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     bridgeTokenAdapter.address = await bridgeTokenAdapter.getAddress();
     await bridgeToken.migrateBridgeRole(bridgeTokenAdapter);
+    await bridgeTokenAdapter.connect(owner).grantRole(await bridgeTokenAdapter.MANAGER_ROLE(), owner);
+    await bridgeTokenAdapter.connect(owner).setMinterLimit(bridgeTokenAdapter.address, UNLIMITED_MINTER_CONFIG);
 
     stakeAndBakeForNativeToken = await deployContract<StakeAndBakeNativeToken & Addressable>(
       'StakeAndBakeNativeToken',
@@ -98,7 +98,7 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
         1_000_000
       ],
       true,
-      { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+      true
     );
     stakeAndBakeForNativeToken.address = await stakeAndBakeForNativeToken.getAddress();
 
@@ -380,7 +380,7 @@ describe('StakeAndBakeNativeToken_with_bridge_token_adapter', function () {
           1_000_000
         ],
         true,
-        { initializer: 'initialize', unsafeAllow: ['missing-initializer-call', 'incorrect-initializer-order'] }
+        true
       );
       stakeAndBake.address = await stakeAndBake.getAddress();
 
