@@ -69,13 +69,20 @@ interface IBaseLBTC {
     function isRedeemsEnabled() external view returns (bool);
 
     /// @notice Sets the leaky-bucket mint rate limit for a `MINTER_ROLE` holder or `address(this)` (proof mint).
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
+    /// @param config Rate limit configuration (`limit`, `window`).
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
-        RateLimitsV2.Config memory config
+        RateLimitsV2.Config calldata config
     ) external;
 
     /// @notice Returns rate-limit state for `minter`.
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
+    /// @return limit Configured limit; `0` if unset.
+    /// @return window Configured window in seconds; `0` if unset.
+    /// @return amountInFlight Decayed in-flight amount at `block.timestamp`.
+    /// @return remaining Remaining mint allowance; `0` when unset.
     function getMinterLimit(
         address minter
     )

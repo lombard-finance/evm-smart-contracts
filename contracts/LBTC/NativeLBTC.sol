@@ -452,8 +452,10 @@ contract NativeLBTC is INativeLBTC, BaseLBTC {
     ///      and the `CLAIMER_ROLE` fee paths (`mintV1WithFee`, `batchMintV1WithFee`) — it is NOT
     ///      per-recipient or per-caller. Heavy but fully legitimate proof-mint activity from one user
     ///      can temporarily exhaust the bucket and make other users' unrelated proof mints revert with
-    ///      `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s `limit` for
-    ///      aggregate proof-mint throughput across the whole window, and expect short-window contention.
+    ///      `RateLimitExceeded` until it decays. This is intended: size `address(this)`'s `limit` as
+    ///      bucket capacity (peak burst), not as a per-window volume cap — sustained throughput is
+    ///      ~`limit / window` per second and up to ~2× `limit` can be consumed over any `window`-length
+    ///      interval. Expect short-window contention.
     function _validateAndMint(
         address recipient,
         uint256 amountToMint,

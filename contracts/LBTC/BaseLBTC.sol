@@ -30,7 +30,8 @@ import {RateLimitsV2} from "../libs/RateLimitsV2.sol";
  *      ordinary release/proof claims (`AssetRouter.handlePayload` -> `StakedLBTC.mint(address,uint256)`),
  *      redeem-fee mints, and the fee leg of `mintWithFee` — all draw from the same
  *      `minterRateLimits[AssetRouter]` bucket. This sharing is intended (single AssetRouter-wide quota):
- *      the limit must be sized for aggregate throughput, and short-window cross-user contention
+ *      the limit must be sized as bucket capacity for aggregate peak burst (not as a per-window volume
+ *      cap; see {RateLimitsV2}), and short-window cross-user contention
  *      (one user's fee/release traffic temporarily reducing another user's available capacity) is
  *      expected and acknowledged by Lombard. See {AssetRouter} for redeem blocking and the
  *      `mintWithFee` double-count behaviour, and `docs/operator-rate-limits.md` for sizing guidance.
@@ -112,16 +113,17 @@ abstract contract BaseLBTC is
     ///      `amount + fee` on StakedLBTC `mintWithFee` (see {AssetRouter}).
     ///      When `minter` is `address(this)`, the bucket is a single PROTOCOL-WIDE proof-mint quota
     ///      shared by ALL permissionless proof mints (and, on NativeLBTC, the `CLAIMER_ROLE` fee
-    ///      paths). It is not per-recipient or per-caller: size `limit` for aggregate proof-mint
-    ///      throughput across the whole `window` and expect short-window cross-user contention (one
-    ///      user's heavy-but-legitimate proof mints can transiently exhaust the bucket and revert
-    ///      others' unrelated proof mints with `RateLimitExceeded` until it decays).
+    ///      paths). It is not per-recipient or per-caller: size `limit` as bucket capacity (peak burst),
+    ///      not as a per-`window` volume cap — sustained throughput is ~`limit / window` per second and
+    ///      up to ~2× `limit` can be consumed over any `window`-length interval. Expect short-window
+    ///      cross-user contention (one user's heavy-but-legitimate proof mints can transiently exhaust
+    ///      the bucket and revert others' unrelated proof mints with `RateLimitExceeded` until it decays).
     /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @param config Rate limit configuration (`limit`, `window`).
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
-        RateLimitsV2.Config memory config
+        RateLimitsV2.Config calldata config
     ) external onlyRole(MANAGER_ROLE) {
         BaseLBTCStorage storage $ = _getBaseLBTCStorage();
         if (config.limit == 0) {
@@ -134,6 +136,7 @@ abstract contract BaseLBTC is
     }
 
     /// @notice Returns rate-limit state for `minter`.
+    /// @param minter Minter address, or `address(this)` for the proof-mint bucket.
     /// @return limit Configured limit; `0` if unset.
     /// @return window Configured window in seconds; `0` if unset.
     /// @return amountInFlight Decayed in-flight amount at `block.timestamp`.

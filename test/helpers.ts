@@ -287,8 +287,9 @@ export async function deployContract<T extends BaseContract>(
 ): Promise<T & Addressable> {
   const { factory } = await getContractFactoryWithLibraries(hre, contractName);
   const proxyOptions = typeof proxyOpts === 'boolean' ? (proxyOpts ? PROXY_DEPLOY_OPTS : undefined) : proxyOpts;
-  const contract = (await (isProxy ? upgrades.deployProxy(factory, args, proxyOptions) : factory.deploy(...args))) as T &
-    Addressable;
+  const contract = (await (isProxy
+    ? upgrades.deployProxy(factory, args, proxyOptions)
+    : factory.deploy(...args))) as T & Addressable;
   await contract.waitForDeployment();
 
   contract.address = await contract.getAddress();
