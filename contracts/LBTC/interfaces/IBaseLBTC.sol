@@ -74,7 +74,7 @@ interface IBaseLBTC {
     /// @custom:access Caller must have `MANAGER_ROLE`
     function setMinterLimit(
         address minter,
-        RateLimitsV2.Config memory config
+        RateLimitsV2.Config calldata config
     ) external;
 
     /// @notice Returns rate-limit state for `minter`.
