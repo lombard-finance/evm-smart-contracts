@@ -41,10 +41,14 @@
       "RemoteShard_beacon": "0x820a0E0bB2eec313a153c98584573a07ceE7c7C3",
       "Shard_beacon": "0xd0b479AD08733fd6C63ffdEf3F9c203394699125"
     },
+    "libraries": {
+      "RateLimitsV2": "0x8333e39aE6Ce41A69d3e5C6BAA195061fa7E4Ff5"
+    },
     "implementations": {
       "MultiAssetWithAsyncRedemptionStrategy-0.0.1": "",
       "Shard-0.0.1": "",
-      "RemoteShard-0.0.1": "0x7CD0d5565F6b04Cfe252f645093421F0396C15DE"
+      "RemoteShard-0.0.1": "0x7CD0d5565F6b04Cfe252f645093421F0396C15DE",
+      "ShareToken": "0xFF7E96b4E62d163D47c6Bfee39ccE0D0f194EF69"
     },
     "vaults": {},
     "chainlink": {
