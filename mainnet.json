@@ -398,7 +398,8 @@
       "Deployer": ["0x3f6bf1c36ccbb59eaf8415301a0cec73c344a079"]
     },
     "lombard": {
-      "ProxyFactory": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "ProxyFactory_general": "0xA24b1EB85810F68153721007E5A57d495C117918",
+      "ProxyFactory_strategies": "0x4cfdca28291f796e4ad511521c90da56206b075d",
       "Consortium": "0xdad58DfA5c1a7a34419AFdBE1f0d610efeea95E4",
       "StakedLBTC": "0xecAc9C5F704e954931349Da37F60E39f515c11c1",
       "Mailbox": "0x964677F337d6528d659b1892D0045B8B27183fc0",
@@ -406,7 +407,14 @@
       "AssetRouter": "0x9eCe5fB1aB62d9075c4ec814b321e24D8EA021ac",
       "BridgeTokenAdapter": "0x85D1D52e11290F174444d21C2a167bEDBE36e4d2",
       "StakedLBTCOracle": "0x1De9fcfeDF3E51266c188ee422fbA1c7860DA0eF",
-      "GMPBasculeV1": "0xC409f4a25065e64eA754dDa4fA8c3Ea6544fcF2F"
+      "GMPBasculeV1": "0xC409f4a25065e64eA754dDa4fA8c3Ea6544fcF2F",
+      "ShareToken_BTCoc": "0xf14F678d9c05798ba61652a950a05D74aD2E0A6C"
+    },
+    "libraries": {
+      "RateLimitsV2": "0xa75f006ecD8d157E336a4238f0e7Eb54dff3CA58"
+    },
+    "implementations": {
+      "ShareToken": "0xdBa5238aF3644c64D3A2f2bEd4577Dd487bEed44"
     },
     "avalanche": {
       "BridgeToken": "0x152b9d0FdC40C096757F570A51E494bd4b943E50"

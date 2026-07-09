@@ -54,7 +54,8 @@
     "web3": "^1.10.0"
   },
   "resolutions": {
-    "@openzeppelin/contracts": "^5.0.2"
+    "@openzeppelin/contracts": "^5.0.2",
+    "@zksync/contracts": "git+https://github.com/matter-labs/era-contracts.git#446d391d34bdb48255d5f8fef8a8248925fc98b9"
   },
   "engines": {
     "node": ">=18.16.0"
