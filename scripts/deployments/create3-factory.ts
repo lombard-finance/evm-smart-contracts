@@ -6,10 +6,9 @@ task('deploy-proxy-factory', 'Deploys the ProxyFactory contract')
   .addParam('admin', 'The admin of factory', 'self')
   .addParam('deployer', 'The deployer of proxies', 'self')
   .setAction(async (taskArgs, hre) => {
-    const { adminArg, deployerArg } = taskArgs;
     const { ethers } = hre;
 
-    const { owner: deployer, upgradeAdmin: admin } = await getOwnersOrDefault(hre, deployerArg, adminArg);
+    const { owner: deployer, upgradeAdmin: admin } = await getOwnersOrDefault(hre, taskArgs.deployer, taskArgs.admin);
 
     const rl = readline.createInterface({
       input: process.stdin,
