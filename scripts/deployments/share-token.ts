@@ -28,9 +28,17 @@ task('deploy-share-token-proxy', 'Deploys a ShareToken via ProxyFactory (CREATE3
     await deployProxyWithCreate3(impl, data, proxyFactoryAddr, saltHash, upgradeAdmin, hre);
   });
 
-task('deploy-share-token-impl', 'Deploys a ShareToken implementation').setAction(async (_, hre) => {
-  const cre = new CustomRuntimeEnvironment(hre);
-  const impl = await cre.deployImplementation('ShareToken');
+task('deploy-share-token-impl', 'Deploys a ShareToken implementation')
+  .addParam('rateLimitsV2', 'The RateLimitsV2 library address')
+  .setAction(async (taskArgs, hre) => {
+    const { rateLimitsV2 } = taskArgs;
 
-  console.log(`ShareToken implementation deployed at ${impl}`);
-});
+    if (!hre.ethers.isAddress(rateLimitsV2)) {
+      throw new Error(`invalid arg: rateLimitsV2 (${rateLimitsV2}) not an address`);
+    }
+
+    const cre = new CustomRuntimeEnvironment(hre);
+    const impl = await cre.deployImplementation('ShareToken', { RateLimitsV2: rateLimitsV2 });
+
+    console.log(`ShareToken implementation deployed at ${impl}`);
+  });
