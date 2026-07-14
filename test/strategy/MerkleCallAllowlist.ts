@@ -15,7 +15,9 @@ import {
   RulesFile,
   validateForPPS
 } from '../../scripts/strategy/merkleUtils';
-import { KNOWN_DESTINATION_TYPES } from '../../scripts/strategy/destinationTypes';
+import { getKnownDestinationTypes } from '../../scripts/strategy/destinationTypes';
+
+process.env.STRATEGY_DESTINATION_TYPES_PATH ??= path.join(__dirname, 'fixtures/destinationTypes.yaml');
 
 /** Disambiguates `isAllowed` from the `bytes validatorArgs` overload (ethers v6). */
 async function merkleIsAllowed(
@@ -1220,7 +1222,7 @@ describe('buildTree: disabled rules and destinationType', function () {
   });
 
   it('known destinationType is accepted for every vocabulary entry', function () {
-    for (const type of KNOWN_DESTINATION_TYPES) {
+    for (const type of getKnownDestinationTypes()) {
       const rules: RulesFile = { r: { to: ADDR_A, destinationType: type } };
       expect(() => buildTree(rules, DS), `type "${type}" should be accepted`).not.to.throw();
     }

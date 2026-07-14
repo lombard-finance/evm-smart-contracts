@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as yaml from 'yaml';
 import { ethers } from 'ethers';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import { isKnownDestinationType, KNOWN_DESTINATION_TYPES } from './destinationTypes';
+import { getKnownDestinationTypes, isKnownDestinationType } from './destinationTypes';
 
 // ─── Rule schema ──────────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ export interface RuleJson {
   /**
    * Human-readable label describing what the `to` address is (e.g. `AAVE_v3`, `ERC20`).
    * Not used in Merkle root calculation; always validated at build time (including disabled rules)
-   * against the known-types vocabulary in `destinationTypes.yaml`.
+   * against the vocabulary at `STRATEGY_DESTINATION_TYPES_PATH`.
    * Omit when the target is a wildcard or the type is not in the list.
    */
   destinationType?: string;
@@ -145,7 +145,7 @@ export function buildTree(
     if (rule.destinationType !== undefined && !isKnownDestinationType(rule.destinationType)) {
       throw new Error(
         `Rule "${name}": unknown destinationType "${rule.destinationType}". ` +
-          `Known types: ${KNOWN_DESTINATION_TYPES.join(', ')}`
+          `Known types: ${getKnownDestinationTypes().join(', ')}`
       );
     }
     if (rule.disabled === true) {
@@ -272,9 +272,7 @@ export function validateForPPS(rules: RulesFile): string[] {
 export function rulesetRoot(): string {
   const root = process.env.STRATEGY_RULESET_ROOT;
   if (!root) {
-    console.error(
-      'Error: STRATEGY_RULESET_ROOT must be set when deriving ruleset path from --chain-id and --contract'
-    );
+    console.error('Error: STRATEGY_RULESET_ROOT must be set when deriving ruleset path from --chain-id and --contract');
     console.error(
       'Export the root directory that contains <chainId-hex>/<validator>.[json|yaml], or pass --rules <path> instead.'
     );

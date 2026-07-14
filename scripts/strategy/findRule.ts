@@ -27,6 +27,7 @@
  *        ${STRATEGY_RULESET_ROOT}/<chainId-32-byte-hex>/<validatorAddress>.[json|yaml]
  */
 
+import './loadEnv';
 import { ethers } from 'ethers';
 import {
   RuleJson,

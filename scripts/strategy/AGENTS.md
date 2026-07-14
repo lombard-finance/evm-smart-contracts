@@ -21,10 +21,12 @@ Layout under `STRATEGY_RULESET_ROOT`:
 - `.yaml` or `.json` are both valid; pick `.yaml` for human-edited rules with comments and `.json` for machine-generated.
 - The Merkle root is bound to `(chainId, validatorAddress)` via the domain separator. **A ruleset is not portable across chains or deployments** — building the tree against the wrong chainId/validator yields a root that won't verify any proofs.
 
-Illustrative examples in this repo (use `--rules`, not derived paths):
+Illustrative examples in this repo (use `--rules`, not derived paths). `test.json` / `test.yaml` set `destinationType`, so also export `STRATEGY_DESTINATION_TYPES_PATH` (e.g. to `test/strategy/fixtures/destinationTypes.yaml` when running tests locally):
 
 - [ruleset/test.json](ruleset/test.json)
 - [ruleset/test.yaml](ruleset/test.yaml)
+
+The `destinationType` vocabulary lives in the same external ruleset repository as **`destinationTypes.yaml`**. Set **`STRATEGY_DESTINATION_TYPES_PATH`** to that file's absolute path when building rulesets that use `destinationType` (required whenever any rule in the file sets the field).
 
 ---
 
@@ -190,14 +192,18 @@ Use sparingly — this delegates the whole policy to the off-chain signer.
 2. **Iterate locally** — export `STRATEGY_RULESET_ROOT` before running tooling, or pass `--rules <path>` for a single file (e.g. the in-repo test fixtures).
 3. **Build the root** to confirm it parses:
    ```sh
-   STRATEGY_RULESET_ROOT=/path/to/rulesets yarn ts-node scripts/strategy/merkleTreeBuilder.ts \
+   STRATEGY_RULESET_ROOT=/path/to/rulesets \
+   STRATEGY_DESTINATION_TYPES_PATH=/path/to/destinationTypes.yaml \
+   yarn ts-node scripts/strategy/merkleTreeBuilder.ts \
      --chain-id <chainId> --contract <validator> --mode build
    ```
    Output prints the resolved path, every rule name parsed, and the Merkle root. If a rule typo is silently wildcarding something, you'll see it here.
 4. **Set the root on-chain** via `setAllowlistRoot(newRoot)` (validator owner only).
 5. **Sanity-check a real call** with `findRule.ts` — it both proves the call is covered and emits an `exec()` tx ready to broadcast:
    ```sh
-   STRATEGY_RULESET_ROOT=/path/to/rulesets yarn ts-node scripts/strategy/findRule.ts \
+   STRATEGY_RULESET_ROOT=/path/to/rulesets \
+   STRATEGY_DESTINATION_TYPES_PATH=/path/to/destinationTypes.yaml \
+   yarn ts-node scripts/strategy/findRule.ts \
      --chain-id <chainId> --contract <validator> \
      --to <target> --sender <caller> --value <wei> --calldata <hex> --shard <shard>
    ```
@@ -288,6 +294,7 @@ Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'])` from `@openze
 - **Out-of-order constraints** — sort by `offset` ascending in the source file. The encoder doesn't reorder.
 - **Rule name collision** — JSON/YAML object keys must be unique; later entries silently overwrite earlier ones in some YAML parsers. Watch for it.
 - **Missing `STRATEGY_RULESET_ROOT`** — derived path resolution fails without it. Set the env var to the live ruleset root, or use `--rules` for an explicit file.
+- **Missing `STRATEGY_DESTINATION_TYPES_PATH`** — build fails when any rule sets `destinationType`. Point it at `destinationTypes.yaml` in the live ruleset repository.
 - **Wrong validator address** — the path must use the deployed validator's address as it appears on-chain. A typo means tooling builds against the wrong domain separator and proofs won't verify.
 - **Forgetting to call `setAllowlistRoot`** — building a tree off-chain doesn't change anything on-chain. The root must be pushed by the validator owner.
 - **Stale ruleset after edits** — every rule edit changes the root. Re-run `--mode build` and update the on-chain root before the new rule can be exercised.

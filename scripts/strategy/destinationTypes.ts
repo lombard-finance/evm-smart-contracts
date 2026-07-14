@@ -1,14 +1,33 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import * as yaml from 'yaml';
 
-const TYPES_FILE = path.join(__dirname, 'destinationTypes.yaml');
+let cachedTypes: string[] | undefined;
+let cachedSet: Set<string> | undefined;
 
-/** Known values for `destinationType` — loaded from `destinationTypes.yaml`. */
-export const KNOWN_DESTINATION_TYPES: string[] = yaml.parse(fs.readFileSync(TYPES_FILE, 'utf8')) as string[];
+function destinationTypesPath(): string {
+  const typesPath = process.env.STRATEGY_DESTINATION_TYPES_PATH;
+  if (!typesPath) {
+    console.error('Error: STRATEGY_DESTINATION_TYPES_PATH must be set to destinationTypes.yaml');
+    console.error('Export the absolute path to the vocabulary file from the live ruleset repository.');
+    process.exit(1);
+  }
+  return typesPath;
+}
 
-const DESTINATION_TYPE_SET = new Set<string>(KNOWN_DESTINATION_TYPES);
+function loadKnownDestinationTypes(): string[] {
+  if (cachedTypes) return cachedTypes;
+  const content = fs.readFileSync(destinationTypesPath(), 'utf8');
+  cachedTypes = yaml.parse(content) as string[];
+  cachedSet = new Set(cachedTypes);
+  return cachedTypes;
+}
+
+/** Known values for `destinationType` — loaded from `STRATEGY_DESTINATION_TYPES_PATH`. */
+export function getKnownDestinationTypes(): string[] {
+  return loadKnownDestinationTypes();
+}
 
 export function isKnownDestinationType(value: string): boolean {
-  return DESTINATION_TYPE_SET.has(value);
+  loadKnownDestinationTypes();
+  return cachedSet!.has(value);
 }

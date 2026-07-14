@@ -30,6 +30,7 @@
  *   - selector          : flag set when present and non-empty — human-readable signature or hex bytes4 (pins data[0:4])
  */
 
+import './loadEnv';
 import { ethers } from 'ethers';
 import {
   loadRulesFile,
