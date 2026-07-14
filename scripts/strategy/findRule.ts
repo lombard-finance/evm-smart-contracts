@@ -23,9 +23,8 @@
  *
  * Ruleset file resolution (in order of priority):
  *   1. --rules <path>          — use this file directly
- *   2. --chain-id + --contract — derive:
+ *   2. --chain-id + --contract — derive (requires STRATEGY_RULESET_ROOT):
  *        ${STRATEGY_RULESET_ROOT}/<chainId-32-byte-hex>/<validatorAddress>.[json|yaml]
- *      STRATEGY_RULESET_ROOT defaults to scripts/strategy/ruleset/
  */
 
 import { ethers } from 'ethers';

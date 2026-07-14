@@ -268,11 +268,19 @@ export function validateForPPS(rules: RulesFile): string[] {
 
 // ─── Ruleset path resolution ──────────────────────────────────────────────────
 
-const DEFAULT_RULESET_ROOT = path.join(__dirname, 'ruleset');
-
-/** Ruleset directory: `STRATEGY_RULESET_ROOT`, else `./ruleset` next to this file. */
+/** Ruleset directory root — must be set via `STRATEGY_RULESET_ROOT` (no default). */
 export function rulesetRoot(): string {
-  return process.env.STRATEGY_RULESET_ROOT ?? DEFAULT_RULESET_ROOT;
+  const root = process.env.STRATEGY_RULESET_ROOT;
+  if (!root) {
+    console.error(
+      'Error: STRATEGY_RULESET_ROOT must be set when deriving ruleset path from --chain-id and --contract'
+    );
+    console.error(
+      'Export the root directory that contains <chainId-hex>/<validator>.[json|yaml], or pass --rules <path> instead.'
+    );
+    process.exit(1);
+  }
+  return root;
 }
 
 export function chainIdToFolder(chainId: bigint): string {
@@ -296,7 +304,7 @@ export function resolveRulesetPath(chainId: bigint, contractAddress: string): st
 /**
  * Resolves the ruleset file path from parsed CLI args.
  * If --rules is given, use it directly.
- * Otherwise derive from --chain-id and --contract using STRATEGY_RULESET_ROOT (see rulesetRoot()).
+ * Otherwise derive from --chain-id and --contract; requires STRATEGY_RULESET_ROOT (see rulesetRoot()).
  */
 export function resolveRulesetFromArgs(args: Record<string, string>): string {
   if (args['rules']) return path.resolve(args['rules']);
