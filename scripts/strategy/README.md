@@ -64,9 +64,9 @@ These two fields are never encoded into the Merkle leaf and have no effect on pr
 | Field             | Type    | Description                                                                                      |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------ |
 | `disabled`        | boolean | When `true`, the rule is excluded from the tree entirely. Use to retire a rule without deleting it. Rules with `disabled: true` are listed separately in the build output. |
-| `destinationType` | string  | Human-readable label for the `to` address (e.g. `AAVE_v3`, `ERC20`). Validated at build time against the vocabulary in `scripts/strategy/destinationTypes.yaml`; the build fails if the value is not in the list. Omit when the target is a wildcard or the type is unknown. |
+| `destinationType` | string  | Human-readable label for the `to` address (e.g. `AAVE_v3`, `ERC20`). Validated at build time against the vocabulary at `STRATEGY_DESTINATION_TYPES_PATH`; the build fails if the value is not in the list. Omit when the target is a wildcard or the type is unknown. |
 
-Known `destinationType` values (from `destinationTypes.yaml`): `ERC20`, `AAVE_v3`, `AAVE_v4`, `Morpho`, `Uniswap_v2`, `Uniswap_v3`, `Compound_v2`, `Compound_v3`, `Curve`, `Balancer`, `BoringVault`. Add new entries to the vocabulary file when integrating a new protocol.
+Set `STRATEGY_DESTINATION_TYPES_PATH` to the absolute path of `destinationTypes.yaml` in the live ruleset repository. Add new entries to that file when integrating a new protocol.
 
 ---
 

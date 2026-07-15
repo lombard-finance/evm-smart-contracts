@@ -1,0 +1,3 @@
+# Minimal vocabulary for strategy tests (buildTree + --validate-pps script checks).
+- ERC20
+- AAVE_v3
