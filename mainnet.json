@@ -57,7 +57,8 @@
       "Router": "0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D",
       "RMN": "0x411dE17f12D1A34ecC7F45f49844626267c75e81",
       "LombardTokenPoolV2_stakedLBTC": "0x88E18636EfFC3b3cd520FC72B710eb99C0017BC7",
-      "LombardTokenPoolV2_nativeLBTC": "0xBA59cF1c1563a9B93A8C5D70F8E445eaCa9842D0"
+      "LombardTokenPoolV2_nativeLBTC": "0xBA59cF1c1563a9B93A8C5D70F8E445eaCa9842D0",
+      "LombardCrossChainVaultAdapter_btcoc": "0x33d25a5766708e84a55004b63f9affd97c96a5e8"
     },
     "stakeAndBake": {
       "StakeAndBake_stakedLBTC_Veda": "0xC8bbF6153D7Ba105f1399D992ebd32B0541996ef",
