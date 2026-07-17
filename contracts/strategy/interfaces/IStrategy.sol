@@ -45,7 +45,7 @@ interface IStrategy {
     /// @dev Strategy initialized with a zero fallback decimals argument.
     error Strategy_ZeroDecimals();
 
-    /// @dev `postPricePerShare` was called with `sharesAtSnapshot == 0` while shares are outstanding.
+    /// @dev `postPricePerShare` was called with `effectiveSupplyAtSnapshot == 0` (must match on-chain `_effectiveShareSupply`).
     error Strategy_ZeroSharesAtSnapshot();
 
     /// @dev `postPricePerShare` was called with `navAtSnapshot == 0`.

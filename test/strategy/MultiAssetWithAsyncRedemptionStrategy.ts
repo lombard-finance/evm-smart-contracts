@@ -1902,7 +1902,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.totalAssets()).to.equal((150n * e18 * expectedPPS) / e18);
     });
 
-    it('reconciles without supply change for mid-epoch locked redeem request', async function () {
+    it('keeps effective supply unchanged for mid-epoch redeem request (pending shares included)', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
       const baseDeposit = 100n * e18;
@@ -1912,22 +1912,168 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         .connect(sender)
         ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
 
+      // Operator snapshots effective supply (= totalSupply + totalPendingShares). Pending is 0 here.
       const supplyAtSnapshot = await strategy.totalSupply();
 
       // Operator snapshot: NAV = 101, supply = 100 → declared PPS = 1.01.
       const navAtSnapshot = 101n * e18;
 
-      // Mid-epoch redeem request burns 30 net shares immediately; live supply drops to 70.
+      // Mid-epoch redeem request burns 30 net shares; live totalSupply drops to 70, but pending keeps
+      // them in effective supply (70 + 30 = 100), so reconciliation sees no supply change.
       const redeemShares = 30n * e18;
       await strategy.connect(sender).requestRedeem(redeemShares, sender.address);
       expect(await strategy.totalSupply()).to.equal(70n * e18);
+      const [pendingShares] = await strategy.totalPending();
+      expect(pendingShares).to.equal(redeemShares);
 
       await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
 
-      // The 30 burned shares reserve 30 pending assets, so the reconciled PPS is (101 - 30) / 70.
-      const expectedPPS = (71n * e18) / 70n;
+      const expectedPPS = (101n * e18) / 100n;
       expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+      // totalAssets() reports only active-share backing; pending fraction stays reserved for redeemers.
       expect(await strategy.totalAssets()).to.equal((70n * e18 * expectedPPS) / e18);
+    });
+
+    it('does not concentrate a NAV loss onto residual active supply while redeem requests are pending', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+
+      const victim = sender;
+      const attacker = receiver;
+
+      const victimDeposit = 900n * e18;
+      const attackerDeposit = 100n * e18;
+      const LOSS = 10n * e18;
+
+      // deposit
+      await altDeposit.mint(victim.address, victimDeposit);
+      await altDeposit.mint(attacker.address, attackerDeposit);
+
+      await altDeposit.connect(victim).approve(strategy.address, victimDeposit);
+      await altDeposit.connect(attacker).approve(strategy.address, victimDeposit);
+      await strategy
+        .connect(victim)
+        ['deposit(address,uint256,address)'](altDeposit.address, victimDeposit, victim.address);
+      await strategy
+        .connect(attacker)
+        ['deposit(address,uint256,address)'](altDeposit.address, attackerDeposit, attacker.address);
+
+      const victimShares = await strategy.balanceOf(victim.address);
+      const attackerShares = await strategy.balanceOf(attacker.address);
+
+      // redeem all & capture snapshot in between
+      await strategy.connect(victim).requestRedeem(victimShares, victim.address);
+
+      const effectiveSupplyAtSnapshot = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      const navAtSnapshot = victimDeposit + attackerDeposit - LOSS;
+
+      await strategy.connect(attacker).requestRedeem(attackerShares, attacker.address);
+
+      // check PPS
+      const expectedPPS = (navAtSnapshot * e18) / effectiveSupplyAtSnapshot;
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, true);
+
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+    });
+
+    it('pending-share inclusion prevents loss-concentration attack via residual deposit', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+
+      // Scaled-down form of the async-redemption PPS-crater attack:
+      // large pending redeem + small residual + mid-epoch deposit into residual + honest NAV loss post.
+      const victimShares = 900n * e18;
+      const attackerInitShares = 50n * e18;
+      const otherShares = 50n * e18;
+      const attackerDeposit = 40n * e18;
+      const loss = 10n * e18; // real NAV loss shared across effective supply
+
+      const supplyAtSnapshot = victimShares + attackerInitShares + otherShares;
+      const navAtSnapshot = supplyAtSnapshot - loss;
+      const activeAfterAttackDeposit = otherShares + attackerDeposit;
+      const pendingShares = victimShares + attackerInitShares;
+
+      await altDeposit.mint(sender.address, victimShares + otherShares);
+      await altDeposit.mint(receiver.address, attackerInitShares + attackerDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, victimShares + otherShares);
+      await altDeposit.connect(receiver).approve(strategy.address, attackerInitShares + attackerDeposit);
+
+      const attackerDepBefore = await altDeposit.balanceOf(receiver.address);
+      const attackerUndBefore = await underlying.balanceOf(receiver.address);
+      const victimUndBefore = await underlying.balanceOf(sender.address);
+
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, victimShares + otherShares, sender.address);
+      await strategy
+        .connect(receiver)
+        ['deposit(address,uint256,address)'](altDeposit.address, attackerInitShares, receiver.address);
+      expect(await strategy.totalSupply()).to.equal(supplyAtSnapshot);
+
+      await strategy.connect(sender).requestRedeem(victimShares, sender.address);
+      const victimPayoutExpected = await strategy.convertToAssets(altDeposit.address, victimShares);
+      await strategy.connect(receiver).requestRedeem(attackerInitShares, receiver.address);
+      expect(await strategy.totalSupply()).to.equal(otherShares);
+
+      await strategy
+        .connect(receiver)
+        ['deposit(address,uint256,address)'](altDeposit.address, attackerDeposit, receiver.address);
+      expect(await strategy.totalSupply()).to.equal(activeAfterAttackDeposit);
+
+      // Vulnerable reconciliation (pending excluded) would crater PPS over the residual active supply.
+      const vulnerableSharesRemoved = supplyAtSnapshot - activeAfterAttackDeposit;
+      const vulnerableReconciledNav = navAtSnapshot - vulnerableSharesRemoved;
+      const craterPPS = (vulnerableReconciledNav * e18) / activeAfterAttackDeposit;
+      expect(craterPPS).to.equal((80n * e18) / 90n); // 80 residual NAV / 90 active shares
+
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true);
+
+      const effectiveSupplyNow = activeAfterAttackDeposit + pendingShares;
+      // Reconcile mid-epoch deposit at stale PPS=1: (navAtSnapshot + attackerDeposit) / effectiveSupplyNow.
+      const expectedPPS = ((navAtSnapshot + attackerDeposit) * e18) / effectiveSupplyNow;
+      expect(expectedPPS).to.equal((1030n * e18) / 1040n);
+      const ppsAfterPost = await strategy.pricePerShare();
+      expect(ppsAfterPost).to.equal(expectedPPS);
+
+      const victimPayout = await strategy.convertToAssets(altDeposit.address, victimShares);
+      expect(victimPayout).to.be.lessThan(victimPayoutExpected);
+      const oldPayout = (attackerInitShares * expectedPPS) / e18;
+      await underlying.mint(strategy.address, victimPayout + oldPayout);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n, 2n]);
+
+      const victimPaid = (await underlying.balanceOf(sender.address)) - victimUndBefore;
+      // Snapshot pro-rata fair claim: 900/1000 of NAV 990.
+      const victimFairClaim = (victimShares * navAtSnapshot) / supplyAtSnapshot;
+      expect(victimFairClaim).to.equal(891n * e18);
+      expect(victimPaid).to.eq(victimPayout);
+      // Reconciled PPS (1030/1040) > snapshot PPS (990/1000) → victim is slightly over the snapshot pro-rata.
+      expect(victimPaid - victimFairClaim).to.equal(346153846153845600n);
+
+      // Residual NAV after fair payout; corrective post over remaining active supply.
+      const residualNav = navAtSnapshot + attackerDeposit - victimPayout - oldPayout;
+      const expectedResidualPPS = (residualNav * e18) / activeAfterAttackDeposit;
+      await strategy.connect(priceSetter).postPricePerShare(residualNav, activeAfterAttackDeposit, false);
+      expect(await strategy.pricePerShare()).to.equal(expectedResidualPPS);
+      if (await strategy.depositPaused()) await strategy.connect(manager).unpauseDeposit();
+      if (await strategy.redeemPaused()) await strategy.connect(manager).unpauseRedeem();
+
+      await strategy.connect(receiver).requestRedeem(attackerDeposit, receiver.address);
+      const attackerPending = await strategy.pendingAssetsOf(receiver.address);
+      const expectedAttackerPending = (attackerDeposit * expectedResidualPPS) / e18;
+      expect(attackerPending).to.equal(expectedAttackerPending);
+      // min(pending@request, shares×PPS) — both legs equal at the just-posted residual PPS.
+      const payout2 = expectedAttackerPending;
+      await underlying.mint(strategy.address, payout2);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([3n]);
+
+      const attackerSpent = attackerDepBefore - (await altDeposit.balanceOf(receiver.address));
+      const attackerReceived = (await underlying.balanceOf(receiver.address)) - attackerUndBefore;
+      const attackerProfit = attackerReceived - attackerSpent;
+      expect(attackerSpent).to.equal(attackerInitShares + attackerDeposit);
+      expect(attackerReceived).to.equal(oldPayout + payout2);
+      expect(attackerProfit).to.equal(oldPayout + payout2 - attackerInitShares - attackerDeposit);
     });
 
     it('postPricePerShare reverts when the strategy is paused', async function () {

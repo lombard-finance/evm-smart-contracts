@@ -44,6 +44,20 @@ abstract contract AsyncRedemptionUpgradeable is
 
     function __AsyncRedemption_init() internal onlyInitializing {}
 
+    /// @dev Include burned-but-unfulfilled redemption shares in the economic supply for
+    ///      `postPricePerShare` reconciliation; their backing is still in the vault until fulfillment.
+    function _effectiveShareSupply()
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        return
+            super._effectiveShareSupply() +
+            _getAsyncRedemptionStorage().totalPendingShares;
+    }
+
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
     function setRedeemFeeBps(uint16 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)

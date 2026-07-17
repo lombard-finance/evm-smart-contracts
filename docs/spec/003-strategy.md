@@ -12,7 +12,7 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 2. **Exits** — `requestRedeem` → pending → `fulfillRedeemRequests` (requires `PAY_REDEMPTIONS_ROLE`, direct settlement). No ERC-4626 `withdraw` / `redeem`.
 3. **Redemption fulfillment** — `fulfillRedeemRequests(uint256[] requestIds)` transfers `asset` directly to each request's `owner` in one pass; caller MUST hold **`PAY_REDEMPTIONS_ROLE`**.
 4. **Shards** — `registerShard` / `requestFunding` pipe per **002**; no extra `IStrategy` APIs moving `asset()` outside **002**.
-5. **Exchange rate** — `pricePerShare` (asset wei per `10 ** decimals()` shares) posted by `PRICE_SETTER_ROLE`; `totalAssets()` derived from this rate.
+5. **Exchange rate** — `pricePerShare` (asset wei per `10 ** decimals()` shares) posted by `PRICE_SETTER_ROLE` via `postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`; `totalAssets()` derived from this rate.
 6. **Fees** — Management fee (time-based dilution) and performance fee (high-water-mark) minted as shares by `TREASURY_ROLE`.
 
 **Architecture (fixed):** Redemption fulfillment is invoked by an account with **`PAY_REDEMPTIONS_ROLE`**, directly paying asset to each request's owner in one tx. Cross-chain pricing field `pricePerShare` MUST be writable **only** by `PRICE_SETTER_ROLE`, subject to a **rate limiter** bucket. The implementation MUST ship behind OpenZeppelin **`BeaconProxy` + `UpgradeableBeacon`** (strategy-dedicated beacon, same pattern as **002** §A.1).
@@ -43,7 +43,7 @@ The strategy has an **operations pause** (deposit / redemption / price post path
 - `STRATEGY_PAUSER_ROLE` calls **`pauseDeposit()`** / **`pauseRedeem()`** to block deposit and redemption entrypoints.
 - `LIMITED_ADMIN_ROLE` calls **`unpauseStrategyOperations()`**. Emits `StrategyOperationsUnpaused(account)`.
 - `strategyOperationsPaused()` view returns current pause state.
-- A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also triggers the strategy operations pause automatically (see **Cross-chain ratio**).
+- A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also pauses **both** deposit and redeem automatically (see **Exchange rate**).
 - Pausing MUST NOT block `fulfillRedeemRequests` (redemption fulfillment is not guarded by this pause).
 
 ---
@@ -150,16 +150,53 @@ shares = gainShares * feeBps / 10_000
 
 ---
 
-## Cross-chain Ratio (`pricePerShare`)
+## Exchange rate (`pricePerShare`)
 
-- **`postPricePerShare(uint256 newPricePerShare, bool revertOnRateLimit)`** — Updates `pricePerShare`. Requires `PRICE_SETTER_ROLE`. Reverts if `newPricePerShare == 0` (`Strategy_ZeroPricePerShare`). Reverts if strategy operations are paused.
-- Subject to a **`PriceRateLimiter` bucket** (micro-bps capacity / refill model). The limiter measures the relative price move as bps and compares to remaining bucket capacity:
-  - If the move fits within capacity: consume capacity, set price, emit `PricePerShareUpdated`.
-  - If the move exceeds capacity and `revertOnRateLimit == true`: revert (`PriceRateLimiterRateLimitExceeded`).
-  - If the move exceeds capacity and `revertOnRateLimit == false`: drain the bucket, set the price, **pause strategy operations** (`_pauseStrategy`), emit `PricePerShareUpdated` and `StrategyOperationsPaused`.
-- **`setPricePerShareRateLimit(uint32 maxBucketBps, uint64 refillRate)`** — Configures the rate-limiter bucket. Requires `MANAGER_ROLE`. This is a safety catch controlled by a separate role from `PRICE_SETTER_ROLE`, with the intent that different parties perform each operation — reducing single-point-of-failure risk.
-- **`pricePerShareRateLimiterState()`** — View: returns current bucket state with refill virtually applied.
-- Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, uint256 nav, uint64 postedAt)`** where `nav = totalAssets()` (computed with the new PPS) and `postedAt = block.timestamp`.
+`pricePerShare` is the posted exchange rate (asset wei per `10 ** decimals()` shares). It moves **only** through `postPricePerShare`; fee share mints do not rebase it.
+
+### Effective share supply
+
+Reconciliation uses `_effectiveShareSupply()`, not bare `totalSupply()`:
+
+- **Default** (`StrategyBaseUpgradeable`): `totalSupply()`.
+- **Async redemption** (`AsyncRedemptionUpgradeable`): `totalSupply() + totalPendingShares()`. Pending (burned-but-unfulfilled) shares leave circulating supply on `requestRedeem`, but their backing remains in the vault until `fulfillRedeemRequests`.
+
+Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition the strategy uses on-chain. For async strategies that is `totalSupply() + totalPendingShares()` — **not** `totalSupply()` alone. Omitting pending shares concentrates any NAV loss/gain onto the residual circulating supply.
+
+### `postPricePerShare`
+
+**`postPricePerShare(uint256 navAtSnapshot, uint256 effectiveSupplyAtSnapshot, bool revertOnRateLimit)`**
+
+- Requires `PRICE_SETTER_ROLE`. Also gated by ERC-20 transfer pause (`whenNotPaused`).
+- Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
+- Reverts `Strategy_PricePerSharePaused` when **both** deposit and redeem are paused (the state produced by the rate-limit auto-pause path). One-sided pause still permits PPS updates.
+
+**Declared vs reconciled:**
+
+1. `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (floor). Pure snapshot rate; used **only** for the rate limiter.
+2. Let `effectiveSupplyNow = _effectiveShareSupply()`.
+3. If `effectiveSupplyNow == 0`: store `declaredPricePerShare`.
+4. Else reconcile the net effective-supply delta at the **still-stored** PPS:
+   - shares added → `reconciledNav = navAtSnapshot + Δ × oldPPS / oneShare` (floor on the delta term);
+   - shares removed → `reconciledNav = navAtSnapshot − Δ × oldPPS / oneShare` (ceil on the delta term);
+   - store `reconciledNav × oneShare / effectiveSupplyNow` (floor).
+5. A redeem *request* (circulating → pending) does **not** change effective supply, so it neither adds nor removes backing in step 4 — that is what prevents mid-epoch exits from concentrating a NAV loss onto residual holders. Fulfillment (backing paid out) decreases effective supply and is reconciled as a removal. Same-epoch deposits are priced at the stale PPS, so a frontrunning deposit cannot inflate the post-update NAV.
+
+`totalAssets()` (= `totalSupply() × pricePerShare / oneShare`) reports only **circulating**-share backing; any pending/reserved fraction stays in the vault for its claimants. Fee share mints increase `totalSupply` without asset inflow, so `totalAssets()` may overstate economic NAV until the next post; the reconciled update corrects for fee-minted supply since the prior snapshot.
+
+### Rate limiter
+
+Subject to a **`PriceRateLimiter`** leaky bucket (micro-bps capacity / refill). The limiter measures the **declared** relative move (old → declared PPS), not the reconciled move — mid-epoch flow MUST NOT mask a large declared NAV swing:
+
+- Within capacity → consume capacity, set the **reconciled** price, emit `PricePerShareUpdated`.
+- Over capacity and `revertOnRateLimit == true` → revert `PriceRateLimiterRateLimitExceeded`.
+- Over capacity and `revertOnRateLimit == false` → drain the bucket, set the reconciled price, **pause both** deposit and redeem (circuit breaker).
+
+**`setPricePerShareRateLimit(uint32 maxBucketBps, uint64 refillRate)`** — Configures the bucket. Requires `MANAGER_ROLE` (separate from `PRICE_SETTER_ROLE` by design). The bucket is **zeroed at init**; `MANAGER_ROLE` MUST configure it before any non-zero move is allowed.
+
+**`pricePerShareRateLimiterState()`** — View: current bucket state with refill virtually applied.
+
+Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, uint256 nav, uint64 postedAt)`** where `nav = totalAssets()` (with the new PPS) and `postedAt = block.timestamp`.
 
 ---
 
@@ -240,7 +277,7 @@ shares = gainShares * feeBps / 10_000
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `claimableRedeemRequest` always returns `0`.
 5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; transfers `asset` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `STRATEGY_PAUSER_ROLE` pauses; `MANAGER_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
-7. **`postPricePerShare(uint256, bool)`**: rate-limiter bucket; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause on excess if `revertOnRateLimit = false`.
+7. **`postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`**: declared-vs-reconciled semantics per **Exchange rate**; rate-limiter on declared move; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause deposit+redeem on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
 9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
 10. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, redeem fee shares.

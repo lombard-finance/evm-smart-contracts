@@ -92,7 +92,7 @@ Fee mints increase `totalSupply` but leave `pricePerShare` unchanged, so `totalA
 
 This is **intentional**. Dilution fees transfer economics via new shares; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
 
-**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare`. Operators SHOULD snapshot `supplyAtSnapshot` at NAV observation time and post true backing `navAtSnapshot`; reconciliation accounts for fee-minted supply (and same-epoch deposits / async redeem requests priced at stale PPS). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare` (see [Posting NAV](#posting-nav-and-the-price-rate-limiter)). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
 
 **Operational expectations:**
 
@@ -124,17 +124,30 @@ strategy.harvestPerformanceFee(feeRecipient);
 
 ### Posting NAV and the price rate limiter
 
-`postPricePerShare` is the only way the posted exchange rate moves. It is **not** a raw price setter — the price is derived from a NAV/supply snapshot and reconciled against mid-epoch supply changes.
+`postPricePerShare` is the only way the posted exchange rate moves. It is **not** a raw price setter — the price is derived from a NAV/supply snapshot and reconciled against mid-epoch supply changes. Normative rules live in [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Exchange rate.
 
 ```solidity
 // PRICE_SETTER_ROLE; reverts if the ERC-20 transfer pause is active, or if BOTH deposit and redeem are paused
-strategy.postPricePerShare(navAtSnapshot, supplyAtSnapshot, revertOnRateLimit);
+// effectiveSupplyAtSnapshot = totalSupply() + totalPendingShares() observed when navAtSnapshot was measured
+strategy.postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit);
 // MANAGER_ROLE: configure the rate-limiter bucket (micro-bps capacity + refill)
 strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 ```
 
-- The new price is `declaredPricePerShare = navAtSnapshot × oneShare / supplyAtSnapshot` (`oneShare = 10 ** decimals()`), then **reconciled** for shares added/removed since the snapshot before being stored. Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- The **`PriceRateLimiter`** is a leaky-bucket on the **declared** relative move (old → declared PPS), measured in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Gating on the declared move stops mid-epoch flow from masking a large NAV swing.
+**Inputs and declared vs reconciled PPS**
+
+- `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
+- `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
+- `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). This is what the **rate limiter** measures against the prior stored PPS.
+- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is repriced at the still-stored (stale) PPS and folded into NAV, then divided by current effective supply. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment (backing leaves the vault) is an effective-supply decrease.
+
+**Pause gating**
+
+- Reverts `Strategy_PricePerSharePaused` when **both** deposit and redeem are paused (the state produced by the rate-limit auto-pause path). One-sided pause still allows PPS updates. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
+
+**Rate limiter**
+
+- Leaky bucket on the **declared** relative move (old → declared PPS), in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Gating on the declared move stops mid-epoch flow from masking a large NAV swing; the reconciled price is still what gets stored once the declared move clears.
   - Within capacity → consume capacity, set the reconciled price, emit `PricePerShareUpdated`.
   - Over capacity with `revertOnRateLimit = true` → revert `PriceRateLimiterRateLimitExceeded`.
   - Over capacity with `revertOnRateLimit = false` → drain the bucket, **still set** the reconciled price, then **pause both** deposit and redeem (circuit breaker).

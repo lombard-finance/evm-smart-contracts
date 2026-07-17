@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {AsyncRedemptionUpgradeable} from "./AsyncRedemptionUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
+import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
@@ -57,5 +58,17 @@ contract MultiAssetWithAsyncRedemptionStrategy is
     /// @notice Human-readable build label for off-chain integrations.
     function version() external pure override returns (string memory) {
         return "MAWARS-0.0.1";
+    }
+
+    /// @dev Diamond-resolution override: both the deposit branch (base default) and the async branch reach
+    ///      `_effectiveShareSupply`; forward to `super`, which resolves to the async implementation
+    ///      (`totalSupply() + totalPendingShares`) via C3 linearization.
+    function _effectiveShareSupply()
+        internal
+        view
+        override(StrategyBaseUpgradeable, AsyncRedemptionUpgradeable)
+        returns (uint256)
+    {
+        return super._effectiveShareSupply();
     }
 }
