@@ -2166,6 +2166,137 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
     });
   });
 
+  describe('postPricePerShare different amounts', function () {
+    const EFFECTIVE = 100n * e18; // effectiveSupplyNow for every seeded (non-empty) row
+    const NAV = 100n * e18; // operator NAV at snapshot (implied snapshot PPS = 1.0)
+    const DIFF = 20n * e18; // snapshot-vs-current supply gap that selects the branch
+
+    // Expected PPS values
+    const INCREASE = (12n * e18) / 10n;
+    const UNCHANGED = e18;
+    const DECREASE = (8n * e18) / 10n;
+
+    const cases = [
+      {
+        name: 'stores the declared price when effective supply is zero',
+        totalSupply: 0n,
+        pendingRedeems: 0n,
+        snapshotNav: 3n * e18,
+        snapshotSupply: 2n * e18,
+        expectedPps: (3n * e18) / 2n
+      },
+
+      // Circulating only: totalSupply = EFFECTIVE, pending = 0.
+      {
+        name: 'raises the price for an increase in circulating supply',
+        totalSupply: EFFECTIVE,
+        pendingRedeems: 0n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE - DIFF,
+        expectedPps: INCREASE
+      },
+      {
+        name: 'matches the declared price for unchanged circulating supply',
+        totalSupply: EFFECTIVE,
+        pendingRedeems: 0n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE,
+        expectedPps: UNCHANGED
+      },
+      {
+        name: 'lowers the price for a decrease in circulating supply',
+        totalSupply: EFFECTIVE,
+        pendingRedeems: 0n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE + DIFF,
+        expectedPps: DECREASE
+      },
+
+      // Pending only: totalSupply = 0, pending = EFFECTIVE (exercises the async override).
+      {
+        name: 'raises the price for an increase in pending supply',
+        totalSupply: 0n,
+        pendingRedeems: EFFECTIVE,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE - DIFF,
+        expectedPps: INCREASE
+      },
+      {
+        name: 'matches the declared price for unchanged pending supply',
+        totalSupply: 0n,
+        pendingRedeems: EFFECTIVE,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE,
+        expectedPps: UNCHANGED
+      },
+      {
+        name: 'lowers the price for a decrease in pending supply',
+        totalSupply: 0n,
+        pendingRedeems: EFFECTIVE,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE + DIFF,
+        expectedPps: DECREASE
+      },
+
+      // Mixed: totalSupply = 60e18, pending = 40e18.
+      {
+        name: 'raises the price for an increase in mixed supply',
+        totalSupply: EFFECTIVE / 2n,
+        pendingRedeems: EFFECTIVE / 2n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE - DIFF,
+        expectedPps: INCREASE
+      },
+      {
+        name: 'matches the declared price for unchanged mixed supply',
+        totalSupply: EFFECTIVE / 2n,
+        pendingRedeems: EFFECTIVE / 2n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE,
+        expectedPps: UNCHANGED
+      },
+      {
+        name: 'lowers the price for a decrease in mixed supply',
+        totalSupply: EFFECTIVE / 2n,
+        pendingRedeems: EFFECTIVE / 2n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE + DIFF,
+        expectedPps: DECREASE
+      }
+    ];
+
+    beforeEach(async function () {
+      await snapshot.restore();
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+    });
+
+    cases.forEach(arg => {
+      it(`postPricePerShare() ${arg.name}`, async function () {
+        const totalDeposited = arg.totalSupply + arg.pendingRedeems;
+        if (totalDeposited > 0n) {
+          await altDeposit.mint(sender.address, totalDeposited);
+          await altDeposit.connect(sender).approve(strategy.address, totalDeposited);
+          await strategy
+            .connect(sender)
+            ['deposit(address,uint256,address)'](altDeposit.address, totalDeposited, sender.address);
+        }
+        if (arg.pendingRedeems > 0n) {
+          await strategy.connect(sender).requestRedeem(arg.pendingRedeems, sender.address);
+        }
+        expect(await strategy.totalSupply()).to.equal(arg.totalSupply);
+        expect((await strategy.totalPending())[0]).to.equal(arg.pendingRedeems);
+
+        await strategy.connect(priceSetter).postPricePerShare(arg.snapshotNav, arg.snapshotSupply, false);
+
+        expect(await strategy.pricePerShare()).to.equal(arg.expectedPps);
+        // The post writes only a price — it never mints or burns, so supply and pending are untouched.
+        expect(await strategy.totalSupply()).to.equal(arg.totalSupply);
+        expect((await strategy.totalPending())[0]).to.equal(arg.pendingRedeems);
+      });
+    });
+  });
+
   describe('price-per-share rate limit', function () {
     beforeEach(async function () {
       await snapshot.restore();
