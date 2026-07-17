@@ -180,13 +180,14 @@ contract ChainlinkCompositeConverter is IAssetConverter {
     }
 
     function _readAnswers() private view returns (uint256 num, uint256 den) {
-        _checkSequencer();
-        num = _readFeed(feedNumerator);
-        den = _readFeed(feedDenominator);
+        uint256 seqStartedAt = _checkSequencer();
+        num = _readFeed(feedNumerator, seqStartedAt);
+        den = _readFeed(feedDenominator, seqStartedAt);
     }
 
     function _readFeed(
-        AggregatorV3Interface feed
+        AggregatorV3Interface feed,
+        uint256 seqStartedAt
     ) private view returns (uint256 answer) {
         (, int256 ans, , uint256 updatedAt, ) = feed.latestRoundData();
         if (ans <= 0) revert ChainlinkCompositeConverter_InvalidAnswer();
@@ -194,17 +195,22 @@ contract ChainlinkCompositeConverter is IAssetConverter {
             revert ChainlinkCompositeConverter_FutureAnswer();
         if (block.timestamp - updatedAt > heartbeat)
             revert ChainlinkCompositeConverter_StaleAnswer();
+        // Reject pre-downtime answers that are still within heartbeat after recovery.
+        if (seqStartedAt != 0 && updatedAt < seqStartedAt)
+            revert ChainlinkCompositeConverter_StaleAnswer();
         return uint256(ans);
     }
 
     /// @dev Reverts if the L2 sequencer is down or within the grace period after recovery.
-    function _checkSequencer() private view {
-        if (address(sequencerUptimeFeed) == address(0)) return;
-        (, int256 seqAns, uint256 startedAt, , ) = sequencerUptimeFeed
+    /// @return startedAt Sequencer recovery timestamp, or 0 when the check is disabled.
+    function _checkSequencer() private view returns (uint256 startedAt) {
+        if (address(sequencerUptimeFeed) == address(0)) return 0;
+        (, int256 seqAns, uint256 seqStartedAt, , ) = sequencerUptimeFeed
             .latestRoundData();
         if (seqAns == 1) revert ChainlinkCompositeConverter_SequencerDown();
-        if (startedAt == 0) revert ChainlinkCompositeConverter_SequencerDown();
-        if (block.timestamp - startedAt < gracePeriod)
+        if (seqStartedAt == 0) revert ChainlinkCompositeConverter_SequencerDown();
+        if (block.timestamp - seqStartedAt < gracePeriod)
             revert ChainlinkCompositeConverter_GracePeriodNotOver();
+        return seqStartedAt;
     }
 }

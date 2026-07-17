@@ -2875,6 +2875,43 @@ describe('Chainlink as deposit token', function () {
         // clConverter has sequencerUptimeFeed = address(0); should still work regardless
         expect(await clConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
       });
+
+      it('post-recovery: pre-downtime price within heartbeat reverts StaleAnswer', async function () {
+        // heartbeat > grace so a pre-recovery answer can still pass the age check alone.
+        const longHeartbeat = GRACE_PERIOD * 2n;
+        const priceFeed = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const conv = await deployContract<ChainlinkConverter>(
+          'ChainlinkConverter',
+          [await priceFeed.getAddress(), 8, 8, longHeartbeat, await seqFeed.getAddress(), GRACE_PERIOD, false],
+          false
+        );
+
+        const block = await ethers.provider.getBlock('latest');
+        const now = BigInt(block!.timestamp);
+        const recoveryAt = now - GRACE_PERIOD - 1n;
+        await seqFeed.setStartedAt(recoveryAt);
+        // Pre-downtime answer: before recovery, but now - updatedAt <= longHeartbeat.
+        await priceFeed.setUpdatedAt(recoveryAt - 1n);
+
+        // prettier-ignore
+        await expect(conv.toBaseUnits(ONE_BTC, 0))
+          .to.be.revertedWithCustomError(conv, 'ChainlinkConverterStaleAnswer');
+        // prettier-ignore
+        await expect(conv.fromBaseUnits(ONE_BTC, 1))
+          .to.be.revertedWithCustomError(conv, 'ChainlinkConverterStaleAnswer');
+      });
+
+      it('post-recovery: price updatedAt >= startedAt converts normally', async function () {
+        const block = await ethers.provider.getBlock('latest');
+        const recoveryAt = BigInt(block!.timestamp) - GRACE_PERIOD;
+        await seqFeed.setStartedAt(recoveryAt);
+        // Refresh after the setStartedAt tx so age cannot exceed heartbeat.
+        const after = await ethers.provider.getBlock('latest');
+        await clFeed.setUpdatedAt(BigInt(after!.timestamp));
+
+        expect(await seqConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+        expect(await seqConverter.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+      });
     });
   });
 
@@ -3024,6 +3061,80 @@ describe('Chainlink as deposit token', function () {
       // prettier-ignore
       await expect(conv.toBaseUnits(ONE_BTC, 0))
         .to.be.revertedWithCustomError(conv, 'ChainlinkCompositeConverter_StaleAnswer');
+    });
+
+    describe('sequencer uptime check', function () {
+      const GRACE_PERIOD = 3600n;
+
+      it('post-recovery: pre-downtime numerator within heartbeat reverts StaleAnswer', async function () {
+        const longHeartbeat = GRACE_PERIOD * 2n;
+        const feedNum = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const feedDen = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const seqFeed = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, 0], false);
+
+        const block = await ethers.provider.getBlock('latest');
+        const now = BigInt(block!.timestamp);
+        const recoveryAt = now - GRACE_PERIOD - 1n;
+        await seqFeed.setStartedAt(recoveryAt);
+
+        const conv = await deployContract<ChainlinkCompositeConverter>(
+          'ChainlinkCompositeConverter',
+          [
+            await feedNum.getAddress(),
+            await feedDen.getAddress(),
+            8,
+            8,
+            longHeartbeat,
+            await seqFeed.getAddress(),
+            GRACE_PERIOD,
+            false
+          ],
+          false
+        );
+
+        // Only numerator is pre-recovery; denominator is fresh — still must revert.
+        await feedNum.setUpdatedAt(recoveryAt - 1n);
+        await feedDen.setUpdatedAt(recoveryAt);
+
+        // prettier-ignore
+        await expect(conv.toBaseUnits(ONE_BTC, 0))
+          .to.be.revertedWithCustomError(conv, 'ChainlinkCompositeConverter_StaleAnswer');
+        // prettier-ignore
+        await expect(conv.fromBaseUnits(ONE_BTC, 1))
+          .to.be.revertedWithCustomError(conv, 'ChainlinkCompositeConverter_StaleAnswer');
+      });
+
+      it('post-recovery: both feeds updatedAt >= startedAt converts normally', async function () {
+        const feedNum = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const feedDen = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const seqFeed = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, 0], false);
+
+        const block = await ethers.provider.getBlock('latest');
+        const recoveryAt = BigInt(block!.timestamp) - GRACE_PERIOD;
+        await seqFeed.setStartedAt(recoveryAt);
+        // Refresh after setStartedAt so age cannot exceed heartbeat.
+        const after = await ethers.provider.getBlock('latest');
+        await feedNum.setUpdatedAt(BigInt(after!.timestamp));
+        await feedDen.setUpdatedAt(BigInt(after!.timestamp));
+
+        const conv = await deployContract<ChainlinkCompositeConverter>(
+          'ChainlinkCompositeConverter',
+          [
+            await feedNum.getAddress(),
+            await feedDen.getAddress(),
+            8,
+            8,
+            HEARTBEAT,
+            await seqFeed.getAddress(),
+            GRACE_PERIOD,
+            false
+          ],
+          false
+        );
+
+        expect(await conv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+        expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+      });
     });
 
     it('round-trip: fromBaseUnits(toBaseUnits(x)) within 2 token wei (dual mulDiv)', async function () {
