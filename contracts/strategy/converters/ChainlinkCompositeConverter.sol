@@ -208,7 +208,8 @@ contract ChainlinkCompositeConverter is IAssetConverter {
         (, int256 seqAns, uint256 seqStartedAt, , ) = sequencerUptimeFeed
             .latestRoundData();
         if (seqAns == 1) revert ChainlinkCompositeConverter_SequencerDown();
-        if (seqStartedAt == 0) revert ChainlinkCompositeConverter_SequencerDown();
+        if (seqStartedAt == 0)
+            revert ChainlinkCompositeConverter_SequencerDown();
         if (block.timestamp - seqStartedAt < gracePeriod)
             revert ChainlinkCompositeConverter_GracePeriodNotOver();
         return seqStartedAt;
