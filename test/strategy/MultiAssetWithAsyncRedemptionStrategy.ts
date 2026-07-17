@@ -2045,7 +2045,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const victimFairClaim = (victimShares * navAtSnapshot) / supplyAtSnapshot;
       expect(victimFairClaim).to.equal(891n * e18);
       expect(victimPaid).to.eq(victimPayout);
-      // Reconciled PPS (1030/1040) > snapshot PPS (990/1000) → victim is slightly over the snapshot pro-rata.
+      // Anti-dilution invariant: the redeeming victim is never paid below their snapshot pro-rata claim.
+      expect(victimPaid).to.be.gte(victimFairClaim);
+      // Here strictly above it — reconciled PPS (1030/1040) > snapshot PPS (990/1000). The exact
+      // over-payment (in wei) is the characterization for these specific inputs.
       expect(victimPaid - victimFairClaim).to.equal(346153846153845600n);
 
       // Residual NAV after fair payout; corrective post over remaining active supply.
@@ -2071,7 +2074,66 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const attackerProfit = attackerReceived - attackerSpent;
       expect(attackerSpent).to.equal(attackerInitShares + attackerDeposit);
       expect(attackerReceived).to.equal(oldPayout + payout2);
-      expect(attackerProfit).to.equal(oldPayout + payout2 - attackerInitShares - attackerDeposit);
+      // Security invariant: the residual-deposit maneuver is never profitable — the attacker bears (not
+      // sheds) their pro-rata share of the NAV loss. Under the vulnerable reconciliation, cratering the
+      // residual PPS would have let the attacker's post-loss exit dump the loss onto the remaining holders.
+      expect(attackerProfit).to.be.lessThan(0n);
+    });
+
+    it('reconciles a mid-epoch fulfillment as removed supply (conservative Ceil rounding)', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      // Seed 3 shares, then post a deliberately fractional PPS = 10/3 so the removed-supply term is not a
+      // whole number of asset wei and the Ceil rounding is observable.
+      const baseDeposit = 3n * e18;
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+
+      const navAtSnapshot = 10n * e18;
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, baseDeposit, false);
+      const pps = await strategy.pricePerShare();
+      expect(pps).to.equal((10n * e18) / 3n); // 3.333...e18, floored
+
+      // Mid-epoch redeem request burns shares into pending — effective supply is unchanged (net-zero).
+      // The odd +1 wei keeps sharesRemoved off a whole-share boundary so Ceil ≠ Floor below.
+      const redeemShares = 1n * e18 + 1n;
+      await strategy.connect(sender).requestRedeem(redeemShares, sender.address);
+      const effectiveSupplyAtSnapshot = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyAtSnapshot).to.equal(baseDeposit);
+
+      // Fulfill the request BEFORE the post → pending shares drop to 0, so effective supply falls to the
+      // live shares. This is the only way effective supply shrinks between snapshot and post, and it drives
+      // the removed-supply branch of reconciliation.
+      const payout = await strategy.pendingAssetsOf(sender.address);
+      await underlying.mint(strategy.address, payout);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n]);
+
+      const effectiveSupplyNow = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyNow).to.equal(baseDeposit - redeemShares);
+
+      // Mirror the contract: reconciledNav = nav - ceil(sharesRemoved * pps / 1e18);
+      //                      priceToSet    = floor(reconciledNav * 1e18 / effectiveSupplyNow).
+      const sharesRemoved = effectiveSupplyAtSnapshot - effectiveSupplyNow;
+      const removedFloor = (sharesRemoved * pps) / e18;
+      const removedCeil = (sharesRemoved * pps + (e18 - 1n)) / e18;
+      // Ceil is active at NAV granularity: it rounds the removed backing UP by 1 wei vs Floor, which is
+      // solvency-favouring (never credits the remaining shares with backing that left). The 1-wei NAV
+      // delta washes out in the floored PPS at this scale, so the stored price is never ABOVE the Floor
+      // variant — that direction is the invariant we assert.
+      expect(removedCeil).to.equal(removedFloor + 1n);
+      const expectedPPS = ((navAtSnapshot - removedCeil) * e18) / effectiveSupplyNow;
+      const expectedPPSIfFloor = ((navAtSnapshot - removedFloor) * e18) / effectiveSupplyNow;
+      expect(expectedPPS).to.be.lte(expectedPPSIfFloor);
+
+      // Declared PPS equals the still-stored PPS (nav/effSupply unchanged from the first post) → 0% move,
+      // so the rate limiter is a no-op and the reconciled removed-supply price is what gets stored.
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, false);
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
     });
 
     it('postPricePerShare reverts when the strategy is paused', async function () {
@@ -2087,6 +2149,20 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       // prettier-ignore
       await expect(strategy.connect(priceSetter).postPricePerShare(e18, e18, false))
         .to.be.revertedWithCustomError(strategy, 'Strategy_PricePerSharePaused');
+    });
+
+    it('postPricePerShare reverts when navAtSnapshot is zero', async function () {
+      // prettier-ignore
+      await expect(strategy.connect(priceSetter).postPricePerShare(0n, e18, false))
+        .to.be.revertedWithCustomError(strategy, 'Strategy_ZeroNavAtSnapshot');
+    });
+
+    it('postPricePerShare reverts when effectiveSupplyAtSnapshot is zero', async function () {
+      // A stale operator posting a zero effective supply (e.g. omitting pending shares on an empty active
+      // book) must revert rather than divide by zero when computing the declared PPS.
+      // prettier-ignore
+      await expect(strategy.connect(priceSetter).postPricePerShare(e18, 0n, false))
+        .to.be.revertedWithCustomError(strategy, 'Strategy_ZeroSharesAtSnapshot');
     });
   });
 
