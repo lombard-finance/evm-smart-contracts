@@ -816,7 +816,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
         await altDeposit.mint(sender.address, SEED);
         await altDeposit.connect(sender).approve(strategy.address, SEED);
-        // Open a redeem request (while still allowed) and fund the payout, so fulfillment can run after pausing.
+        // Open a redeem request (while still allowed) so fulfillment can be asserted to revert after pausing.
         await strategy
           .connect(sender)
           ['deposit(address,uint256,address)'](altDeposit.address, REQUEST_SHARES, sender.address);
@@ -853,14 +853,12 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         ).to.changeTokenBalance(strategy, sender, targetShares);
       });
 
-      it('settleRedemption() still settles while redemptions are paused', async function () {
+      it('fulfillRedeemRequests() reverts while redemptions are paused', async function () {
         expect(await strategy.redeemPaused()).to.be.true;
         await advanceTime(1);
-        const balanceBefore = await underlying.balanceOf(sender.address);
         // prettier-ignore
         await expect(strategy.connect(redeemOperator).fulfillRedeemRequests([1n]))
-          .to.emit(strategy, 'Redeem');
-        expect((await underlying.balanceOf(sender.address)) - balanceBefore).to.equal(REQUEST_SHARES);
+          .to.be.revertedWithCustomError(strategy, 'Strategy_EnforcedRedeemPause');
       });
 
       it('unpauseRedeem() manager can unpause redemptions', async function () {

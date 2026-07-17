@@ -159,7 +159,7 @@ abstract contract AsyncRedemptionUpgradeable is
     ///      after the request cannot pay more than current NAV for the burned shares.
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
-    ) external onlyRole(PAY_REDEMPTIONS_ROLE) nonReentrant {
+    ) external nonReentrant onlyRole(PAY_REDEMPTIONS_ROLE) whenRedeemNotPaused {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         IERC20 asset_ = asset();
         address msgSender = _msgSender();
