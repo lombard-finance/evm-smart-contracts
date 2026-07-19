@@ -3253,15 +3253,24 @@ describe('Chainlink as deposit token', function () {
       });
 
       it('post-recovery: price updatedAt >= startedAt converts normally', async function () {
-        const block = await ethers.provider.getBlock('latest');
-        const recoveryAt = BigInt(block!.timestamp) - GRACE_PERIOD;
-        await seqFeed.setStartedAt(recoveryAt);
-        // Refresh after the setStartedAt tx so age cannot exceed heartbeat.
-        const after = await ethers.provider.getBlock('latest');
-        await clFeed.setUpdatedAt(BigInt(after!.timestamp));
+        // heartbeat > grace so a pre-recovery answer can still pass the age check alone.
+        const longHeartbeat = GRACE_PERIOD * 2n;
+        const priceFeed = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const conv = await deployContract<ChainlinkConverter>(
+          'ChainlinkConverter',
+          [await priceFeed.getAddress(), 8, 8, longHeartbeat, await seqFeed.getAddress(), GRACE_PERIOD, false],
+          false
+        );
 
-        expect(await seqConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
-        expect(await seqConverter.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+        const block = await ethers.provider.getBlock('latest');
+        const now = BigInt(block!.timestamp);
+        const recoveryAt = now - GRACE_PERIOD - 1n;
+        await seqFeed.setStartedAt(recoveryAt);
+        // Pre-downtime answer: before recovery, but now - updatedAt <= longHeartbeat.
+        await priceFeed.setUpdatedAt(recoveryAt);
+
+        expect(await conv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+        expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
       });
     });
   });
