@@ -245,7 +245,9 @@ The contract implements both `IMerkleCallAllowlist` (typed `CallVerificationInpu
 | 3   | `0x08` | `FLAG_DATA_LENGTH` | `data.length` must equal `dataLength` in the rule                                        |
 | 4   | `0x10` | `FLAG_SELECTOR`    | `bytes4(data[0:4])` must equal `selector` in the rule (also requires `data.length >= 4`) |
 
-If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, `dataLength == 0`, or **`selector == bytes4(0)`**).
+If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, `dataLength == 0`, or **`selector == bytes4(0)`**). Match-time checks only compare fields whose flags are **set** — a zero stored in a wildcard field is **not** an exact-match constraint.
+
+> **Warning:** Omitting `FLAG_VALUE` makes `value` a wildcard even when the encoded rule has `value: 0`. Callers can then reuse the Merkle proof with any ETH amount, and shard `exec` will forward ETH from the shard’s balance. Omit `FLAG_SENDER` only when any caller may reuse the proof; set it when the proof must be single-caller. Always OR in every flag for a field you intend to pin.
 
 ### Merkle leaf (for builders)
 
@@ -313,9 +315,11 @@ function encodeMerkleRule(p: {
 
 #### Example A — Allow any calldata to one contract, 0 ETH, any sender
 
+`flags: 0x02 | 0x04` pins **`to`** and **`value == 0`**. Leaving `FLAG_SENDER` clear intentionally allows any caller to reuse the proof.
+
 ```typescript
 const ruleA = encodeMerkleRule({
-  flags: 0x02, // exact `to` only
+  flags: 0x02 | 0x04, // FLAG_TO | FLAG_VALUE — exact `to`, exact 0 ETH
   sender: ethers.ZeroAddress,
   to: targetContract,
   value: 0n,
@@ -326,11 +330,11 @@ const ruleA = encodeMerkleRule({
 
 #### Example B — Fix selector only (e.g. ERC-20 `transfer(address,uint256)` = `0xa9059cbb`)
 
-Use **`flags | 0x10`** and set **`selector`**; leave **`constraints`** empty to allow any arguments.
+Use **`flags | 0x10`** and set **`selector`**; leave **`constraints`** empty to allow any arguments. Include **`0x04` (`FLAG_VALUE`)** when the call must send 0 ETH.
 
 ```typescript
 const ruleB = encodeMerkleRule({
-  flags: 0x02 | 0x10,
+  flags: 0x02 | 0x04 | 0x10, // FLAG_TO | FLAG_VALUE | FLAG_SELECTOR
   selector: 'transfer(address,uint256)',
   sender: ethers.ZeroAddress,
   to: tokenAddress,
@@ -342,7 +346,7 @@ const ruleB = encodeMerkleRule({
 
 #### Example C — Fix selector + full first argument word (e.g. recipient address)
 
-Pin **`selector`**, then constrain the first ABI argument word at **constraint offset `0`** (bytes `data[4..36)`).
+Pin **`selector`**, then constrain the first ABI argument word at **constraint offset `0`** (bytes `data[4..36)`). Same **`FLAG_VALUE`** requirement as above for 0 ETH.
 
 ```typescript
 const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [recipient]); // 32-byte hex string
@@ -350,7 +354,7 @@ const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [reci
 const ALL_ONES = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
 
 const ruleC = encodeMerkleRule({
-  flags: 0x02 | 0x10,
+  flags: 0x02 | 0x04 | 0x10, // FLAG_TO | FLAG_VALUE | FLAG_SELECTOR
   selector: 'transfer(address,uint256)',
   sender: ethers.ZeroAddress,
   to: tokenAddress,
@@ -428,8 +432,8 @@ The converters are **stateless / immutable** adapters — no roles, no events. T
 | `ChainlinkCompositeConverter` | two Chainlink feeds | Deposit token priced by a **ratio** of two feeds sharing a common quote (e.g. ETH/USD ÷ BTC/USD).      |
 
 - **`DirectConverter`** — identity mapping with no oracle (`toBaseUnits`/`fromBaseUnits` are `pure` and ignore the rounding arg).
-- **`ChainlinkConverter`** — wraps a single `AggregatorV3Interface` feed; an `inverted_` flag selects base-per-token vs token-per-base. Decimal normalization is stored as a rational `scaleNumerator / scaleDenominator` (exactly one is a power of ten) so a negative exponent never reverts. The feed read reverts on a zero/negative/future/stale answer (`ChainlinkConverterInvalidAnswer` / `ChainlinkConverterFutureAnswer` / `ChainlinkConverterStaleAnswer`), and an optional L2 sequencer-uptime feed adds `ChainlinkConverterSequencerDown` / `ChainlinkConverterGracePeriodNotOver`.
-- **`ChainlinkCompositeConverter`** — crosses **two** feeds as a ratio, netting decimals per direction. Same staleness / future / sequencer guards (underscore-style error names); note it does **not** check `roundId`.
+- **`ChainlinkConverter`** — wraps a single `AggregatorV3Interface` feed; an `inverted_` flag selects base-per-token vs token-per-base. Decimal normalization is stored as a rational `scaleNumerator / scaleDenominator` (exactly one is a power of ten) so a negative exponent never reverts. The feed read reverts on a zero/negative/future/stale answer (`ChainlinkConverterInvalidAnswer` / `ChainlinkConverterFutureAnswer` / `ChainlinkConverterStaleAnswer`), and an optional L2 sequencer-uptime feed adds `ChainlinkConverterSequencerDown` / `ChainlinkConverterGracePeriodNotOver`. After the grace period, each price answer must also have `updatedAt >=` the sequencer recovery `startedAt` (rejects pre-downtime answers that are still within `heartbeat`).
+- **`ChainlinkCompositeConverter`** — crosses **two** feeds as a ratio, netting decimals per direction. Same staleness / future / sequencer guards (underscore-style error names), including the post-recovery `updatedAt >= startedAt` check on **both** feeds; note it does **not** check `roundId`.
 
 In every converter, `baseDecimals_` MUST equal the strategy underlying's decimals (8 for BTC/LBTC, 18 for WETH).
 
