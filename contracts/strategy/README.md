@@ -65,7 +65,7 @@ All capabilities below reflect the exact `onlyRole` wiring in `StrategyBaseUpgra
 
 - `STRATEGY_PAUSER_ROLE` calls `pauseDeposit()` / `pauseRedeem()` (emit `DepositPaused` / `RedeemPaused`); `MANAGER_ROLE` clears each independently via `unpauseDeposit()` / `unpauseRedeem()`.
 - ERC-20 transfer pause: `TRANSFERS_PAUSER_ROLE` calls `pause()`; `MANAGER_ROLE` calls `unpause()`.
-- A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). `fulfillRedeemRequests` is **not** gated by any of these pauses.
+- A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). Redeem pause (`whenRedeemNotPaused`) gates both `requestRedeem` and `fulfillRedeemRequests`.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares on accrual/harvest). They route to **different** destinations — this is the key correction versus older docs:
 

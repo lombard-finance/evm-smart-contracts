@@ -76,7 +76,7 @@ abstract contract StrategyBaseUpgradeable is
         address blocklistOracle;
         /// @dev Deposit/mint pause (independent of `redeemPaused`).
         bool depositPaused;
-        /// @dev Redeem-request pause (independent of `depositPaused`).
+        /// @dev Redeem pause for `requestRedeem` / `fulfillRedeemRequests` (independent of `depositPaused`).
         bool redeemPaused;
     }
 
