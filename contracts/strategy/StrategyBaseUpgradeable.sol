@@ -236,7 +236,7 @@ abstract contract StrategyBaseUpgradeable is
         uint256 effectiveSupplyAtSnapshot,
         bool revertOnRateLimit
     ) external onlyRole(PRICE_SETTER_ROLE) whenNotPaused {
-        if (depositPaused() && redeemPaused()) {
+        if (depositPaused() || redeemPaused()) {
             revert Strategy_PricePerSharePaused();
         }
 
