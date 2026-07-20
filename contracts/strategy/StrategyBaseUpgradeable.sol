@@ -256,26 +256,30 @@ abstract contract StrategyBaseUpgradeable is
             Math.Rounding.Floor
         );
 
-        uint256 priceToSet;
-        if (effectiveSupplyNow == 0) {
-            priceToSet = declaredPricePerShare;
-        } else {
+        uint256 priceToSet = declaredPricePerShare;
+        if (effectiveSupplyNow != 0) {
             // Single Floor in PPS-scaled space.
-            uint256 scaled = navAtSnapshot * oneShare;
+            priceToSet = navAtSnapshot.mulDiv(
+                oneShare,
+                effectiveSupplyNow,
+                Math.Rounding.Floor
+            );
             uint256 oldPps = $.pricePerShare;
             if (effectiveSupplyNow >= effectiveSupplyAtSnapshot) {
-                scaled +=
-                    (effectiveSupplyNow - effectiveSupplyAtSnapshot) *
-                    oldPps;
+                priceToSet += (effectiveSupplyNow - effectiveSupplyAtSnapshot)
+                    .mulDiv(oldPps, effectiveSupplyNow, Math.Rounding.Floor);
             } else {
                 uint256 removalValue = (effectiveSupplyAtSnapshot -
-                    effectiveSupplyNow) * oldPps;
-                if (scaled < removalValue) {
+                    effectiveSupplyNow).mulDiv(
+                        oldPps,
+                        effectiveSupplyNow,
+                        Math.Rounding.Ceil
+                    );
+                if (priceToSet < removalValue) {
                     revert Strategy_InsufficientNavForReconciliation();
                 }
-                scaled -= removalValue;
+                priceToSet -= removalValue;
             }
-            priceToSet = scaled / effectiveSupplyNow;
         }
 
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
