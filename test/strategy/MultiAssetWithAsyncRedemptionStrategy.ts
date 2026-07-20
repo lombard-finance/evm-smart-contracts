@@ -2240,6 +2240,137 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
     });
   });
 
+  describe('postPricePerShare different amounts', function () {
+    const EFFECTIVE = 100n * e18; // effectiveSupplyNow for every seeded (non-empty) row
+    const NAV = 100n * e18; // operator NAV at snapshot (implied snapshot PPS = 1.0)
+    const DIFF = 20n * e18; // snapshot-vs-current supply gap that selects the branch
+
+    // Expected PPS values
+    const INCREASE = (12n * e18) / 10n;
+    const UNCHANGED = e18;
+    const DECREASE = (8n * e18) / 10n;
+
+    const cases = [
+      {
+        name: 'stores the declared price when effective supply is zero',
+        totalSupply: 0n,
+        pendingRedeems: 0n,
+        snapshotNav: 3n * e18,
+        snapshotSupply: 2n * e18,
+        expectedPps: (3n * e18) / 2n
+      },
+
+      // Circulating only: totalSupply = EFFECTIVE, pending = 0.
+      {
+        name: 'raises the price for an increase in circulating supply',
+        totalSupply: EFFECTIVE,
+        pendingRedeems: 0n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE - DIFF,
+        expectedPps: INCREASE
+      },
+      {
+        name: 'matches the declared price for unchanged circulating supply',
+        totalSupply: EFFECTIVE,
+        pendingRedeems: 0n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE,
+        expectedPps: UNCHANGED
+      },
+      {
+        name: 'lowers the price for a decrease in circulating supply',
+        totalSupply: EFFECTIVE,
+        pendingRedeems: 0n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE + DIFF,
+        expectedPps: DECREASE
+      },
+
+      // Pending only: totalSupply = 0, pending = EFFECTIVE (exercises the async override).
+      {
+        name: 'raises the price for an increase in pending supply',
+        totalSupply: 0n,
+        pendingRedeems: EFFECTIVE,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE - DIFF,
+        expectedPps: INCREASE
+      },
+      {
+        name: 'matches the declared price for unchanged pending supply',
+        totalSupply: 0n,
+        pendingRedeems: EFFECTIVE,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE,
+        expectedPps: UNCHANGED
+      },
+      {
+        name: 'lowers the price for a decrease in pending supply',
+        totalSupply: 0n,
+        pendingRedeems: EFFECTIVE,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE + DIFF,
+        expectedPps: DECREASE
+      },
+
+      // Mixed: totalSupply = 60e18, pending = 40e18.
+      {
+        name: 'raises the price for an increase in mixed supply',
+        totalSupply: EFFECTIVE / 2n,
+        pendingRedeems: EFFECTIVE / 2n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE - DIFF,
+        expectedPps: INCREASE
+      },
+      {
+        name: 'matches the declared price for unchanged mixed supply',
+        totalSupply: EFFECTIVE / 2n,
+        pendingRedeems: EFFECTIVE / 2n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE,
+        expectedPps: UNCHANGED
+      },
+      {
+        name: 'lowers the price for a decrease in mixed supply',
+        totalSupply: EFFECTIVE / 2n,
+        pendingRedeems: EFFECTIVE / 2n,
+        snapshotNav: NAV,
+        snapshotSupply: EFFECTIVE + DIFF,
+        expectedPps: DECREASE
+      }
+    ];
+
+    beforeEach(async function () {
+      await snapshot.restore();
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+    });
+
+    cases.forEach(arg => {
+      it(`postPricePerShare() ${arg.name}`, async function () {
+        const totalDeposited = arg.totalSupply + arg.pendingRedeems;
+        if (totalDeposited > 0n) {
+          await altDeposit.mint(sender.address, totalDeposited);
+          await altDeposit.connect(sender).approve(strategy.address, totalDeposited);
+          await strategy
+            .connect(sender)
+            ['deposit(address,uint256,address)'](altDeposit.address, totalDeposited, sender.address);
+        }
+        if (arg.pendingRedeems > 0n) {
+          await strategy.connect(sender).requestRedeem(arg.pendingRedeems, sender.address);
+        }
+        expect(await strategy.totalSupply()).to.equal(arg.totalSupply);
+        expect((await strategy.totalPending())[0]).to.equal(arg.pendingRedeems);
+
+        await strategy.connect(priceSetter).postPricePerShare(arg.snapshotNav, arg.snapshotSupply, false);
+
+        expect(await strategy.pricePerShare()).to.equal(arg.expectedPps);
+        // The post writes only a price — it never mints or burns, so supply and pending are untouched.
+        expect(await strategy.totalSupply()).to.equal(arg.totalSupply);
+        expect((await strategy.totalPending())[0]).to.equal(arg.pendingRedeems);
+      });
+    });
+  });
+
   describe('price-per-share rate limit', function () {
     beforeEach(async function () {
       await snapshot.restore();
@@ -3196,15 +3327,24 @@ describe('Chainlink as deposit token', function () {
       });
 
       it('post-recovery: price updatedAt >= startedAt converts normally', async function () {
-        const block = await ethers.provider.getBlock('latest');
-        const recoveryAt = BigInt(block!.timestamp) - GRACE_PERIOD;
-        await seqFeed.setStartedAt(recoveryAt);
-        // Refresh after the setStartedAt tx so age cannot exceed heartbeat.
-        const after = await ethers.provider.getBlock('latest');
-        await clFeed.setUpdatedAt(BigInt(after!.timestamp));
+        // heartbeat > grace so a pre-recovery answer can still pass the age check alone.
+        const longHeartbeat = GRACE_PERIOD * 2n;
+        const priceFeed = await deployContract<ChainlinkFeedMock>('ChainlinkFeedMock', [8, ONE_BTC], false);
+        const conv = await deployContract<ChainlinkConverter>(
+          'ChainlinkConverter',
+          [await priceFeed.getAddress(), 8, 8, longHeartbeat, await seqFeed.getAddress(), GRACE_PERIOD, false],
+          false
+        );
 
-        expect(await seqConverter.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
-        expect(await seqConverter.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
+        const block = await ethers.provider.getBlock('latest');
+        const now = BigInt(block!.timestamp);
+        const recoveryAt = now - GRACE_PERIOD - 1n;
+        await seqFeed.setStartedAt(recoveryAt);
+        // Pre-downtime answer: before recovery, but now - updatedAt <= longHeartbeat.
+        await priceFeed.setUpdatedAt(recoveryAt);
+
+        expect(await conv.toBaseUnits(ONE_BTC, 0)).to.equal(ONE_BTC);
+        expect(await conv.fromBaseUnits(ONE_BTC, 1)).to.equal(ONE_BTC);
       });
     });
   });
