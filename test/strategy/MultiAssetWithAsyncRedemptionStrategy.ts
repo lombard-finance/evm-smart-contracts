@@ -2177,6 +2177,39 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await underlying.balanceOf(sender.address)).to.equal(undBefore + victimPendingAssets);
     });
 
+    it('reverts Strategy_InsufficientNavForReconciliation when removal value exceeds scaled NAV', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      // Wide bucket so a crisis declared move is not the first revert reason.
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Mid-epoch fulfill removes 20 shares (request alone is net-zero for effective supply).
+      const redeemShares = 20n * e18;
+      await strategy.connect(sender).requestRedeem(redeemShares, sender.address);
+      const payout = await strategy.pendingAssetsOf(sender.address);
+      await underlying.mint(strategy.address, payout);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n]);
+      expect((await strategy.totalSupply()) + (await strategy.totalPending())[0]).to.equal(baseDeposit - redeemShares);
+
+      // Crisis NAV too low vs removals at stale PPS: scaled 10e36 < removal value 20e36.
+      const crisisNavAtSnapshot = 10n * e18;
+
+      // prettier-ignore
+      await expect(
+        strategy.connect(priceSetter).postPricePerShare(crisisNavAtSnapshot, baseDeposit, false)
+      ).to.be.revertedWithCustomError(strategy, 'Strategy_InsufficientNavForReconciliation');
+
+      expect(await strategy.pricePerShare()).to.equal(e18);
+    });
+
     it('postPricePerShare reverts when the strategy is paused', async function () {
       await strategy.connect(transfersPauser).pause();
       // prettier-ignore

@@ -51,6 +51,9 @@ interface IStrategy {
     /// @dev `postPricePerShare` was called with `navAtSnapshot == 0`.
     error Strategy_ZeroNavAtSnapshot();
 
+    /// @dev `postPricePerShare` reconciliation: removed shares valued at stored PPS exceed `navAtSnapshot` (scaled).
+    error Strategy_InsufficientNavForReconciliation();
+
     /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
     event DepositPaused(address indexed account);
 

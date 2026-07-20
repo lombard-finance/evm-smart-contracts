@@ -268,9 +268,12 @@ abstract contract StrategyBaseUpgradeable is
                     (effectiveSupplyNow - effectiveSupplyAtSnapshot) *
                     oldPps;
             } else {
-                scaled -=
-                    (effectiveSupplyAtSnapshot - effectiveSupplyNow) *
-                    oldPps;
+                uint256 removalValue = (effectiveSupplyAtSnapshot -
+                    effectiveSupplyNow) * oldPps;
+                if (scaled < removalValue) {
+                    revert Strategy_InsufficientNavForReconciliation();
+                }
+                scaled -= removalValue;
             }
             priceToSet = scaled / effectiveSupplyNow;
         }
