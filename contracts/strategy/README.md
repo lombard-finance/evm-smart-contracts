@@ -139,7 +139,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 - `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
 - `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
 - `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). This is what the **rate limiter** measures against the prior stored PPS.
-- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is repriced at the still-stored (stale) PPS and folded into NAV, then divided by current effective supply. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment (backing leaves the vault) is an effective-supply decrease.
+- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment (backing leaves the vault) is an effective-supply decrease.
 
 **Pause gating**
 

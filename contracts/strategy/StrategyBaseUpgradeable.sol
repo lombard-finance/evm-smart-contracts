@@ -260,35 +260,19 @@ abstract contract StrategyBaseUpgradeable is
         if (effectiveSupplyNow == 0) {
             priceToSet = declaredPricePerShare;
         } else {
-            // Reprice net effective-supply delta at the still-stored PPS, then divide by effectiveSupplyNow.
-            uint256 reconciledNav;
+            // Single Floor in PPS-scaled space.
+            uint256 scaled = navAtSnapshot * oneShare;
+            uint256 oldPps = $.pricePerShare;
             if (effectiveSupplyNow >= effectiveSupplyAtSnapshot) {
-                uint256 sharesAdded = effectiveSupplyNow -
-                    effectiveSupplyAtSnapshot;
-                reconciledNav =
-                    navAtSnapshot +
-                    sharesAdded.mulDiv(
-                        $.pricePerShare,
-                        oneShare,
-                        Math.Rounding.Floor
-                    );
+                scaled +=
+                    (effectiveSupplyNow - effectiveSupplyAtSnapshot) *
+                    oldPps;
             } else {
-                uint256 sharesRemoved = effectiveSupplyAtSnapshot -
-                    effectiveSupplyNow;
-                reconciledNav =
-                    navAtSnapshot -
-                    sharesRemoved.mulDiv(
-                        $.pricePerShare,
-                        oneShare,
-                        Math.Rounding.Ceil
-                    );
+                scaled -=
+                    (effectiveSupplyAtSnapshot - effectiveSupplyNow) *
+                    oldPps;
             }
-
-            priceToSet = reconciledNav.mulDiv(
-                oneShare,
-                effectiveSupplyNow,
-                Math.Rounding.Floor
-            );
+            priceToSet = scaled / effectiveSupplyNow;
         }
 
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(

@@ -176,10 +176,9 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 1. `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (floor). Pure snapshot rate; used **only** for the rate limiter.
 2. Let `effectiveSupplyNow = _effectiveShareSupply()`.
 3. If `effectiveSupplyNow == 0`: store `declaredPricePerShare`.
-4. Else reconcile the net effective-supply delta at the **still-stored** PPS:
-   - shares added → `reconciledNav = navAtSnapshot + Δ × oldPPS / oneShare` (floor on the delta term);
-   - shares removed → `reconciledNav = navAtSnapshot − Δ × oldPPS / oneShare` (ceil on the delta term);
-   - store `reconciledNav × oneShare / effectiveSupplyNow` (floor).
+4. Else reconcile the net effective-supply delta at the **still-stored** PPS with a **single** Floor in PPS-scaled space (no intermediate asset-space rounding):
+   - shares added → `priceToSet = (navAtSnapshot × oneShare + Δ × oldPPS) / effectiveSupplyNow` (floor);
+   - shares removed → `priceToSet = (navAtSnapshot × oneShare − Δ × oldPPS) / effectiveSupplyNow` (floor; reverts on underflow if `nav × oneShare < Δ × oldPPS`).
 5. A redeem *request* (circulating → pending) does **not** change effective supply, so it neither adds nor removes backing in step 4 — that is what prevents mid-epoch exits from concentrating a NAV loss onto residual holders. Fulfillment (backing paid out) decreases effective supply and is reconciled as a removal. Same-epoch deposits are priced at the stale PPS, so a frontrunning deposit cannot inflate the post-update NAV.
 
 `totalAssets()` (= `totalSupply() × pricePerShare / oneShare`) reports only **circulating**-share backing; any pending/reserved fraction stays in the vault for its claimants. Fee share mints increase `totalSupply` without asset inflow, so `totalAssets()` may overstate economic NAV until the next post; the reconciled update corrects for fee-minted supply since the prior snapshot.

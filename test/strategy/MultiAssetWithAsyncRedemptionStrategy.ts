@@ -2080,12 +2080,11 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(attackerProfit).to.be.lessThan(0n);
     });
 
-    it('reconciles a mid-epoch fulfillment as removed supply (conservative Ceil rounding)', async function () {
+    it('reconciles a mid-epoch fulfillment as removed supply', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
       await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
 
-      // Seed 3 shares, then post a deliberately fractional PPS = 10/3 so the removed-supply term is not a
-      // whole number of asset wei and the Ceil rounding is observable.
+      // Fractional PPS = 10/3 so the fused removal term is not a whole PPS.
       const baseDeposit = 3n * e18;
       await altDeposit.mint(sender.address, baseDeposit);
       await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
@@ -2098,16 +2097,13 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const pps = await strategy.pricePerShare();
       expect(pps).to.equal((10n * e18) / 3n); // 3.333...e18, floored
 
-      // Mid-epoch redeem request burns shares into pending — effective supply is unchanged (net-zero).
-      // The odd +1 wei keeps sharesRemoved off a whole-share boundary so Ceil ≠ Floor below.
+      // Request is net-zero for effective supply; +1 wei keeps sharesRemoved * pps off a oneShare boundary.
       const redeemShares = 1n * e18 + 1n;
       await strategy.connect(sender).requestRedeem(redeemShares, sender.address);
       const effectiveSupplyAtSnapshot = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
       expect(effectiveSupplyAtSnapshot).to.equal(baseDeposit);
 
-      // Fulfill the request BEFORE the post → pending shares drop to 0, so effective supply falls to the
-      // live shares. This is the only way effective supply shrinks between snapshot and post, and it drives
-      // the removed-supply branch of reconciliation.
+      // Fulfill before post → effective supply shrinks (removed-supply reconcile branch).
       const payout = await strategy.pendingAssetsOf(sender.address);
       await underlying.mint(strategy.address, payout);
       await advanceTime(1);
@@ -2116,24 +2112,69 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const effectiveSupplyNow = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
       expect(effectiveSupplyNow).to.equal(baseDeposit - redeemShares);
 
-      // Mirror the contract: reconciledNav = nav - ceil(sharesRemoved * pps / 1e18);
-      //                      priceToSet    = floor(reconciledNav * 1e18 / effectiveSupplyNow).
+      // Mirror contract: floor((nav * oneShare - sharesRemoved * pps) / effectiveSupplyNow).
       const sharesRemoved = effectiveSupplyAtSnapshot - effectiveSupplyNow;
-      const removedFloor = (sharesRemoved * pps) / e18;
-      const removedCeil = (sharesRemoved * pps + (e18 - 1n)) / e18;
-      // Ceil is active at NAV granularity: it rounds the removed backing UP by 1 wei vs Floor, which is
-      // solvency-favouring (never credits the remaining shares with backing that left). The 1-wei NAV
-      // delta washes out in the floored PPS at this scale, so the stored price is never ABOVE the Floor
-      // variant — that direction is the invariant we assert.
-      expect(removedCeil).to.equal(removedFloor + 1n);
-      const expectedPPS = ((navAtSnapshot - removedCeil) * e18) / effectiveSupplyNow;
-      const expectedPPSIfFloor = ((navAtSnapshot - removedFloor) * e18) / effectiveSupplyNow;
-      expect(expectedPPS).to.be.lte(expectedPPSIfFloor);
+      const expectedPPS = (navAtSnapshot * e18 - sharesRemoved * pps) / effectiveSupplyNow;
 
-      // Declared PPS equals the still-stored PPS (nav/effSupply unchanged from the first post) → 0% move,
-      // so the rate limiter is a no-op and the reconciled removed-supply price is what gets stored.
+      // Declared move is 0% (same nav/effSupply as first post); stored price is the reconciled value.
       await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, false);
       expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+    });
+
+    it('does not drop PPS from removal rounding alone (protects open redeem payout)', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      // Exact PPS = 1e18 + 1: fused Floor keeps PPS when Δ*pps is not divisible by oneShare.
+      const baseDeposit = 100n * e18;
+      const ppsExact = e18 + 1n;
+      const navExact = ppsExact * (baseDeposit / e18); // 100e18 + 100
+
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+      await strategy.connect(priceSetter).postPricePerShare(navExact, baseDeposit, false);
+      expect(await strategy.pricePerShare()).to.equal(ppsExact);
+
+      // Victim locks Floor redeem liability; request alone does not change effective supply.
+      const victimShares = 10n * e18;
+      await strategy.connect(sender).requestRedeem(victimShares, sender.address);
+      const victimPendingAssets = await strategy.pendingAssetsOf(sender.address);
+      expect(victimPendingAssets).to.equal((victimShares * ppsExact) / e18);
+
+      // Mid-epoch fulfill removes an odd share count (Δ * pps not divisible by oneShare).
+      const removalShares = 1n * e18 + 1n;
+      await strategy.connect(sender).requestRedeem(removalShares, sender.address);
+      const removalPayout = (await strategy.pendingAssetsOf(sender.address)) - victimPendingAssets;
+      await underlying.mint(strategy.address, removalPayout);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([2n]);
+
+      const effectiveSupplyNow = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyNow).to.equal(baseDeposit - removalShares);
+
+      const sharesRemoved = baseDeposit - effectiveSupplyNow;
+      expect((sharesRemoved * ppsExact) % e18).to.not.equal(0n);
+
+      // Contrast: old Ceil→Floor two-step would store ppsExact - 1.
+      const removedCeil = (sharesRemoved * ppsExact + (e18 - 1n)) / e18;
+      const ppsIfOldCeil = ((navExact - removedCeil) * e18) / effectiveSupplyNow;
+      expect(ppsIfOldCeil).to.equal(ppsExact - 1n);
+
+      const expectedPPS = (navExact * e18 - sharesRemoved * ppsExact) / effectiveSupplyNow;
+      expect(expectedPPS).to.equal(ppsExact);
+
+      await strategy.connect(priceSetter).postPricePerShare(navExact, baseDeposit, false);
+      expect(await strategy.pricePerShare()).to.equal(ppsExact);
+
+      // Open request still pays the full locked pendingAssets.
+      await underlying.mint(strategy.address, victimPendingAssets);
+      const undBefore = await underlying.balanceOf(sender.address);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n]);
+      expect(await underlying.balanceOf(sender.address)).to.equal(undBefore + victimPendingAssets);
     });
 
     it('postPricePerShare reverts when the strategy is paused', async function () {
