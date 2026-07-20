@@ -65,7 +65,7 @@ All capabilities below reflect the exact `onlyRole` wiring in `StrategyBaseUpgra
 
 - `STRATEGY_PAUSER_ROLE` calls `pauseDeposit()` / `pauseRedeem()` (emit `DepositPaused` / `RedeemPaused`); `MANAGER_ROLE` clears each independently via `unpauseDeposit()` / `unpauseRedeem()`.
 - ERC-20 transfer pause: `TRANSFERS_PAUSER_ROLE` calls `pause()`; `MANAGER_ROLE` calls `unpause()`.
-- A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). `fulfillRedeemRequests` is **not** gated by any of these pauses.
+- A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). Redeem pause (`whenRedeemNotPaused`) gates both `requestRedeem` and `fulfillRedeemRequests`.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares on accrual/harvest). They route to **different** destinations — this is the key correction versus older docs:
 
@@ -139,11 +139,11 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 - `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
 - `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
 - `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). This is what the **rate limiter** measures against the prior stored PPS.
-- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is repriced at the still-stored (stale) PPS and folded into NAV, then divided by current effective supply. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment (backing leaves the vault) is an effective-supply decrease.
+- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment (backing leaves the vault) is an effective-supply decrease. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` rather than underflowing — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
 
 **Pause gating**
 
-- Reverts `Strategy_PricePerSharePaused` when **both** deposit and redeem are paused (the state produced by the rate-limit auto-pause path). One-sided pause still allows PPS updates. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
 
 **Rate limiter**
 

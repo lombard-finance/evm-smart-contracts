@@ -51,6 +51,9 @@ interface IStrategy {
     /// @dev `postPricePerShare` was called with `navAtSnapshot == 0`.
     error Strategy_ZeroNavAtSnapshot();
 
+    /// @dev `postPricePerShare` reconciliation: removed shares valued at stored PPS exceed `navAtSnapshot` (scaled).
+    error Strategy_InsufficientNavForReconciliation();
+
     /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
     event DepositPaused(address indexed account);
 
@@ -77,7 +80,7 @@ interface IStrategy {
     /// @dev Redeem operation invoked while redeem pause is active.
     error Strategy_EnforcedRedeemPause();
 
-    /// @dev Price per share post called while deposit and redeem pause is active.
+    /// @dev Price per share post called while deposit or redeem pause is active.
     error Strategy_PricePerSharePaused();
 
     /// @dev Unpause deposit called while deposits were not paused.

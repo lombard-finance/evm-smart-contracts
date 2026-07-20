@@ -38,13 +38,13 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 
 ## Strategy operations pause
 
-The strategy has an **operations pause** (deposit / redemption / price post paths) separate from optional ERC-20 **transfer** pause:
+The strategy has **two independent** operations pause flags — `depositPaused` and `redeemPaused` — separate from each other and from optional ERC-20 **transfer** pause:
 
-- `STRATEGY_PAUSER_ROLE` calls **`pauseDeposit()`** / **`pauseRedeem()`** to block deposit and redemption entrypoints.
-- `LIMITED_ADMIN_ROLE` calls **`unpauseStrategyOperations()`**. Emits `StrategyOperationsUnpaused(account)`.
-- `strategyOperationsPaused()` view returns current pause state.
+- `STRATEGY_PAUSER_ROLE` calls **`pauseDeposit()`** / **`pauseRedeem()`** to block deposit and redemption entrypoints (`whenDepositNotPaused` / `whenRedeemNotPaused`).
+- `MANAGER_ROLE` clears each independently via **`unpauseDeposit()`** / **`unpauseRedeem()`**.
+- `depositPaused()` / `redeemPaused()` views return each flag.
 - A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also pauses **both** deposit and redeem automatically (see **Exchange rate**).
-- Pausing MUST NOT block `fulfillRedeemRequests` (redemption fulfillment is not guarded by this pause).
+- Redeem pause MUST block both `requestRedeem` and `fulfillRedeemRequests` (`whenRedeemNotPaused`).
 
 ---
 
@@ -64,7 +64,7 @@ The strategy accepts **multiple listed ERC-20 tokens** for deposits, each with i
 
 ### Deposit and mint
 
-All deposit/mint paths require the strategy to not be paused (`whenStrategyNotPaused`) and are protected by `nonReentrant`.
+All deposit/mint paths require deposit not paused (`whenDepositNotPaused`) and are protected by `nonReentrant`.
 
 **`deposit(address depositAsset, uint256 assets, address receiver)`** → `uint256 shares`
 **`deposit(address depositAsset, uint256 assets, address receiver, uint256 minSharesOut)`** → `uint256 shares` (slippage guard: reverts if `shares < minSharesOut` with `StrategyDeposit_InsufficientSharesOut`)
@@ -169,17 +169,16 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 
 - Requires `PRICE_SETTER_ROLE`. Also gated by ERC-20 transfer pause (`whenNotPaused`).
 - Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- Reverts `Strategy_PricePerSharePaused` when **both** deposit and redeem are paused (the state produced by the rate-limit auto-pause path). One-sided pause still permits PPS updates.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused.
 
 **Declared vs reconciled:**
 
 1. `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (floor). Pure snapshot rate; used **only** for the rate limiter.
 2. Let `effectiveSupplyNow = _effectiveShareSupply()`.
 3. If `effectiveSupplyNow == 0`: store `declaredPricePerShare`.
-4. Else reconcile the net effective-supply delta at the **still-stored** PPS:
-   - shares added → `reconciledNav = navAtSnapshot + Δ × oldPPS / oneShare` (floor on the delta term);
-   - shares removed → `reconciledNav = navAtSnapshot − Δ × oldPPS / oneShare` (ceil on the delta term);
-   - store `reconciledNav × oneShare / effectiveSupplyNow` (floor).
+4. Else reconcile the net effective-supply delta at the **still-stored** PPS with a **single** Floor in PPS-scaled space (no intermediate asset-space rounding):
+   - shares added → `priceToSet = (navAtSnapshot × oneShare + Δ × oldPPS) / effectiveSupplyNow` (floor);
+   - shares removed → `priceToSet = (navAtSnapshot × oneShare − Δ × oldPPS) / effectiveSupplyNow` (floor). Reverts `Strategy_InsufficientNavForReconciliation` when `navAtSnapshot × oneShare < Δ × oldPPS` (removed shares valued at the still-stored PPS exceed the snapshot NAV). Mitigate by re-taking `navAtSnapshot` / `effectiveSupplyAtSnapshot` after mid-epoch fulfills, or by avoiding fulfills between snapshot and post during large declared drawdowns.
 5. A redeem *request* (circulating → pending) does **not** change effective supply, so it neither adds nor removes backing in step 4 — that is what prevents mid-epoch exits from concentrating a NAV loss onto residual holders. Fulfillment (backing paid out) decreases effective supply and is reconciled as a removal. Same-epoch deposits are priced at the stale PPS, so a frontrunning deposit cannot inflate the post-update NAV.
 
 `totalAssets()` (= `totalSupply() × pricePerShare / oneShare`) reports only **circulating**-share backing; any pending/reserved fraction stays in the vault for its claimants. Fee share mints increase `totalSupply` without asset inflow, so `totalAssets()` may overstate economic NAV until the next post; the reconciled update corrects for fee-minted supply since the prior snapshot.
@@ -216,7 +215,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 
 **`requestRedeem(uint256 shares, address owner)`** → `uint256 requestId`
 
-- Requires strategy operations not paused (`whenStrategyNotPaused`). Protected by `nonReentrant`.
+- Requires redeem not paused (`whenRedeemNotPaused`). Protected by `nonReentrant`.
 - `shares` MUST be non-zero (`AsyncRedemption_ZeroRedeemRequestShares`).
 - If `msg.sender != owner`, allowance is spent via `_spendAllowance(owner, msg.sender, shares)`.
 - **Redeem fee** (if configured and treasury is set): `feeShares = shares * redeemFeeBps / 10_000` (floor). Fee shares are transferred from `owner` to `feeTreasury`. Emits `RedeemFeeCharged(treasury, feeShares)`.
@@ -243,7 +242,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 
 **`fulfillRedeemRequests(uint256[] calldata requestIds)`**
 
-- Requires **`PAY_REDEMPTIONS_ROLE`**. Protected by `nonReentrant`. **Not** guarded by strategy operations pause.
+- Requires **`PAY_REDEMPTIONS_ROLE`**. Protected by `nonReentrant`. Requires redeem not paused (`whenRedeemNotPaused`).
 - For each `requestId`: if `pendingAssets == 0`, reverts `AsyncRedemption_NothingToFulfill(requestId)`.
 - Subtracts from global `totalPendingShares` and `totalPendingAssets`.
 - Deletes the request record.
