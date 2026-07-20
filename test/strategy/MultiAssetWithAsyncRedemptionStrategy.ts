@@ -2114,7 +2114,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       // Mirror contract: floor((nav * oneShare - sharesRemoved * pps) / effectiveSupplyNow).
       const sharesRemoved = effectiveSupplyAtSnapshot - effectiveSupplyNow;
-      const expectedPPS = (navAtSnapshot * e18 - sharesRemoved * pps) / effectiveSupplyNow;
+      // "-1n" because of rounding to ceil for shares removed
+      const expectedPPS = (navAtSnapshot * e18) / effectiveSupplyNow - (sharesRemoved * pps) / effectiveSupplyNow - 1n;
 
       // Declared move is 0% (same nav/effSupply as first post); stored price is the reconciled value.
       await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, false);
@@ -2141,7 +2142,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       // Victim locks Floor redeem liability; request alone does not change effective supply.
       const victimShares = 10n * e18;
       await strategy.connect(sender).requestRedeem(victimShares, sender.address);
-      const victimPendingAssets = await strategy.pendingAssetsOf(sender.address);
+      let victimPendingAssets = await strategy.pendingAssetsOf(sender.address);
       expect(victimPendingAssets).to.equal((victimShares * ppsExact) / e18);
 
       // Mid-epoch fulfill removes an odd share count (Δ * pps not divisible by oneShare).
@@ -2163,13 +2164,16 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const ppsIfOldCeil = ((navExact - removedCeil) * e18) / effectiveSupplyNow;
       expect(ppsIfOldCeil).to.equal(ppsExact - 1n);
 
-      const expectedPPS = (navExact * e18 - sharesRemoved * ppsExact) / effectiveSupplyNow;
-      expect(expectedPPS).to.equal(ppsExact);
+      // "+1n" because of ceil rounding
+      const expectedPPS =
+        (navExact * e18) / effectiveSupplyNow - ((sharesRemoved * ppsExact) / effectiveSupplyNow + 1n);
+      expect(expectedPPS).to.equal(ppsExact - 1n);
 
       await strategy.connect(priceSetter).postPricePerShare(navExact, baseDeposit, false);
-      expect(await strategy.pricePerShare()).to.equal(ppsExact);
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
 
       // Open request still pays the full locked pendingAssets.
+      victimPendingAssets = (victimPendingAssets * expectedPPS) / ppsExact;
       await underlying.mint(strategy.address, victimPendingAssets);
       const undBefore = await underlying.balanceOf(sender.address);
       await advanceTime(1);
