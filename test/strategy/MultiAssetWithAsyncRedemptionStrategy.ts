@@ -2217,8 +2217,13 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         .to.be.revertedWithCustomError(strategy, 'EnforcedPause');
     });
 
-    it('postPricePerShare reverts when deposit and redeem are paused', async function () {
+    it('postPricePerShare reverts when deposit or redeem is paused', async function () {
       await strategy.connect(pauser).pauseDeposit();
+      // prettier-ignore
+      await expect(strategy.connect(priceSetter).postPricePerShare(e18, e18, false))
+        .to.be.revertedWithCustomError(strategy, 'Strategy_PricePerSharePaused');
+
+      await strategy.connect(manager).unpauseDeposit();
       await strategy.connect(pauser).pauseRedeem();
       // prettier-ignore
       await expect(strategy.connect(priceSetter).postPricePerShare(e18, e18, false))

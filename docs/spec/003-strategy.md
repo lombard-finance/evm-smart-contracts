@@ -169,7 +169,7 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 
 - Requires `PRICE_SETTER_ROLE`. Also gated by ERC-20 transfer pause (`whenNotPaused`).
 - Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- Reverts `Strategy_PricePerSharePaused` when **both** deposit and redeem are paused (the state produced by the rate-limit auto-pause path). One-sided pause still permits PPS updates.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused.
 
 **Declared vs reconciled:**
 

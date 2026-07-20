@@ -143,7 +143,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 **Pause gating**
 
-- Reverts `Strategy_PricePerSharePaused` when **both** deposit and redeem are paused (the state produced by the rate-limit auto-pause path). One-sided pause still allows PPS updates. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
 
 **Rate limiter**
 
