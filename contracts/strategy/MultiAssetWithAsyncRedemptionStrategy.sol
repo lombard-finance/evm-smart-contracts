@@ -11,7 +11,7 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
 /// @dev Linearization: `AsyncRedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__StrategyBase_init` + module inits in C3 order.
-///      Fee share mints may overstate `totalAssets()` until the next `postPricePerShare`; see `StrategyBaseUpgradeable` / `IFeeManager` NatSpec.
+///      Fee share mints may overstate `totalAssets()` until a later `postPricePerShare` snapshot includes them.
 /// @custom:security-contact security@lombard.finance
 contract MultiAssetWithAsyncRedemptionStrategy is
     MultiAssetDepositUpgradeable,
@@ -60,8 +60,8 @@ contract MultiAssetWithAsyncRedemptionStrategy is
         return "MAWARS-0.0.1";
     }
 
-    /// @dev Required: both parents define `_effectiveShareSupply`. `super` picks the async one
-    ///      (`totalSupply() + totalPendingShares`) because `AsyncRedemptionUpgradeable` is last in the inheritance list.
+    /// @dev Both parents define `_effectiveShareSupply`; `super` picks the async override
+    ///      (`totalSupply() + totalPendingShares`) because `AsyncRedemptionUpgradeable` is last.
     function _effectiveShareSupply()
         internal
         view

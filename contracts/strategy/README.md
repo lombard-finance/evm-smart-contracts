@@ -92,12 +92,12 @@ Fee mints increase `totalSupply` but leave `pricePerShare` unchanged, so `totalA
 
 This is **intentional**. Dilution fees transfer economics via new shares; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
 
-**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare` (see [Posting NAV](#posting-nav-and-the-price-rate-limiter)). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+**Between price posts**, deposit and redemption math use the same posted rate. Mid-epoch reconciliation values all supply increases at the still-stored PPS (deposits and fee mints); fee dilution lands on a later snapshot that includes fee supply (`nav / effectiveSupply` — see [Posting NAV](#posting-nav-and-the-price-rate-limiter)). A redeem requested while PPS is still overstated may lock a high `pendingAssets` ceiling; after that correcting post, fulfill pays `min(pendingAssets, shares × currentPPS)`. Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV after fee mints since the last inclusive snapshot.
 
 **Operational expectations:**
 
 - Configure total fees (flow + management + performance) so they remain **below** yield/rewards accruing to remaining holders.
-- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics.
+- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics, snapshotting after material fee mints.
 - Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
 
 ```text
@@ -139,7 +139,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 - `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
 - `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
 - `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). This is what the **rate limiter** measures against the prior stored PPS.
-- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (NAV at snapshot after folding mid-epoch flow at the prior rate). Fulfillment pays `min(pendingAssets@request, shares × currentPPS)`; a PPS-rise request fulfilled between snapshot and post leaves residual surplus for the next post. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
+- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS. Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. A PPS-rise request fulfilled between snapshot and post leaves residual surplus for the next post. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
 
 **Pause gating**
 
