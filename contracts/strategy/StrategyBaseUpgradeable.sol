@@ -226,8 +226,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Derives and stores a new `pricePerShare` from a NAV/supply snapshot, reconciled for mid-epoch supply changes.
-    /// @dev Rate limiter gates on the *declared* move; stores the *reconciled* price. Mid-epoch additions and removals
-    ///      use the still-stored PPS (fee mints included — dilution lands on a later snapshot that includes them).
+    /// @dev Rate limiter gates on the *declared* move; stores the *reconciled* price. Mid-epoch net Δ at still-stored PPS.
     ///      Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
     /// @param navAtSnapshot Operator-observed NAV (asset units) at snapshot; must be non-zero.
     /// @param effectiveSupplyAtSnapshot Effective supply at that instant (`_effectiveShareSupply` semantics); must be non-zero.
@@ -343,8 +342,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
-    /// @dev After dilution-fee share mints, may exceed economic backing until a later `postPricePerShare`
-    ///      snapshot includes the fee supply.
+    /// @dev May disagree with economic NAV mid-epoch until a later inclusive `postPricePerShare`.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }

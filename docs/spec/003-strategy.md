@@ -181,11 +181,24 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
    - shares removed → `priceToSet = (navAtSnapshot × oneShare − Δ × oldPPS) / effectiveSupplyNow` (floor). Reverts `Strategy_InsufficientNavForReconciliation` when `navAtSnapshot × oneShare < Δ × oldPPS` (removed shares valued at the still-stored PPS exceed the snapshot NAV). Mitigate by re-taking `navAtSnapshot` / `effectiveSupplyAtSnapshot` after mid-epoch fulfills, or by avoiding fulfills between snapshot and post during large declared drawdowns.
 5. A redeem *request* (circulating → pending) does **not** change effective supply, so it neither adds nor removes backing in step 4 — that is what prevents mid-epoch exits from concentrating a NAV loss onto residual holders. Fulfillment (backing paid out) decreases effective supply and is reconciled as a removal. Same-epoch deposits are priced at the stale PPS, so a frontrunning deposit cannot inflate the post-update NAV.
 
-**Mid-epoch share increases (deposits and fee mints) — expected:** Step 4 values *all* mid-epoch additions at the still-stored PPS. That is correct for deposits (assets arrived at that rate). Dilution-fee mints also increase supply with **no** asset inflow; valuing them at `oldPPS` therefore does **not** dilute that post's reconciled PPS. This is intentional: fee dilution is applied when a later operator snapshot includes the fee-minted supply in `effectiveSupplyAtSnapshot` against true `navAtSnapshot` (declared PPS = `nav / supply` falls). Until that correcting post, `totalAssets()` may overstate economic NAV.
+**Accepted tradeoff — net Δ @ stored PPS:** Step 4 uses a single net \(\Delta = S_{\mathrm{now}} - S_{\mathrm{snap}}\) valued at the still-stored PPS. The protocol does **not** track gross deposits, fee mints, and fulfill payouts separately. Temporary mis-valuation is corrected on a later inclusive `postPricePerShare` (true `navAtSnapshot`, \(\Delta \approx 0\), or fee supply already in the snapshot). Interim `totalAssets()` / posted PPS are **posted**, not exact economic NAV, when material mid-epoch flow occurred since the last inclusive snapshot.
 
-**Mid-epoch fulfill vs stored-PPS removal (expected):** Fulfillment pays `min(pendingAssets@request, shares × currentPPS)` (see **Redemption fulfillment**). Reconciliation values mid-epoch removals at the **still-stored** PPS so the post applies **NAV at snapshot time** after folding mid-epoch flow at the prior rate. If a request spans a PPS rise and is fulfilled between snapshot and post, payout is below `oldPPS`; residual surplus remains in the vault and is reflected on the next post with no mid-epoch Δ.
+Expected consequences:
 
-**Correcting post vs pending redeems (expected):** If a holder `requestRedeem`s while posted PPS still overstates economic NAV (e.g. after fee mints since the last inclusive snapshot), `pendingAssets` may lock a high ceiling. After a correcting `postPricePerShare` whose snapshot includes those fee shares, current PPS is diluted and fulfillment pays only `shares × currentPPS`. Stored `pendingAssets` is not rewritten; clipping is at fulfill time. Operators SHOULD include material fee-minted supply in the next snapshot.
+- **Deposits** — Assets arrived at stored PPS; valuing additions at `oldPPS` is correct for that leg.
+- **Fee mints** — No asset inflow; valuing at `oldPPS` does not dilute that post. Dilution lands when a later snapshot includes fee supply against true NAV (`nav / supply` falls). Until then `totalAssets()` may overstate economic NAV.
+- **Fulfill removals** — Payout is `min(request PPS, current PPS)` but removals reconcile at `oldPPS`. A PPS-rise fulfill between snapshot and post leaves surplus in the vault for remaining holders (later clean post).
+- **Heterogeneous netting** — Opposing legs that cancel in share count (deposit @ stored PPS + fulfill @ earlier request PPS) yield \(\Delta = 0\) and no reconcile adjustment even when asset deltas do not cancel; posted PPS can understate residual NAV until the next inclusive post.
+- **Deposit into unreflected surplus** — After a below-`oldPPS` fulfill, posted PPS can lag true PPS; a deposit in that window mints at the understated rate and can capture part of the surplus. Bound \(\approx\) shares \(\times (\mathrm{oldPPS} - \mathrm{requestPPS})\). Mitigate operationally (below), not with gross-flow accounting.
+
+**Correcting post vs pending redeems (expected):** If a holder `requestRedeem`s while posted PPS still overstates economic NAV (e.g. after fee mints since the last inclusive snapshot), `pendingAssets` may lock a high ceiling. After a correcting `postPricePerShare` whose snapshot includes those fee shares, current PPS is diluted and fulfillment pays only `shares × currentPPS`. Stored `pendingAssets` is not rewritten; clipping is at fulfill time.
+
+**Operational expectations:**
+
+- `PRICE_SETTER_ROLE` SHOULD post on a cadence that keeps posted PPS aligned with economics; snapshot after material fee mints and after material mid-epoch fulfills when surplus or netting bias matters.
+- Prefer re-taking `navAtSnapshot` / `effectiveSupplyAtSnapshot` after mid-epoch fulfills (or avoid fulfilling between snapshot and post during large declared drawdowns) — also avoids `Strategy_InsufficientNavForReconciliation`.
+- Keep the gap between `fulfillRedeemRequests` and the next inclusive post short when deposit is open (bounds the surplus-deposit window).
+- Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV after fee mints or after PPS-rise fulfills since the last inclusive snapshot.
 
 `totalAssets()` (= `totalSupply() × pricePerShare / oneShare`) reports only **circulating**-share backing; any pending/reserved fraction stays in the vault for its claimants.
 
@@ -251,7 +264,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - Requires **`PAY_REDEMPTIONS_ROLE`**. Protected by `nonReentrant`. Requires redeem not paused (`whenRedeemNotPaused`).
 - For each `requestId`: if `pendingAssets == 0`, reverts `AsyncRedemption_NothingToFulfill(requestId)`.
 - Enforces a one-block minimum delay (`AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`).
-- **Payout** = `min(pendingAssets, _convertToAssets(pendingShares, Floor))` — i.e. `min(request PPS, current PPS)` in asset terms. A PPS drop after the request cannot pay more than current NAV for the burned shares; a PPS rise leaves surplus in the vault for remaining holders (picked up on a later `postPricePerShare`). If `pendingAssets` was locked while posted PPS temporarily overstated NAV (fee mints not yet in an operator snapshot), a later correcting post that includes those fee shares dilutes current PPS and fulfillment pays only `shares × currentPPS`.
+- **Payout** = `min(pendingAssets, _convertToAssets(pendingShares, Floor))` — i.e. `min(request PPS, current PPS)` in asset terms. A PPS drop after the request cannot pay more than current NAV for the burned shares; a PPS rise leaves surplus in the vault for remaining holders (later inclusive `postPricePerShare`; see **Exchange rate** § Accepted tradeoff). If `pendingAssets` was locked while posted PPS temporarily overstated NAV (fee mints not yet in an operator snapshot), a later correcting post that includes those fee shares dilutes current PPS and fulfillment pays only `shares × currentPPS`.
 - Subtracts full `pendingShares` / `pendingAssets` from global totals (clears the ticket), even when payout is below `pendingAssets`.
 - Deletes the request record.
 - Transfers **`payout`** of `asset()` directly to request `owner` via `safeTransfer`. Emits `Redeem(msgSender, owner, payout, shares)`.
@@ -298,7 +311,8 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - **Withdrawal fee of `0` bps** (or unset treasury): no shares are deducted; `netShares == shares`.
 - **Rounding** follows floor/ceiling discipline in each path; extreme ratios can produce `0` shares or assets.
 - **`pricePerShare` rate limiter at zero capacity** (initial state): the limiter's `_wouldExceedLimit` behavior with a zeroed bucket means the first `postPricePerShare` may succeed or trigger the limit depending on config. The `MANAGER_ROLE` holder MUST call `setPricePerShareRateLimit` before relying on the limiter.
-- **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`.
+- **Net-Δ reconciliation tradeoff (accepted):** mid-epoch fee mints, fulfills paid below `oldPPS`, and mixed deposit+fulfill nets can leave posted PPS / `totalAssets()` temporarily disagreeing with economic NAV; depositors may skim unreflected fulfill surplus until a later inclusive post. See **Exchange rate** § Accepted tradeoff.
+- **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`; on-chain gross-flow (per-leg) PPS reconciliation.
 
 ---
 

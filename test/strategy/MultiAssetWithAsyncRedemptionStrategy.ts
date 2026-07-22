@@ -2120,7 +2120,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
     it('values mid-epoch fulfill at stored PPS when request PPS is lower; next post restores residual NAV', async function () {
       // Request at 1.0, PPS raised to 1.2, fulfill between snapshot and post → payout at request PPS;
-      // reconciliation removes at oldPPS; next post with residual NAV restores 1.25.
+      // reconciliation removes at oldPPS; next clean post with residual NAV restores 1.25.
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
       await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
 
@@ -2170,6 +2170,76 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const residualNav = navAtSnapshot - payout;
       await strategy.connect(priceSetter).postPricePerShare(residualNav, effectiveSupplyNow, false);
       expect(await strategy.pricePerShare()).to.equal(residualNavPPS);
+    });
+
+    it('net Δ@oldPPS misprices mixed mid-epoch deposit + fulfill-at-request-PPS', async function () {
+      // Net Δ @ stored PPS: deposit at stored PPS + fulfill at earlier request PPS can cancel in share
+      // count (Δ=0) while assets do not — stored PPS understates residual NAV until a later clean post.
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Lock redeem liability at PPS=1.0 before the raise.
+      const redeemShares = 50n * e18;
+      await strategy.connect(sender).requestRedeem(redeemShares, sender.address);
+      const pendingAtRequest = await strategy.pendingAssetsOf(sender.address);
+      expect(pendingAtRequest).to.equal(redeemShares);
+
+      const raisedNav = 120n * e18;
+      await strategy.connect(priceSetter).postPricePerShare(raisedNav, baseDeposit, false);
+      const oldPps = await strategy.pricePerShare();
+      expect(oldPps).to.equal((raisedNav * e18) / baseDeposit); // 1.2e18
+
+      const navAtSnapshot = raisedNav;
+      const effectiveSupplyAtSnapshot = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyAtSnapshot).to.equal(baseDeposit);
+
+      // Mid-epoch fulfill: pays min(request PPS, current PPS) = 50 (not 50×1.2).
+      await underlying.mint(strategy.address, pendingAtRequest);
+      const undBefore = await underlying.balanceOf(sender.address);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n]);
+      const fulfillPayout = (await underlying.balanceOf(sender.address)) - undBefore;
+      expect(fulfillPayout).to.equal(pendingAtRequest);
+
+      // Mid-epoch deposit at stored PPS=1.2: 60 assets → 50 shares, restoring net Δ to 0.
+      const depositAssets = (redeemShares * oldPps) / e18; // 60e18
+      expect(depositAssets).to.equal(60n * e18);
+      await altDeposit.mint(receiver.address, depositAssets);
+      await altDeposit.connect(receiver).approve(strategy.address, depositAssets);
+      await strategy
+        .connect(receiver)
+        ['deposit(address,uint256,address)'](altDeposit.address, depositAssets, receiver.address);
+      expect(await strategy.balanceOf(receiver.address)).to.equal(redeemShares);
+
+      const effectiveSupplyNow = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyNow).to.equal(effectiveSupplyAtSnapshot); // net Δ = 0
+
+      // Net-Δ formula does nothing: stores declared = navAtSnapshot / S = 1.2.
+      const reconciledPPS = (navAtSnapshot * e18) / effectiveSupplyNow;
+      expect(reconciledPPS).to.equal(oldPps);
+
+      // True residual NAV kept the fulfill surplus: 120 − 50 + 60 = 130 → fair PPS = 1.3.
+      const trueNavAfterFlows = navAtSnapshot - fulfillPayout + depositAssets;
+      expect(trueNavAfterFlows).to.equal(130n * e18);
+      const fairPPS = (trueNavAfterFlows * e18) / effectiveSupplyNow;
+      expect(fairPPS).to.equal((13n * e18) / 10n);
+      // Bias magnitude: stored understates fair by 0.1 (130−120)/100.
+      expect(fairPPS - reconciledPPS).to.equal((1n * e18) / 10n);
+
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, false);
+      expect(await strategy.pricePerShare()).to.equal(reconciledPPS);
+
+      // Later clean post (no mid-epoch Δ) absorbs the surplus into stored PPS.
+      await strategy.connect(priceSetter).postPricePerShare(trueNavAfterFlows, effectiveSupplyNow, false);
+      expect(await strategy.pricePerShare()).to.equal(fairPPS);
     });
 
     it('does not drop PPS from removal rounding alone (protects open redeem payout)', async function () {
