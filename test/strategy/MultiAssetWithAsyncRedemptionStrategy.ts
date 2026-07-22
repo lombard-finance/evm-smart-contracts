@@ -2122,6 +2122,60 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.pricePerShare()).to.equal(expectedPPS);
     });
 
+    it('values mid-epoch fulfill at stored PPS when request PPS is lower; next post restores residual NAV', async function () {
+      // Request at 1.0, PPS raised to 1.2, fulfill between snapshot and post → payout at request PPS;
+      // reconciliation removes at oldPPS; next post with residual NAV restores 1.25.
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      const redeemShares = 20n * e18;
+      await strategy.connect(sender).requestRedeem(redeemShares, sender.address);
+      const pendingAtRequest = await strategy.pendingAssetsOf(sender.address);
+      expect(pendingAtRequest).to.equal(redeemShares);
+
+      const raisedNav = 120n * e18;
+      await strategy.connect(priceSetter).postPricePerShare(raisedNav, baseDeposit, false);
+      const oldPps = await strategy.pricePerShare();
+      expect(oldPps).to.equal((raisedNav * e18) / baseDeposit); // 1.2e18
+
+      const navAtSnapshot = raisedNav;
+      const effectiveSupplyAtSnapshot = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyAtSnapshot).to.equal(baseDeposit);
+
+      await underlying.mint(strategy.address, pendingAtRequest);
+      const undBefore = await underlying.balanceOf(sender.address);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n]);
+      const payout = (await underlying.balanceOf(sender.address)) - undBefore;
+      expect(payout).to.equal(pendingAtRequest);
+
+      const effectiveSupplyNow = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyNow).to.equal(baseDeposit - redeemShares);
+
+      // Removal at oldPPS: (120e18×1e18 − 20e18×1.2e18) / 80e18 = 1.2e18.
+      const sharesRemoved = effectiveSupplyAtSnapshot - effectiveSupplyNow;
+      const reconciledAtSnapshotPPS =
+        (navAtSnapshot * e18) / effectiveSupplyNow - (sharesRemoved * oldPps) / effectiveSupplyNow;
+      const residualNavPPS = ((navAtSnapshot - payout) * e18) / effectiveSupplyNow; // (120−20)/80 = 1.25
+      expect(reconciledAtSnapshotPPS).to.equal((12n * e18) / 10n);
+      expect(residualNavPPS).to.equal((125n * e18) / 100n);
+
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, false);
+      expect(await strategy.pricePerShare()).to.equal(reconciledAtSnapshotPPS);
+
+      const residualNav = navAtSnapshot - payout;
+      await strategy.connect(priceSetter).postPricePerShare(residualNav, effectiveSupplyNow, false);
+      expect(await strategy.pricePerShare()).to.equal(residualNavPPS);
+    });
+
     it('does not drop PPS from removal rounding alone (protects open redeem payout)', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
       await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
@@ -2172,7 +2226,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       await strategy.connect(priceSetter).postPricePerShare(navExact, baseDeposit, false);
       expect(await strategy.pricePerShare()).to.equal(expectedPPS);
 
-      // Open request still pays the full locked pendingAssets.
+      // Open request pays min(locked pending, shares×newPPS) after the tiny reconciled drop.
       victimPendingAssets = (victimPendingAssets * expectedPPS) / ppsExact;
       await underlying.mint(strategy.address, victimPendingAssets);
       const undBefore = await underlying.balanceOf(sender.address);

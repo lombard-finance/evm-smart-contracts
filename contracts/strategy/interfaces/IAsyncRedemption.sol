@@ -16,7 +16,7 @@ interface IAsyncRedemption {
     }
 
     /// @dev Emitted when `requestRedeem` is called.
-    /// @param assets Net underlying assets owed on fulfillment (matches `RedeemRequest.pendingAssets`).
+    /// @param assets Request-time asset ceiling (`RedeemRequest.pendingAssets`); fulfillment may pay less via `min`.
     /// @param shares Net shares burned for the request (matches `RedeemRequest.pendingShares`); gross requested = `shares + feeShares`.
     /// @param feeShares Redeem fee shares transferred to {feeTreasury}.
     event RedeemRequested(

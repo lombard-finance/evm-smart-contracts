@@ -155,8 +155,7 @@ abstract contract AsyncRedemptionUpgradeable is
     }
 
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
-    /// @dev Payout per request is `min(pendingAssets, shares × current pricePerShare)` so a PPS drop
-    ///      after the request cannot pay more than current NAV for the burned shares.
+    /// @dev Payout = `min(pendingAssets, shares × current pricePerShare)`.
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
     ) external nonReentrant onlyRole(PAY_REDEMPTIONS_ROLE) whenRedeemNotPaused {

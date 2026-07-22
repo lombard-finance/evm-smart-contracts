@@ -10,7 +10,7 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 
 1. **Deposits** — Multi-asset `deposit` / `mint` accepting listed ERC-20s via per-token `IAssetConverter` pricing; optional deposit fees and default-shard routing.
 2. **Exits** — `requestRedeem` → pending → `fulfillRedeemRequests` (requires `PAY_REDEMPTIONS_ROLE`, direct settlement). No ERC-4626 `withdraw` / `redeem`.
-3. **Redemption fulfillment** — `fulfillRedeemRequests(uint256[] requestIds)` transfers `asset` directly to each request's `owner` in one pass; caller MUST hold **`PAY_REDEMPTIONS_ROLE`**.
+3. **Redemption fulfillment** — `fulfillRedeemRequests(uint256[] requestIds)` pays `min(pendingAssets@request, shares × currentPPS)` of `asset` to each request's `owner` in one pass; caller MUST hold **`PAY_REDEMPTIONS_ROLE`**.
 4. **Shards** — `registerShard` / `requestFunding` pipe per **002**; no extra `IStrategy` APIs moving `asset()` outside **002**.
 5. **Exchange rate** — `pricePerShare` (asset wei per `10 ** decimals()` shares) posted by `PRICE_SETTER_ROLE` via `postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`; `totalAssets()` derived from this rate.
 6. **Fees** — Management fee (time-based dilution) and performance fee (high-water-mark) minted as shares by `TREASURY_ROLE`.
@@ -181,6 +181,8 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
    - shares removed → `priceToSet = (navAtSnapshot × oneShare − Δ × oldPPS) / effectiveSupplyNow` (floor). Reverts `Strategy_InsufficientNavForReconciliation` when `navAtSnapshot × oneShare < Δ × oldPPS` (removed shares valued at the still-stored PPS exceed the snapshot NAV). Mitigate by re-taking `navAtSnapshot` / `effectiveSupplyAtSnapshot` after mid-epoch fulfills, or by avoiding fulfills between snapshot and post during large declared drawdowns.
 5. A redeem *request* (circulating → pending) does **not** change effective supply, so it neither adds nor removes backing in step 4 — that is what prevents mid-epoch exits from concentrating a NAV loss onto residual holders. Fulfillment (backing paid out) decreases effective supply and is reconciled as a removal. Same-epoch deposits are priced at the stale PPS, so a frontrunning deposit cannot inflate the post-update NAV.
 
+**Mid-epoch fulfill vs stored-PPS removal (expected):** Fulfillment pays `min(pendingAssets@request, shares × currentPPS)` (see **Redemption fulfillment**). Reconciliation values mid-epoch removals at the **still-stored** PPS so the post applies **NAV at snapshot time** after folding mid-epoch flow at the prior rate. If a request spans a PPS rise and is fulfilled between snapshot and post, payout is below `oldPPS`; residual surplus remains in the vault and is reflected on the next post with no mid-epoch Δ.
+
 `totalAssets()` (= `totalSupply() × pricePerShare / oneShare`) reports only **circulating**-share backing; any pending/reserved fraction stays in the vault for its claimants. Fee share mints increase `totalSupply` without asset inflow, so `totalAssets()` may overstate economic NAV until the next post; the reconciled update corrects for fee-minted supply since the prior snapshot.
 
 ### Rate limiter
@@ -224,7 +226,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - Assigns a new non-zero `requestId` via `++nextRequestId` (starting from `1`).
 - Records `RedeemRequest { pendingShares: netShares, pendingAssets: assets, owner }`.
 - Updates global `totalPendingShares` and `totalPendingAssets`.
-- Emits `RedeemRequested(requestId, owner, caller, assets, shares, feeShares)` where `shares = netShares` (burned for the request, matches `RedeemRequest.pendingShares`), `assets = pendingAssets = _convertToAssets(netShares, Floor)` (paid on fulfillment), and `feeShares` is the fee transferred to the treasury. The gross requested amount is `shares + feeShares`.
+- Emits `RedeemRequested(requestId, owner, caller, assets, shares, feeShares)` where `shares = netShares` (burned for the request, matches `RedeemRequest.pendingShares`), `assets = pendingAssets = _convertToAssets(netShares, Floor)` (ceiling locked at request; actual fulfillment payout may be lower — see **Redemption fulfillment**), and `feeShares` is the fee transferred to the treasury. The gross requested amount is `shares + feeShares`.
 
 **Returns** unique non-zero `requestId`.
 
@@ -244,9 +246,11 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 
 - Requires **`PAY_REDEMPTIONS_ROLE`**. Protected by `nonReentrant`. Requires redeem not paused (`whenRedeemNotPaused`).
 - For each `requestId`: if `pendingAssets == 0`, reverts `AsyncRedemption_NothingToFulfill(requestId)`.
-- Subtracts from global `totalPendingShares` and `totalPendingAssets`.
+- Enforces a one-block minimum delay (`AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`).
+- **Payout** = `min(pendingAssets, _convertToAssets(pendingShares, Floor))` — i.e. `min(request PPS, current PPS)` in asset terms. A PPS drop after the request cannot pay more than current NAV for the burned shares; a PPS rise leaves surplus in the vault for remaining holders (picked up on a later `postPricePerShare`).
+- Subtracts full `pendingShares` / `pendingAssets` from global totals (clears the ticket), even when payout is below `pendingAssets`.
 - Deletes the request record.
-- Transfers `pendingAssets` of `asset()` directly to request `owner` via `safeTransfer`. Emits `Redeem(msgSender, owner, assets, shares)`.
+- Transfers **`payout`** of `asset()` directly to request `owner` via `safeTransfer`. Emits `Redeem(msgSender, owner, payout, shares)`.
 - After all requests: emits `RedeemRequestsFulfilled(requestIds)`.
 - The strategy contract's `asset()` balance MUST be sufficient at transfer time; the ERC-20 transfer will revert if insufficient.
 
@@ -274,7 +278,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 2. **Multi-asset deposits**: `deposit` and `mint` (both overloads each) accept listed `depositAsset`; deposit fee routed to `feeTreasury` before mint; optional default shard receives `net` tokens; `previewDeposit` / `previewMint` / `maxDeposit` / `maxMint` per **Multi-Asset Deposits**.
 3. **Fee system**: management fee (time-based, `TREASURY_ROLE` harvests) and performance fee (HWM, `TREASURY_ROLE` harvests); fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM resets on performance fee rate updates per implementation.
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `claimableRedeemRequest` always returns `0`.
-5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; transfers `asset` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
+5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; pays `min(pendingAssets, shares × currentPPS)` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `STRATEGY_PAUSER_ROLE` pauses; `MANAGER_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
 7. **`postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`**: declared-vs-reconciled semantics per **Exchange rate**; rate-limiter on declared move; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause deposit+redeem on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.

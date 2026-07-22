@@ -60,9 +60,8 @@ contract MultiAssetWithAsyncRedemptionStrategy is
         return "MAWARS-0.0.1";
     }
 
-    /// @dev Diamond-resolution override: both the deposit branch (base default) and the async branch reach
-    ///      `_effectiveShareSupply`; forward to `super`, which resolves to the async implementation
-    ///      (`totalSupply() + totalPendingShares`) via C3 linearization.
+    /// @dev Required: both parents define `_effectiveShareSupply`. `super` picks the async one
+    ///      (`totalSupply() + totalPendingShares`) because `AsyncRedemptionUpgradeable` is last in the inheritance list.
     function _effectiveShareSupply()
         internal
         view
