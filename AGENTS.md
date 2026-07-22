@@ -7,6 +7,7 @@
 - For new undeployed contracts, prefer `AccessControlDefaultAdminRulesUpgradeable` and roles over Ownable when designing access control
 - When intentional protocol behavior is accepted (e.g. rate-limit fee interaction), document it as expected rather than changing logic unless asked to redesign
 - Prefer HTTPS-resolved git dependencies in yarn over SSH so installs work without SSH keys
+- When adding or refining unit tests, leave unrelated existing tests unchanged
 
 ## Learned Workspace Facts
 
