@@ -71,6 +71,7 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @notice Sets management fee in basis points after accruing at the **prior** rate (updates `lastFeeHarvestAt`), so the new rate applies only from this timestamp onward.
+    /// @dev Accrual may mint shares; MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
     /// @param bps Fee rate; must be strictly less than 10000.
     function setManagementFeeBps(
         uint16 bps
@@ -103,6 +104,7 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @notice Sets performance fee in basis points after handling accrued performance fee at the **prior** rate, then resets high-water mark to current `pricePerShare`.
+    /// @dev May mint performance-fee shares; MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
     /// @param bps Fee rate; must be strictly less than 10000.
     /// @param feeRecipient Recipient when `forfeitAccrued` is false and accrued shares are non-zero.
     /// @param forfeitAccrued If false, mint accrued performance fee to `feeRecipient`. If true, forfeit (reset HWM without minting that accrual).
@@ -120,6 +122,7 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @notice Mint performance fee shares if `pricePerShare` exceeds `highWaterMark`, then raise HWM.
+    /// @dev MUST NOT be called between an operator NAV snapshot and `postPricePerShare` (mints change effective supply).
     /// @param feeRecipient Recipient of minted shares (must not be zero).
     function harvestPerformanceFee(
         address feeRecipient

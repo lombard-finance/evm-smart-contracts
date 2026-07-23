@@ -114,7 +114,7 @@ Time-based annual fee accruing on total supply. Computed as:
 shares = totalSupply * feeBps * elapsed / (10_000 * 365 days)
 ```
 
-- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Emits `ManagementFeeBpsSet`.
+- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
 - **`harvestManagementFee(address to)`** — Mints accrued shares to `to` (must not be zero); resets `lastFeeHarvestAt` to `block.timestamp`. Reverts with `FeeManager_NothingToHarvest(true)` if `shares == 0`. Emits `ManagementFeeHarvested(to, shares, elapsed)`.
 - **`managementFee()`** → `(feeBps, previewShares, lastHarvestAt)`.
 
@@ -127,8 +127,8 @@ gainShares = totalSupply * (pps - hwm) / hwm
 shares = gainShares * feeBps / 10_000
 ```
 
-- **`setPerformanceFeeBps(uint16 bps)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. **Resets high-water mark** to current `pricePerShare`. Emits `PerformanceFeeBpsSet`.
-- **`harvestPerformanceFee(address to)`** — Mints performance fee shares to `to`; raises HWM to current `pricePerShare`. Reverts with `FeeManager_PriceAtOrBelowHighWaterMark` if `pps <= hwm`. Reverts with `FeeManager_NothingToHarvest(false)` if `shares == 0`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)`.
+- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. Settles accrued performance fee at the prior rate (may mint unless `forfeitAccrued`), then resets high-water mark to current `pricePerShare`. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
+- **`harvestPerformanceFee(address to)`** — Mints performance fee shares to `to`; raises HWM to current `pricePerShare`. Reverts with `FeeManager_PriceAtOrBelowHighWaterMark` if `pps <= hwm`. Reverts with `FeeManager_NothingToHarvest(false)` if `shares == 0`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
 - **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`.
 
 ### Fee treasury
@@ -195,6 +195,7 @@ Expected consequences:
 
 **Operational expectations:**
 
+- Operator / role-gated supply movers — `fulfillRedeemRequests`, `harvestPerformanceFee`, `setManagementFeeBps`, `setPerformanceFeeBps` — MUST NOT run between the operator's NAV/`effectiveSupply` snapshot and `postPricePerShare` (they change mid-epoch Δ that reconciliation folds at stored PPS). User `deposit` / `mint` / `requestRedeem` are out of that MUST NOT (permissionless); ops still SHOULD keep the snapshot→post window short.
 - `PRICE_SETTER_ROLE` SHOULD post on a cadence that keeps posted PPS aligned with economics; snapshot after material fee mints and after material mid-epoch fulfills when surplus or netting bias matters.
 - Prefer re-taking `navAtSnapshot` / `effectiveSupplyAtSnapshot` after mid-epoch fulfills (or avoid fulfilling between snapshot and post during large declared drawdowns) — also avoids `Strategy_InsufficientNavForReconciliation`.
 - Keep the gap between `fulfillRedeemRequests` and the next inclusive post short when deposit is open (bounds the surplus-deposit window).
@@ -262,6 +263,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 **`fulfillRedeemRequests(uint256[] calldata requestIds)`**
 
 - Requires **`PAY_REDEMPTIONS_ROLE`**. Protected by `nonReentrant`. Requires redeem not paused (`whenRedeemNotPaused`).
+- MUST NOT be called between an operator NAV snapshot and `postPricePerShare` (decreases `_effectiveShareSupply` and is folded into mid-epoch reconciliation).
 - For each `requestId`: if `pendingAssets == 0`, reverts `AsyncRedemption_NothingToFulfill(requestId)`.
 - Enforces a one-block minimum delay (`AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`).
 - **Payout** = `min(pendingAssets, _convertToAssets(pendingShares, Floor))` — i.e. `min(request PPS, current PPS)` in asset terms. A PPS drop after the request cannot pay more than current NAV for the burned shares; a PPS rise leaves surplus in the vault for remaining holders (later inclusive `postPricePerShare`; see **Exchange rate** § Accepted tradeoff). If `pendingAssets` was locked while posted PPS temporarily overstated NAV (fee mints not yet in an operator snapshot), a later correcting post that includes those fee shares dilutes current PPS and fulfillment pays only `shares × currentPPS`.

@@ -38,6 +38,7 @@ On deposit, the gross `depositAsset` amount is pulled in first; then `depositFee
 uint256 requestId = strategy.requestRedeem(shares, owner);
 
 // caller needs PAY_REDEMPTIONS_ROLE; reverts if any id is still in its creation block
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.fulfillRedeemRequests([requestId1, requestId2]);
 ```
 
@@ -97,6 +98,7 @@ This is **intentional**. Dilution fees transfer economics via new shares; they a
 **Operational expectations:**
 
 - Configure total fees (flow + management + performance) so they remain **below** yield/rewards accruing to remaining holders.
+- Do **not** call `fulfillRedeemRequests`, `harvestPerformanceFee`, `setManagementFeeBps`, or `setPerformanceFeeBps` between the operator NAV/`effectiveSupply` snapshot and `postPricePerShare` (they move mid-epoch supply for reconciliation). User `deposit` / `mint` / `requestRedeem` are excluded from that rule.
 - `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics, snapshotting after material fee mints and mid-epoch fulfills when surplus / netting bias matters.
 - Prefer a short gap between `fulfillRedeemRequests` and the next inclusive `postPricePerShare` when deposit is open.
 - Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
@@ -115,10 +117,13 @@ strategy.setManagementFeeTreasury(managementFeeTreasury);
 // MANAGER_ROLE: where deposit skims and redeem-fee shares go
 strategy.setFeeTreasury(feeTreasury);
 // DEFAULT_ADMIN_ROLE: accrues at the prior rate, then sets the new management bps (bps < 10_000)
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.setManagementFeeBps(bps);
 // DEFAULT_ADMIN_ROLE: settles accrued perf fee (only if pricePerShare > HWM), then sets the new performance bps
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.setPerformanceFeeBps(bps, feeRecipient, forfeitAccrued);
 // PERF_FEE_CLAIM_ROLE: mints performance-fee shares to feeRecipient when pricePerShare > HWM
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.harvestPerformanceFee(feeRecipient);
 // Management fees need no harvest call — they accrue automatically on deposit / redeem-request.
 ```
