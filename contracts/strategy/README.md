@@ -144,8 +144,8 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 - `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
 - `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
-- `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). This is what the **rate limiter** measures against the prior stored PPS.
-- `reconciledPricePerShare` — what is **stored**. Mid-epoch **net** change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (even when payout was `min(request PPS, current PPS)`). Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. Net-Δ can leave posted PPS stale under mixed mid-epoch legs (including deposit-into-surplus) until a later clean post — accepted; see spec § Accepted tradeoff. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
+- `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). Pure snapshot rate.
+- `reconciledPricePerShare` — what is **stored**, and what the **rate limiter** measures against the prior stored PPS. Mid-epoch **net** change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (even when payout was `min(request PPS, current PPS)`). Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. Net-Δ can leave posted PPS stale under mixed mid-epoch legs (including deposit-into-surplus) until a later clean post — accepted; see spec § Accepted tradeoff. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
 
 **Pause gating**
 
@@ -153,11 +153,12 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 **Rate limiter**
 
-- Leaky bucket on the **declared** relative move (old → declared PPS), in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Gating on the declared move stops mid-epoch flow from masking a large NAV swing; the reconciled price is still what gets stored once the declared move clears.
+- Leaky bucket on the **reconciled** relative move (old → stored PPS), in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Mid-epoch flow can shrink or amplify that delta versus the pure snapshot (declared) move.
   - Within capacity → consume capacity, set the reconciled price, emit `PricePerShareUpdated`.
   - Over capacity with `revertOnRateLimit = true` → revert `PriceRateLimiterRateLimitExceeded`.
   - Over capacity with `revertOnRateLimit = false` → drain the bucket, **still set** the reconciled price, then **pause both** deposit and redeem (circuit breaker).
 - The bucket is **zeroed at init** (`maxBps = 0`), so `MANAGER_ROLE` MUST call `setPricePerShareRateLimit` before any non-zero price move is allowed. Inspect it with `pricePerShareRateLimiterState()`.
+- **Accepted:** a frontrun deposit can shrink the measured move vs declared and suppress auto-pause; no attacker profit (reconcile at stored PPS; async exit). See [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Rate limiter.
 
 ---
 

@@ -173,7 +173,7 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 
 **Declared vs reconciled:**
 
-1. `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (floor). Pure snapshot rate; used **only** for the rate limiter.
+1. `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (floor). Pure snapshot rate.
 2. Let `effectiveSupplyNow = _effectiveShareSupply()`.
 3. If `effectiveSupplyNow == 0`: store `declaredPricePerShare`.
 4. Else reconcile the net effective-supply delta at the **still-stored** PPS with a **single** Floor in PPS-scaled space (no intermediate asset-space rounding):
@@ -205,11 +205,13 @@ Expected consequences:
 
 ### Rate limiter
 
-Subject to a **`PriceRateLimiter`** leaky bucket (micro-bps capacity / refill). The limiter measures the **declared** relative move (old → declared PPS), not the reconciled move — mid-epoch flow MUST NOT mask a large declared NAV swing:
+Subject to a **`PriceRateLimiter`** leaky bucket (micro-bps capacity / refill). The limiter measures the **reconciled** relative move (old → stored PPS). Mid-epoch flow can shrink or amplify that delta versus the pure snapshot (declared) move:
 
 - Within capacity → consume capacity, set the **reconciled** price, emit `PricePerShareUpdated`.
 - Over capacity and `revertOnRateLimit == true` → revert `PriceRateLimiterRateLimitExceeded`.
 - Over capacity and `revertOnRateLimit == false` → drain the bucket, set the reconciled price, **pause both** deposit and redeem (circuit breaker).
+
+**Accepted tradeoff — reconciled gate:** A mid-epoch deposit/mint can shrink the measured move vs the declared snapshot rate (e.g. declared −50% → reconciled −25%) and suppress hard-revert / soft auto-pause that would have fired on declared alone. **Accepted — no attacker profit:** the gated magnitude is the **stored** PPS; additions reconcile at still-stored PPS (no share windfall); exit is async + `PAY_REDEMPTIONS_ROLE` (≥1 block). Mid-epoch fulfills (role-gated; MUST NOT in the snapshot→post window) can amplify a drawdown and trip sooner.
 
 **`setPricePerShareRateLimit(uint32 maxBucketBps, uint64 refillRate)`** — Configures the bucket. Requires `MANAGER_ROLE` (separate from `PRICE_SETTER_ROLE` by design). The bucket is **zeroed at init**; `MANAGER_ROLE` MUST configure it before any non-zero move is allowed.
 
@@ -299,7 +301,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `claimableRedeemRequest` always returns `0`.
 5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; pays `min(pendingAssets, shares × currentPPS)` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `STRATEGY_PAUSER_ROLE` pauses; `MANAGER_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
-7. **`postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`**: declared-vs-reconciled semantics per **Exchange rate**; rate-limiter on declared move; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause deposit+redeem on excess if `revertOnRateLimit = false`.
+7. **`postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`**: declared-vs-reconciled semantics per **Exchange rate**; rate-limiter on reconciled move; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause deposit+redeem on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
 9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
 10. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, redeem fee shares.
@@ -313,6 +315,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - **Withdrawal fee of `0` bps** (or unset treasury): no shares are deducted; `netShares == shares`.
 - **Rounding** follows floor/ceiling discipline in each path; extreme ratios can produce `0` shares or assets.
 - **`pricePerShare` rate limiter at zero capacity** (initial state): the limiter's `_wouldExceedLimit` behavior with a zeroed bucket means the first `postPricePerShare` may succeed or trigger the limit depending on config. The `MANAGER_ROLE` holder MUST call `setPricePerShareRateLimit` before relying on the limiter.
+- **Reconciled rate-limit gate (accepted):** mid-epoch deposit can shrink measured PPS move vs declared and suppress crisis auto-pause; no attacker profit (reconcile at `oldPPS`; async exit). See **Exchange rate** § Rate limiter.
 - **Net-Δ reconciliation tradeoff (accepted):** mid-epoch fee mints, fulfills paid below `oldPPS`, and mixed deposit+fulfill nets can leave posted PPS / `totalAssets()` temporarily disagreeing with economic NAV; depositors may skim unreflected fulfill surplus until a later inclusive post. See **Exchange rate** § Accepted tradeoff.
 - **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`; on-chain gross-flow (per-leg) PPS reconciliation.
 
