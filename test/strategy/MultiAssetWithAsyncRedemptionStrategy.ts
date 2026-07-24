@@ -1900,6 +1900,75 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.totalAssets()).to.equal((150n * e18 * expectedPPS) / e18);
     });
 
+    // Accepted: deposit-side upward-PPS frontrun still skims surplus D*Y/(S+D) → Y as D→∞.
+    it('signs off deposit-side upward-PPS frontrun surplus (max approaches full yield Y)', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+
+      const victim = sender;
+      const attacker = receiver;
+
+      const seed = 100n * e18;
+      const yieldAmt = 1n * e18;
+      const frontrun = 1_000_000n * e18; // D >> S so surplus approaches Y
+
+      await altDeposit.mint(victim.address, seed);
+      await altDeposit.connect(victim).approve(strategy.address, seed);
+      await strategy
+        .connect(victim)
+        ['deposit(address,uint256,address)'](altDeposit.address, seed, victim.address);
+
+      const supplyAtSnapshot = await strategy.totalSupply();
+      expect(supplyAtSnapshot).to.equal(seed);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Operator off-chain: NAV = S+Y; attacker frontruns at stale PPS = 1.0.
+      const navAtSnapshot = seed + yieldAmt;
+      await altDeposit.mint(attacker.address, frontrun);
+      await altDeposit.connect(attacker).approve(strategy.address, frontrun);
+      await strategy
+        .connect(attacker)
+        ['deposit(address,uint256,address)'](altDeposit.address, frontrun, attacker.address);
+      expect(await strategy.balanceOf(attacker.address)).to.equal(frontrun);
+
+      await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
+
+      // Dual-Floor reconcile: nav*1e18/(S+D) + Δ*oldPPS/(S+D) — below declared (S+Y)/S.
+      const supplyAfter = seed + frontrun;
+      const expectedPPS =
+        (navAtSnapshot * e18) / supplyAfter + (frontrun * e18) / supplyAfter;
+      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+
+      const declaredPPS = ((seed + yieldAmt) * e18) / seed;
+      expect(expectedPPS).to.be.lessThan(declaredPPS);
+
+      // Victim alone held S at snapshot → fair claim is full NAV S+Y at declared PPS.
+      const victimFair = (seed * declaredPPS) / e18;
+      const victimActual = (seed * expectedPPS) / e18;
+      const victimLoss = victimFair - victimActual; // 999900009999000200
+      expect(victimFair).to.equal(seed + yieldAmt);
+      expect(await strategy.convertToAssets(altDeposit.address, seed)).to.equal(victimActual);
+
+      const expectedPayout = (frontrun * expectedPPS) / e18;
+      const expectedSurplus = expectedPayout - frontrun; // 999900009998000000
+      // With D >> S both sides leave <1 bp of Y: victim loses ≈Y, attacker skims ≈Y.
+      expect(yieldAmt - victimLoss).to.be.lte(yieldAmt / 10_000n);
+      expect(yieldAmt - expectedSurplus).to.be.lte(yieldAmt / 10_000n);
+
+      const rid = 1n;
+      await strategy.connect(attacker).requestRedeem(frontrun, attacker.address);
+      expect((await strategy.pendingRedeemRequest(rid)).pendingAssets).to.equal(expectedPayout);
+
+      const undBefore = await underlying.balanceOf(attacker.address);
+      await underlying.mint(strategy.address, expectedPayout);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([rid]);
+
+      const paid = (await underlying.balanceOf(attacker.address)) - undBefore;
+      expect(paid).to.equal(expectedPayout);
+      expect(paid - frontrun).to.equal(expectedSurplus);
+    });
+
     it('keeps effective supply unchanged for mid-epoch redeem request (pending shares included)', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
 
