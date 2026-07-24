@@ -1914,9 +1914,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await altDeposit.mint(victim.address, seed);
       await altDeposit.connect(victim).approve(strategy.address, seed);
-      await strategy
-        .connect(victim)
-        ['deposit(address,uint256,address)'](altDeposit.address, seed, victim.address);
+      await strategy.connect(victim)['deposit(address,uint256,address)'](altDeposit.address, seed, victim.address);
 
       const supplyAtSnapshot = await strategy.totalSupply();
       expect(supplyAtSnapshot).to.equal(seed);
@@ -1933,10 +1931,9 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
 
-      // Dual-Floor reconcile: nav*1e18/(S+D) + Δ*oldPPS/(S+D) — below declared (S+Y)/S.
+      // Single-Floor reconcile: (nav*1e18 + Δ*oldPPS)/(S+D) — below declared (S+Y)/S.
       const supplyAfter = seed + frontrun;
-      const expectedPPS =
-        (navAtSnapshot * e18) / supplyAfter + (frontrun * e18) / supplyAfter;
+      const expectedPPS = (navAtSnapshot * e18 + frontrun * e18) / supplyAfter;
       expect(await strategy.pricePerShare()).to.equal(expectedPPS);
 
       const declaredPPS = ((seed + yieldAmt) * e18) / seed;
@@ -2179,8 +2176,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       // Mirror contract: floor((nav * oneShare - sharesRemoved * pps) / effectiveSupplyNow).
       const sharesRemoved = effectiveSupplyAtSnapshot - effectiveSupplyNow;
-      // "-1n" because of rounding to ceil for shares removed
-      const expectedPPS = (navAtSnapshot * e18) / effectiveSupplyNow - (sharesRemoved * pps) / effectiveSupplyNow - 1n;
+      const expectedPPS = (navAtSnapshot * e18 - sharesRemoved * pps) / effectiveSupplyNow;
 
       // Declared move is 0% (same nav/effSupply as first post); stored price is the reconciled value.
       await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, false);
@@ -2227,8 +2223,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       // Removal at oldPPS: (120e18×1e18 − 20e18×1.2e18) / 80e18 = 1.2e18.
       const sharesRemoved = effectiveSupplyAtSnapshot - effectiveSupplyNow;
-      const reconciledAtSnapshotPPS =
-        (navAtSnapshot * e18) / effectiveSupplyNow - (sharesRemoved * oldPps) / effectiveSupplyNow;
+      const reconciledAtSnapshotPPS = (navAtSnapshot * e18 - sharesRemoved * oldPps) / effectiveSupplyNow;
       const residualNavPPS = ((navAtSnapshot - payout) * e18) / effectiveSupplyNow; // (120−20)/80 = 1.25
       expect(reconciledAtSnapshotPPS).to.equal((12n * e18) / 10n);
       expect(residualNavPPS).to.equal((125n * e18) / 100n);
@@ -2331,7 +2326,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       // Victim locks Floor redeem liability; request alone does not change effective supply.
       const victimShares = 10n * e18;
       await strategy.connect(sender).requestRedeem(victimShares, sender.address);
-      let victimPendingAssets = await strategy.pendingAssetsOf(sender.address);
+      const victimPendingAssets = await strategy.pendingAssetsOf(sender.address);
       expect(victimPendingAssets).to.equal((victimShares * ppsExact) / e18);
 
       // Mid-epoch fulfill removes an odd share count (Δ * pps not divisible by oneShare).
@@ -2348,21 +2343,18 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const sharesRemoved = baseDeposit - effectiveSupplyNow;
       expect((sharesRemoved * ppsExact) % e18).to.not.equal(0n);
 
-      // Contrast: old Ceil→Floor two-step would store ppsExact - 1.
+      // Contrast: split Floor/Ceil mulDivs would store ppsExact - 1.
       const removedCeil = (sharesRemoved * ppsExact + (e18 - 1n)) / e18;
       const ppsIfOldCeil = ((navExact - removedCeil) * e18) / effectiveSupplyNow;
       expect(ppsIfOldCeil).to.equal(ppsExact - 1n);
 
-      // "+1n" because of ceil rounding
-      const expectedPPS =
-        (navExact * e18) / effectiveSupplyNow - ((sharesRemoved * ppsExact) / effectiveSupplyNow + 1n);
-      expect(expectedPPS).to.equal(ppsExact - 1n);
+      const expectedPPS = (navExact * e18 - sharesRemoved * ppsExact) / effectiveSupplyNow;
+      expect(expectedPPS).to.equal(ppsExact);
 
       await strategy.connect(priceSetter).postPricePerShare(navExact, baseDeposit, false);
-      expect(await strategy.pricePerShare()).to.equal(expectedPPS);
+      expect(await strategy.pricePerShare()).to.equal(ppsExact);
 
-      // Open request pays min(locked pending, shares×newPPS) after the tiny reconciled drop.
-      victimPendingAssets = (victimPendingAssets * expectedPPS) / ppsExact;
+      // Open request still pays the full locked pendingAssets.
       await underlying.mint(strategy.address, victimPendingAssets);
       const undBefore = await underlying.balanceOf(sender.address);
       await advanceTime(1);
@@ -2474,14 +2466,15 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(feeShares).to.be.greaterThanOrEqual(mgmtFeeShares + perfFeeSharesOnInflated);
 
       const sharesAdded = feeShares;
-      const interimPps = (navAtSnapshot * e18) / supplyNow + (sharesAdded * oldPps) / supplyNow;
+      const interimPps = (navAtSnapshot * e18 + sharesAdded * oldPps) / supplyNow;
       const correctPps = (navAtSnapshot * e18) / supplyNow;
       expect(correctPps).to.be.lessThan(interimPps);
 
       await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
       expect(await strategy.pricePerShare()).to.equal(interimPps);
-      await strategy.connect(manager).unpauseRedeem();
-      await strategy.connect(manager).unpauseDeposit();
+      // Interim move ≈ 0% (fee shares valued at oldPps); drained bucket does not soft-pause.
+      expect(await strategy.redeemPaused()).to.equal(false);
+      expect(await strategy.depositPaused()).to.equal(false);
 
       const holderShares = await strategy.balanceOf(sender.address);
       expect(holderShares).to.equal(holderDeposit);
@@ -2565,7 +2558,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const sharesAdded = supplyNow - supplyAtSnapshot;
       expect(sharesAdded).to.be.greaterThanOrEqual(feeShares);
 
-      const interimPps = (navAtSnapshot * e18) / supplyNow + (sharesAdded * oldPps) / supplyNow;
+      const interimPps = (navAtSnapshot * e18 + sharesAdded * oldPps) / supplyNow;
       const correctPps = (navAtSnapshot * e18) / supplyNow;
       expect(correctPps).to.be.lessThan(interimPps);
 
