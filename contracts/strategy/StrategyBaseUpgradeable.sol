@@ -227,7 +227,8 @@ abstract contract StrategyBaseUpgradeable is
 
     /// @notice Derives and stores a new `pricePerShare` from a NAV/supply snapshot, reconciled for mid-epoch supply changes.
     /// @dev Rate limiter gates on the *reconciled* move. Mid-epoch net Δ at still-stored PPS with a single Floor
-    ///      in PPS-scaled space. Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
+    ///      in PPS-scaled space (plain `*`; overflow only on unrealistic NAV).
+    ///      Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
     /// @param navAtSnapshot Operator-observed NAV (asset units) at snapshot; must be non-zero.
     /// @param effectiveSupplyAtSnapshot Effective supply at that instant (`_effectiveShareSupply` semantics); must be non-zero.
     /// @param revertOnRateLimit On excess reconciled move: revert (true), or drain bucket, set price, pause deposit+redeem (false).

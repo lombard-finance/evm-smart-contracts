@@ -2395,6 +2395,39 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.pricePerShare()).to.equal(e18);
     });
 
+    // Accepted: fused plain `nav * oneShare` (not 512-bit mulDiv) panics on overflow; only absurd NAV hits it.
+    it('signs off fused reconcil overflow on unrealistic NAV (panic 0x11)', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // oneShare = 1e18 → product overflows iff nav > floor(uint256.max / 1e18) ≈ 1.15e59 (unrealistic TVL).
+      const maxSafeNav = ethers.MaxUint256 / e18;
+      expect(maxSafeNav).to.equal(115792089237316195423570985008687907853269984665640564039457n);
+      const overflowNav = maxSafeNav + 1n;
+
+      // prettier-ignore
+      await expect(
+        strategy.connect(priceSetter).postPricePerShare(overflowNav, baseDeposit, false)
+      ).to.be.revertedWithPanic(0x11); // ARITHMETIC_OVERFLOW on nav * oneShare
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Boundary: max product that still fits does not panic (soft rate-limit applies price + pause).
+      const expectedBoundaryPps = (maxSafeNav * e18) / baseDeposit;
+      await expect(strategy.connect(priceSetter).postPricePerShare(maxSafeNav, baseDeposit, false)).to.emit(
+        strategy,
+        'PricePerShareUpdated'
+      );
+      expect(await strategy.pricePerShare()).to.equal(expectedBoundaryPps);
+    });
+
     it('mid-epoch fee mints: interim PPS stays high; correcting post clips fulfill to fair amount', async function () {
       // Max interim ceiling: max rate-limit PPS raise + max mid-window fee mint (bps=1, elapsed=den-1
       // beats bps=9999 for a single accrual), interim post keeps high PPS, redeem, then correcting post clips.
