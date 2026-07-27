@@ -226,11 +226,11 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Derives and stores a new `pricePerShare` from a NAV/supply snapshot, reconciled for mid-epoch supply changes.
-    /// @dev Rate limiter gates on the *declared* move; stores the *reconciled* price. Reverts
-    ///      {Strategy_PricePerSharePaused} when deposit or redeem is paused.
+    /// @dev Rate limiter gates on the *reconciled* move. Mid-epoch net Δ at still-stored PPS.
+    ///      Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
     /// @param navAtSnapshot Operator-observed NAV (asset units) at snapshot; must be non-zero.
     /// @param effectiveSupplyAtSnapshot Effective supply at that instant (`_effectiveShareSupply` semantics); must be non-zero.
-    /// @param revertOnRateLimit On excess declared move: revert (true), or drain bucket, set price, pause deposit+redeem (false).
+    /// @param revertOnRateLimit On excess reconciled move: revert (true), or drain bucket, set price, pause deposit+redeem (false).
     function postPricePerShare(
         uint256 navAtSnapshot,
         uint256 effectiveSupplyAtSnapshot,
@@ -249,14 +249,11 @@ abstract contract StrategyBaseUpgradeable is
         uint256 oneShare = _oneShare();
         uint256 effectiveSupplyNow = _effectiveShareSupply();
 
-        // Declared PPS from the snapshot alone; rate limiter gates on this move (not the reconciled one).
-        uint256 declaredPricePerShare = navAtSnapshot.mulDiv(
+        uint256 priceToSet = navAtSnapshot.mulDiv(
             oneShare,
             effectiveSupplyAtSnapshot,
             Math.Rounding.Floor
         );
-
-        uint256 priceToSet = declaredPricePerShare;
         if (effectiveSupplyNow != 0) {
             // Single Floor in PPS-scaled space.
             priceToSet = navAtSnapshot.mulDiv(
@@ -284,7 +281,7 @@ abstract contract StrategyBaseUpgradeable is
 
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
             $.pricePerShare,
-            declaredPricePerShare
+            priceToSet
         );
         if (!$.ppsRateLimiter._wouldExceedLimit(changeBps)) {
             $.ppsRateLimiter._consume(changeBps);
@@ -342,7 +339,7 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Returns posted NAV: totalSupply × pricePerShare, NOT the strategy's actual token balance.
-    /// @dev After dilution-fee share mints, may exceed economic backing until `postPricePerShare` reconciles supply.
+    /// @dev May disagree with economic NAV mid-epoch until a later inclusive `postPricePerShare`.
     function totalAssets() public view virtual returns (uint256) {
         return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }

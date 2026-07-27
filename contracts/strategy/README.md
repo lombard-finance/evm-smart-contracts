@@ -38,10 +38,11 @@ On deposit, the gross `depositAsset` amount is pulled in first; then `depositFee
 uint256 requestId = strategy.requestRedeem(shares, owner);
 
 // caller needs PAY_REDEMPTIONS_ROLE; reverts if any id is still in its creation block
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.fulfillRedeemRequests([requestId1, requestId2]);
 ```
 
-Each `requestRedeem` accrues the management fee, prices `netShares` into `assets` via the posted rate (`_convertToAssets`, rounded down), and records a `RedeemRequest { pendingShares, pendingAssets, owner, requestBlock }`. It reverts `AsyncRedemption_FeeSharesGreaterThanShares` if the fee would consume the whole request and `AsyncRedemption_ZeroAssets` if the net redemption prices to zero assets. `fulfillRedeemRequests` reverts `AsyncRedemption_NothingToFulfill` for an unknown/already-paid id and `AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`. Read-only helpers: `redeemFee()`, `pendingRedeemRequest(requestId)`, `pendingAssetsOf(owner)`, and `totalPending()` → `(totalPendingShares, totalPendingAssets)`.
+Each `requestRedeem` accrues the management fee, prices `netShares` into `assets` via the posted rate (`_convertToAssets`, rounded down), and records a `RedeemRequest { pendingShares, pendingAssets, owner, requestBlock }` (`pendingAssets` is the request-time ceiling). It reverts `AsyncRedemption_FeeSharesGreaterThanShares` if the fee would consume the whole request and `AsyncRedemption_ZeroAssets` if the net redemption prices to zero assets. `fulfillRedeemRequests` pays `min(pendingAssets, shares × current pricePerShare)` so a PPS drop after the request cannot overpay current NAV; a PPS rise leaves surplus in the vault for remaining holders (later inclusive `postPricePerShare` — see [Posted NAV vs dilution fees](#posted-nav-vs-dilution-fees)). It reverts `AsyncRedemption_NothingToFulfill` for an unknown/already-paid id and `AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`. Read-only helpers: `redeemFee()`, `pendingRedeemRequest(requestId)`, `pendingAssetsOf(owner)`, and `totalPending()` → `(totalPendingShares, totalPendingAssets)`.
 
 > There is **no** global per-request redemption cap; `requestRedeem` is unbounded in size (subject to the owner's balance). The `MaxRedeemRequestSet` event in `IAsyncRedemption` is reserved and currently unused.
 
@@ -92,12 +93,14 @@ Fee mints increase `totalSupply` but leave `pricePerShare` unchanged, so `totalA
 
 This is **intentional**. Dilution fees transfer economics via new shares; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
 
-**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare` (see [Posting NAV](#posting-nav-and-the-price-rate-limiter)). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+**Between price posts**, deposit and redemption math use the same posted rate. Mid-epoch reconciliation values **net** effective-supply Δ at the still-stored PPS (deposits, fee mints, fulfill removals) — accepted vs per-leg accounting; fee dilution, fulfill surplus, and mixed-net bias land on a later inclusive snapshot. A deposit into an understated window can capture part of fulfill surplus. Normative detail: [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Exchange rate (Accepted tradeoff). A redeem requested while PPS is still overstated may lock a high `pendingAssets` ceiling; after the correcting post, fulfill pays `min(pendingAssets, shares × currentPPS)`. Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV after fee mints or PPS-rise fulfills since the last inclusive snapshot.
 
 **Operational expectations:**
 
 - Configure total fees (flow + management + performance) so they remain **below** yield/rewards accruing to remaining holders.
-- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics.
+- Do **not** call `fulfillRedeemRequests`, `harvestPerformanceFee`, `setManagementFeeBps`, or `setPerformanceFeeBps` between the operator NAV/`effectiveSupply` snapshot and `postPricePerShare` (they move mid-epoch supply for reconciliation). User `deposit` / `mint` / `requestRedeem` are excluded from that rule.
+- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics, snapshotting after material fee mints and mid-epoch fulfills when surplus / netting bias matters.
+- Prefer a short gap between `fulfillRedeemRequests` and the next inclusive `postPricePerShare` when deposit is open.
 - Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
 
 ```text
@@ -114,10 +117,13 @@ strategy.setManagementFeeTreasury(managementFeeTreasury);
 // MANAGER_ROLE: where deposit skims and redeem-fee shares go
 strategy.setFeeTreasury(feeTreasury);
 // DEFAULT_ADMIN_ROLE: accrues at the prior rate, then sets the new management bps (bps < 10_000)
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.setManagementFeeBps(bps);
 // DEFAULT_ADMIN_ROLE: settles accrued perf fee (only if pricePerShare > HWM), then sets the new performance bps
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.setPerformanceFeeBps(bps, feeRecipient, forfeitAccrued);
 // PERF_FEE_CLAIM_ROLE: mints performance-fee shares to feeRecipient when pricePerShare > HWM
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.harvestPerformanceFee(feeRecipient);
 // Management fees need no harvest call — they accrue automatically on deposit / redeem-request.
 ```
@@ -138,8 +144,8 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 - `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
 - `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
-- `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). This is what the **rate limiter** measures against the prior stored PPS.
-- `reconciledPricePerShare` — what is **stored**. Mid-epoch net change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment (backing leaves the vault) is an effective-supply decrease. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` rather than underflowing — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
+- `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). Pure snapshot rate.
+- `reconciledPricePerShare` — what is **stored**, and what the **rate limiter** measures against the prior stored PPS. Mid-epoch **net** change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (even when payout was `min(request PPS, current PPS)`). Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. Net-Δ can leave posted PPS stale under mixed mid-epoch legs (including deposit-into-surplus) until a later clean post — accepted; see spec § Accepted tradeoff. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown).
 
 **Pause gating**
 
@@ -147,11 +153,12 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 **Rate limiter**
 
-- Leaky bucket on the **declared** relative move (old → declared PPS), in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Gating on the declared move stops mid-epoch flow from masking a large NAV swing; the reconciled price is still what gets stored once the declared move clears.
+- Leaky bucket on the **reconciled** relative move (old → stored PPS), in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Mid-epoch flow can shrink or amplify that delta versus the pure snapshot (declared) move.
   - Within capacity → consume capacity, set the reconciled price, emit `PricePerShareUpdated`.
   - Over capacity with `revertOnRateLimit = true` → revert `PriceRateLimiterRateLimitExceeded`.
   - Over capacity with `revertOnRateLimit = false` → drain the bucket, **still set** the reconciled price, then **pause both** deposit and redeem (circuit breaker).
 - The bucket is **zeroed at init** (`maxBps = 0`), so `MANAGER_ROLE` MUST call `setPricePerShareRateLimit` before any non-zero price move is allowed. Inspect it with `pricePerShareRateLimiterState()`.
+- **Accepted:** a frontrun deposit can shrink the measured move vs declared and suppress auto-pause; no attacker profit (reconcile at stored PPS; async exit). See [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Rate limiter.
 
 ---
 
