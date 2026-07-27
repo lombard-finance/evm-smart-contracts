@@ -2395,7 +2395,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.pricePerShare()).to.equal(e18);
     });
 
-    // Accepted: fused plain `nav * oneShare` (not 512-bit mulDiv) panics on overflow; only absurd NAV hits it.
+    // Accepted: fused plain `nav * oneShare` panics on overflow; only absurd NAV hits it.
     it('signs off fused reconcil overflow on unrealistic NAV (panic 0x11)', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
       await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
@@ -2408,7 +2408,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
       expect(await strategy.pricePerShare()).to.equal(e18);
 
-      // oneShare = 1e18 → product overflows iff nav > floor(uint256.max / 1e18) ≈ 1.15e59 (unrealistic TVL).
+      // oneShare = 1e18 → overflows iff nav > floor(uint256.max / 1e18) ≈ 1.15e59.
       const maxSafeNav = ethers.MaxUint256 / e18;
       expect(maxSafeNav).to.equal(115792089237316195423570985008687907853269984665640564039457n);
       const overflowNav = maxSafeNav + 1n;
@@ -2416,10 +2416,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       // prettier-ignore
       await expect(
         strategy.connect(priceSetter).postPricePerShare(overflowNav, baseDeposit, false)
-      ).to.be.revertedWithPanic(0x11); // ARITHMETIC_OVERFLOW on nav * oneShare
+      ).to.be.revertedWithPanic(0x11);
       expect(await strategy.pricePerShare()).to.equal(e18);
 
-      // Boundary: max product that still fits does not panic (soft rate-limit applies price + pause).
+      // Boundary product still fits (soft rate-limit applies price + pause).
       const expectedBoundaryPps = (maxSafeNav * e18) / baseDeposit;
       await expect(strategy.connect(priceSetter).postPricePerShare(maxSafeNav, baseDeposit, false)).to.emit(
         strategy,
