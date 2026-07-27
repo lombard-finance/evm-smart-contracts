@@ -57,7 +57,7 @@ contract MultiAssetWithAsyncRedemptionStrategy is
 
     /// @notice Human-readable build label for off-chain integrations.
     function version() external pure override returns (string memory) {
-        return "MAWARS-0.0.1";
+        return "MAWARS-0.1.0";
     }
 
     /// @dev Both parents define `_effectiveShareSupply`; `super` picks the async override
