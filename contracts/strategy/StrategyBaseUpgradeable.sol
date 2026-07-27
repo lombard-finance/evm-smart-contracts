@@ -226,8 +226,8 @@ abstract contract StrategyBaseUpgradeable is
     }
 
     /// @notice Derives and stores a new `pricePerShare` from a NAV/supply snapshot, reconciled for mid-epoch supply changes.
-    /// @dev Rate limiter gates on the *reconciled* move. Mid-epoch net Δ at still-stored PPS.
-    ///      Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
+    /// @dev Rate limiter gates on the *reconciled* move. Mid-epoch net Δ at still-stored PPS with a single Floor
+    ///      in PPS-scaled space. Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
     /// @param navAtSnapshot Operator-observed NAV (asset units) at snapshot; must be non-zero.
     /// @param effectiveSupplyAtSnapshot Effective supply at that instant (`_effectiveShareSupply` semantics); must be non-zero.
     /// @param revertOnRateLimit On excess reconciled move: revert (true), or drain bucket, set price, pause deposit+redeem (false).
@@ -249,34 +249,26 @@ abstract contract StrategyBaseUpgradeable is
         uint256 oneShare = _oneShare();
         uint256 effectiveSupplyNow = _effectiveShareSupply();
 
-        uint256 priceToSet = navAtSnapshot.mulDiv(
-            oneShare,
-            effectiveSupplyAtSnapshot,
-            Math.Rounding.Floor
-        );
-        if (effectiveSupplyNow != 0) {
+        uint256 priceToSet;
+        if (effectiveSupplyNow == 0) {
+            priceToSet = (navAtSnapshot * oneShare) / effectiveSupplyAtSnapshot;
+        } else {
             // Single Floor in PPS-scaled space.
-            priceToSet = navAtSnapshot.mulDiv(
-                oneShare,
-                effectiveSupplyNow,
-                Math.Rounding.Floor
-            );
+            uint256 scaled = navAtSnapshot * oneShare;
             uint256 oldPps = $.pricePerShare;
             if (effectiveSupplyNow >= effectiveSupplyAtSnapshot) {
-                priceToSet += (effectiveSupplyNow - effectiveSupplyAtSnapshot)
-                    .mulDiv(oldPps, effectiveSupplyNow, Math.Rounding.Floor);
+                scaled +=
+                    (effectiveSupplyNow - effectiveSupplyAtSnapshot) *
+                    oldPps;
             } else {
                 uint256 removalValue = (effectiveSupplyAtSnapshot -
-                    effectiveSupplyNow).mulDiv(
-                        oldPps,
-                        effectiveSupplyNow,
-                        Math.Rounding.Ceil
-                    );
-                if (priceToSet < removalValue) {
+                    effectiveSupplyNow) * oldPps;
+                if (scaled < removalValue) {
                     revert Strategy_InsufficientNavForReconciliation();
                 }
-                priceToSet -= removalValue;
+                scaled -= removalValue;
             }
+            priceToSet = scaled / effectiveSupplyNow;
         }
 
         uint256 changeBps = PriceRateLimiter._relativeChangeBps(
