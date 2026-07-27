@@ -2395,6 +2395,45 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.pricePerShare()).to.equal(e18);
     });
 
+    // Accepted: fused InsufficientNav is numerator compare; A≈B dust → ZeroPricePerShare (split would InsufficientNav).
+    it('signs off InsufficientNav numerator boundary vs split Floor/Ceil', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(3_000_000, 0);
+
+      const baseDeposit = 100n * e18;
+      await altDeposit.mint(sender.address, baseDeposit);
+      await altDeposit.connect(sender).approve(strategy.address, baseDeposit);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, baseDeposit, sender.address);
+      expect(await strategy.pricePerShare()).to.equal(e18);
+
+      // Odd removal so A/S is non-integral (Floor ≠ Ceil).
+      const removalShares = 1n * e18 + 1n;
+      await strategy.connect(sender).requestRedeem(removalShares, sender.address);
+      const payout = await strategy.pendingAssetsOf(sender.address);
+      await underlying.mint(strategy.address, payout);
+      await advanceTime(1);
+      await strategy.connect(redeemOperator).fulfillRedeemRequests([1n]);
+
+      const effectiveSupplyNow = (await strategy.totalSupply()) + (await strategy.totalPending())[0];
+      expect(effectiveSupplyNow).to.equal(baseDeposit - removalShares);
+
+      // A == B (nav*oneShare == Δ*oldPPS): fused PPS=0 → ZeroPricePerShare.
+      const boundaryNav = removalShares;
+      const scaled = boundaryNav * e18;
+      expect(scaled % effectiveSupplyNow).to.not.equal(0n);
+
+      // Contrast: split Floor/Ceil would InsufficientNav (floor(A/S) < ceil(B/S)).
+      expect(scaled / effectiveSupplyNow).to.equal(10101010101010101n);
+      expect((scaled + effectiveSupplyNow - 1n) / effectiveSupplyNow).to.equal(10101010101010102n);
+
+      await expect(
+        strategy.connect(priceSetter).postPricePerShare(boundaryNav, baseDeposit, false)
+      ).to.be.revertedWithCustomError(strategy, 'Strategy_ZeroPricePerShare');
+      expect(await strategy.pricePerShare()).to.equal(e18);
+    });
+
     // Accepted: fused plain `nav * oneShare` panics on overflow; only absurd NAV hits it.
     it('signs off fused reconcil overflow on unrealistic NAV (panic 0x11)', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
