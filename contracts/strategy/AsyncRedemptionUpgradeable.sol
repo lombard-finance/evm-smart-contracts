@@ -71,9 +71,9 @@ abstract contract AsyncRedemptionUpgradeable is
         return _getAsyncRedemptionStorage().redeemFeeBps;
     }
 
-    /// @notice Pending shares and underlying assets across all open redemption requests.
+    /// @notice Pending shares and request-time asset ceilings across all open redemption requests.
     /// @return totalPendingShares Aggregate burned shares not yet fulfilled.
-    /// @return totalPendingAssets Aggregate underlying amount owed for open requests.
+    /// @return totalPendingAssets Aggregate request-time ceilings; fulfillment may pay less via `min`.
     function totalPending() external view returns (uint256, uint256) {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         return ($.totalPendingShares, $.totalPendingAssets);

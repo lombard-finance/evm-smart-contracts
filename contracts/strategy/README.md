@@ -133,23 +133,22 @@ strategy.harvestPerformanceFee(feeRecipient);
 `postPricePerShare` is the only way the posted exchange rate moves. It is **not** a raw price setter — the price is derived from a NAV/supply snapshot and reconciled against mid-epoch supply changes. Normative rules live in [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Exchange rate.
 
 ```solidity
-// PRICE_SETTER_ROLE; reverts if the ERC-20 transfer pause is active, or if BOTH deposit and redeem are paused
+// PRICE_SETTER_ROLE; reverts if the ERC-20 transfer pause is active, or if deposit or redeem is paused
 // effectiveSupplyAtSnapshot = totalSupply() + totalPendingShares() observed when navAtSnapshot was measured
 strategy.postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit);
 // MANAGER_ROLE: configure the rate-limiter bucket (micro-bps capacity + refill)
 strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 ```
 
-**Inputs and declared vs reconciled PPS**
+**Inputs and reconciled PPS**
 
 - `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
 - `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + totalPendingShares()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
-- `declaredPricePerShare = navAtSnapshot × oneShare / effectiveSupplyAtSnapshot` (`oneShare = 10 ** decimals()`). Pure snapshot rate.
-- `reconciledPricePerShare` — what is **stored**, and what the **rate limiter** measures against the prior stored PPS. Mid-epoch **net** change in `_effectiveShareSupply()` is folded in with a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (even when payout was `min(request PPS, current PPS)`). Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. Net-Δ can leave posted PPS stale under mixed mid-epoch legs (including deposit-into-surplus) until a later clean post — accepted; see spec § Accepted tradeoff. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown). Near-equality dust may hit `Strategy_ZeroPricePerShare` instead (accepted; see spec § fused plain mul). Fused plain-`*` overflow on unrealistic NAV is accepted; see same section.
+- `priceToSet` (stored) — when `effectiveSupplyNow == 0`, the pure snapshot ratio `navAtSnapshot × oneShare / effectiveSupplyAtSnapshot`; otherwise the **reconciled** rate with mid-epoch **net** Δ folded in at a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. The rate limiter measures old → this stored value. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (even when payout was `min(request PPS, current PPS)`). Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. Net-Δ can leave posted PPS stale under mixed mid-epoch legs (including deposit-into-surplus) until a later clean post — accepted; see spec § Accepted tradeoff. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown). Near-equality dust may hit `Strategy_ZeroPricePerShare` instead (accepted; see spec § fused plain mul). Fused plain-`*` overflow on unrealistic NAV is accepted; see same section.
 
 **Pause gating**
 
-- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip. **Accepted:** deposit-only pause blocks PPS while redeem can stay open — see spec § Exchange rate (OR pause gate).
 
 **Rate limiter**
 
