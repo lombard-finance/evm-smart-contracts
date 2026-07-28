@@ -1837,6 +1837,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         }
         expect(supplyAfter - supplyBefore).to.be.eq(expectedShares);
         expect(await strategy.pricePerShare()).to.equal(newRate);
+        expect((await strategy.performanceFee())[2]).to.equal(newRate > defaultRate ? newRate : defaultRate);
 
         await strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address);
         expect(await strategy.totalSupply()).to.be.eq(supplyAfter);
@@ -1847,6 +1848,49 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       // prettier-ignore
       await expect(strategy.connect(sender).harvestPerformanceFee(treasury.address))
         .to.be.revertedWithCustomError(strategy, 'AccessControlUnauthorizedAccount');
+    });
+
+    // Accepted: dust harvests free-roll HWM; missed fee vs single harvest of full gain = 1 share.
+    it('signs off dust harvest free-rolling HWM with zero fee shares (holder-favorable)', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+
+      const supply = e18;
+      const perfFeeBps = 1n;
+      await strategy.connect(admin).setPerformanceFeeBps(Number(perfFeeBps), treasury.address, true);
+
+      await altDeposit.mint(sender.address, supply);
+      await altDeposit.connect(sender).approve(strategy.address, supply);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, supply, sender.address);
+
+      const hwm0 = e18;
+      // Counterfactual: one harvest after +10000 wei → fee shares=1.
+      const cumulativeDust = 10000n;
+      const treasuryExpected = (((supply * cumulativeDust) / hwm0) * perfFeeBps) / 10000n;
+      expect(treasuryExpected).to.equal(1n);
+
+      async function postAndHarvest(newPps: bigint) {
+        const s = await strategy.totalSupply();
+        await strategy.connect(priceSetter).postPricePerShare((newPps * s) / e18, s, false);
+        if (await strategy.depositPaused()) await strategy.connect(manager).unpauseDeposit();
+        if (await strategy.redeemPaused()) await strategy.connect(manager).unpauseRedeem();
+        await expect(strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)).to.not.emit(
+          strategy,
+          'PerformanceFeeHarvested'
+        );
+        expect((await strategy.performanceFee())[2]).to.equal(newPps);
+      }
+
+      const supplyBefore = await strategy.totalSupply();
+      const treasuryBefore = await strategy.balanceOf(treasury.address);
+      await postAndHarvest(hwm0 + 9999n);
+      await postAndHarvest(hwm0 + cumulativeDust);
+
+      const treasuryActual = (await strategy.balanceOf(treasury.address)) - treasuryBefore;
+      expect(treasuryActual).to.equal(0n);
+      expect(treasuryExpected - treasuryActual).to.equal(1n); // missed fee shares
+      expect(await strategy.totalSupply()).to.equal(supplyBefore);
     });
 
     after(function () {
