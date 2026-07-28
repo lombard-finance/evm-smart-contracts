@@ -61,7 +61,7 @@ interface IFeeManager {
 
     /// @return feeBps Configured performance fee in basis points.
     /// @return previewShares Shares that would be minted on `harvestPerformanceFee` now (0 if at/below HWM or if
-    ///         fee shares floor to 0; a zero-share harvest above HWM still raises the watermark).
+    ///         fee shares floor to 0).
     /// @return performanceHighWaterMark Stored high-water mark for performance fee (`pricePerShare` units).
     function performanceFee()
         external
