@@ -3013,7 +3013,8 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
       const supplyMid = await strategy.totalSupply();
       const ppsMid = await strategy.pricePerShare();
-      const ppsUp = (ppsMid * 10010n) / 10000n;
+      const ppsMoveBps = 1000n; // +0.10% in micro-bps
+      const ppsUp = (ppsMid * (1_000_000n + ppsMoveBps)) / 1_000_000n;
       await strategy.connect(priceSetter).postPricePerShare((ppsUp * supplyMid) / e18, supplyMid, true);
 
       await advanceTime(Number(SECONDS_PER_YEAR));
