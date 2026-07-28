@@ -2921,7 +2921,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       const p0 = await strategy.pricePerShare();
       const supply = await strategy.totalSupply();
-      const p1 = (p0 * 10005n) / 10000n;
+      const p1 = (p0 * (1_000_000n + BigInt(maxBps))) / 1_000_000n;
       await strategy.connect(priceSetter).postPricePerShare((p1 * supply) / e18, supply, true);
       const spiked = p1 + 1n;
       await strategy.connect(priceSetter).postPricePerShare((spiked * supply) / e18, supply, false);
@@ -2955,7 +2955,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
 
       const supplyAfter = await strategy.totalSupply();
-      const corrected = (p0 * 10010n) / 10000n;
+      const corrected = (p0 * (1_000_000n + 2n * BigInt(maxBps))) / 1_000_000n;
       await strategy.connect(priceSetter).postPricePerShare((corrected * supplyAfter) / e18, supplyAfter, true);
       expect(await strategy.pricePerShare()).to.equal(corrected);
 
