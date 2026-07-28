@@ -2933,16 +2933,16 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await expect(
         strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_SoftPaused');
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
       await expect(
         strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, false)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_SoftPaused');
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
       await expect(
         strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, true)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_SoftPaused');
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
       await expect(strategy.connect(admin).setManagementFeeBps(500)).to.be.revertedWithCustomError(
         strategy,
-        'FeeManager_SoftPaused'
+        'FeeManager_StrategyPaused'
       );
 
       const [, , hwmAfter] = await strategy.performanceFee();
@@ -2951,7 +2951,6 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await strategy.connect(manager).unpauseDeposit();
       await strategy.connect(manager).unpauseRedeem();
-      // Refill drained rate-limit bucket (maxBps 0 → non-zero reseeds capacity).
       await strategy.connect(manager).setPricePerShareRateLimit(0, 0);
       await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
 
@@ -2983,11 +2982,12 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       await advanceTime(Number(SECONDS_PER_YEAR));
 
       await strategy.connect(pauser).pauseRedeem();
-      expect(await strategy.softPaused()).to.be.true;
+      expect(await strategy.depositPaused()).to.equal(false);
+      expect(await strategy.redeemPaused()).to.equal(true);
 
       await expect(strategy.connect(admin).setManagementFeeBps(500)).to.be.revertedWithCustomError(
         strategy,
-        'FeeManager_SoftPaused'
+        'FeeManager_StrategyPaused'
       );
 
       const supplyBeforeDeposit = await strategy.totalSupply();
@@ -3018,14 +3018,15 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await advanceTime(Number(SECONDS_PER_YEAR));
       await strategy.connect(pauser).pauseDeposit();
-      expect(await strategy.softPaused()).to.be.true;
+      expect(await strategy.depositPaused()).to.equal(true);
+      expect(await strategy.redeemPaused()).to.equal(false);
 
       await expect(
         strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_SoftPaused');
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
       await expect(strategy.connect(admin).setManagementFeeBps(400)).to.be.revertedWithCustomError(
         strategy,
-        'FeeManager_SoftPaused'
+        'FeeManager_StrategyPaused'
       );
 
       const sharesToRedeem = (await strategy.balanceOf(sender.address)) / 10n;

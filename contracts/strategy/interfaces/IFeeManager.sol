@@ -46,8 +46,8 @@ interface IFeeManager {
     error FeeManager_PerformanceFeeBpsTooHigh();
     /// @dev Accrued fee shares require a non-zero recipient when settling via fee `bps` setters.
     error FeeManager_FeeRecipientRequired();
-    /// @dev Soft-paused (`depositPaused` or `redeemPaused`): blocks performance HWM raise/mint and `setManagementFeeBps`.
-    error FeeManager_SoftPaused();
+    /// @dev Deposit or redeem is paused.
+    error FeeManager_StrategyPaused();
     /// @param pricePerShare Current `pricePerShare` when the harvest was attempted.
     /// @param highWaterMark Stored high-water mark that was not exceeded.
     error FeeManager_PriceAtOrBelowHighWaterMark(
