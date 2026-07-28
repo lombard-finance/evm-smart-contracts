@@ -1884,7 +1884,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       const supplyBefore = await strategy.totalSupply();
       const treasuryBefore = await strategy.balanceOf(treasury.address);
-      await postAndHarvest(hwm0 + 9999n);
+      await postAndHarvest(hwm0 + cumulativeDust - 1n);
       await postAndHarvest(hwm0 + cumulativeDust);
 
       const treasuryActual = (await strategy.balanceOf(treasury.address)) - treasuryBefore;
