@@ -159,6 +159,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
   - Over capacity with `revertOnRateLimit = false` → drain the bucket, **still set** the reconciled price, then **pause both** deposit and redeem (circuit breaker).
 - The bucket is **zeroed at init** (`maxBps = 0`), so `MANAGER_ROLE` MUST call `setPricePerShareRateLimit` before any non-zero price move is allowed. Inspect it with `pricePerShareRateLimiterState()`.
 - **Accepted:** a frontrun deposit can shrink the measured move vs declared and suppress auto-pause; no attacker profit (reconcile at stored PPS; async exit). See [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Rate limiter.
+- **Accepted:** sub-quantum successful posts discard refill remainder → one-shot under high-frequency posting; trusted `PRICE_SETTER`. See same spec § Rate limiter.
 
 ---
 
