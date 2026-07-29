@@ -31,6 +31,8 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 | `PAY_REDEMPTIONS_ROLE`  | `keccak256("PAY_REDEMPTIONS_ROLE")`  | `fulfillRedeemRequests`                                                                                                                                                                                                                                                                                  |
 | `PERF_FEE_CLAIM_ROLE`   | `keccak256("PERF_FEE_CLAIM_ROLE")`   | `harvestPerformanceFee`                                                                                                                                                                                                                                                                                  |
 
+There is **no** `TREASURY_ROLE` or `LIMITED_ADMIN_ROLE` (see also `contracts/strategy/README.md`).
+
 ---
 
 ## Strategy operations pause
@@ -42,6 +44,7 @@ The strategy has **two independent** operations pause flags — `depositPaused` 
 - `depositPaused()` / `redeemPaused()` views return each flag.
 - A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also pauses **both** deposit and redeem automatically (see **Exchange rate**).
 - Redeem pause MUST block both `requestRedeem` and `fulfillRedeemRequests` (`whenRedeemNotPaused`).
+- While `depositPaused` or `redeemPaused`: `setManagementFeeBps`, and `_harvestPerformanceFee` when PPS > HWM (`harvestPerformanceFee` / `setPerformanceFeeBps`), MUST revert `FeeManager_StrategyPaused`.
 
 ---
 
@@ -101,19 +104,23 @@ All deposit/mint paths require deposit not paused (`whenDepositNotPaused`) and a
 
 ## Fee System
 
-`FeeManagerUpgradeable` adds management and performance fees, both minted as new strategy shares. Fee **rates** are set by `DEFAULT_ADMIN_ROLE`; performance fee **harvest** uses `PERF_FEE_CLAIM_ROLE`. Management fee accrues automatically on deposit / redeem-request / `setManagementFeeBps` (no harvest role).
+`FeeManagerUpgradeable` adds management and performance fees, both minted as new strategy shares. Fee **rates** are set by `DEFAULT_ADMIN_ROLE`. Management fee accrues automatically on deposit / redeem-request / `setManagementFeeBps` (no harvest entrypoint). Performance fee is harvested by `PERF_FEE_CLAIM_ROLE` via `harvestPerformanceFee`.
 
 ### Management fee
 
-Time-based annual fee accruing on total supply. Computed as:
+Time-based annual fee accruing on total supply. Accrual runs **automatically** inside deposit / redeem-request (and on `setManagementFeeBps`) via `_accrueManagementFee`, which mints grossed-up dilution shares to `managementFeeTreasury` and advances `lastFeeHarvestAt`.
+
+Computed as (gross-up so treasury owns fraction `f = num/den` of post-mint supply):
 
 ```
-shares = totalSupply * feeBps * elapsed / (10_000 * 365 days)
+num = feeBps * elapsed
+den = 10_000 * 365 days
+shares = totalSupply * num / (den - num)   // floor
 ```
 
-- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
+- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused`.
+- **`setManagementFeeTreasury(address treasury)`** — Recipient for management-fee share mints; must not be zero. Requires `MANAGER_ROLE`. Emits `ManagementFeeTreasurySet`.
 - **`managementFee()`** → `(feeBps, lastHarvestAt, managementFeeTreasury)`.
-- **`setManagementFeeTreasury(address treasury)`** — Sets management-fee mint recipient. Requires `MANAGER_ROLE`.
 
 ### Performance fee
 
@@ -124,15 +131,17 @@ gainShares = totalSupply * (pps - hwm) / hwm
 shares = gainShares * feeBps / 10_000
 ```
 
-- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. Settles accrued performance fee at the prior rate (may mint unless `forfeitAccrued`), then resets high-water mark to current `pricePerShare`. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
-- **`harvestPerformanceFee(address feeRecipient)`** — Requires `PERF_FEE_CLAIM_ROLE`. Mints performance fee shares to `feeRecipient`; raises HWM to current `pricePerShare`. Reverts with `FeeManager_PriceAtOrBelowHighWaterMark` if `pps <= hwm`. Reverts with `FeeManager_NothingToHarvest(false)` if `shares == 0`. Emits `PerformanceFeeHarvested`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
-- **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`.
+- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. `feeRecipient` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm`, accrued shares round to zero, or `forfeitAccrued` is true. Settles accrued performance fee at the prior rate when `pps > hwm` (raises HWM; mints unless `forfeitAccrued`), then stores the new bps. If `pps <= hwm`, nothing is settled and HWM is unchanged. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pps > hwm`.
+- **`harvestPerformanceFee(address to)`** — `to` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm` or computed shares round to zero. When `pps > hwm`, raises HWM to current `pricePerShare`, then mints to `to` if `shares > 0`. If `shares == 0`, returns without mint/event but HWM is already raised. If `pps <= hwm`, returns unchanged. Requires `PERF_FEE_CLAIM_ROLE`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)` only on mint. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pps > hwm`.
+- **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`. `previewShares` is 0 when at/below HWM **or** when fee shares floor to 0 (a zero-share harvest above HWM still raises HWM).
+
+**Accepted tradeoff — dust HWM free-roll:** `_harvestPerformanceFee` assigns `highWaterMark = pps` before the `shares == 0` early-return. Dust PPS ups that floor fee shares to 0 still ratchet HWM, so a later harvest only charges residual gain above the free-rolled mark. Holder-favorable (no dilution); ops footgun if `PERF_FEE_CLAIM_ROLE` harvests on every tiny PPS post. Prefer batching until `performanceFee().previewShares > 0`.
 
 ### Fee treasury
 
 - **`setFeeTreasury(address treasury)`** — Sets the protocol fee recipient for deposit fees and redeem fee shares. Must not be zero. Requires `MANAGER_ROLE`. Emits `FeeTreasurySet`.
 - **`feeTreasury()`** — View: returns configured treasury address.
-- Performance fee mints to the `feeRecipient` argument of `harvestPerformanceFee` / `setPerformanceFeeBps` (not necessarily `feeTreasury()`). Management fee mints to `managementFeeTreasury`.
+- Management-fee mints go to `managementFeeTreasury` (separate). Performance-fee mints go to the `to` / `feeRecipient` argument of the harvest or `setPerformanceFeeBps` call (not necessarily `feeTreasury()`).
 
 ---
 
@@ -166,7 +175,7 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 
 - Requires `PRICE_SETTER_ROLE`. Also gated by ERC-20 transfer pause (`whenNotPaused`).
 - Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. After a circuit-breaker trip, unpause and corrective `postPricePerShare` MUST be in the same transaction.
 
 **Accepted tradeoff — OR pause gate:** Deposit-only pause blocks `postPricePerShare` while redeem/fulfill can stay open at stale PPS. Ops MUST pause redeem (or halt fulfill) when a PPS update may be required under deposit-only pause; soft circuit-breaker pauses both after setting the price.
 
@@ -209,6 +218,8 @@ Subject to a **`PriceRateLimiter`** leaky bucket (micro-bps capacity / refill). 
 - Within capacity → consume capacity, set the **reconciled** price, emit `PricePerShareUpdated`.
 - Over capacity and `revertOnRateLimit == true` → revert `PriceRateLimiterRateLimitExceeded`.
 - Over capacity and `revertOnRateLimit == false` → drain the bucket, set the reconciled price, **pause both** deposit and redeem (circuit breaker).
+
+**Accepted tradeoff — sub-quantum refill discard:** `_refill` credits `added = (elapsed × refillRate) >> 32` (floor) and `_checkpoint` still sets `lastRefill = block.timestamp` when `added == 0`, discarding fractional progress. Successful `postPricePerShare` (including zero-delta) checkpoints, so posting more often than the refill quantum (`≈ 2^32 / refillRate`; ~20 min weekly / ~62 s daily on the 500 / 1400 micro-bps configs) never refills — effective **one-shot** until a quiet gap ≥ one quantum. **Accepted — trusted `PRICE_SETTER`:** no permissionless exploit; a setter can pin an empty bucket so later corrections must wait or soft-overflow (pause). Operators SHOULD space successful posts ≥ one quantum when continuous refill is required.
 
 **Accepted tradeoff — reconciled gate:** A mid-epoch deposit/mint can shrink the measured move vs the declared snapshot rate (e.g. declared −50% → reconciled −25%) and suppress hard-revert / soft auto-pause that would have fired on declared alone. **Accepted — no attacker profit:** the gated magnitude is the **stored** PPS; additions reconcile at still-stored PPS (no share windfall); exit is async + `PAY_REDEMPTIONS_ROLE` (≥1 block). Mid-epoch fulfills (role-gated; MUST NOT in the snapshot→post window) can amplify a drawdown and trip sooner.
 
@@ -295,14 +306,14 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 
 1. **`IStrategy` (002)** + `requestFunding` pipe: `registerShard` by `DEFAULT_ADMIN_ROLE`; `deregisterShard` by `MANAGER_ROLE`; `requestFunding` callable only by registered shards; transfers token directly.
 2. **Multi-asset deposits**: `deposit` and `mint` (both overloads each) accept listed `depositAsset`; deposit fee routed to `feeTreasury` before mint; optional default shard receives `net` tokens; `previewDeposit` / `previewMint` / `maxDeposit` / `maxMint` per **Multi-Asset Deposits**.
-3. **Fee system**: management fee (time-based, auto-accrued to `managementFeeTreasury`) and performance fee (HWM, `PERF_FEE_CLAIM_ROLE` harvests); fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM resets on performance fee rate updates per implementation.
+3. **Fee system**: management fee auto-accrues via `_accrueManagementFee` (mints to `managementFeeTreasury`); performance fee (HWM) harvested by `PERF_FEE_CLAIM_ROLE`; fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM raised on performance harvest / rate update per implementation.
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `pendingRedeemRequest` returns the open `RedeemRequest`.
 5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; pays `min(pendingAssets, shares × currentPPS)` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `STRATEGY_PAUSER_ROLE` pauses; `MANAGER_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
 7. **`postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`**: reconciled PPS per **Exchange rate**; rate-limiter on reconciled move; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause deposit+redeem on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
 9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
-10. **Fee treasury**: `setFeeTreasury` by `MANAGER_ROLE`; used for deposit fees and redeem fee shares.
+10. **Fee treasury**: `setFeeTreasury` / `setManagementFeeTreasury` by `MANAGER_ROLE`; flow fees use `feeTreasury`; management dilution uses `managementFeeTreasury`; performance mint recipient is the harvest/`setPerformanceFeeBps` argument.
 
 ---
 
@@ -314,10 +325,12 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - **Rounding** follows floor/ceiling discipline in each path; extreme ratios can produce `0` shares or assets.
 - **`pricePerShare` rate limiter at zero capacity** (initial state): the limiter's `_wouldExceedLimit` behavior with a zeroed bucket means the first `postPricePerShare` may succeed or trigger the limit depending on config. The `MANAGER_ROLE` holder MUST call `setPricePerShareRateLimit` before relying on the limiter.
 - **Reconciled rate-limit gate (accepted):** mid-epoch deposit can shrink measured PPS move vs declared and suppress crisis auto-pause; no attacker profit (reconcile at `oldPPS`; async exit). See **Exchange rate** § Rate limiter.
+- **Sub-quantum refill discard (accepted):** successful posts below the refill quantum discard remainder and prevent refill (one-shot under high-frequency posting); trusted `PRICE_SETTER`. See **Exchange rate** § Rate limiter.
 - **Net-Δ reconciliation tradeoff (accepted):** mid-epoch fee mints, fulfills paid below `oldPPS`, and mixed deposit+fulfill nets can leave posted PPS / `totalAssets()` temporarily disagreeing with economic NAV; depositors may skim unreflected fulfill surplus until a later inclusive post. See **Exchange rate** § Accepted tradeoff.
 - **Fused reconcil overflow (accepted):** plain `nav × oneShare` / `Δ × oldPPS` panics only for unrealistic magnitudes. See **Exchange rate** § Accepted tradeoff — fused plain mul.
 - **InsufficientNav vs split Floor/Ceil (accepted):** numerator compare differs by dust; near-equality may hit `Strategy_ZeroPricePerShare` instead. See **Exchange rate** § fused plain mul.
 - **OR pause gate (accepted):** deposit-only pause blocks PPS posts while redeem can stay open at stale PPS. See **Exchange rate** § Accepted tradeoff — OR pause gate.
+- **Dust HWM free-roll (accepted):** `harvestPerformanceFee` raises HWM even when fee shares floor to 0; repeated dust harvests forfeit that interval’s performance fee (holder-favorable). See **Performance fee** § Accepted tradeoff.
 - **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`; `claimableRedeemRequest`; on-chain gross-flow (per-leg) PPS reconciliation.
 
 ---

@@ -46,12 +46,8 @@ interface IFeeManager {
     error FeeManager_PerformanceFeeBpsTooHigh();
     /// @dev Accrued fee shares require a non-zero recipient when settling via fee `bps` setters.
     error FeeManager_FeeRecipientRequired();
-    /// @param pricePerShare Current `pricePerShare` when the harvest was attempted.
-    /// @param highWaterMark Stored high-water mark that was not exceeded.
-    error FeeManager_PriceAtOrBelowHighWaterMark(
-        uint256 pricePerShare,
-        uint256 highWaterMark
-    );
+    /// @dev Deposit or redeem is paused.
+    error FeeManager_StrategyPaused();
 
     /// @return feeBps Configured management fee in basis points.
     /// @return lastHarvestAt Last management fee accrual timestamp (unix seconds); accrual clock starts here.
@@ -66,7 +62,8 @@ interface IFeeManager {
         );
 
     /// @return feeBps Configured performance fee in basis points.
-    /// @return previewShares Shares that would be minted if `harvestPerformanceFee` succeeded now (0 if at/below HWM).
+    /// @return previewShares Shares that would be minted on `harvestPerformanceFee` now (0 if at/below HWM or if
+    ///         fee shares floor to 0).
     /// @return performanceHighWaterMark Stored high-water mark for performance fee (`pricePerShare` units).
     function performanceFee()
         external

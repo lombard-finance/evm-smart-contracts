@@ -67,6 +67,7 @@ All capabilities below reflect the exact `onlyRole` wiring in `StrategyBaseUpgra
 - `STRATEGY_PAUSER_ROLE` calls `pauseDeposit()` / `pauseRedeem()` (emit `DepositPaused` / `RedeemPaused`); `MANAGER_ROLE` clears each independently via `unpauseDeposit()` / `unpauseRedeem()`.
 - ERC-20 transfer pause: `TRANSFERS_PAUSER_ROLE` calls `pause()`; `MANAGER_ROLE` calls `unpause()`.
 - A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). Redeem pause (`whenRedeemNotPaused`) gates both `requestRedeem` and `fulfillRedeemRequests`.
+- While `depositPaused` or `redeemPaused`: `harvestPerformanceFee` / `setPerformanceFeeBps` (when PPS > HWM) and `setManagementFeeBps` revert `FeeManager_StrategyPaused`. User deposit/redeem still accrue management fees under only their own pause flag.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares on accrual/harvest). They route to **different** destinations — this is the key correction versus older docs:
 
@@ -81,7 +82,7 @@ Governance sets fee **rates** via **`DEFAULT_ADMIN_ROLE`** (`setManagementFeeBps
 | **Per-asset deposit fee** | Lower effective deposit amount for the same share mint | `depositFeeBps` (strictly `< 10_000`) on **gross** deposit assets; the fee slice of the **deposit token** is rounded **up** and transferred to `feeTreasury` before shares are minted (reverts `StrategyDeposit_FeeTreasuryNotSet` if a fee is due and the treasury is unset).                                                             |
 | **Redemption redeem fee** | Fewer shares burned for the same redemption request    | `redeemFeeBps` on requested shares (rounded **up**); applied only when the rate is non-zero **and** a `feeTreasury` is set. Fee shares are **transferred** to `feeTreasury`, the remainder burned and booked for fulfillment.                                                                                                              |
 | **Management fee**        | Gradual dilution over time                             | Annualized **bps on total supply**, accrued since `lastFeeHarvestAt`. Accrual runs **automatically** inside every deposit / redeem-request (and on `setManagementFeeBps`) via the internal `_accrueManagementFee()` hook, which **mints** grossed-up dilution shares to `managementFeeTreasury`. There is no separate harvest transaction. |
-| **Performance fee**       | Dilution when NAV rises above the prior peak           | **High-water mark** on `pricePerShare`; when NAV clears it, `harvestPerformanceFee` raises the watermark to the current posted rate and **mints** a bps slice of the share gain to the chosen `feeRecipient` (mint skipped if the computed shares are zero).                                                                               |
+| **Performance fee**       | Dilution when NAV rises above the prior peak           | **High-water mark** on `pricePerShare`; when NAV clears it, `harvestPerformanceFee` raises the watermark to the current posted rate and **mints** a bps slice of the share gain to the chosen `feeRecipient` (mint skipped if shares floor to zero; HWM still rises). |
 
 Updating **management** fee bps first accrues at the prior rate, then resets the accrual clock. Updating **performance** fee bps first settles any accrued performance fee — but only if current `pricePerShare` is above the stored high-water mark, in which case it raises the watermark to that rate and (unless `forfeitAccrued` is set) mints the accrued shares to `feeRecipient`; if `pricePerShare` is at or below the watermark, nothing is settled and the watermark is left unchanged. Worth coordinating off-chain before changing parameters.
 
@@ -101,6 +102,7 @@ This is **intentional**. Dilution fees transfer economics via new shares; they a
 - Do **not** call `fulfillRedeemRequests`, `harvestPerformanceFee`, `setManagementFeeBps`, or `setPerformanceFeeBps` between the operator NAV/`effectiveSupply` snapshot and `postPricePerShare` (they move mid-epoch supply for reconciliation). User `deposit` / `mint` / `requestRedeem` are excluded from that rule.
 - `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics, snapshotting after material fee mints and mid-epoch fulfills when surplus / netting bias matters.
 - Prefer a short gap between `fulfillRedeemRequests` and the next inclusive `postPricePerShare` when deposit is open.
+- Batch `harvestPerformanceFee` until `performanceFee().previewShares > 0` — dust harvests still raise HWM with zero mint (accepted; see [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Performance fee).
 - Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
 
 ```text
@@ -148,7 +150,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 **Pause gating**
 
-- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip. **Accepted:** deposit-only pause blocks PPS while redeem can stay open — see spec § Exchange rate (OR pause gate).
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip (same tx). **Accepted:** deposit-only pause blocks PPS while redeem can stay open — see spec § Exchange rate (OR pause gate).
 
 **Rate limiter**
 
@@ -158,6 +160,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
   - Over capacity with `revertOnRateLimit = false` → drain the bucket, **still set** the reconciled price, then **pause both** deposit and redeem (circuit breaker).
 - The bucket is **zeroed at init** (`maxBps = 0`), so `MANAGER_ROLE` MUST call `setPricePerShareRateLimit` before any non-zero price move is allowed. Inspect it with `pricePerShareRateLimiterState()`.
 - **Accepted:** a frontrun deposit can shrink the measured move vs declared and suppress auto-pause; no attacker profit (reconcile at stored PPS; async exit). See [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Rate limiter.
+- **Accepted:** sub-quantum successful posts discard refill remainder → one-shot under high-frequency posting; trusted `PRICE_SETTER`. See same spec § Rate limiter.
 
 ---
 
