@@ -258,7 +258,6 @@ abstract contract StrategyBaseUpgradeable is
         if (effectiveSupplyNow == 0) {
             priceToSet = (navAtSnapshot * oneShare) / effectiveSupplyAtSnapshot;
         } else {
-            // Single Floor in PPS-scaled space.
             uint256 scaled = navAtSnapshot * oneShare;
             uint256 oldPps = $.pricePerShare;
             if (effectiveSupplyNow >= effectiveSupplyAtSnapshot) {
