@@ -116,7 +116,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       });
 
       it('version() returns the contract version', async function () {
-        expect(await strategy.version()).to.equal('MAWARS-0.0.1');
+        expect(await strategy.version()).to.equal('MAWARS-0.1.0');
       });
 
       it('blocklistOracle() returns the configured oracle', async function () {
