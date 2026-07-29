@@ -3008,16 +3008,16 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await expect(
         strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      ).to.be.revertedWithCustomError(strategy, 'Strategy_PricePerSharePaused');
       await expect(
         strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, false)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      ).to.be.revertedWithCustomError(strategy, 'Strategy_PricePerSharePaused');
       await expect(
         strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, true)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      ).to.be.revertedWithCustomError(strategy, 'Strategy_PricePerSharePaused');
       await expect(strategy.connect(admin).setManagementFeeBps(500)).to.be.revertedWithCustomError(
         strategy,
-        'FeeManager_StrategyPaused'
+        'Strategy_PricePerSharePaused'
       );
 
       const [, , hwmAfter] = await strategy.performanceFee();
@@ -3062,7 +3062,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await expect(strategy.connect(admin).setManagementFeeBps(500)).to.be.revertedWithCustomError(
         strategy,
-        'FeeManager_StrategyPaused'
+        'Strategy_PricePerSharePaused'
       );
 
       const supplyBeforeDeposit = await strategy.totalSupply();
@@ -3099,10 +3099,10 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await expect(
         strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)
-      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      ).to.be.revertedWithCustomError(strategy, 'Strategy_PricePerSharePaused');
       await expect(strategy.connect(admin).setManagementFeeBps(400)).to.be.revertedWithCustomError(
         strategy,
-        'FeeManager_StrategyPaused'
+        'Strategy_PricePerSharePaused'
       );
 
       const sharesToRedeem = (await strategy.balanceOf(sender.address)) / 10n;

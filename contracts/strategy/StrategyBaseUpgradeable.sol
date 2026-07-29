@@ -213,6 +213,13 @@ abstract contract StrategyBaseUpgradeable is
             .check(account);
     }
 
+    /// @dev Reverts {Strategy_PricePerSharePaused} when deposit or redeem is paused.
+    function _requireStrategyOpsNotPaused() internal view {
+        if (depositPaused() || redeemPaused()) {
+            revert Strategy_PricePerSharePaused();
+        }
+    }
+
     /// @notice Posted exchange rate: asset wei per `10 ** decimals()` shares. Used by `_convertToShares` / `_convertToAssets`.
     function pricePerShare() public view returns (uint256) {
         return _getStrategyBaseUpgradeableStorage().pricePerShare;
@@ -236,9 +243,7 @@ abstract contract StrategyBaseUpgradeable is
         uint256 effectiveSupplyAtSnapshot,
         bool revertOnRateLimit
     ) external onlyRole(PRICE_SETTER_ROLE) whenNotPaused {
-        if (depositPaused() || redeemPaused()) {
-            revert Strategy_PricePerSharePaused();
-        }
+        _requireStrategyOpsNotPaused();
 
         if (navAtSnapshot == 0) revert Strategy_ZeroNavAtSnapshot();
         if (effectiveSupplyAtSnapshot == 0)

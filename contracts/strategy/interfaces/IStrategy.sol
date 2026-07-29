@@ -79,7 +79,7 @@ interface IStrategy {
     /// @dev Redeem operation invoked while redeem pause is active.
     error Strategy_EnforcedRedeemPause();
 
-    /// @dev Price per share post called while deposit or redeem pause is active.
+    /// @dev `postPricePerShare` or fee HWM raise / `setManagementFeeBps` while deposit or redeem is paused.
     error Strategy_PricePerSharePaused();
 
     /// @dev Unpause deposit called while deposits were not paused.
