@@ -45,6 +45,7 @@ The strategy has **two independent** operations pause flags — `depositPaused` 
 - `depositPaused()` / `redeemPaused()` views return each flag.
 - A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also pauses **both** deposit and redeem automatically (see **Exchange rate**).
 - Redeem pause MUST block both `requestRedeem` and `fulfillRedeemRequests` (`whenRedeemNotPaused`).
+- While `depositPaused` or `redeemPaused`: `setManagementFeeBps`, and `_harvestPerformanceFee` when PPS > HWM (`harvestPerformanceFee` / `setPerformanceFeeBps`), MUST revert `FeeManager_StrategyPaused`.
 
 ---
 
@@ -104,19 +105,20 @@ All deposit/mint paths require deposit not paused (`whenDepositNotPaused`) and a
 
 ## Fee System
 
-`FeeManagerUpgradeable` adds management and performance fees, both minted as new strategy shares. Fee **rates** are set by `DEFAULT_ADMIN_ROLE`; **harvest** entrypoints use `TREASURY_ROLE` (see source for full signatures).
+`FeeManagerUpgradeable` adds management and performance fees, both minted as new strategy shares. Fee **rates** are set by `DEFAULT_ADMIN_ROLE`. Management fee accrues automatically on deposit / redeem-request (and on `setManagementFeeBps`); performance fee is harvested by `PERF_FEE_CLAIM_ROLE` via `harvestPerformanceFee`.
 
 ### Management fee
 
-Time-based annual fee accruing on total supply. Computed as:
+Time-based annual fee on total supply, **grossed up** for self-dilution so the treasury owns fraction `f` of post-mint supply:
 
 ```
-shares = totalSupply * feeBps * elapsed / (10_000 * 365 days)
+num = managementFeeBps × elapsed
+den = 10_000 × 365 days
+shares = totalSupply × num / (den − num)     (floor; full elapsed, no one-year cap)
 ```
 
-- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
-- **`harvestManagementFee(address to)`** — Mints accrued shares to `to` (must not be zero); resets `lastFeeHarvestAt` to `block.timestamp`. Reverts with `FeeManager_NothingToHarvest(true)` if `shares == 0`. Emits `ManagementFeeHarvested(to, shares, elapsed)`.
-- **`managementFee()`** → `(feeBps, previewShares, lastHarvestAt)`.
+- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused`.
+- **`managementFee()`** → `(feeBps, lastHarvestAt, managementFeeTreasury)`.
 
 ### Performance fee
 
@@ -127,16 +129,15 @@ gainShares = totalSupply * (pps - hwm) / hwm
 shares = gainShares * feeBps / 10_000
 ```
 
-- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. Settles accrued performance fee at the prior rate (may mint unless `forfeitAccrued`), then resets high-water mark to current `pricePerShare`. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
-- **`harvestPerformanceFee(address to)`** — Mints performance fee shares to `to`; raises HWM to current `pricePerShare`. Reverts with `FeeManager_PriceAtOrBelowHighWaterMark` if `pps <= hwm`. Reverts with `FeeManager_NothingToHarvest(false)` if `shares == 0`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
+- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. If `pricePerShare` is above HWM, settles at the prior rate (may mint unless `forfeitAccrued`) and raises HWM; if at or below HWM, leaves HWM unchanged. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pricePerShare` is above HWM.
+- **`harvestPerformanceFee(address to)`** — When `pricePerShare` is above HWM, raises HWM and mints performance fee shares to `to` (no-op if computed shares are zero). When at or below HWM, returns without state change. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pricePerShare` is above HWM. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)` on a mint. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
 - **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`.
 
 ### Fee treasury
 
-- **`setFeeTreasury(address treasury)`** — Sets the protocol fee recipient for deposit fees, redeem fee shares, and future fee harvests. Must not be zero. Requires `TREASURY_ROLE`. Emits `FeeTreasurySet`.
+- **`setFeeTreasury(address treasury)`** — Sets the protocol fee recipient for deposit fees and redeem fee shares. Must not be zero. Requires `MANAGER_ROLE`. Emits `FeeTreasurySet`.
 - **`feeTreasury()`** — View: returns configured treasury address.
-- The treasury address is also used by `harvestManagementFee` / `harvestPerformanceFee` callers as the `to` recipient (callers supply it explicitly; it need not equal `feeTreasury()`).
-
+- Management fee mints go to `managementFeeTreasury` (`setManagementFeeTreasury`); performance fee mints go to the `feeRecipient` / `to` argument of the harvest or settle call.
 ---
 
 ## Accounting and `totalAssets`
@@ -169,7 +170,7 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 
 - Requires `PRICE_SETTER_ROLE`. Also gated by ERC-20 transfer pause (`whenNotPaused`).
 - Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. After a circuit-breaker trip, unpause and corrective `postPricePerShare` MUST be in the same transaction.
 
 **Declared vs reconciled:**
 
