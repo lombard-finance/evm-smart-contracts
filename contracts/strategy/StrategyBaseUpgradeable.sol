@@ -464,7 +464,7 @@ abstract contract StrategyBaseUpgradeable is
         _pauseDeposit();
     }
 
-    /// @notice Pauses redemption request entrypoints; distinct from ERC-20 transfer pause.
+    /// @notice Pauses redemption request and fulfill entrypoints; distinct from ERC-20 transfer pause.
     function pauseRedeem() external onlyRole(STRATEGY_PAUSER_ROLE) {
         _pauseRedeem();
     }
@@ -484,7 +484,7 @@ abstract contract StrategyBaseUpgradeable is
         return _getStrategyBaseUpgradeableStorage().depositPaused;
     }
 
-    /// @return True if redemption request paths are paused.
+    /// @return True if redemption request and fulfill paths are paused.
     function redeemPaused() public view returns (bool) {
         return _getStrategyBaseUpgradeableStorage().redeemPaused;
     }

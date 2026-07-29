@@ -38,7 +38,7 @@ interface IStrategy {
     /// @dev Address argument was `address(0)` where forbidden.
     error Strategy_ZeroAddress();
 
-    /// @dev `postPricePerShare` was called with `newPricePerShare == 0`.
+    /// @dev `postPricePerShare` reconciliation produced a zero `pricePerShare`.
     error Strategy_ZeroPricePerShare();
 
     /// @dev Strategy initialized with a zero fallback decimals argument.
@@ -59,7 +59,7 @@ interface IStrategy {
     /// @notice Deposit paths are active again.
     event DepositUnpaused(address indexed account);
 
-    /// @notice Redeem request entrypoints are paused.
+    /// @notice Redeem entrypoints (`requestRedeem` / `fulfillRedeemRequests`) are paused.
     event RedeemPaused(address indexed account);
 
     /// @notice Redeem paths are active again.
