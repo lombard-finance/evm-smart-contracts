@@ -1804,15 +1804,12 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
         const newRate = arg.newRate(defaultRate);
 
         if (newRate !== defaultRate) {
+          await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
           const supplyAtSnapshot = await strategy.totalSupply();
           const navAtSnapshot = (newRate * supplyAtSnapshot) / e18;
-          await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, false);
-          if (await strategy.depositPaused()) {
-            await strategy.connect(manager).unpauseDeposit();
-          }
-          if (await strategy.redeemPaused()) {
-            await strategy.connect(manager).unpauseRedeem();
-          }
+          await strategy.connect(priceSetter).postPricePerShare(navAtSnapshot, supplyAtSnapshot, true);
+          expect(await strategy.depositPaused()).to.equal(false);
+          expect(await strategy.redeemPaused()).to.equal(false);
         }
 
         const supplyBefore = await strategy.totalSupply();
@@ -2945,6 +2942,150 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect(await strategy.redeemPaused()).to.be.true;
       expect(await strategy.pricePerShare()).to.equal(tinyBump);
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
+    });
+
+    it('soft overflow: perf fee harvest / setters revert; HWM unchanged until corrective post', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(admin).setPerformanceFeeBps(1000, treasury.address, true);
+      await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS));
+
+      const depositAmt = e18;
+      await altDeposit.mint(sender.address, depositAmt);
+      await altDeposit.connect(sender).approve(strategy.address, depositAmt);
+      await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, depositAmt, sender.address);
+
+      await advanceTime(Number(SECONDS_PER_YEAR));
+
+      const maxBps = 500;
+      const weekSeconds = 604800n;
+      const refillRate = (BigInt(maxBps) * 2n ** 32n + weekSeconds - 1n) / weekSeconds;
+      await strategy.connect(manager).setPricePerShareRateLimit(maxBps, refillRate);
+
+      const p0 = await strategy.pricePerShare();
+      const supply = await strategy.totalSupply();
+      const p1 = (p0 * (1_000_000n + BigInt(maxBps))) / 1_000_000n;
+      await strategy.connect(priceSetter).postPricePerShare((p1 * supply) / e18, supply, true);
+      const spiked = p1 + 1n;
+      await strategy.connect(priceSetter).postPricePerShare((spiked * supply) / e18, supply, false);
+      expect(await strategy.depositPaused()).to.be.true;
+      expect(await strategy.redeemPaused()).to.be.true;
+
+      const [, , hwmBefore] = await strategy.performanceFee();
+      expect(hwmBefore).to.equal(p0);
+
+      await expect(
+        strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      await expect(
+        strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, false)
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      await expect(
+        strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, true)
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      await expect(strategy.connect(admin).setManagementFeeBps(500)).to.be.revertedWithCustomError(
+        strategy,
+        'FeeManager_StrategyPaused'
+      );
+
+      const [, , hwmAfter] = await strategy.performanceFee();
+      expect(hwmAfter).to.equal(hwmBefore);
+      expect(await strategy.pricePerShare()).to.equal(spiked);
+
+      await strategy.connect(manager).unpauseDeposit();
+      await strategy.connect(manager).unpauseRedeem();
+      await strategy.connect(manager).setPricePerShareRateLimit(0, 0);
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+
+      const supplyAfter = await strategy.totalSupply();
+      const corrected = (p0 * (1_000_000n + 2n * BigInt(maxBps))) / 1_000_000n;
+      await strategy.connect(priceSetter).postPricePerShare((corrected * supplyAfter) / e18, supplyAfter, true);
+      expect(await strategy.pricePerShare()).to.equal(corrected);
+
+      const expectedPerfShares = (((supplyAfter * (corrected - hwmBefore)) / hwmBefore) * 1000n) / 10000n;
+
+      await expect(strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address))
+        .to.emit(strategy, 'PerformanceFeeHarvested')
+        .withArgs(treasury.address, expectedPerfShares, hwmBefore, corrected);
+      const [, , hwmFinal] = await strategy.performanceFee();
+      expect(hwmFinal).to.equal(corrected);
+      expect(await strategy.totalSupply()).to.equal(supplyAfter + expectedPerfShares);
+    });
+
+    it('one-sided pause: accrued management fee does not block the open leg', async function () {
+      await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
+      await strategy.connect(admin).setManagementFeeBps(Number(MGMT_FEE_BPS));
+      await strategy.connect(admin).setPerformanceFeeBps(1000, treasury.address, true);
+
+      const seed = e18;
+      await altDeposit.mint(sender.address, seed * 3n);
+      await altDeposit.connect(sender).approve(strategy.address, seed * 3n);
+      await strategy.connect(sender)['deposit(address,uint256,address)'](altDeposit.address, seed, sender.address);
+
+      await advanceTime(Number(SECONDS_PER_YEAR));
+
+      await strategy.connect(pauser).pauseRedeem();
+      expect(await strategy.depositPaused()).to.equal(false);
+      expect(await strategy.redeemPaused()).to.equal(true);
+
+      await expect(strategy.connect(admin).setManagementFeeBps(500)).to.be.revertedWithCustomError(
+        strategy,
+        'FeeManager_StrategyPaused'
+      );
+
+      const supplyBeforeDeposit = await strategy.totalSupply();
+      const [, lastHarvest] = await strategy.managementFee();
+      const treasuryBefore = await strategy.balanceOf(treasury.address);
+      const txDeposit = await strategy
+        .connect(sender)
+        ['deposit(address,uint256,address)'](altDeposit.address, seed, sender.address);
+      const receiptDeposit = await txDeposit.wait();
+      const blockDeposit = await ethers.provider.getBlock(receiptDeposit!.blockNumber);
+      const elapsedDeposit = BigInt(blockDeposit!.timestamp) - BigInt(lastHarvest);
+      const expectedFeeOnDeposit = expectedManagementFeeShares(supplyBeforeDeposit, elapsedDeposit);
+      expect(await strategy.totalSupply()).to.equal(supplyBeforeDeposit + expectedFeeOnDeposit + seed);
+      expect((await strategy.balanceOf(treasury.address)) - treasuryBefore).to.equal(expectedFeeOnDeposit);
+
+      await expect(strategy.connect(admin).setPerformanceFeeBps(500, treasury.address, false)).to.emit(
+        strategy,
+        'PerformanceFeeBpsSet'
+      );
+
+      await strategy.connect(manager).unpauseRedeem();
+
+      await strategy.connect(manager).setPricePerShareRateLimit(1_000_000, 0);
+      const supplyMid = await strategy.totalSupply();
+      const ppsMid = await strategy.pricePerShare();
+      const ppsMoveBps = 1000n; // +0.10% in micro-bps
+      const ppsUp = (ppsMid * (1_000_000n + ppsMoveBps)) / 1_000_000n;
+      await strategy.connect(priceSetter).postPricePerShare((ppsUp * supplyMid) / e18, supplyMid, true);
+
+      await advanceTime(Number(SECONDS_PER_YEAR));
+      await strategy.connect(pauser).pauseDeposit();
+      expect(await strategy.depositPaused()).to.equal(true);
+      expect(await strategy.redeemPaused()).to.equal(false);
+
+      await expect(
+        strategy.connect(perfFeeClaimer).harvestPerformanceFee(treasury.address)
+      ).to.be.revertedWithCustomError(strategy, 'FeeManager_StrategyPaused');
+      await expect(strategy.connect(admin).setManagementFeeBps(400)).to.be.revertedWithCustomError(
+        strategy,
+        'FeeManager_StrategyPaused'
+      );
+
+      const sharesToRedeem = (await strategy.balanceOf(sender.address)) / 10n;
+      expect(await strategy.redeemFee()).to.equal(0);
+      const supplyBeforeRedeem = await strategy.totalSupply();
+      const [, lastHarvestRedeem] = await strategy.managementFee();
+      const treasuryBeforeRedeem = await strategy.balanceOf(treasury.address);
+      const txRedeem = await strategy.connect(sender).requestRedeem(sharesToRedeem, sender.address);
+      const receiptRedeem = await txRedeem.wait();
+      const blockRedeem = await ethers.provider.getBlock(receiptRedeem!.blockNumber);
+      const elapsedRedeem = BigInt(blockRedeem!.timestamp) - BigInt(lastHarvestRedeem);
+      const expectedFeeOnRedeem = expectedManagementFeeShares(supplyBeforeRedeem, elapsedRedeem);
+      expect(await strategy.totalSupply()).to.equal(supplyBeforeRedeem + expectedFeeOnRedeem - sharesToRedeem);
+      expect((await strategy.balanceOf(treasury.address)) - treasuryBeforeRedeem).to.equal(expectedFeeOnRedeem);
     });
 
     it('50% yearly allowed change with daily bucket', async function () {

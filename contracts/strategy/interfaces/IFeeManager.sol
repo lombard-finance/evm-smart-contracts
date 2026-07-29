@@ -46,6 +46,8 @@ interface IFeeManager {
     error FeeManager_PerformanceFeeBpsTooHigh();
     /// @dev Accrued fee shares require a non-zero recipient when settling via fee `bps` setters.
     error FeeManager_FeeRecipientRequired();
+    /// @dev Deposit or redeem is paused.
+    error FeeManager_StrategyPaused();
 
     /// @return feeBps Configured management fee in basis points.
     /// @return lastHarvestAt Last management fee accrual timestamp (unix seconds); accrual clock starts here.

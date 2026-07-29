@@ -67,6 +67,7 @@ All capabilities below reflect the exact `onlyRole` wiring in `StrategyBaseUpgra
 - `STRATEGY_PAUSER_ROLE` calls `pauseDeposit()` / `pauseRedeem()` (emit `DepositPaused` / `RedeemPaused`); `MANAGER_ROLE` clears each independently via `unpauseDeposit()` / `unpauseRedeem()`.
 - ERC-20 transfer pause: `TRANSFERS_PAUSER_ROLE` calls `pause()`; `MANAGER_ROLE` calls `unpause()`.
 - A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). Redeem pause (`whenRedeemNotPaused`) gates both `requestRedeem` and `fulfillRedeemRequests`.
+- While `depositPaused` or `redeemPaused`: `harvestPerformanceFee` / `setPerformanceFeeBps` (when PPS > HWM) and `setManagementFeeBps` revert `FeeManager_StrategyPaused`. User deposit/redeem still accrue management fees under only their own pause flag.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares on accrual/harvest). They route to **different** destinations — this is the key correction versus older docs:
 
@@ -150,7 +151,7 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 **Pause gating**
 
-- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip (same tx).
 
 **Rate limiter**
 

@@ -44,6 +44,7 @@ The strategy has **two independent** operations pause flags — `depositPaused` 
 - `depositPaused()` / `redeemPaused()` views return each flag.
 - A `postPricePerShare` call that exceeds the rate-limit bucket and uses `revertOnRateLimit = false` also pauses **both** deposit and redeem automatically (see **Exchange rate**).
 - Redeem pause MUST block both `requestRedeem` and `fulfillRedeemRequests` (`whenRedeemNotPaused`).
+- While `depositPaused` or `redeemPaused`: `setManagementFeeBps`, and `_harvestPerformanceFee` when PPS > HWM (`harvestPerformanceFee` / `setPerformanceFeeBps`), MUST revert `FeeManager_StrategyPaused`.
 
 ---
 
@@ -117,7 +118,7 @@ den = 10_000 * 365 days
 shares = totalSupply * num / (den - num)   // floor
 ```
 
-- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
+- **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused`.
 - **`setManagementFeeTreasury(address treasury)`** — Recipient for management-fee share mints; must not be zero. Requires `MANAGER_ROLE`. Emits `ManagementFeeTreasurySet`.
 - **`managementFee()`** → `(feeBps, lastHarvestAt, managementFeeTreasury)`.
 
@@ -130,8 +131,8 @@ gainShares = totalSupply * (pps - hwm) / hwm
 shares = gainShares * feeBps / 10_000
 ```
 
-- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. `feeRecipient` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm`, accrued shares round to zero, or `forfeitAccrued` is true. Settles accrued performance fee at the prior rate when `pps > hwm` (raises HWM; mints unless `forfeitAccrued`), then stores the new bps. If `pps <= hwm`, nothing is settled and HWM is unchanged. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
-- **`harvestPerformanceFee(address to)`** — `to` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm` or computed shares round to zero. When `pps > hwm`, raises HWM to current `pricePerShare`, then mints to `to` if `shares > 0`. If `shares == 0`, returns without mint/event but HWM is already raised. If `pps <= hwm`, returns unchanged. Requires `PERF_FEE_CLAIM_ROLE`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)` only on mint. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
+- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. `feeRecipient` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm`, accrued shares round to zero, or `forfeitAccrued` is true. Settles accrued performance fee at the prior rate when `pps > hwm` (raises HWM; mints unless `forfeitAccrued`), then stores the new bps. If `pps <= hwm`, nothing is settled and HWM is unchanged. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pps > hwm`.
+- **`harvestPerformanceFee(address to)`** — `to` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm` or computed shares round to zero. When `pps > hwm`, raises HWM to current `pricePerShare`, then mints to `to` if `shares > 0`. If `shares == 0`, returns without mint/event but HWM is already raised. If `pps <= hwm`, returns unchanged. Requires `PERF_FEE_CLAIM_ROLE`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)` only on mint. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pps > hwm`.
 - **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`. `previewShares` is 0 when at/below HWM **or** when fee shares floor to 0 (a zero-share harvest above HWM still raises HWM).
 
 **Accepted tradeoff — dust HWM free-roll:** `_harvestPerformanceFee` assigns `highWaterMark = pps` before the `shares == 0` early-return. Dust PPS ups that floor fee shares to 0 still ratchet HWM, so a later harvest only charges residual gain above the free-rolled mark. Holder-favorable (no dilution); ops footgun if `PERF_FEE_CLAIM_ROLE` harvests on every tiny PPS post. Prefer batching until `performanceFee().previewShares > 0`.
@@ -174,7 +175,7 @@ Operators MUST snapshot `effectiveSupplyAtSnapshot` with the **same** definition
 
 - Requires `PRICE_SETTER_ROLE`. Also gated by ERC-20 transfer pause (`whenNotPaused`).
 - Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused.
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. After a circuit-breaker trip, unpause and corrective `postPricePerShare` MUST be in the same transaction.
 
 **Declared vs reconciled:**
 
