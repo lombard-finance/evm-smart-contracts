@@ -6,9 +6,10 @@
 - Prefer existing helpers such as `scripts/helpers/proxyDeployment.ts` over the OpenZeppelin upgrades plugin for proxy deploy scripts
 - Prefer CREATE3 with the same salt as related strategy deployments when matching addresses across chains
 - For new undeployed contracts, prefer `AccessControlDefaultAdminRulesUpgradeable` and roles over Ownable when designing access control
-- When intentional protocol behavior is accepted (e.g. rate-limit fee interaction, ≤1 wei PPS differences vs a prior formula), document it as expected rather than changing logic unless asked to redesign
+- When intentional protocol behavior is accepted (e.g. rate-limit fee interaction, ≤1 wei PPS differences vs a prior formula, dust HWM free-roll when fee shares floor to zero), document it as expected rather than changing logic unless asked to redesign
 - Prefer HTTPS-resolved git dependencies in yarn over SSH so installs work without SSH keys
 - When adding or refining unit tests, leave unrelated existing tests unchanged
+- When applying review findings, re-verify each against current code; fix only still-valid issues, skip the rest with a brief reason, and keep changes minimal
 
 ## Learned Workspace Facts
 

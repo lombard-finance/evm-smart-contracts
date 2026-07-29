@@ -13,7 +13,7 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 3. **Redemption fulfillment** — `fulfillRedeemRequests(uint256[] requestIds)` pays `min(pendingAssets@request, shares × currentPPS)` of `asset` to each request's `owner` in one pass; caller MUST hold **`PAY_REDEMPTIONS_ROLE`**.
 4. **Shards** — `registerShard` / `requestFunding` pipe per **002**; no extra `IStrategy` APIs moving `asset()` outside **002**.
 5. **Exchange rate** — `pricePerShare` (asset wei per `10 ** decimals()` shares) posted by `PRICE_SETTER_ROLE` via `postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`; `totalAssets()` derived from this rate.
-6. **Fees** — Management fee (time-based dilution) and performance fee (high-water-mark) minted as shares by `TREASURY_ROLE`.
+6. **Fees** — Management fee (time-based dilution, auto-accrued) and performance fee (high-water-mark, `PERF_FEE_CLAIM_ROLE` harvest) minted as shares.
 
 **Architecture (fixed):** Redemption fulfillment is invoked by an account with **`PAY_REDEMPTIONS_ROLE`**, directly paying asset to each request's owner in one tx. Cross-chain pricing field `pricePerShare` MUST be writable **only** by `PRICE_SETTER_ROLE`, subject to a **rate limiter** bucket. The implementation MUST ship behind OpenZeppelin **`BeaconProxy` + `UpgradeableBeacon`** (strategy-dedicated beacon, same pattern as **002** §A.1).
 
@@ -21,16 +21,15 @@ Deliver **`StrategyBaseUpgradeable`** (shard registry + `pricePerShare` + strate
 
 ## Roles
 
-| Role                    | Constant                             | Capabilities                                                                                                                      |
-| ----------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ADMIN_ROLE`    | OZ standard                          | Grant/revoke roles; `registerShard`; add/remove deposit assets; set asset converters; other admin-only hooks                      |
-| `LIMITED_ADMIN_ROLE`    | `keccak256("LIMITED_ADMIN_ROLE")`    | `deregisterShard`; `unpauseStrategyOperations`                                                                                    |
-| `PRICE_SETTER_ROLE`     | `keccak256("PRICE_SETTER_ROLE")`     | `postPricePerShare`                                                                                                               |
-| `STRATEGY_PAUSER_ROLE`  | `keccak256("STRATEGY_PAUSER_ROLE")`  | `pauseDeposit`, `pauseRedeem` (strategy operations pause only; not ERC-20 transfer pause)                                         |
-| `TRANSFERS_PAUSER_ROLE` | `keccak256("TRANSFERS_PAUSER_ROLE")` | ERC-20 transfer pause (`pause`)                                                                                                   |
-| `TREASURY_ROLE`         | `keccak256("TREASURY_ROLE")`         | `setFeeTreasury`; set/harvest management and performance fees; set deposit fee bps                                                |
-| `PAY_REDEMPTIONS_ROLE`  | `keccak256("PAY_REDEMPTIONS_ROLE")`  | `fulfillRedeemRequests`                                                                                                           |
-| `MANAGER_ROLE`          | `keccak256("MANAGER_ROLE")`          | `setPricePerShareRateLimit`; `setFeeTreasury`; `deregisterShard`; `setDefaultShard`; unpause strategy operations / ERC-20 unpause |
+| Role                    | Constant                             | Capabilities                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ADMIN_ROLE`    | OZ standard                          | Grant/revoke roles; `registerShard`; `setBlocklistOracle`; fee **rates** (`setManagementFeeBps`, `setPerformanceFeeBps`, `setRedeemFeeBps`); other admin-only hooks                                                                   |
+| `MANAGER_ROLE`          | `keccak256("MANAGER_ROLE")`          | Deposit-asset list / converters / deposit fee bps; `setPricePerShareRateLimit`; `setFeeTreasury`; `setManagementFeeTreasury`; `deregisterShard`; `setDefaultShard`; unpause deposit/redeem / ERC-20 unpause                           |
+| `PRICE_SETTER_ROLE`     | `keccak256("PRICE_SETTER_ROLE")`     | `postPricePerShare`                                                                                                                                                                                                                   |
+| `STRATEGY_PAUSER_ROLE`  | `keccak256("STRATEGY_PAUSER_ROLE")`  | `pauseDeposit`, `pauseRedeem` (strategy operations pause only; not ERC-20 transfer pause)                                                                                                                                             |
+| `TRANSFERS_PAUSER_ROLE` | `keccak256("TRANSFERS_PAUSER_ROLE")` | ERC-20 transfer pause (`pause`)                                                                                                                                                                                                       |
+| `PAY_REDEMPTIONS_ROLE`  | `keccak256("PAY_REDEMPTIONS_ROLE")`  | `fulfillRedeemRequests`                                                                                                                                                                                                               |
+| `PERF_FEE_CLAIM_ROLE`   | `keccak256("PERF_FEE_CLAIM_ROLE")`   | `harvestPerformanceFee`                                                                                                                                                                                                               |
 
 `DEFAULT_ADMIN_ROLE` is the access-control super-admin per OpenZeppelin; capabilities above reflect **intended** assignments (see source `StrategyBaseUpgradeable` / modules for exact `onlyRole` wiring).
 
@@ -55,10 +54,10 @@ The strategy accepts **multiple listed ERC-20 tokens** for deposits, each with i
 
 ### Deposit asset management
 
-- **`addDepositAsset(address depositAsset, IAssetConverter converter, uint16 depositFeeBps)`** — Lists `depositAsset` with a converter and initial fee. Requires `DEFAULT_ADMIN_ROLE`. `depositFeeBps` MUST be strictly less than `10_000`.
-- **`removeDepositAsset(address depositAsset)`** — Removes token from the allowlist. Requires `DEFAULT_ADMIN_ROLE`. Reverts if not listed (`StrategyDeposit_AssetNotListed`).
-- **`setAssetConverter(address depositAsset, IAssetConverter converter)`** — Updates converter for a listed asset. Requires `DEFAULT_ADMIN_ROLE`.
-- **`setDepositFeeBps(address depositAsset, uint16 bps)`** — Sets deposit fee for a listed asset; `bps` MUST be strictly less than `10_000`. Requires `TREASURY_ROLE`.
+- **`addDepositAsset(address depositAsset, IAssetConverter converter, uint16 depositFeeBps)`** — Lists `depositAsset` with a converter and initial fee. Requires `MANAGER_ROLE`. `depositFeeBps` MUST be strictly less than `10_000`.
+- **`removeDepositAsset(address depositAsset)`** — Removes token from the allowlist. Requires `MANAGER_ROLE`. Reverts if not listed (`StrategyDeposit_AssetNotListed`).
+- **`setAssetConverter(address depositAsset, IAssetConverter converter)`** — Updates converter for a listed asset. Requires `MANAGER_ROLE`.
+- **`setDepositFeeBps(address depositAsset, uint16 bps)`** — Sets deposit fee for a listed asset; `bps` MUST be strictly less than `10_000`. Requires `MANAGER_ROLE`.
 - **`isDepositAsset(address depositAsset)`** — View: returns whether token is listed.
 - **`depositFee(address depositAsset)`** — View: returns configured deposit fee in bps.
 - **`converterOf(address depositAsset)`** — View: returns the `IAssetConverter` for a token.
@@ -97,7 +96,7 @@ All deposit/mint paths require deposit not paused (`whenDepositNotPaused`) and a
 
 ### Default shard
 
-- **`setDefaultShard(address shard)`** — Sets the shard that receives `net` deposit tokens after each deposit. `shard` MUST be a registered shard or `address(0)` (to disable). Requires `DEFAULT_ADMIN_ROLE`. Emits `DefaultShardSet`.
+- **`setDefaultShard(address shard)`** — Sets the shard that receives `net` deposit tokens after each deposit. `shard` MUST be a registered shard or `address(0)` (to disable). Requires `MANAGER_ROLE`. Emits `DefaultShardSet`.
 - **`defaultShard()`** — View: returns configured default shard address (or zero).
 - When `deregisterShard` is called for the current `defaultShard`, the default is automatically cleared to `address(0)`.
 
@@ -105,19 +104,22 @@ All deposit/mint paths require deposit not paused (`whenDepositNotPaused`) and a
 
 ## Fee System
 
-`FeeManagerUpgradeable` adds management and performance fees, both minted as new strategy shares. Fee **rates** are set by `DEFAULT_ADMIN_ROLE`. Management fee accrues automatically on deposit / redeem-request (and on `setManagementFeeBps`); performance fee is harvested by `PERF_FEE_CLAIM_ROLE` via `harvestPerformanceFee`.
+`FeeManagerUpgradeable` adds management and performance fees, both minted as new strategy shares. Fee **rates** are set by `DEFAULT_ADMIN_ROLE`. Management fee accrues automatically (no harvest entrypoint). Performance fee is harvested by `PERF_FEE_CLAIM_ROLE` via `harvestPerformanceFee`.
 
 ### Management fee
 
-Time-based annual fee on total supply, **grossed up** for self-dilution so the treasury owns fraction `f` of post-mint supply:
+Time-based annual fee accruing on total supply. Accrual runs **automatically** inside deposit / redeem-request (and on `setManagementFeeBps`) via `_accrueManagementFee`, which mints grossed-up dilution shares to `managementFeeTreasury` and advances `lastFeeHarvestAt`.
+
+Computed as (gross-up so treasury owns fraction `f = num/den` of post-mint supply):
 
 ```
-num = managementFeeBps × elapsed
-den = 10_000 × 365 days
-shares = totalSupply × num / (den − num)     (floor; full elapsed, no one-year cap)
+num = feeBps * elapsed
+den = 10_000 * 365 days
+shares = totalSupply * num / (den - num)   // floor
 ```
 
 - **`setManagementFeeBps(uint16 bps)`** — Sets annual rate; `bps` MUST be strictly less than `10_000`. Accrues (may mint) at the prior rate first. Emits `ManagementFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused`.
+- **`setManagementFeeTreasury(address treasury)`** — Recipient for management-fee share mints; must not be zero. Requires `MANAGER_ROLE`. Emits `ManagementFeeTreasurySet`.
 - **`managementFee()`** → `(feeBps, lastHarvestAt, managementFeeTreasury)`.
 
 ### Performance fee
@@ -129,15 +131,18 @@ gainShares = totalSupply * (pps - hwm) / hwm
 shares = gainShares * feeBps / 10_000
 ```
 
-- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. If `pricePerShare` is above HWM, settles at the prior rate (may mint unless `forfeitAccrued`) and raises HWM; if at or below HWM, leaves HWM unchanged. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pricePerShare` is above HWM.
-- **`harvestPerformanceFee(address to)`** — When `pricePerShare` is above HWM, raises HWM and mints performance fee shares to `to` (no-op if computed shares are zero). When at or below HWM, returns without state change. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pricePerShare` is above HWM. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)` on a mint. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
-- **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`.
+- **`setPerformanceFeeBps(uint16 bps, address feeRecipient, bool forfeitAccrued)`** — Sets fee rate; `bps` MUST be strictly less than `10_000`. `feeRecipient` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm`, accrued shares round to zero, or `forfeitAccrued` is true. Settles accrued performance fee at the prior rate when `pps > hwm` (raises HWM; mints unless `forfeitAccrued`), then stores the new bps. If `pps <= hwm`, nothing is settled and HWM is unchanged. Emits `PerformanceFeeBpsSet`. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pps > hwm`.
+- **`harvestPerformanceFee(address to)`** — `to` MUST be non-zero (reverts `FeeManager_FeeRecipientRequired`), including when `pps <= hwm` or computed shares round to zero. When `pps > hwm`, raises HWM to current `pricePerShare`, then mints to `to` if `shares > 0`. If `shares == 0`, returns without mint/event but HWM is already raised. If `pps <= hwm`, returns unchanged. Requires `PERF_FEE_CLAIM_ROLE`. Emits `PerformanceFeeHarvested(to, shares, oldHWM, newHWM)` only on mint. MUST NOT be called between an operator NAV snapshot and `postPricePerShare`. Reverts `FeeManager_StrategyPaused` when `depositPaused` or `redeemPaused` and `pps > hwm`.
+- **`performanceFee()`** → `(feeBps, previewShares, performanceHighWaterMark)`. `previewShares` is 0 when at/below HWM **or** when fee shares floor to 0 (a zero-share harvest above HWM still raises HWM).
+
+**Accepted tradeoff — dust HWM free-roll:** `_harvestPerformanceFee` assigns `highWaterMark = pps` before the `shares == 0` early-return. Dust PPS ups that floor fee shares to 0 still ratchet HWM, so a later harvest only charges residual gain above the free-rolled mark. Holder-favorable (no dilution); ops footgun if `PERF_FEE_CLAIM_ROLE` harvests on every tiny PPS post. Prefer batching until `performanceFee().previewShares > 0`.
 
 ### Fee treasury
 
 - **`setFeeTreasury(address treasury)`** — Sets the protocol fee recipient for deposit fees and redeem fee shares. Must not be zero. Requires `MANAGER_ROLE`. Emits `FeeTreasurySet`.
 - **`feeTreasury()`** — View: returns configured treasury address.
-- Management fee mints go to `managementFeeTreasury` (`setManagementFeeTreasury`); performance fee mints go to the `feeRecipient` / `to` argument of the harvest or settle call.
+- Management-fee mints go to `managementFeeTreasury` (separate). Performance-fee mints go to the `to` / `feeRecipient` argument of the harvest or `setPerformanceFeeBps` call (not necessarily `feeTreasury()`).
+
 ---
 
 ## Accounting and `totalAssets`
@@ -228,7 +233,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 ## Shard integration (`IStrategy`)
 
 - **`registerShard(address shard)`** — Adds `shard` to the funding whitelist. Requires `DEFAULT_ADMIN_ROLE`. Reverts if already registered (`Strategy_ShardAlreadyRegistered`). Emits `ShardRegistered(shard, caller)`. Does **not** establish a token allowance.
-- **`deregisterShard(address shard)`** — Removes `shard` from the whitelist. Requires `LIMITED_ADMIN_ROLE`. Reverts if not registered (`Strategy_ShardNotRegistered`). Emits `ShardDeregistered(shard, caller)`. Clears `defaultShard` if it equals the removed shard.
+- **`deregisterShard(address shard)`** — Removes `shard` from the whitelist. Requires `MANAGER_ROLE`. Reverts if not registered (`Strategy_ShardNotRegistered`). Emits `ShardDeregistered(shard, caller)`. Clears `defaultShard` if it equals the removed shard.
 - **`isRegisteredShard(address shard)`** — View: returns whether `shard` is in the whitelist.
 - **`requestFunding(IERC20 token, uint256 amount)`** — Called by a registered shard; the strategy transfers `amount` of `token` to `msg.sender` via `safeTransfer`. Reverts if caller is not registered (`Strategy_ShardNotRegistered`). Reverts if `token` is the strategy share token (`Strategy_ShareTransferNotAllowed`). Reverts if `amount == 0` (`Strategy_ZeroAmount`). Emits `FundingRequested(shard, token, amount)`. Protected by `nonReentrant`.
 - **No dedicated allowance restore**: there is no allowance to restore; the strategy transfers directly on `requestFunding`.
@@ -299,16 +304,16 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 
 ## Acceptance Criteria
 
-1. **`IStrategy` (002)** + `requestFunding` pipe: `registerShard` by `DEFAULT_ADMIN_ROLE`; `deregisterShard` by `LIMITED_ADMIN_ROLE`; `requestFunding` callable only by registered shards; transfers token directly.
+1. **`IStrategy` (002)** + `requestFunding` pipe: `registerShard` by `DEFAULT_ADMIN_ROLE`; `deregisterShard` by `MANAGER_ROLE`; `requestFunding` callable only by registered shards; transfers token directly.
 2. **Multi-asset deposits**: `deposit` and `mint` (both overloads each) accept listed `depositAsset`; deposit fee routed to `feeTreasury` before mint; optional default shard receives `net` tokens; `previewDeposit` / `previewMint` / `maxDeposit` / `maxMint` per **Multi-Asset Deposits**.
-3. **Fee system**: management fee (time-based, `TREASURY_ROLE` harvests) and performance fee (HWM, `TREASURY_ROLE` harvests); fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM resets on performance fee rate updates per implementation.
+3. **Fee system**: management fee auto-accrues via `_accrueManagementFee` (mints to `managementFeeTreasury`); performance fee (HWM) harvested by `PERF_FEE_CLAIM_ROLE`; fee **rates** set by `DEFAULT_ADMIN_ROLE` (see `FeeManagerUpgradeable`); fees minted as shares; HWM raised on performance harvest / rate update per implementation.
 4. **Async redemptions**: `requestRedeem` burns `netShares`; optional redeem fee taken as shares; `claimableRedeemRequest` always returns `0`.
 5. **Redemption fulfillment**: `fulfillRedeemRequests(uint256[] requestIds)` requires `PAY_REDEMPTIONS_ROLE`; reverts `AsyncRedemption_NothingToFulfill` when nothing to pay for an id; pays `min(pendingAssets, shares × currentPPS)` to owner; emits `Redeem` per request; emits `RedeemRequestsFulfilled` after batch.
 6. **Strategy operations pause**: `STRATEGY_PAUSER_ROLE` pauses; `MANAGER_ROLE` unpauses; auto-pause on rate-limit-exceeded + `revertOnRateLimit = false`.
 7. **`postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit)`**: declared-vs-reconciled semantics per **Exchange rate**; rate-limiter on reconciled move; `PRICE_SETTER_ROLE`; `PricePerShareUpdated` event; auto-pause deposit+redeem on excess if `revertOnRateLimit = false`.
 8. **Beacon** deployment + initializer per **002** §A.1.
 9. **`totalAssets()`** = `totalSupply() * pricePerShare / 10 ** decimals()` (floor); conversion functions per **Accounting**.
-10. **Fee treasury**: `setFeeTreasury` by `TREASURY_ROLE`; used for deposit fees, redeem fee shares.
+10. **Fee treasury**: `setFeeTreasury` / `setManagementFeeTreasury` by `MANAGER_ROLE`; flow fees use `feeTreasury`; management dilution uses `managementFeeTreasury`; performance mint recipient is the harvest/`setPerformanceFeeBps` argument.
 
 ---
 
@@ -324,6 +329,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - **Net-Δ reconciliation tradeoff (accepted):** mid-epoch fee mints, fulfills paid below `oldPPS`, and mixed deposit+fulfill nets can leave posted PPS / `totalAssets()` temporarily disagreeing with economic NAV; depositors may skim unreflected fulfill surplus until a later inclusive post. See **Exchange rate** § Accepted tradeoff.
 - **Fused reconcil overflow (accepted):** plain `nav × oneShare` / `Δ × oldPPS` panics only for unrealistic magnitudes. See **Exchange rate** § Accepted tradeoff — fused plain mul.
 - **InsufficientNav vs split Floor/Ceil (accepted):** numerator compare differs by dust; near-equality may hit `Strategy_ZeroPricePerShare` instead. See **Exchange rate** § fused plain mul.
+- **Dust HWM free-roll (accepted):** `harvestPerformanceFee` raises HWM even when fee shares floor to 0; repeated dust harvests forfeit that interval’s performance fee (holder-favorable). See **Performance fee** § Accepted tradeoff.
 - **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`; on-chain gross-flow (per-leg) PPS reconciliation.
 
 ---

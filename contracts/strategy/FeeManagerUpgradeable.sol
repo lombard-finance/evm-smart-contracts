@@ -124,8 +124,9 @@ abstract contract FeeManagerUpgradeable is
         emit PerformanceFeeBpsSet(_msgSender(), bps);
     }
 
-    /// @notice Mint performance fee shares if `pricePerShare` exceeds `highWaterMark`, then raise HWM.
-    /// @dev MUST NOT be called between an operator NAV snapshot and `postPricePerShare` (mints change effective supply).
+    /// @notice When `pricePerShare` exceeds `highWaterMark`, raise HWM to the current rate and mint fee shares if non-zero.
+    /// @dev Soft no-op at/below HWM. Zero-share harvests still raise HWM.
+    ///      MUST NOT be called between an operator NAV snapshot and `postPricePerShare` (mints change effective supply).
     /// @param feeRecipient Recipient of minted shares (must not be zero).
     function harvestPerformanceFee(
         address feeRecipient
@@ -133,8 +134,8 @@ abstract contract FeeManagerUpgradeable is
         _harvestPerformanceFee(_getFeeManagerStorage(), feeRecipient, false);
     }
 
-    /// @dev Harvests performance fee at current `performanceFeeBps` / `highWaterMark`. Mints shares without
-    ///      underlying transfer or reducing `pricePerShare`; raises HWM to the pre-mint posted rate.
+    /// @dev Harvests at current `performanceFeeBps` / `highWaterMark`. Mints shares without underlying transfer or
+    ///      reducing `pricePerShare`; raises HWM to the pre-mint posted rate even when shares floor to 0.
     ///      Overvaluation of `totalAssets()` is corrected on a later `postPricePerShare`.
     /// @param forfeitAccrued If true and fee shares would be non-zero, skips mint; HWM still raises when above.
     function _harvestPerformanceFee(
