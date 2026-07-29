@@ -2900,6 +2900,39 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
     });
 
+    // Accepted: sub-quantum successful posts discard (elapsed*refillRate)>>32 remainder → one-shot.
+    it('signs off sub-quantum successful posts discard refill remainder (bucket stays empty)', async function () {
+      const maxBps = 500;
+      const weekSeconds = 604800n;
+      // ceil(maxBps * 2^32 / week); quantum = 1210s.
+      const refillRate = (BigInt(maxBps) * 2n ** 32n + weekSeconds - 1n) / weekSeconds;
+      expect(refillRate).to.equal(3550734n);
+      expect((600n * refillRate) >> 32n).to.equal(0n);
+      expect((1210n * refillRate) >> 32n).to.equal(1n);
+
+      await strategy.connect(manager).setPricePerShareRateLimit(maxBps, refillRate);
+
+      const p0 = await strategy.pricePerShare();
+      const p1 = (p0 * 10005n) / 10000n;
+      await strategy.connect(priceSetter).postPricePerShare(p1, e18, true);
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
+
+      // 3×600s zero-delta posts (wall 1800s would credit 1 if continuous) → capacity stays 0.
+      for (let i = 0; i < 3; i++) {
+        await advanceTime(600);
+        await strategy.connect(priceSetter).postPricePerShare(p1, e18, true);
+      }
+      expect(await strategy.pricePerShare()).to.equal(p1);
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(0n);
+
+      // prettier-ignore
+      await expect(strategy.connect(priceSetter).postPricePerShare(p1 + 1n, e18, true))
+        .to.be.revertedWithCustomError(strategy, 'PriceRateLimiterRateLimitExceeded');
+
+      await advanceTime(1210);
+      expect((await strategy.pricePerShareRateLimiterState()).capacityBps).to.equal(1n);
+    });
+
     it('soft overflow: perf fee harvest / setters revert; HWM unchanged until corrective post', async function () {
       await strategy.connect(manager).addDepositAsset(altDeposit.address, directConverter.address, 0);
       await strategy.connect(admin).setPerformanceFeeBps(1000, treasury.address, true);
