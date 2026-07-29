@@ -1857,9 +1857,7 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
 
       await altDeposit.mint(sender.address, supply);
       await altDeposit.connect(sender).approve(strategy.address, supply);
-      await strategy
-        .connect(sender)
-        ['deposit(address,uint256,address)'](altDeposit.address, supply, sender.address);
+      await strategy.connect(sender)['deposit(address,uint256,address)'](altDeposit.address, supply, sender.address);
 
       const hwm0 = e18;
       // Counterfactual: one harvest after +10000 wei → fee shares=1.
