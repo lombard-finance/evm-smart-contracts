@@ -37,6 +37,8 @@ import {
   parseArgs,
   packRuleSelector,
   packedSelectorToBytes4,
+  parseRuleDataLength,
+  parseRuleValue,
   require_arg,
   resolveRulesetFromArgs
 } from './merkleUtils';
@@ -57,8 +59,8 @@ function txMatchesRule(rule: RuleJson, calldataHex: string, value: bigint, to: s
   if (rule.sender && rule.sender.toLowerCase() !== sender.toLowerCase()) return false;
 
   const data = ethers.getBytes(calldataHex);
-  if (rule.dataLength !== undefined && data.length !== Number(rule.dataLength)) return false;
-  if (rule.value !== undefined && rule.value !== '' && BigInt(rule.value) !== value) return false;
+  if (rule.dataLength !== undefined && data.length !== parseRuleDataLength(rule.dataLength)) return false;
+  if (rule.value !== undefined && rule.value !== '' && parseRuleValue(rule.value) !== value) return false;
 
   if (rule.selector !== undefined && rule.selector.trim() !== '') {
     if (data.length < 4) return false;

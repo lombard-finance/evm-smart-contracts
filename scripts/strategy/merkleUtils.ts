@@ -16,8 +16,10 @@ export interface RuleConstraint {
 export interface RuleJson {
   sender?: string;
   to?: string;
-  value?: string | number;
-  dataLength?: string | number;
+  /** Exact `msg.value` (wei) as an unsigned decimal string; omit or `""` for wildcard. */
+  value?: string;
+  /** Exact calldata byte length as an unsigned decimal string in `[0, 2^32−1]`; omit for wildcard. */
+  dataLength?: string;
   /**
    * When set, pins `data[0:4]` and sets `FLAG_SELECTOR` (0x10).
    * Use `name(types)` (e.g. `transfer(address,uint256)`); optional spaces around commas are stripped.
@@ -44,13 +46,89 @@ export type RulesFile = Record<string, RuleJson>;
 
 export type TreeRow = [number, string, Uint8Array];
 
+// ─── Canonical numeric fields ─────────────────────────────────────────────────
+
+/** `0` or digits with no leading zeros. */
+const DECIMAL_UINT_RE = /^(0|[1-9]\d*)$/;
+const UINT256_MAX = (1n << 256n) - 1n;
+const UINT32_MAX = 0xffffffff;
+
+function fieldLabel(ruleName: string | undefined, field: string): string {
+  return ruleName !== undefined ? `Rule "${ruleName}": ${field}` : field;
+}
+
+function parseDecimalUint(raw: unknown, field: string, max: bigint, ruleName?: string): bigint {
+  const label = fieldLabel(ruleName, field);
+  if (typeof raw !== 'string') {
+    throw new Error(`${label} must be a decimal string (got ${typeof raw})`);
+  }
+  if (!DECIMAL_UINT_RE.test(raw)) {
+    throw new Error(
+      `${label} must be an unsigned decimal integer string with no leading zeros (got ${JSON.stringify(raw)})`
+    );
+  }
+  const n = BigInt(raw);
+  if (n > max) {
+    throw new Error(`${label} exceeds max ${max.toString()} (${raw})`);
+  }
+  return n;
+}
+
+/** Parse `value` as uint256 decimal string. */
+export function parseRuleValue(raw: unknown, ruleName?: string): bigint {
+  return parseDecimalUint(raw, 'value', UINT256_MAX, ruleName);
+}
+
+/** Parse `dataLength` as uint32 decimal string (no wrap). */
+export function parseRuleDataLength(raw: unknown, ruleName?: string): number {
+  return Number(parseDecimalUint(raw, 'dataLength', BigInt(UINT32_MAX), ruleName));
+}
+
+function assertCanonicalRuleNumerics(rules: RulesFile): void {
+  for (const [name, rule] of Object.entries(rules)) {
+    if (rule == null || typeof rule !== 'object' || Array.isArray(rule)) {
+      throw new Error(`Rule "${name}": expected a rule object.`);
+    }
+    if (rule.value !== undefined && rule.value !== '') {
+      parseRuleValue(rule.value, name);
+    }
+    if (rule.dataLength !== undefined) {
+      parseRuleDataLength(rule.dataLength, name);
+    }
+  }
+}
+
+function assertRulesFileShape(parsed: unknown): asserts parsed is RulesFile {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Ruleset must be a top-level object mapping rule names to rule definitions.');
+  }
+}
+
+/** JSON.parse (strict JSON) + yaml.parse (reject duplicate keys). */
+function parseJsonRejectDuplicateKeys(content: string): unknown {
+  const parsed = JSON.parse(content) as unknown;
+  try {
+    yaml.parse(content);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unique/i.test(msg)) {
+      throw new Error(`Ruleset JSON has duplicate keys: ${msg}`);
+    }
+    throw err;
+  }
+  return parsed;
+}
+
 // ─── File loading ─────────────────────────────────────────────────────────────
 
 export function loadRulesFile(filePath: string): RulesFile {
   const content = fs.readFileSync(filePath, 'utf8');
   const ext = path.extname(filePath).toLowerCase();
-  if (ext === '.yaml' || ext === '.yml') return yaml.parse(content) as RulesFile;
-  return JSON.parse(content) as RulesFile;
+  const parsed: unknown =
+    ext === '.yaml' || ext === '.yml' ? yaml.parse(content) : parseJsonRejectDuplicateKeys(content);
+  assertRulesFileShape(parsed);
+  assertCanonicalRuleNumerics(parsed);
+  return parsed;
 }
 
 // ─── Encoding ─────────────────────────────────────────────────────────────────
@@ -95,13 +173,15 @@ export function inferFlags(rule: RuleJson): number {
   );
 }
 
-export function encodeRule(rule: RuleJson): string {
+export function encodeRule(rule: RuleJson, ruleName?: string): string {
   const flags = inferFlags(rule);
   const selectorHex = packedSelectorToBytes4(packRuleSelector(rule.selector));
   const sender = rule.sender || ethers.ZeroAddress;
   const to = rule.to || ethers.ZeroAddress;
-  const value = rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n;
-  const dataLength = rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0;
+  const value =
+    rule.value !== undefined && rule.value !== '' ? parseRuleValue(rule.value, ruleName) : 0n;
+  const dataLength =
+    rule.dataLength !== undefined ? parseRuleDataLength(rule.dataLength, ruleName) : 0;
   const constraints = rule.constraints ?? [];
 
   const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
@@ -138,6 +218,7 @@ export function buildTree(
   rules: RulesFile,
   domainSeparator: string
 ): { tree: StandardMerkleTree<TreeRow>; encoded: Record<string, string>; skipped: string[] } {
+  assertCanonicalRuleNumerics(rules);
   const encoded: Record<string, string> = {};
   const rows: TreeRow[] = [];
   const skipped: string[] = [];
@@ -152,7 +233,7 @@ export function buildTree(
       skipped.push(name);
       continue;
     }
-    const ruleEncoded = encodeRule(rule);
+    const ruleEncoded = encodeRule(rule, name);
     encoded[name] = ruleEncoded;
     rows.push([0, domainSeparator, ethers.getBytes(ruleEncoded)]);
   }

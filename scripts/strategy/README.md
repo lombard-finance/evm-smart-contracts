@@ -55,7 +55,7 @@ old_rule:
   value: "0"
 ```
 
-Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `dataLength: 0` is a valid exact-length constraint and sets the flag. Optional **`selector`** pins `data[0:4]` and sets flag **`0x10`**. Write it as `name(types)` (`transfer(address,uint256)`), no `function` prefix, or hex `bytes4` (`0xa9059cbb`). Omit / `""` for wildcard; use literal **`0x00000000`** only when pinning an all-zero selector (distinct from wildcard in tooling). Constraint **`offset`** values are relative to **`data[4:]`** (ABI arguments).
+Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `value` and `dataLength` must be decimal strings (e.g. `"0"`, `"68"`) — bare numbers are rejected. `dataLength: "0"` is a valid exact-length constraint and sets the flag. Optional **`selector`** pins `data[0:4]` and sets flag **`0x10`**. Write it as `name(types)` (`transfer(address,uint256)`), no `function` prefix, or hex `bytes4` (`0xa9059cbb`). Omit / `""` for wildcard; use literal **`0x00000000`** only when pinning an all-zero selector (distinct from wildcard in tooling). Constraint **`offset`** values are relative to **`data[4:]`** (ABI arguments). Duplicate object keys are rejected for both JSON and YAML.
 
 #### Optional metadata fields
 
