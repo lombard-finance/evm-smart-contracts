@@ -1289,7 +1289,7 @@ describe('validateForPPS', function () {
   const NONZERO = '0x' + '00'.repeat(31) + '01';
   const ZERO = '0x' + '00'.repeat(32);
 
-  // Constraint with a non-zero expected value at the given offset — counts as a pin.
+  // Constraint with a full-word mask and non-zero expected — counts as a PPS pin.
   function pin(offset: number): RuleConstraint {
     return { offset, mask: FULL_MASK, expected: NONZERO };
   }
@@ -1413,6 +1413,57 @@ describe('validateForPPS', function () {
     expect(issues[0]).to.include('chainSelector');
   });
 
+  it('CcipBridge: 1-bit mask with non-zero expected does not count as a pin', function () {
+    const weakMask = '0x' + '00'.repeat(31) + '01';
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [
+          { offset: 0, mask: weakMask, expected: weakMask },
+          pin(352),
+          pin(256)
+        ]
+      }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('chainSelector');
+  });
+
+  it('CcipBridge: address-only mask (lower 20 bytes) does not count as a pin', function () {
+    const addressMask = '0x' + '00'.repeat(12) + 'ff'.repeat(20);
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [
+          pin(0),
+          { offset: 352, mask: addressMask, expected: NONZERO },
+          pin(256)
+        ]
+      }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('token');
+  });
+
+  it('CcipBridge: uppercase full-word mask still counts as a pin', function () {
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [
+          { offset: 0, mask: FULL_MASK.toUpperCase().replace(/^0X/, '0x'), expected: NONZERO },
+          pin(352),
+          pin(256)
+        ]
+      }
+    };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
   it('CcipBridge: reports all missing fields in a single issue entry', function () {
     const rules: RulesFile = {
       r: { destinationType: 'CcipBridge', to: TO, constraints: [] }
@@ -1466,6 +1517,17 @@ describe('validateForPPS', function () {
     const issues = validateForPPS(rules);
     expect(issues).to.have.length(1);
     expect(issues[0]).to.include('oracle');
+  });
+
+  it('Morpho_blue: partial mask with non-zero expected does not count as a pin', function () {
+    const weakMask = '0x' + '00'.repeat(31) + '01';
+    const weakPins = morphoBluePins();
+    weakPins[0] = { offset: 0, mask: weakMask, expected: weakMask }; // loanToken weakly masked
+    const rules: RulesFile = { r: { destinationType: 'Morpho_blue', to: TO, constraints: weakPins } };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('loanToken');
+    expect(issues[0]).not.to.include('collateralToken');
   });
 
   // ── multiple rules / mixed issues ────────────────────────────────────────────

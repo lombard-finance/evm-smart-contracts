@@ -176,8 +176,8 @@ const PPS_VENUE_DESTINATION_TYPES = new Set<string>(['AAVE_v3', 'AAVE_v4', 'Morp
  * Offsets are relative to `data[4:]` (after the function selector) and match
  * the canonical layout documented in `pkg/ruleset/ccip_bridge.go`. The full
  * 32-byte word at each offset is parsed by the off-chain extractor — for PPS
- * completeness it's enough that a non-zero pin exists at each required
- * offset (chainSelector, token, AND one of the two recipient slots).
+ * completeness each required offset needs a full-word pin (chainSelector,
+ * token, AND one of the two recipient slots).
  */
 const CCIP_OFFSET_CHAIN_SELECTOR = 0;
 const CCIP_OFFSET_EVM_RECIPIENT = 256;
@@ -198,12 +198,25 @@ const MORPHO_BLUE_OFFSET_ORACLE = 64;
 const MORPHO_BLUE_OFFSET_IRM = 96;
 const MORPHO_BLUE_OFFSET_LLTV = 128;
 
-/** A constraint counts as a pin when its `expected` has at least one non-zero nibble. */
-function hasNonzeroPin(constraints: RuleConstraint[] | undefined, offset: number): boolean {
+/** Full 32-byte mask required for PPS pins — partial masks do not uniquely pin the word. */
+const PPS_FULL_WORD_MASK = ('0x' + 'ff'.repeat(32)).toLowerCase();
+
+function normalizeBytes32Hex(hex: string): string {
+  const h = hex.trim().toLowerCase();
+  return h.startsWith('0x') ? h : '0x' + h;
+}
+
+/**
+ * A constraint counts as a PPS pin when `mask` is the full 32-byte word
+ * (`0xff…ff`) and `expected` has at least one non-zero nibble. Weaker masks
+ * (e.g. 1-bit or address-only) still leave the field largely unconstrained
+ * on-chain and must not satisfy `--validate-pps`.
+ */
+function hasFullWordPin(constraints: RuleConstraint[] | undefined, offset: number): boolean {
   if (!constraints) return false;
   for (const c of constraints) {
     if (c.offset !== offset) continue;
-    return /[1-9a-fA-F]/.test(c.expected);
+    return normalizeBytes32Hex(c.mask) === PPS_FULL_WORD_MASK && /[1-9a-fA-F]/.test(c.expected);
   }
   return false;
 }
@@ -217,10 +230,13 @@ function hasNonzeroPin(constraints: RuleConstraint[] | undefined, offset: number
  * Per-venue requirements (mirror `ruleset.ValidateForPPS` in vault-manager):
  *   - `AAVE_v3` / `AAVE_v4` / `Morpho` / `Morpho_blue` / `CcipBridge`:
  *     non-wildcard `to`.
- *   - `CcipBridge`: pinned chainSelector (offset 0), token (offset 352),
- *     and recipient (EVM offset 256 OR SVM offset 580).
- *   - `Morpho_blue`: pinned MarketParams — loanToken, collateralToken,
- *     oracle, irm, lltv at offsets 0 / 32 / 64 / 96 / 128.
+ *   - `CcipBridge`: full-word pinned chainSelector (offset 0), token
+ *     (offset 352), and recipient (EVM offset 256 OR SVM offset 580).
+ *   - `Morpho_blue`: full-word pinned MarketParams — loanToken,
+ *     collateralToken, oracle, irm, lltv at offsets 0 / 32 / 64 / 96 / 128.
+ *
+ * A "full-word pin" means `mask == 0xff…ff` and non-zero `expected`. Partial
+ * masks are rejected even when `expected` is non-zero.
  *
  * Disabled rules are intentionally excluded (they don't contribute to PPS).
  * Rules with no `destinationType` or a non-venue type (e.g. `ERC20`) are
@@ -239,10 +255,10 @@ export function validateForPPS(rules: RulesFile): string[] {
 
     if (dt === 'CcipBridge') {
       const missing: string[] = [];
-      if (!hasNonzeroPin(rule.constraints, CCIP_OFFSET_CHAIN_SELECTOR)) missing.push('chainSelector');
-      if (!hasNonzeroPin(rule.constraints, CCIP_OFFSET_TOKEN)) missing.push('token');
-      const evmRecv = hasNonzeroPin(rule.constraints, CCIP_OFFSET_EVM_RECIPIENT);
-      const svmRecv = hasNonzeroPin(rule.constraints, CCIP_OFFSET_SVM_RECIPIENT);
+      if (!hasFullWordPin(rule.constraints, CCIP_OFFSET_CHAIN_SELECTOR)) missing.push('chainSelector');
+      if (!hasFullWordPin(rule.constraints, CCIP_OFFSET_TOKEN)) missing.push('token');
+      const evmRecv = hasFullWordPin(rule.constraints, CCIP_OFFSET_EVM_RECIPIENT);
+      const svmRecv = hasFullWordPin(rule.constraints, CCIP_OFFSET_SVM_RECIPIENT);
       if (!evmRecv && !svmRecv) {
         missing.push(`recipient (EVM offset ${CCIP_OFFSET_EVM_RECIPIENT} or SVM offset ${CCIP_OFFSET_SVM_RECIPIENT})`);
       }
@@ -253,11 +269,11 @@ export function validateForPPS(rules: RulesFile): string[] {
 
     if (dt === 'Morpho_blue') {
       const missing: string[] = [];
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_LOAN_TOKEN)) missing.push('loanToken');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_COLLATERAL_TOKEN)) missing.push('collateralToken');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_ORACLE)) missing.push('oracle');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_IRM)) missing.push('irm');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_LLTV)) missing.push('lltv');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_LOAN_TOKEN)) missing.push('loanToken');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_COLLATERAL_TOKEN)) missing.push('collateralToken');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_ORACLE)) missing.push('oracle');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_IRM)) missing.push('irm');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_LLTV)) missing.push('lltv');
       if (missing.length > 0) {
         issues.push(`rule "${name}" (Morpho_blue): unpinned MarketParams field(s): ${missing.join(', ')}`);
       }

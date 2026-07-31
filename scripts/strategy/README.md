@@ -32,7 +32,7 @@ The tree is bound to a specific chain and deployed validator address (via `domai
 | `--mode`         | yes                             | `build` or `proof`                          |
 | `--rules`        | one of `--rules` / `--contract` | Path to the ruleset file                    |
 | `--rule-name`    | proof mode only                 | Name of the rule to prove                   |
-| `--validate-pps` | optional                        | When present (any value), runs the PPS-completeness gate before building. Fails with exit code 1 if any active rule lacks the per-venue information vault-manager's `CalculatePPS` needs (wildcard `to` on a venue, unpinned `CcipBridge` chainSelector/recipient/token, unpinned `Morpho_blue` MarketParams). Mirrors vault-manager's `RULESET_KEEPER_VALIDATE` startup gate. |
+| `--validate-pps` | optional                        | When present (any value), runs the PPS-completeness gate before building. Fails with exit code 1 if any active rule lacks the per-venue information vault-manager's `CalculatePPS` needs (wildcard `to` on a venue, or `CcipBridge` / `Morpho_blue` fields without a **full-word** pin: `mask` must be `0xff…ff` and `expected` non-zero — partial masks do not count). Mirrors vault-manager's `RULESET_KEEPER_VALIDATE` startup gate. |
 
 ### Rule file format
 

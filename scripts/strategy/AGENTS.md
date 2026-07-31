@@ -81,6 +81,15 @@ Each constraint is a calldata predicate: `(calldata_word_at(4 + offset) & mask) 
 
 Both `mask` and `expected` are read as `bytes32` (left-aligned). Always write them as full 32-byte (`0x` + 64 hex chars) values.
 
+### PPS-completeness pins (`--validate-pps`)
+
+When building with `--validate-pps`, venue rules must carry enough information for vault-manager's `CalculatePPS`. For `CcipBridge` and `Morpho_blue`, required calldata fields count as pinned only when:
+
+1. `mask` is the **full 32-byte word** (`0xff…ff` — case-insensitive), and
+2. `expected` has at least one non-zero nibble.
+
+Partial masks (1-bit, address-only lower 20 bytes, etc.) still leave the word largely unconstrained on-chain and **do not** satisfy the gate, even if `expected` is non-zero. Use a full-word mask for every PPS-required offset (`CcipBridge`: chainSelector / token / recipient; `Morpho_blue`: all five `MarketParams` fields).
+
 ---
 
 ## Encoding ABI-encoded arguments as constraints
@@ -286,6 +295,7 @@ Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'])` from `@openze
 ## Pitfalls
 
 - **Dynamic args: tail-only constraints** — pinning payload bytes without the ABI offset/length head words does not bind what the callee decodes. Always add head constraints and `dataLength` when the call shape is fixed (§ **Dynamic arguments — soundness** above).
+- **Weak PPS pins** — a non-zero `expected` with a partial `mask` passes on-chain matching for only the masked bits, but `--validate-pps` rejects it. Required venue fields need `mask: 0xff…ff` (see § **PPS-completeness pins**).
 - **`mask` / `expected` hex length** — off-chain `encodeRule` packs them as Solidity `bytes32`. Each must be **`0x` + exactly 64 hex characters** (32 bytes). If `merkleTreeBuilder` fails with `invalid value for bytes32`, you are one or more nibbles short — pad with trailing `0` until the string is 64 hex digits (same layout as the **selector row** in the table above).
 - **`findRule` / calldata length** — `txMatchesRule` requires `calldata.length === dataLength` when the rule pins length. A common mistake is pasting **partial** calldata (wrong byte count). Symptom: “no rule matches” with no other error. Fix: full ABI-encoded call, or drop `dataLength` from the rule if policy allows (usually avoid).
 - **`value: 0` vs `value: "0"`** — both work (the encoder coerces with `BigInt`), but `value: ""` means _wildcard_. Be deliberate.
