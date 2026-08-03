@@ -238,7 +238,7 @@ export function buildTree(
     rows.push([0, domainSeparator, ethers.getBytes(ruleEncoded)]);
   }
   if (rows.length === 0) throw new Error('Rules file is empty — cannot build a Merkle tree with no leaves.');
-  return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']), encoded, skipped };
+  return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'], { sortLeaves: true }), encoded, skipped };
 }
 
 // ─── PPS-completeness validation (optional) ───────────────────────────────────

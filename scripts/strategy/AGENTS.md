@@ -289,12 +289,13 @@ Leaf:
 keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))
 ```
 
-Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'])` from `@openzeppelin/merkle-tree`, where each row is `[0, domainSeparator, ruleEncoded]`. Don't try to build the tree by hand — use `buildTree` from [merkleUtils.ts](merkleUtils.ts).
+Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'], { sortLeaves: true })` from `@openzeppelin/merkle-tree`, where each row is `[0, domainSeparator, ruleEncoded]`. Don't build by hand — use `buildTree` from [merkleUtils.ts](merkleUtils.ts).
 
 ---
 
 ## Pitfalls
 
+- **`sortLeaves: false`** — disables the required leaf-hash sort (§9); roots/proofs diverge from the reference builder.
 - **Dynamic args: tail-only constraints** — pinning payload bytes without the ABI offset/length head words does not bind what the callee decodes. Always add head constraints and `dataLength` when the call shape is fixed (§ **Dynamic arguments — soundness** above).
 - **Weak PPS pins** — a non-zero `expected` with a partial `mask` passes on-chain matching for only the masked bits, but `--validate-pps` rejects it. Required venue fields need `mask: 0xff…ff` (see § **PPS-completeness pins**).
 - **`mask` / `expected` hex length** — off-chain `encodeRule` packs them as Solidity `bytes32`. Each must be **`0x` + exactly 64 hex characters** (32 bytes). If `merkleTreeBuilder` fails with `invalid value for bytes32`, you are one or more nibbles short — pad with trailing `0` until the string is 64 hex digits (same layout as the **selector row** in the table above).

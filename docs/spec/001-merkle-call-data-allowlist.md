@@ -347,7 +347,7 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 // domainSeparator: bytes32 per §8 (bytes4 0x414c4c57, uint8(1), chainId, validatorAddress)
 // validatorAddress MUST equal deployed address(this); otherwise root and proofs will not verify
 const values = rules.map(ruleEncoded => [0, domainSeparator, ruleEncoded]);
-const tree = StandardMerkleTree.of(values, ['uint8', 'bytes32', 'bytes']);
+const tree = StandardMerkleTree.of(values, ['uint8', 'bytes32', 'bytes'], { sortLeaves: true });
 ```
 
 The `leaf` for a row MUST equal `keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))` in Solidity for that row's `ruleEncoded`. Proofs from `tree.getProof(i)` MUST verify with `MerkleProof.verifyCalldata` against `tree.root` and that `leaf`.
@@ -375,7 +375,9 @@ _hashPair(a, b) = keccak256(abi.encodePacked(min(a,b), max(a,b)))
 
 **Proof format:** `proof` is the list of sibling hashes from the leaf toward the root, in the order consumed by `MerkleProof.processProofCalldata` / `processProof`.
 
-The off-chain tree builder MUST use **`StandardMerkleTree`** from `@openzeppelin/merkle-tree` (or produce the **identical** root, leaves, and proofs): same tree construction as that library (including how leaf hashes are ordered into a complete binary tree), **sorted-pair** parent hashing (`_hashPair`), and **leaf** values exactly as in §8 (`keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))`). Other tools MAY be used only if they match those semantics byte-for-byte.
+**Canonical leaf ordering (normative):** before laying out the complete binary tree, leaf hashes MUST be sorted ascending by unsigned big-endian byte comparison. That is `@openzeppelin/merkle-tree` **`StandardMerkleTree`** with **`sortLeaves: true`** (library default). Builders MUST NOT disable leaf sorting. Rule input order MUST NOT change `tree.root` or proofs for the same leaf multiset.
+
+The off-chain tree builder MUST use **`StandardMerkleTree`** from `@openzeppelin/merkle-tree` (or produce the **identical** root, leaves, and proofs): same tree construction as that library (including **sorted leaf hashes** as above), **sorted-pair** parent hashing (`_hashPair`), and **leaf** values exactly as in §8 (`keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))`). Other tools MAY be used only if they match those semantics byte-for-byte.
 
 Verification MUST return `false` when the rebuilt root does not equal `allowlistRoot`.
 
@@ -471,7 +473,7 @@ An off-chain builder MUST:
 - encode using the canonical binary layout
 - compute `domainSeparator` for the target `chainId` and the **deployed** validator `address` (§8); that address MUST be known before leaves/root/proofs are final (unless pre-known via CREATE2 or equivalent)
 - compute leaves exactly as §8 / `StandardMerkleTree` (`["uint8", "bytes32", "bytes"]` rows)
-- build the Merkle tree with `@openzeppelin/merkle-tree` **`StandardMerkleTree`** (§9)
+- build the Merkle tree with `@openzeppelin/merkle-tree` **`StandardMerkleTree`** with **`sortLeaves: true`** (§9); MUST NOT disable leaf sorting
 - for a candidate call, select a matching rule, encode **`ruleEncoded`**, build **`merkleProof`** for its leaf, and pass **`CallVerificationInput { ruleEncoded, merkleProof }`** with the call tuple for each `isAllowed` invocation (§10)
 
 Off-chain selection of which rule to use is out of scope for correctness, but in scope for performance.
