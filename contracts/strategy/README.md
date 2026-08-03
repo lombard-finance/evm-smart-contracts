@@ -190,7 +190,7 @@ A standalone, upgradeable **compliance gate**. The strategy consults it on **eve
 oracle.check(account);                  // strategy gate (reverts on blocklist or sanction)
 
 oracle.blockAccount(account);           // BLOCKLIST_SETTER_ROLE
-oracle.unblockAccount(account);         // DEFAULT_ADMIN_ROLE
+oracle.unblockAccount(account);         // BLOCKLIST_REMOVER_ROLE
 oracle.addSanctionList(chainalysis);    // DEFAULT_ADMIN_ROLE
 oracle.removeSanctionList(chainalysis); // DEFAULT_ADMIN_ROLE
 ```
@@ -199,12 +199,13 @@ oracle.removeSanctionList(chainalysis); // DEFAULT_ADMIN_ROLE
 
 Built on `AccessControlDefaultAdminRulesUpgradeable` (two-step admin handover with a configurable delay set at `initialize`).
 
-| Role                    | Controls                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `BLOCKLIST_SETTER_ROLE` | `blockAccount` only. Granted to `defaultAdmin_` at init.                      |
-| `DEFAULT_ADMIN_ROLE`    | `unblockAccount`, `addSanctionList`, `removeSanctionList`; admin of all roles |
+| Role                     | Controls                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `BLOCKLIST_SETTER_ROLE`  | `blockAccount` only. Granted to `defaultAdmin_` at init.                                          |
+| `BLOCKLIST_REMOVER_ROLE` | `unblockAccount` only. Granted to `defaultAdmin_` at init. Sensitive — rotate if delegated.       |
+| `DEFAULT_ADMIN_ROLE`     | `allowAccount`, `disallowAccount`, `addSanctionList`, `removeSanctionList`; admin of all roles    |
 
-> **Asymmetric by design:** adding to the blocklist needs only `BLOCKLIST_SETTER_ROLE` (fast operational reaction), but **removing** an account needs `DEFAULT_ADMIN_ROLE`.
+> **Asymmetric by design:** adding to the blocklist needs only `BLOCKLIST_SETTER_ROLE` (fast operational reaction), but **removing** an account needs the separate `BLOCKLIST_REMOVER_ROLE` — do not grant remover when you only intend setter authority.
 
 View helpers: `isSanctioned(address)` (any registered list), `isBlocklisted(address)` (manual list only), `blocklistLength()`, `getBlocklistEntries(offset, limit)` (paginated; empty if `limit == 0` or `offset >= length`; ordering not stable across mutations), and `getSanctionLists()`. `DenialReason` is `{ Blocklist, Sanction }`; `ISanctionList` is a single `isSanctioned(address) returns (bool)` view (the Chainalysis sanctions-oracle shape).
 
