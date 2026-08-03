@@ -1200,6 +1200,18 @@ describe('buildTree: disabled rules and destinationType', function () {
     expect(skipped).to.deep.equal(['gone']);
   });
 
+  it('encoded map is null-prototype', function () {
+    const { encoded } = buildTree({ r: { to: ADDR_A } }, DS);
+    expect(Object.getPrototypeOf(encoded)).to.equal(null);
+    expect(Object.hasOwn(encoded, 'r')).to.equal(true);
+  });
+
+  it('rejects reserved rule names', function () {
+    for (const name of ['__proto__', 'constructor', 'prototype']) {
+      expect(() => buildTree({ [name]: { to: ADDR_A } }, DS)).to.throw(/reserved/i);
+    }
+  });
+
   it('disabled: false leaves the rule active', function () {
     const rules: RulesFile = {
       present: { to: ADDR_A, value: '0', disabled: false }
@@ -1369,6 +1381,16 @@ describe('canonical rule numerics', function () {
     writeFileSync(tmp, '{"a":{"value":"1"},"a":{"value":"2"}}');
     try {
       expect(() => loadRulesFile(tmp)).to.throw(/duplicate/i);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+
+  it('loadRulesFile rejects reserved rule names', function () {
+    const tmp = path.join(fixturesDir, 'tmp-reserved-name.json');
+    writeFileSync(tmp, '{"__proto__":{"value":"0"}}');
+    try {
+      expect(() => loadRulesFile(tmp)).to.throw(/reserved/i);
     } finally {
       unlinkSync(tmp);
     }

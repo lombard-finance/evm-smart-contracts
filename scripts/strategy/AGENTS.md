@@ -32,7 +32,7 @@ The `destinationType` vocabulary lives in the same external ruleset repository a
 
 ## Rule file shape
 
-Top-level: an object mapping **rule name → rule definition**. Rule names are local labels (used by `--rule-name` and in `findRule.ts` output) and don't enter the leaf hash, so rename freely.
+Top-level: an object mapping **rule name → rule definition**. Rule names are local labels (used by `--rule-name` and in `findRule.ts` output) and don't enter the leaf hash, so rename freely (except `__proto__`, `constructor`, `prototype` — rejected).
 
 ```yaml
 my_rule_name:
@@ -305,6 +305,7 @@ Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'], { sortLeaves: 
 - **Forgetting the 12-byte zero pad for address args** — addresses in ABI args are right-aligned in a 32-byte word: `0x` + 24 zeros + 40 hex address chars.
 - **Out-of-order constraints** — sort by `offset` ascending in the source file. The encoder doesn't reorder.
 - **Duplicate keys** — YAML and `loadRulesFile` (JSON) reject duplicate map keys; do not rely on last-key-wins.
+- **Reserved rule names** — `__proto__`, `constructor`, and `prototype` are rejected.
 - **Missing `STRATEGY_RULESET_ROOT`** — derived path resolution fails without it. Set the env var to the live ruleset root, or use `--rules` for an explicit file.
 - **Missing `STRATEGY_DESTINATION_TYPES_PATH`** — build fails when any rule sets `destinationType`. Point it at `destinationTypes.yaml` in the live ruleset repository.
 - **Wrong validator address** — the path must use the deployed validator's address as it appears on-chain. A typo means tooling builds against the wrong domain separator and proofs won't verify.

@@ -46,12 +46,22 @@ export type RulesFile = Record<string, RuleJson>;
 
 export type TreeRow = [number, string, Uint8Array];
 
+const RESERVED_RULE_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+
 // ─── Canonical numeric fields ─────────────────────────────────────────────────
 
 /** `0` or digits with no leading zeros. */
 const DECIMAL_UINT_RE = /^(0|[1-9]\d*)$/;
 const UINT256_MAX = (1n << 256n) - 1n;
 const UINT32_MAX = 0xffffffff;
+
+function assertSafeRuleNames(rules: RulesFile): void {
+  for (const name of Object.keys(rules)) {
+    if (RESERVED_RULE_NAMES.has(name)) {
+      throw new Error(`Rule name "${name}" is reserved; rename the rule.`);
+    }
+  }
+}
 
 function fieldLabel(ruleName: string | undefined, field: string): string {
   return ruleName !== undefined ? `Rule "${ruleName}": ${field}` : field;
@@ -127,6 +137,7 @@ export function loadRulesFile(filePath: string): RulesFile {
   const parsed: unknown =
     ext === '.yaml' || ext === '.yml' ? yaml.parse(content) : parseJsonRejectDuplicateKeys(content);
   assertRulesFileShape(parsed);
+  assertSafeRuleNames(parsed);
   assertCanonicalRuleNumerics(parsed);
   return parsed;
 }
@@ -218,8 +229,9 @@ export function buildTree(
   rules: RulesFile,
   domainSeparator: string
 ): { tree: StandardMerkleTree<TreeRow>; encoded: Record<string, string>; skipped: string[] } {
+  assertSafeRuleNames(rules);
   assertCanonicalRuleNumerics(rules);
-  const encoded: Record<string, string> = {};
+  const encoded: Record<string, string> = Object.create(null);
   const rows: TreeRow[] = [];
   const skipped: string[] = [];
   for (const [name, rule] of Object.entries(rules)) {

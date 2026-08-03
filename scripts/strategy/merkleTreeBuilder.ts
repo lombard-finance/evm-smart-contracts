@@ -91,7 +91,7 @@ function main() {
     console.error('Error: --rule-name is required in proof mode');
     process.exit(1);
   }
-  if (!(ruleName in encoded)) {
+  if (!Object.hasOwn(encoded, ruleName)) {
     console.error(`Error: rule "${ruleName}" not found in rules file`);
     console.error('Available rules:', Object.keys(rules).join(', '));
     process.exit(1);
