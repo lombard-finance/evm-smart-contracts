@@ -74,7 +74,7 @@ When the flag is unset, the on-chain canonical check **also requires the underly
 
 Each constraint is a calldata predicate: `(calldata_word_at(4 + offset) & mask) == expected` — i.e. offsets are **into `data[4:]`** (ABI-encoded arguments), not into the full calldata including the selector.
 
-- `offset` — byte offset into **`data[4:]`** where a 32-byte word is read (the implementation loads from `data[4 + offset..]`). The read is left-aligned and **right-padded with zeros** if it runs past `data.length`. Type is `uint16` so max is 65535.
+- `offset` — byte offset into **`data[4:]`** where a full 32-byte word is read (`data[4 + offset .. 4 + offset + 32)`). Fewer than 32 bytes remaining → constraint fails. Type is `uint16` so max is 65535.
 - `mask` — 32-byte hex. **Must be non-zero.** Use to select which bits of the word to check.
 - `expected` — 32-byte hex. **Must satisfy `expected & ~mask == 0`** (no bits set outside the mask). The encoder doesn't check this; the on-chain canonical check rejects it and the rule will never match.
 - Constraints **must be sorted by strictly ascending `offset`** with no duplicates. The on-chain canonical check rejects out-of-order or duplicate offsets.

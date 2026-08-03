@@ -45,13 +45,9 @@ import {
 
 // ─── Transaction matching ─────────────────────────────────────────────────────
 
-function readWord(data: Uint8Array, offset: number): bigint {
-  const bytes = new Uint8Array(32);
-  if (offset < data.length) {
-    const len = Math.min(32, data.length - offset);
-    bytes.set(data.slice(offset, offset + len), 0);
-  }
-  return BigInt('0x' + Buffer.from(bytes).toString('hex'));
+function readWord(data: Uint8Array, offset: number): bigint | null {
+  if (offset + 32 > data.length) return null;
+  return BigInt('0x' + Buffer.from(data.subarray(offset, offset + 32)).toString('hex'));
 }
 
 function txMatchesRule(rule: RuleJson, calldataHex: string, value: bigint, to: string, sender: string): boolean {
@@ -71,7 +67,9 @@ function txMatchesRule(rule: RuleJson, calldataHex: string, value: bigint, to: s
 
   const argBase = 4;
   for (const c of rule.constraints ?? []) {
-    if ((readWord(data, argBase + c.offset) & BigInt(c.mask)) !== BigInt(c.expected)) return false;
+    const word = readWord(data, argBase + c.offset);
+    if (word === null) return false;
+    if ((word & BigInt(c.mask)) !== BigInt(c.expected)) return false;
   }
 
   return true;

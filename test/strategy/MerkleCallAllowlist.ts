@@ -1048,6 +1048,31 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
     ).to.equal(true, 'findRule native transfer proof rejected');
   });
 
+  it('findRule rejects truncated calldata when a constraint window is incomplete', async function () {
+    this.timeout(60000);
+
+    const FULL_WORD_RULES = path.join(process.cwd(), 'test/strategy/fixtures/findrule-full-word.json');
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${FULL_WORD_RULES} --chain-id ${chainId} --contract ${addr}`;
+
+    const full = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 0n]
+    );
+    const ok = JSON.parse(
+      execSync(`npx ts-node scripts/strategy/findRule.ts ${base} --to ${TO} --calldata ${full}`).toString()
+    ) as { ruleName: string };
+    expect(ok.ruleName).to.equal('transfer_zero_amount');
+
+    const truncated = TRANSFER_SELECTOR;
+    expect(() =>
+      execSync(`npx ts-node scripts/strategy/findRule.ts ${base} --to ${TO} --calldata ${truncated}`, {
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+    ).to.throw();
+  });
+
   it('accepts proof built from hex selector-only rules', async function () {
     this.timeout(60000);
 

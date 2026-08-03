@@ -279,7 +279,6 @@ const MORPHO_BLUE_OFFSET_ORACLE = 64;
 const MORPHO_BLUE_OFFSET_IRM = 96;
 const MORPHO_BLUE_OFFSET_LLTV = 128;
 
-/** Full 32-byte mask required for PPS pins — partial masks do not uniquely pin the word. */
 const PPS_FULL_WORD_MASK = ('0x' + 'ff'.repeat(32)).toLowerCase();
 
 function normalizeBytes32Hex(hex: string): string {
@@ -287,12 +286,7 @@ function normalizeBytes32Hex(hex: string): string {
   return h.startsWith('0x') ? h : '0x' + h;
 }
 
-/**
- * A constraint counts as a PPS pin when `mask` is the full 32-byte word
- * (`0xff…ff`) and `expected` has at least one non-zero nibble. Weaker masks
- * (e.g. 1-bit or address-only) still leave the field largely unconstrained
- * on-chain and must not satisfy `--validate-pps`.
- */
+/** Full-word `mask` (`0xff…ff`) and non-zero `expected`. */
 function hasFullWordPin(constraints: RuleConstraint[] | undefined, offset: number): boolean {
   if (!constraints) return false;
   for (const c of constraints) {
