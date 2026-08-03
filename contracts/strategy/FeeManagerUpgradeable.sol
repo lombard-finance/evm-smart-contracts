@@ -86,9 +86,10 @@ abstract contract FeeManagerUpgradeable is
 
     /// @dev Exact management fee accrual hook. Call unconditionally before user share mint/burn operations.
     ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`, minting dilution shares to
-    ///      `managementFeeTreasury` without changing `pricePerShare`. The share base is full `totalSupply()`,
-    ///      including shares already minted to the treasury on prior accruals, so the effective rate compounds
-    ///      on treasury holdings. Overvaluation of `totalAssets()` is corrected on a later `postPricePerShare`.
+    ///      `managementFeeTreasury` without changing `pricePerShare`. Advances `lastFeeHarvestAt` even when
+    ///      floored shares are 0. The share base is full `totalSupply()`, including shares already minted to
+    ///      the treasury on prior accruals, so the effective rate compounds on treasury holdings.
+    ///      Overvaluation of `totalAssets()` is corrected on a later `postPricePerShare`.
     function _accrueManagementFee() internal virtual {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(

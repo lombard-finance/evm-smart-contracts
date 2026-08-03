@@ -3485,6 +3485,51 @@ describe('MultiAssetWithAsyncRedemptionStrategy', function () {
       const oneYearNum = MGMT_FEE_BPS * SECONDS_PER_YEAR;
       expect(minted).to.be.gt((supplyBefore * oneYearNum) / (den - oneYearNum));
     });
+
+    // Accepted: zero-share accruals still advance lastFeeHarvestAt; missed fee vs single accrual = 1 share.
+    it('signs off sub-share management-fee time discard under frequent accrual (holder-favorable)', async function () {
+      const alt = await altDeposit.getAddress();
+      const v = await strategy.getAddress();
+      await strategy.connect(manager).addDepositAsset(alt, await directConverter.getAddress(), 0);
+
+      // Tiny supply + 1 bps → 1-share quantum ≈ 315_360s. Sub-quantum = 100_000s floors to 0.
+      const supply = 1_000_000n;
+      const mgmtFeeBps = 1n;
+      const subQuantum = 100_000n;
+      const intervals = 4n; // wall = 400_000s → counterfactual mints 1
+      const dustDeposit = 1n;
+      const den = BPS_DENOMINATOR * SECONDS_PER_YEAR;
+
+      await altDeposit.mint(sender.address, supply + intervals * dustDeposit);
+      await altDeposit.connect(sender).approve(v, supply + intervals * dustDeposit);
+      await strategy.connect(sender)['deposit(address,uint256,address)'](alt, supply, sender.address);
+      await strategy.connect(admin).setManagementFeeBps(Number(mgmtFeeBps));
+
+      const seedSupply = await strategy.totalSupply();
+      expect(seedSupply).to.equal(supply);
+      const wallElapsed = intervals * subQuantum;
+      // Counterfactual: one accrual after full wall → fee shares = 1.
+      const treasuryExpected = (seedSupply * mgmtFeeBps * wallElapsed) / (den - mgmtFeeBps * wallElapsed);
+      expect(treasuryExpected).to.equal(1n);
+      expect((seedSupply * mgmtFeeBps * subQuantum) / (den - mgmtFeeBps * subQuantum)).to.equal(0n);
+
+      const treasuryBefore = await strategy.balanceOf(treasury.address);
+      let lastHarvest = (await strategy.managementFee())[1];
+
+      for (let i = 0; i < Number(intervals); i++) {
+        await advanceTime(Number(subQuantum));
+        await expect(
+          strategy.connect(sender)['deposit(address,uint256,address)'](alt, dustDeposit, sender.address)
+        ).to.not.emit(strategy, 'ManagementFeeHarvested');
+        const [, harvestAt] = await strategy.managementFee();
+        expect(harvestAt).to.be.gt(lastHarvest);
+        lastHarvest = harvestAt;
+      }
+
+      const treasuryActual = (await strategy.balanceOf(treasury.address)) - treasuryBefore;
+      expect(treasuryActual).to.equal(0n);
+      expect(treasuryExpected - treasuryActual).to.equal(1n); // missed fee shares
+    });
   });
 
   describe('Default shard routing', function () {
