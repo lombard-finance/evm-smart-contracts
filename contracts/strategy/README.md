@@ -166,16 +166,18 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 ## BlocklistOracle
 
-A standalone, upgradeable **compliance gate**. The strategy consults it on every **deposit** and **redeem request** and reverts if any in-scope account is **manually blocklisted** or appears on an **external sanction list** (Chainalysis-style). It does **not** move funds, gate ERC-20 share transfers, or touch the shard `exec` path — it only answers _"is this account allowed to transact?"_ via a single reverting view.
+A standalone, upgradeable **compliance gate**. The strategy consults it on **every share balance change** — ERC-20 **transfer**, **mint**, and **burn** — via `StrategyBaseUpgradeable._update`, and reverts if either endpoint is **manually blocklisted** or appears on an **external sanction list** (Chainalysis-style). Deposit also checks the **`sender`** explicitly (needed when `sender ≠ receiver`, because mint only hits the receiver through `_update`). It does **not** move funds or touch the shard `exec` path — it only answers _"is this account allowed to transact?"_ via a single reverting view.
+
+**Ops note:** `check` is on the hot path for all share movement. Oracle **liveness** and **gas** (especially when `isSanctioned` iterates multiple external lists) are therefore a dependency for ordinary ERC-20 transfers, not only for deposit / redeem-request entrypoints. A reverting or out-of-gas `check` freezes the affected balance change.
 
 ### How it integrates
 
 `StrategyBaseUpgradeable` holds a **mandatory** `blocklistOracle` address — required at `initialize` and **never zero** (the oracle cannot be disabled on-chain). It is read via `blocklistOracle()` and replaced via `setBlocklistOracle(oracle_)` (**`DEFAULT_ADMIN_ROLE`**, rejects zero), which emits `BlocklistOracleSet(oracle)`. The strategy calls it through `_requireBlocklistAllows(account)` → `IBlocklistOracle.check(account)`:
 
-| Flow               | Accounts checked            |
-| ------------------ | --------------------------- |
-| **Deposit**        | `sender` **and** `receiver` |
-| **Redeem request** | `owner`                     |
+| Flow                         | Accounts checked                                      |
+| ---------------------------- | ----------------------------------------------------- |
+| **Share `_update`** (transfer / mint / burn) | `from` **and** `to` (includes `address(0)` on mint/burn) |
+| **Deposit** (extra)          | `sender` (in addition to receiver via mint → `_update`) |
 
 `check` reverts with `BlocklistOracle_NotAllowed(DenialReason.Blocklist)` if the account is on the **manual blocklist**, otherwise `BlocklistOracle_NotAllowed(DenialReason.Sanction)` if **any** registered sanction list reports it; otherwise it returns silently.
 
@@ -473,7 +475,7 @@ strategy.migrate(blocklistOracle, asset, decimals, managementFeeTreasury, initia
 | `MultiAssetDepositUpgradeable.sol`          | Multi-token deposit logic with converter adapters and per-asset deposit fees                                                          |
 | `FeeManagerUpgradeable.sol`                 | Management (auto-accrued) / performance (HWM, harvested) fee module — share minting to treasuries                                     |
 | `AsyncRedemptionUpgradeable.sol`            | Async redemption, `PAY_REDEMPTIONS_ROLE` fulfillment, one-block delay                                                                 |
-| `BlocklistOracle.sol`                       | Compliance gate: manual blocklist + external sanction lists; strategy calls `check` on deposit/redeem                                 |
+| `BlocklistOracle.sol`                       | Compliance gate: manual blocklist + external sanction lists; strategy calls `check` on every share `_update` (+ deposit `sender`)     |
 | `libraries/PriceRateLimiter.sol`            | Micro-bps leaky-bucket limiting relative `pricePerShare` moves                                                                        |
 | `validators/MerkleAllowlistValidator.sol`   | Merkle call allowlist validator (`Ownable2Step`, owner-rotated root)                                                                  |
 | `interfaces/IMerkleCallAllowlist.sol`       | Interface + `CallVerificationInput` struct                                                                                            |
