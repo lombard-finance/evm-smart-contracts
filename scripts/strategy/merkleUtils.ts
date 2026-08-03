@@ -189,10 +189,8 @@ export function encodeRule(rule: RuleJson, ruleName?: string): string {
   const selectorHex = packedSelectorToBytes4(packRuleSelector(rule.selector));
   const sender = rule.sender || ethers.ZeroAddress;
   const to = rule.to || ethers.ZeroAddress;
-  const value =
-    rule.value !== undefined && rule.value !== '' ? parseRuleValue(rule.value, ruleName) : 0n;
-  const dataLength =
-    rule.dataLength !== undefined ? parseRuleDataLength(rule.dataLength, ruleName) : 0;
+  const value = rule.value !== undefined && rule.value !== '' ? parseRuleValue(rule.value, ruleName) : 0n;
+  const dataLength = rule.dataLength !== undefined ? parseRuleDataLength(rule.dataLength, ruleName) : 0;
   const constraints = rule.constraints ?? [];
 
   const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];

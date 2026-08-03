@@ -1203,7 +1203,7 @@ describe('buildTree: disabled rules and destinationType', function () {
   it('encoded map is null-prototype', function () {
     const { encoded } = buildTree({ r: { to: ADDR_A } }, DS);
     expect(Object.getPrototypeOf(encoded)).to.equal(null);
-    expect(Object.hasOwn(encoded, 'r')).to.equal(true);
+    expect(Object.prototype.hasOwnProperty.call(encoded, 'r')).to.equal(true);
   });
 
   it('rejects reserved rule names', function () {
@@ -1347,10 +1347,7 @@ describe('canonical rule numerics', function () {
 
   it('loadRulesFile rejects unquoted YAML numbers for value/dataLength', function () {
     const tmp = path.join(fixturesDir, 'tmp-noncanonical-numbers.yaml');
-    writeFileSync(
-      tmp,
-      ['bad:', '  value: 9007199254740993', '  dataLength: -1', ''].join('\n')
-    );
+    writeFileSync(tmp, ['bad:', '  value: 9007199254740993', '  dataLength: -1', ''].join('\n'));
     try {
       expect(() => loadRulesFile(tmp)).to.throw(/decimal string/i);
     } finally {
@@ -1360,10 +1357,7 @@ describe('canonical rule numerics', function () {
 
   it('loadRulesFile accepts quoted decimal strings in YAML', function () {
     const tmp = path.join(fixturesDir, 'tmp-canonical-numbers.yaml');
-    writeFileSync(
-      tmp,
-      ['ok:', '  value: "9007199254740993"', '  dataLength: "68"', ''].join('\n')
-    );
+    writeFileSync(tmp, ['ok:', '  value: "9007199254740993"', '  dataLength: "68"', ''].join('\n'));
     try {
       const rules = loadRulesFile(tmp);
       expect(rules.ok.value).to.equal('9007199254740993');
@@ -1555,11 +1549,7 @@ describe('validateForPPS', function () {
       r: {
         destinationType: 'CcipBridge',
         to: TO,
-        constraints: [
-          { offset: 0, mask: weakMask, expected: weakMask },
-          pin(352),
-          pin(256)
-        ]
+        constraints: [{ offset: 0, mask: weakMask, expected: weakMask }, pin(352), pin(256)]
       }
     };
     const issues = validateForPPS(rules);
@@ -1573,11 +1563,7 @@ describe('validateForPPS', function () {
       r: {
         destinationType: 'CcipBridge',
         to: TO,
-        constraints: [
-          pin(0),
-          { offset: 352, mask: addressMask, expected: NONZERO },
-          pin(256)
-        ]
+        constraints: [pin(0), { offset: 352, mask: addressMask, expected: NONZERO }, pin(256)]
       }
     };
     const issues = validateForPPS(rules);
