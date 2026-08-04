@@ -32,14 +32,14 @@ The `destinationType` vocabulary lives in the same external ruleset repository a
 
 ## Rule file shape
 
-Top-level: an object mapping **rule name → rule definition**. Rule names are local labels (used by `--rule-name` and in `findRule.ts` output) and don't enter the leaf hash, so rename freely.
+Top-level: an object mapping **rule name → rule definition**. Rule names are local labels (used by `--rule-name` and in `findRule.ts` output) and don't enter the leaf hash, so rename freely (except `__proto__`, `constructor`, `prototype` — rejected).
 
 ```yaml
 my_rule_name:
   sender: '0x…' # optional — pin msg.sender of the exec call
   to: '0x…' # optional — pin the call target
   value: '0' # optional — pin msg.value (wei, decimal string)
-  dataLength: 68 # optional — pin exact calldata byte length
+  dataLength: '68' # optional — pin exact calldata byte length (decimal string)
   selector: 'transfer(address,uint256)' # optional — pin selector (sets flag 0x10); signature or 0x + 8 hex (use `0x00000000` explicitly to pin all-zero selector; omit/`""` for wildcard)
   constraints: # optional — (offset, mask, expected); offset is into data[4:] (ABI args)
     - offset: 0
@@ -57,15 +57,16 @@ Each header field encodes both _whether_ to check it (a flag bit) and _what_ to 
 | ------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | `sender`     | present and non-empty string                                                         | omitted, or `""`                                      |
 | `to`         | present and non-empty string                                                         | omitted, or `""`                                      |
-| `value`      | present and non-empty string                                                         | omitted, or `""`                                      |
-| `dataLength` | present (any value, including `0`)                                                   | omitted                                               |
+| `value`      | present and non-empty **decimal string**                                             | omitted, or `""`                                      |
+| `dataLength` | present (any in-range decimal string, including `"0"`)                               | omitted                                               |
 | `selector`   | present and non-empty after trim (signature or `0x` + 8 hex, including `0x00000000`) | omitted, `""`, or whitespace-only (treated as absent) |
 
 When the flag is **not set**, the validator wildcards that field. When it **is** set, the exact value is enforced. Quirks to remember:
 
 - `value: "0"` pins value to zero. `value: ""` (or omitted) wildcards it. These differ on-chain.
-- `dataLength: 0` is a valid exact length (matches calls with empty calldata) and _does_ set the flag.
-- Empty string is the canonical "wildcard" marker — don't write `null`, `false`, or other falsy values.
+- `dataLength: "0"` is a valid exact length (matches calls with empty calldata) and _does_ set the flag.
+- `value` and `dataLength` must be **quoted decimal strings** (bare numbers are rejected — see Pitfalls).
+- Empty string is the canonical "wildcard" marker for `value` / addresses / `selector` — don't write `null`, `false`, or other falsy values. For `dataLength`, omit the key to wildcard (do not use `""`).
 
 When the flag is unset, the on-chain canonical check **also requires the underlying field to be zero** (zero address, `0`, `0`). The encoder enforces this by defaulting unset fields to zero, so just omitting the key is correct — never set `sender: "0x000…"` to mean "wildcard"; either omit it or use `""`.
 
@@ -73,13 +74,22 @@ When the flag is unset, the on-chain canonical check **also requires the underly
 
 Each constraint is a calldata predicate: `(calldata_word_at(4 + offset) & mask) == expected` — i.e. offsets are **into `data[4:]`** (ABI-encoded arguments), not into the full calldata including the selector.
 
-- `offset` — byte offset into **`data[4:]`** where a 32-byte word is read (the implementation loads from `data[4 + offset..]`). The read is left-aligned and **right-padded with zeros** if it runs past `data.length`. Type is `uint16` so max is 65535.
+- `offset` — byte offset into **`data[4:]`** where a full 32-byte word is read (`data[4 + offset .. 4 + offset + 32)`). Fewer than 32 bytes remaining → constraint fails. Type is `uint16` so max is 65535.
 - `mask` — 32-byte hex. **Must be non-zero.** Use to select which bits of the word to check.
 - `expected` — 32-byte hex. **Must satisfy `expected & ~mask == 0`** (no bits set outside the mask). The encoder doesn't check this; the on-chain canonical check rejects it and the rule will never match.
 - Constraints **must be sorted by strictly ascending `offset`** with no duplicates. The on-chain canonical check rejects out-of-order or duplicate offsets.
 - Maximum **64 constraints** per rule (`MAX_CONSTRAINTS`).
 
 Both `mask` and `expected` are read as `bytes32` (left-aligned). Always write them as full 32-byte (`0x` + 64 hex chars) values.
+
+### PPS-completeness pins (`--validate-pps`)
+
+When building with `--validate-pps`, venue rules must carry enough information for vault-manager's `CalculatePPS`. For `CcipBridge` and `Morpho_blue`, required calldata fields count as pinned only when:
+
+1. `mask` is the **full 32-byte word** (`0xff…ff` — case-insensitive), and
+2. `expected` has at least one non-zero nibble.
+
+Partial masks (1-bit, address-only lower 20 bytes, etc.) still leave the word largely unconstrained on-chain and **do not** satisfy the gate, even if `expected` is non-zero. Use a full-word mask for every PPS-required offset (`CcipBridge`: chainSelector / token / recipient; `Morpho_blue`: all five `MarketParams` fields).
 
 ---
 
@@ -170,7 +180,7 @@ No calldata; pin `to`, `value`, and require empty calldata:
 send_eth_to_treasury:
   to: '0x…treasury'
   value: '1000000000000000000' # 1 ETH in wei
-  dataLength: 0
+  dataLength: '0'
 ```
 
 ### Worked recipe — "allow anything from a specific signer"
@@ -279,20 +289,23 @@ Leaf:
 keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))
 ```
 
-Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'])` from `@openzeppelin/merkle-tree`, where each row is `[0, domainSeparator, ruleEncoded]`. Don't try to build the tree by hand — use `buildTree` from [merkleUtils.ts](merkleUtils.ts).
+Tree: `StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'], { sortLeaves: true })` from `@openzeppelin/merkle-tree`, where each row is `[0, domainSeparator, ruleEncoded]`. Don't build by hand — use `buildTree` from [merkleUtils.ts](merkleUtils.ts).
 
 ---
 
 ## Pitfalls
 
+- **`sortLeaves: false`** — disables the required leaf-hash sort (§9); roots/proofs diverge from the reference builder.
 - **Dynamic args: tail-only constraints** — pinning payload bytes without the ABI offset/length head words does not bind what the callee decodes. Always add head constraints and `dataLength` when the call shape is fixed (§ **Dynamic arguments — soundness** above).
+- **Weak PPS pins** — a non-zero `expected` with a partial `mask` passes on-chain matching for only the masked bits, but `--validate-pps` rejects it. Required venue fields need `mask: 0xff…ff` (see § **PPS-completeness pins**).
 - **`mask` / `expected` hex length** — off-chain `encodeRule` packs them as Solidity `bytes32`. Each must be **`0x` + exactly 64 hex characters** (32 bytes). If `merkleTreeBuilder` fails with `invalid value for bytes32`, you are one or more nibbles short — pad with trailing `0` until the string is 64 hex digits (same layout as the **selector row** in the table above).
 - **`findRule` / calldata length** — `txMatchesRule` requires `calldata.length === dataLength` when the rule pins length. A common mistake is pasting **partial** calldata (wrong byte count). Symptom: “no rule matches” with no other error. Fix: full ABI-encoded call, or drop `dataLength` from the rule if policy allows (usually avoid).
-- **`value: 0` vs `value: "0"`** — both work (the encoder coerces with `BigInt`), but `value: ""` means _wildcard_. Be deliberate.
+- **`value` / `dataLength` as numbers** — bare YAML/JSON numbers are rejected (`Number` rounds above `2^53−1`; `>>> 0` wraps negatives). Use quoted decimals: `value: "…"`, `dataLength: "68"`. Leading zeros, hex, and out-of-range values are also rejected.
 - **Address case in `expected`** — checksum case in the YAML is fine for readability, but the on-chain comparison is byte-for-byte against calldata. Calldata-encoded addresses are lowercased by the EVM (no checksum), so the `expected` must match the same bits regardless of how you wrote it. Ethers `BigInt(mask)` parsing handles both cases.
 - **Forgetting the 12-byte zero pad for address args** — addresses in ABI args are right-aligned in a 32-byte word: `0x` + 24 zeros + 40 hex address chars.
 - **Out-of-order constraints** — sort by `offset` ascending in the source file. The encoder doesn't reorder.
-- **Rule name collision** — JSON/YAML object keys must be unique; later entries silently overwrite earlier ones in some YAML parsers. Watch for it.
+- **Duplicate keys** — YAML and `loadRulesFile` (JSON) reject duplicate map keys; do not rely on last-key-wins.
+- **Reserved rule names** — `__proto__`, `constructor`, and `prototype` are rejected.
 - **Missing `STRATEGY_RULESET_ROOT`** — derived path resolution fails without it. Set the env var to the live ruleset root, or use `--rules` for an explicit file.
 - **Missing `STRATEGY_DESTINATION_TYPES_PATH`** — build fails when any rule sets `destinationType`. Point it at `destinationTypes.yaml` in the live ruleset repository.
 - **Wrong validator address** — the path must use the deployed validator's address as it appears on-chain. A typo means tooling builds against the wrong domain separator and proofs won't verify.

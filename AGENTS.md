@@ -10,6 +10,8 @@
 - Prefer HTTPS-resolved git dependencies in yarn over SSH so installs work without SSH keys
 - When adding or refining unit tests, leave unrelated existing tests unchanged
 - When addressing review findings, verify each against current code; fix only still-valid issues; skip the rest with a brief reason; keep changes minimal
+- When reducing contract bytecode size, do not lower Solidity optimizer `runs`; prefer structural cuts (dedup, `external` getters, linked libraries) instead
+- Prefer PR description and review-note updates over history rewrite or force-push unless explicitly asked
 
 ## Learned Workspace Facts
 
