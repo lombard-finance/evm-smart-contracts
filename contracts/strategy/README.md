@@ -167,16 +167,18 @@ strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 
 ## BlocklistOracle
 
-A standalone, upgradeable **compliance gate**. The strategy consults it on every **deposit** and **redeem request** and reverts if any in-scope account is **manually blocklisted** or appears on an **external sanction list** (Chainalysis-style). It does **not** move funds, gate ERC-20 share transfers, or touch the shard `exec` path — it only answers _"is this account allowed to transact?"_ via a single reverting view.
+A standalone, upgradeable **compliance gate**. The strategy consults it on **every share balance change** — ERC-20 **transfer**, **mint**, and **burn** — via `StrategyBaseUpgradeable._update`, and reverts if either endpoint is **manually blocklisted** or appears on an **external sanction list** (Chainalysis-style). Deposit also checks the **`sender`** explicitly (needed when `sender ≠ receiver`, because mint only hits the receiver through `_update`). It does **not** move funds or touch the shard `exec` path — it only answers _"is this account allowed to transact?"_ via a single reverting view.
+
+**Ops note:** `check` is on the hot path for all share movement. Oracle **liveness** and **gas** (especially when `isSanctioned` iterates multiple external lists) are therefore a dependency for ordinary ERC-20 transfers, not only for deposit / redeem-request entrypoints. A reverting or out-of-gas `check` freezes the affected balance change.
 
 ### How it integrates
 
 `StrategyBaseUpgradeable` holds a **mandatory** `blocklistOracle` address — required at `initialize` and **never zero** (the oracle cannot be disabled on-chain). It is read via `blocklistOracle()` and replaced via `setBlocklistOracle(oracle_)` (**`DEFAULT_ADMIN_ROLE`**, rejects zero), which emits `BlocklistOracleSet(oracle)`. The strategy calls it through `_requireBlocklistAllows(account)` → `IBlocklistOracle.check(account)`:
 
-| Flow               | Accounts checked            |
-| ------------------ | --------------------------- |
-| **Deposit**        | `sender` **and** `receiver` |
-| **Redeem request** | `owner`                     |
+| Flow                         | Accounts checked                                      |
+| ---------------------------- | ----------------------------------------------------- |
+| **Share `_update`** (transfer / mint / burn) | `from` **and** `to` (includes `address(0)` on mint/burn) |
+| **Deposit** (extra)          | `sender` (in addition to receiver via mint → `_update`) |
 
 `check` reverts with `BlocklistOracle_NotAllowed(DenialReason.Blocklist)` if the account is on the **manual blocklist**, otherwise `BlocklistOracle_NotAllowed(DenialReason.Sanction)` if **any** registered sanction list reports it; otherwise it returns silently.
 
@@ -189,7 +191,7 @@ A standalone, upgradeable **compliance gate**. The strategy consults it on every
 oracle.check(account);                  // strategy gate (reverts on blocklist or sanction)
 
 oracle.blockAccount(account);           // BLOCKLIST_SETTER_ROLE
-oracle.unblockAccount(account);         // DEFAULT_ADMIN_ROLE
+oracle.unblockAccount(account);         // BLOCKLIST_REMOVER_ROLE
 oracle.addSanctionList(chainalysis);    // DEFAULT_ADMIN_ROLE
 oracle.removeSanctionList(chainalysis); // DEFAULT_ADMIN_ROLE
 ```
@@ -198,12 +200,13 @@ oracle.removeSanctionList(chainalysis); // DEFAULT_ADMIN_ROLE
 
 Built on `AccessControlDefaultAdminRulesUpgradeable` (two-step admin handover with a configurable delay set at `initialize`).
 
-| Role                    | Controls                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `BLOCKLIST_SETTER_ROLE` | `blockAccount` only. Granted to `defaultAdmin_` at init.                      |
-| `DEFAULT_ADMIN_ROLE`    | `unblockAccount`, `addSanctionList`, `removeSanctionList`; admin of all roles |
+| Role                     | Controls                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `BLOCKLIST_SETTER_ROLE`  | `blockAccount` only. Granted to `defaultAdmin_` at init.                                          |
+| `BLOCKLIST_REMOVER_ROLE` | `unblockAccount` only. Granted to `defaultAdmin_` at init. Sensitive — rotate if delegated.       |
+| `DEFAULT_ADMIN_ROLE`     | `allowAccount`, `disallowAccount`, `addSanctionList`, `removeSanctionList`; admin of all roles    |
 
-> **Asymmetric by design:** adding to the blocklist needs only `BLOCKLIST_SETTER_ROLE` (fast operational reaction), but **removing** an account needs `DEFAULT_ADMIN_ROLE`.
+> **Asymmetric by design:** adding to the blocklist needs only `BLOCKLIST_SETTER_ROLE` (fast operational reaction), but **removing** an account needs the separate `BLOCKLIST_REMOVER_ROLE` — do not grant remover when you only intend setter authority.
 
 View helpers: `isSanctioned(address)` (any registered list), `isBlocklisted(address)` (manual list only), `blocklistLength()`, `getBlocklistEntries(offset, limit)` (paginated; empty if `limit == 0` or `offset >= length`; ordering not stable across mutations), and `getSanctionLists()`. `DenialReason` is `{ Blocklist, Sanction }`; `ISanctionList` is a single `isSanctioned(address) returns (bool)` view (the Chainalysis sanctions-oracle shape).
 
@@ -474,7 +477,7 @@ strategy.migrate(blocklistOracle, asset, decimals, managementFeeTreasury, initia
 | `MultiAssetDepositUpgradeable.sol`          | Multi-token deposit logic with converter adapters and per-asset deposit fees                                                          |
 | `FeeManagerUpgradeable.sol`                 | Management (auto-accrued) / performance (HWM, harvested) fee module — share minting to treasuries                                     |
 | `AsyncRedemptionUpgradeable.sol`            | Async redemption, `PAY_REDEMPTIONS_ROLE` fulfillment, one-block delay                                                                 |
-| `BlocklistOracle.sol`                       | Compliance gate: manual blocklist + external sanction lists; strategy calls `check` on deposit/redeem                                 |
+| `BlocklistOracle.sol`                       | Compliance gate: manual blocklist + external sanction lists; strategy calls `check` on every share `_update` (+ deposit `sender`)     |
 | `libraries/PriceRateLimiter.sol`            | Micro-bps leaky-bucket limiting relative `pricePerShare` moves                                                                        |
 | `validators/MerkleAllowlistValidator.sol`   | Merkle call allowlist validator (`Ownable2Step`, owner-rotated root)                                                                  |
 | `interfaces/IMerkleCallAllowlist.sol`       | Interface + `CallVerificationInput` struct                                                                                            |
