@@ -13,4 +13,4 @@
 
 ## Learned Workspace Facts
 
-- Non-mock contracts should set `/// @custom:security-contact security@lombard.finance`)
+- Non-mock contracts should set `/// @custom:security-contact security@lombard.finance`
