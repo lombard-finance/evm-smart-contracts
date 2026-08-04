@@ -13,5 +13,4 @@
 
 ## Learned Workspace Facts
 
-- Non-mock contracts should set `/// @custom:security-contact security@lombard.finance`
-- Merkle call allowlist constraint matching requires a full 32-byte window (no pad-at-match); tree building uses OZ `StandardMerkleTree` with `sortLeaves: true`
+- Non-mock contracts should set `/// @custom:security-contact security@lombard.finance`)
