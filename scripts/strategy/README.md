@@ -32,7 +32,7 @@ The tree is bound to a specific chain and deployed validator address (via `domai
 | `--mode`         | yes                             | `build` or `proof`                          |
 | `--rules`        | one of `--rules` / `--contract` | Path to the ruleset file                    |
 | `--rule-name`    | proof mode only                 | Name of the rule to prove                   |
-| `--validate-pps` | optional                        | When present (any value), runs the PPS-completeness gate before building. Fails with exit code 1 if any active rule lacks the per-venue information vault-manager's `CalculatePPS` needs (wildcard `to` on a venue, unpinned `CcipBridge` chainSelector/recipient/token, unpinned `Morpho_blue` MarketParams). Mirrors vault-manager's `RULESET_KEEPER_VALIDATE` startup gate. |
+| `--validate-pps` | optional                        | When present (any value), runs the PPS-completeness gate before building. Fails with exit code 1 if any active rule lacks the per-venue information vault-manager's `CalculatePPS` needs (wildcard `to` on a venue, or `CcipBridge` / `Morpho_blue` fields without a **full-word** pin: `mask` must be `0xff…ff` and `expected` non-zero — partial masks do not count). Mirrors vault-manager's `RULESET_KEEPER_VALIDATE` startup gate. |
 
 ### Rule file format
 
@@ -55,7 +55,7 @@ old_rule:
   value: "0"
 ```
 
-Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `dataLength: 0` is a valid exact-length constraint and sets the flag. Optional **`selector`** pins `data[0:4]` and sets flag **`0x10`**. Write it as `name(types)` (`transfer(address,uint256)`), no `function` prefix, or hex `bytes4` (`0xa9059cbb`). Omit / `""` for wildcard; use literal **`0x00000000`** only when pinning an all-zero selector (distinct from wildcard in tooling). Constraint **`offset`** values are relative to **`data[4:]`** (ABI arguments).
+Flags are inferred from field presence: absent or empty string → wildcard (no flag); present and non-empty → exact match (flag set). `value` and `dataLength` must be decimal strings (e.g. `"0"`, `"68"`) — bare numbers are rejected. `dataLength: "0"` is a valid exact-length constraint and sets the flag. Optional **`selector`** pins `data[0:4]` and sets flag **`0x10`**. Write it as `name(types)` (`transfer(address,uint256)`), no `function` prefix, or hex `bytes4` (`0xa9059cbb`). Omit / `""` for wildcard; use literal **`0x00000000`** only when pinning an all-zero selector (distinct from wildcard in tooling). Constraint **`offset`** values are relative to **`data[4:]`** (ABI arguments). Duplicate object keys are rejected for both JSON and YAML.
 
 #### Optional metadata fields
 

@@ -157,11 +157,10 @@ This prevents multiple encodings for the same logical rule. The same rule MAY be
 
 Each constraint operates on one **32-byte word** read from **`data` starting at byte index `4 + offset`**, where `offset` is the constraint's `offset` field. Equivalently: constraints apply only to **ABI-encoded arguments** (`data[4..]`), not to the 4-byte function selector. The `data` parameter to `isAllowed` is still the **full** contract call data (selector + arguments).
 
-Let `base = 4 + offset`. Let `b` be the byte sequence of length `L = min(32, max(0, data.length - base))` consisting of `data[base .. base + L)` when `base < data.length`, else empty. The word `word` MUST be the `bytes32` formed by **left-aligning** those `L` bytes in big-endian word order (first byte of `b` is the most significant among the calldata-derived bytes) and **right-padding** with zero bytes to 32 bytes:
+Let `base = 4 + offset`. Implementations MUST require a **full** 32-byte window:
 
-- if `data.length <= base`, `word` is `bytes32(0)`
-- if `data.length >= base + 32`, `word` is exactly `data[base .. base + 32]` in that byte order as a `bytes32`
-- otherwise, `word` is those remaining bytes left-aligned in the 32-byte word, zeros in all less-significant byte positions
+- if `data.length < base + 32`, the constraint **fails** (the call does not match); missing bytes MUST NOT be treated as zeros at match time
+- if `data.length >= base + 32`, `word` is exactly `data[base .. base + 32]` as a `bytes32` (first byte of that slice is the most significant)
 
 Matching condition:
 
@@ -193,7 +192,7 @@ Constraint **`offset`** counts bytes **into `data[4:]`** only. Therefore, for st
 
 This formula applies to typical packed ABI heads; tuples, dynamic `bytes`/`string`, and nonstandard encodings MAY require different offsets. Integrators MUST compute offsets from the actual ABI encoding they intend to allow.
 
-Implementations and off-chain builders MUST align `mask` / `expected` with the same byte ordering as loading `data[4+offset ..]` into a left-aligned `bytes32` per the padding rules above.
+Implementations and off-chain builders MUST align `mask` / `expected` with the same byte ordering as loading `data[4+offset .. 4+offset+32)` into a `bytes32`.
 
 **Note:** Comparison to EVM `calldataload` is **informative only**: matching applies to the `data` bytes passed into `isAllowed`, not to the outer transaction calldata of the `isAllowed` invocation.
 
@@ -225,13 +224,13 @@ If flag `0x08` is set, actual `data.length` MUST equal `dataLength`.
 
 If flag `0x08` is not set, `dataLength` is ignored and MUST be zero in canonical encoding.
 
-A constraint at byte `offset` remains valid even when exact length is not enforced; reads beyond the end of `data` use the zero-padding rule in §5.
+Exact `dataLength` is independent of constraint window checks. When the length flag is unset, each constraint still requires `data.length >= 4 + offset + 32` (full-word availability per §5). Pinning `dataLength` (flag `0x08`) is still recommended when the allowed call has a fixed total size (§5.1).
 
 Example:
 
 - `data.length = 40` (4-byte selector + 36 bytes of arguments)
 - constraint at `offset = 32` (second argument word in arg space)
-- `base = 4 + 32 = 36`; the word consists of 4 bytes from `data[36..40]` **left-aligned** in the `bytes32`, with 28 zero bytes in the less-significant positions
+- `base = 4 + 32 = 36`; `base + 32 = 68 > 40`, so the constraint **fails** — only 4 argument bytes remain after `base`, which is less than a full word
 
 ---
 
@@ -348,7 +347,7 @@ import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
 // domainSeparator: bytes32 per §8 (bytes4 0x414c4c57, uint8(1), chainId, validatorAddress)
 // validatorAddress MUST equal deployed address(this); otherwise root and proofs will not verify
 const values = rules.map(ruleEncoded => [0, domainSeparator, ruleEncoded]);
-const tree = StandardMerkleTree.of(values, ['uint8', 'bytes32', 'bytes']);
+const tree = StandardMerkleTree.of(values, ['uint8', 'bytes32', 'bytes'], { sortLeaves: true });
 ```
 
 The `leaf` for a row MUST equal `keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))` in Solidity for that row's `ruleEncoded`. Proofs from `tree.getProof(i)` MUST verify with `MerkleProof.verifyCalldata` against `tree.root` and that `leaf`.
@@ -376,7 +375,9 @@ _hashPair(a, b) = keccak256(abi.encodePacked(min(a,b), max(a,b)))
 
 **Proof format:** `proof` is the list of sibling hashes from the leaf toward the root, in the order consumed by `MerkleProof.processProofCalldata` / `processProof`.
 
-The off-chain tree builder MUST use **`StandardMerkleTree`** from `@openzeppelin/merkle-tree` (or produce the **identical** root, leaves, and proofs): same tree construction as that library (including how leaf hashes are ordered into a complete binary tree), **sorted-pair** parent hashing (`_hashPair`), and **leaf** values exactly as in §8 (`keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))`). Other tools MAY be used only if they match those semantics byte-for-byte.
+**Canonical leaf ordering (normative):** before laying out the complete binary tree, leaf hashes MUST be sorted ascending by unsigned big-endian byte comparison. That is `@openzeppelin/merkle-tree` **`StandardMerkleTree`** with **`sortLeaves: true`** (library default). Builders MUST NOT disable leaf sorting. Rule input order MUST NOT change `tree.root` or proofs for the same leaf multiset.
+
+The off-chain tree builder MUST use **`StandardMerkleTree`** from `@openzeppelin/merkle-tree` (or produce the **identical** root, leaves, and proofs): same tree construction as that library (including **sorted leaf hashes** as above), **sorted-pair** parent hashing (`_hashPair`), and **leaf** values exactly as in §8 (`keccak256(bytes.concat(keccak256(abi.encode(uint8(0), domainSeparator, ruleEncoded))))`). Other tools MAY be used only if they match those semantics byte-for-byte.
 
 Verification MUST return `false` when the rebuilt root does not equal `allowlistRoot`.
 
@@ -454,7 +455,8 @@ Given parsed rule `r`:
 
 For each constraint `c`:
 
-- load `word` as the zero-padded 32-byte value from `data` at byte offset **`4 + c.offset`** per §5
+- if `data.length < 4 + c.offset + 32`, the rule does not match
+- load `word` as exactly `data[4 + c.offset .. 4 + c.offset + 32]` as a `bytes32` per §5
 - require `(word & c.mask) == c.expected`
 
 If all checks pass, the rule matches.
@@ -471,7 +473,7 @@ An off-chain builder MUST:
 - encode using the canonical binary layout
 - compute `domainSeparator` for the target `chainId` and the **deployed** validator `address` (§8); that address MUST be known before leaves/root/proofs are final (unless pre-known via CREATE2 or equivalent)
 - compute leaves exactly as §8 / `StandardMerkleTree` (`["uint8", "bytes32", "bytes"]` rows)
-- build the Merkle tree with `@openzeppelin/merkle-tree` **`StandardMerkleTree`** (§9)
+- build the Merkle tree with `@openzeppelin/merkle-tree` **`StandardMerkleTree`** with **`sortLeaves: true`** (§9); MUST NOT disable leaf sorting
 - for a candidate call, select a matching rule, encode **`ruleEncoded`**, build **`merkleProof`** for its leaf, and pass **`CallVerificationInput { ruleEncoded, merkleProof }`** with the call tuple for each `isAllowed` invocation (§10)
 
 Off-chain selection of which rule to use is out of scope for correctness, but in scope for performance.
@@ -567,8 +569,8 @@ MAX_CONSTRAINTS = 64
 
 ### Short calldata
 
-- matching uses the zero-padded word semantics in §5
-- constraints on absent bytes can still match only if expected masked bits are zero
+- if any constraint's window `[4 + offset, 4 + offset + 32)` is not fully present in `data`, matching fails (§5)
+- pinning `dataLength` (flag `0x08`) additionally rejects any length other than the encoded value
 
 ### Dynamic arguments without head constraints
 

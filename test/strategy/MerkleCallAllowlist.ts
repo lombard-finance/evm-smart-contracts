@@ -1,7 +1,7 @@
 import hardhat from 'hardhat';
 const { ethers } = hardhat;
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import * as path from 'path';
 import { expect } from 'chai';
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
@@ -12,6 +12,10 @@ import {
   packRuleSelector,
   packedSelectorToBytes4,
   buildTree,
+  encodeRule,
+  loadRulesFile,
+  parseRuleDataLength,
+  parseRuleValue,
   RulesFile,
   validateForPPS
 } from '../../scripts/strategy/merkleUtils';
@@ -426,31 +430,13 @@ describe('MerkleAllowlistValidator', function () {
   interface RuleJsonEntry {
     sender?: string;
     to?: string;
-    value?: string | number;
-    dataLength?: string | number;
+    value?: string;
+    dataLength?: string;
     selector?: string;
     constraints?: RuleConstraint[];
     disabled?: boolean;
     destinationType?: string;
     [key: string]: unknown;
-  }
-
-  function encodeJsonRule(rule: RuleJsonEntry): string {
-    const flags =
-      (rule.sender ? 0x01 : 0) |
-      (rule.to ? 0x02 : 0) |
-      (rule.value !== undefined && rule.value !== '' ? 0x04 : 0) |
-      (rule.dataLength !== undefined ? 0x08 : 0) |
-      (rule.selector !== undefined && rule.selector.trim() !== '' ? 0x10 : 0);
-    return encodeMerkleRule({
-      flags,
-      selector: rule.selector,
-      sender: rule.sender || ethers.ZeroAddress,
-      to: rule.to || ethers.ZeroAddress,
-      value: rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n,
-      dataLength: rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0,
-      constraints: rule.constraints ?? []
-    });
   }
 
   describe('ruleset: test.json', function () {
@@ -478,7 +464,7 @@ describe('MerkleAllowlistValidator', function () {
       encoded = {};
       for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
         if (rule.disabled === true) continue;
-        const ruleEncoded = encodeJsonRule(rule);
+        const ruleEncoded = encodeRule(rule);
         encoded[name] = ruleEncoded;
         rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
       }
@@ -618,7 +604,7 @@ describe('MerkleAllowlistValidator', function () {
       encoded = {};
       for (const [name, rule] of Object.entries(rulesJson as Record<string, RuleJsonEntry>)) {
         if (rule.disabled === true) continue;
-        const ruleEncoded = encodeJsonRule(rule);
+        const ruleEncoded = encodeRule(rule);
         encoded[name] = ruleEncoded;
         rows.push([0, ds, ethers.getBytes(ruleEncoded)]);
       }
@@ -1062,6 +1048,31 @@ describe('script consistency: merkleTreeBuilder vs findRule', function () {
     ).to.equal(true, 'findRule native transfer proof rejected');
   });
 
+  it('findRule rejects truncated calldata when a constraint window is incomplete', async function () {
+    this.timeout(60000);
+
+    const FULL_WORD_RULES = path.join(process.cwd(), 'test/strategy/fixtures/findrule-full-word.json');
+    const addr = await c.getAddress();
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const base = `--rules ${FULL_WORD_RULES} --chain-id ${chainId} --contract ${addr}`;
+
+    const full = ethers.solidityPacked(
+      ['bytes4', 'bytes32', 'uint256'],
+      [TRANSFER_SELECTOR, ethers.zeroPadValue(RECIPIENT, 32), 0n]
+    );
+    const ok = JSON.parse(
+      execSync(`npx ts-node scripts/strategy/findRule.ts ${base} --to ${TO} --calldata ${full}`).toString()
+    ) as { ruleName: string };
+    expect(ok.ruleName).to.equal('transfer_zero_amount');
+
+    const truncated = TRANSFER_SELECTOR;
+    expect(() =>
+      execSync(`npx ts-node scripts/strategy/findRule.ts ${base} --to ${TO} --calldata ${truncated}`, {
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+    ).to.throw();
+  });
+
   it('accepts proof built from hex selector-only rules', async function () {
     this.timeout(60000);
 
@@ -1189,6 +1200,18 @@ describe('buildTree: disabled rules and destinationType', function () {
     expect(skipped).to.deep.equal(['gone']);
   });
 
+  it('encoded map is null-prototype', function () {
+    const { encoded } = buildTree({ r: { to: ADDR_A } }, DS);
+    expect(Object.getPrototypeOf(encoded)).to.equal(null);
+    expect(Object.prototype.hasOwnProperty.call(encoded, 'r')).to.equal(true);
+  });
+
+  it('rejects reserved rule names', function () {
+    for (const name of ['__proto__', 'constructor', 'prototype']) {
+      expect(() => buildTree({ [name]: { to: ADDR_A } }, DS)).to.throw(/reserved/i);
+    }
+  });
+
   it('disabled: false leaves the rule active', function () {
     const rules: RulesFile = {
       present: { to: ADDR_A, value: '0', disabled: false }
@@ -1281,6 +1304,113 @@ describe('buildTree: disabled rules and destinationType', function () {
   });
 });
 
+// ─── Canonical value / dataLength encoding ────────────────────────────────────
+
+describe('canonical rule numerics', function () {
+  const DS = '0x' + '11'.repeat(32);
+  const fixturesDir = path.join(__dirname, 'fixtures');
+
+  it('parseRuleValue accepts decimal strings and rejects numbers', function () {
+    expect(parseRuleValue('0')).to.equal(0n);
+    expect(parseRuleValue('9007199254740993')).to.equal(9007199254740993n);
+    expect(() => parseRuleValue(9007199254740993 as unknown as string)).to.throw(/decimal string/i);
+    expect(() => parseRuleValue('01')).to.throw(/leading zeros/i);
+    expect(() => parseRuleValue('-1')).to.throw(/unsigned decimal/i);
+    expect(() => parseRuleValue('0x10')).to.throw(/unsigned decimal/i);
+  });
+
+  it('parseRuleDataLength rejects negatives and out-of-range (no >>> 0 wrap)', function () {
+    expect(parseRuleDataLength('0')).to.equal(0);
+    expect(parseRuleDataLength('68')).to.equal(68);
+    expect(parseRuleDataLength('4294967295')).to.equal(4294967295);
+    expect(() => parseRuleDataLength(-1 as unknown as string)).to.throw(/decimal string/i);
+    expect(() => parseRuleDataLength('-1')).to.throw(/unsigned decimal/i);
+    expect(() => parseRuleDataLength('4294967296')).to.throw(/exceeds max/i);
+  });
+
+  it('encodeRule pins exact value beyond MAX_SAFE_INTEGER when given a string', function () {
+    const encoded = encodeRule({ value: '9007199254740993' });
+    expect(BigInt(ethers.dataSlice(encoded, 46, 78))).to.equal(9007199254740993n);
+  });
+
+  it('encodeRule / buildTree reject numeric value', function () {
+    const bad = { r: { value: 9007199254740993 as unknown as string } };
+    expect(() => encodeRule(bad.r)).to.throw(/decimal string/i);
+    expect(() => buildTree(bad as RulesFile, DS)).to.throw(/decimal string/i);
+  });
+
+  it('encodeRule / buildTree reject numeric dataLength', function () {
+    const bad = { r: { dataLength: -1 as unknown as string } };
+    expect(() => encodeRule(bad.r)).to.throw(/decimal string/i);
+    expect(() => buildTree(bad as RulesFile, DS)).to.throw(/decimal string/i);
+  });
+
+  it('loadRulesFile rejects unquoted YAML numbers for value/dataLength', function () {
+    const tmp = path.join(fixturesDir, 'tmp-noncanonical-numbers.yaml');
+    writeFileSync(tmp, ['bad:', '  value: 9007199254740993', '  dataLength: -1', ''].join('\n'));
+    try {
+      expect(() => loadRulesFile(tmp)).to.throw(/decimal string/i);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+
+  it('loadRulesFile accepts quoted decimal strings in YAML', function () {
+    const tmp = path.join(fixturesDir, 'tmp-canonical-numbers.yaml');
+    writeFileSync(tmp, ['ok:', '  value: "9007199254740993"', '  dataLength: "68"', ''].join('\n'));
+    try {
+      const rules = loadRulesFile(tmp);
+      expect(rules.ok.value).to.equal('9007199254740993');
+      expect(rules.ok.dataLength).to.equal('68');
+      const { encoded } = buildTree(rules, DS);
+      expect(BigInt(ethers.dataSlice(encoded.ok, 46, 78))).to.equal(9007199254740993n);
+      expect(Number(ethers.dataSlice(encoded.ok, 78, 82))).to.equal(68);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+
+  it('loadRulesFile rejects duplicate keys in JSON', function () {
+    const tmp = path.join(fixturesDir, 'tmp-dup-keys.json');
+    writeFileSync(tmp, '{"a":{"value":"1"},"a":{"value":"2"}}');
+    try {
+      expect(() => loadRulesFile(tmp)).to.throw(/duplicate/i);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+
+  it('loadRulesFile rejects reserved rule names', function () {
+    const tmp = path.join(fixturesDir, 'tmp-reserved-name.json');
+    writeFileSync(tmp, '{"__proto__":{"value":"0"}}');
+    try {
+      expect(() => loadRulesFile(tmp)).to.throw(/reserved/i);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+
+  it('loadRulesFile rejects duplicate nested keys in JSON', function () {
+    const tmp = path.join(fixturesDir, 'tmp-dup-nested.json');
+    writeFileSync(tmp, '{"r":{"value":"1","value":"2"}}');
+    try {
+      expect(() => loadRulesFile(tmp)).to.throw(/duplicate/i);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+
+  it('loadRulesFile rejects duplicate keys in YAML', function () {
+    const tmp = path.join(fixturesDir, 'tmp-dup-keys.yaml');
+    writeFileSync(tmp, ['a:', '  value: "1"', 'a:', '  value: "2"', ''].join('\n'));
+    try {
+      expect(() => loadRulesFile(tmp)).to.throw(/unique/i);
+    } finally {
+      unlinkSync(tmp);
+    }
+  });
+});
+
 // ─── validateForPPS ───────────────────────────────────────────────────────────
 
 describe('validateForPPS', function () {
@@ -1289,7 +1419,7 @@ describe('validateForPPS', function () {
   const NONZERO = '0x' + '00'.repeat(31) + '01';
   const ZERO = '0x' + '00'.repeat(32);
 
-  // Constraint with a non-zero expected value at the given offset — counts as a pin.
+  // Constraint with a full-word mask and non-zero expected — counts as a PPS pin.
   function pin(offset: number): RuleConstraint {
     return { offset, mask: FULL_MASK, expected: NONZERO };
   }
@@ -1413,6 +1543,49 @@ describe('validateForPPS', function () {
     expect(issues[0]).to.include('chainSelector');
   });
 
+  it('CcipBridge: 1-bit mask with non-zero expected does not count as a pin', function () {
+    const weakMask = '0x' + '00'.repeat(31) + '01';
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [{ offset: 0, mask: weakMask, expected: weakMask }, pin(352), pin(256)]
+      }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('chainSelector');
+  });
+
+  it('CcipBridge: address-only mask (lower 20 bytes) does not count as a pin', function () {
+    const addressMask = '0x' + '00'.repeat(12) + 'ff'.repeat(20);
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [pin(0), { offset: 352, mask: addressMask, expected: NONZERO }, pin(256)]
+      }
+    };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('token');
+  });
+
+  it('CcipBridge: uppercase full-word mask still counts as a pin', function () {
+    const rules: RulesFile = {
+      r: {
+        destinationType: 'CcipBridge',
+        to: TO,
+        constraints: [
+          { offset: 0, mask: FULL_MASK.toUpperCase().replace(/^0X/, '0x'), expected: NONZERO },
+          pin(352),
+          pin(256)
+        ]
+      }
+    };
+    expect(validateForPPS(rules)).to.be.empty;
+  });
+
   it('CcipBridge: reports all missing fields in a single issue entry', function () {
     const rules: RulesFile = {
       r: { destinationType: 'CcipBridge', to: TO, constraints: [] }
@@ -1466,6 +1639,17 @@ describe('validateForPPS', function () {
     const issues = validateForPPS(rules);
     expect(issues).to.have.length(1);
     expect(issues[0]).to.include('oracle');
+  });
+
+  it('Morpho_blue: partial mask with non-zero expected does not count as a pin', function () {
+    const weakMask = '0x' + '00'.repeat(31) + '01';
+    const weakPins = morphoBluePins();
+    weakPins[0] = { offset: 0, mask: weakMask, expected: weakMask }; // loanToken weakly masked
+    const rules: RulesFile = { r: { destinationType: 'Morpho_blue', to: TO, constraints: weakPins } };
+    const issues = validateForPPS(rules);
+    expect(issues).to.have.length(1);
+    expect(issues[0]).to.include('loanToken');
+    expect(issues[0]).not.to.include('collateralToken');
   });
 
   // ── multiple rules / mixed issues ────────────────────────────────────────────

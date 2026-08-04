@@ -1,0 +1,13 @@
+{
+  "transfer_zero_amount": {
+    "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
+    "selector": "transfer(address,uint256)",
+    "constraints": [
+      {
+        "offset": 32,
+        "mask": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "expected": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ]
+  }
+}

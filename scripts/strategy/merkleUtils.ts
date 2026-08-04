@@ -16,8 +16,10 @@ export interface RuleConstraint {
 export interface RuleJson {
   sender?: string;
   to?: string;
-  value?: string | number;
-  dataLength?: string | number;
+  /** Exact `msg.value` (wei) as an unsigned decimal string; omit or `""` for wildcard. */
+  value?: string;
+  /** Exact calldata byte length as an unsigned decimal string in `[0, 2^32−1]`; omit for wildcard. */
+  dataLength?: string;
   /**
    * When set, pins `data[0:4]` and sets `FLAG_SELECTOR` (0x10).
    * Use `name(types)` (e.g. `transfer(address,uint256)`); optional spaces around commas are stripped.
@@ -44,13 +46,100 @@ export type RulesFile = Record<string, RuleJson>;
 
 export type TreeRow = [number, string, Uint8Array];
 
+const RESERVED_RULE_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+
+// ─── Canonical numeric fields ─────────────────────────────────────────────────
+
+/** `0` or digits with no leading zeros. */
+const DECIMAL_UINT_RE = /^(0|[1-9]\d*)$/;
+const UINT256_MAX = (1n << 256n) - 1n;
+const UINT32_MAX = 0xffffffff;
+
+function assertSafeRuleNames(rules: RulesFile): void {
+  for (const name of Object.keys(rules)) {
+    if (RESERVED_RULE_NAMES.has(name)) {
+      throw new Error(`Rule name "${name}" is reserved; rename the rule.`);
+    }
+  }
+}
+
+function fieldLabel(ruleName: string | undefined, field: string): string {
+  return ruleName !== undefined ? `Rule "${ruleName}": ${field}` : field;
+}
+
+function parseDecimalUint(raw: unknown, field: string, max: bigint, ruleName?: string): bigint {
+  const label = fieldLabel(ruleName, field);
+  if (typeof raw !== 'string') {
+    throw new Error(`${label} must be a decimal string (got ${typeof raw})`);
+  }
+  if (!DECIMAL_UINT_RE.test(raw)) {
+    throw new Error(
+      `${label} must be an unsigned decimal integer string with no leading zeros (got ${JSON.stringify(raw)})`
+    );
+  }
+  const n = BigInt(raw);
+  if (n > max) {
+    throw new Error(`${label} exceeds max ${max.toString()} (${raw})`);
+  }
+  return n;
+}
+
+/** Parse `value` as uint256 decimal string. */
+export function parseRuleValue(raw: unknown, ruleName?: string): bigint {
+  return parseDecimalUint(raw, 'value', UINT256_MAX, ruleName);
+}
+
+/** Parse `dataLength` as uint32 decimal string (no wrap). */
+export function parseRuleDataLength(raw: unknown, ruleName?: string): number {
+  return Number(parseDecimalUint(raw, 'dataLength', BigInt(UINT32_MAX), ruleName));
+}
+
+function assertCanonicalRuleNumerics(rules: RulesFile): void {
+  for (const [name, rule] of Object.entries(rules)) {
+    if (rule == null || typeof rule !== 'object' || Array.isArray(rule)) {
+      throw new Error(`Rule "${name}": expected a rule object.`);
+    }
+    if (rule.value !== undefined && rule.value !== '') {
+      parseRuleValue(rule.value, name);
+    }
+    if (rule.dataLength !== undefined) {
+      parseRuleDataLength(rule.dataLength, name);
+    }
+  }
+}
+
+function assertRulesFileShape(parsed: unknown): asserts parsed is RulesFile {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Ruleset must be a top-level object mapping rule names to rule definitions.');
+  }
+}
+
+/** JSON.parse (strict JSON) + yaml.parse (reject duplicate keys). */
+function parseJsonRejectDuplicateKeys(content: string): unknown {
+  const parsed = JSON.parse(content) as unknown;
+  try {
+    yaml.parse(content);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unique/i.test(msg)) {
+      throw new Error(`Ruleset JSON has duplicate keys: ${msg}`);
+    }
+    throw err;
+  }
+  return parsed;
+}
+
 // ─── File loading ─────────────────────────────────────────────────────────────
 
 export function loadRulesFile(filePath: string): RulesFile {
   const content = fs.readFileSync(filePath, 'utf8');
   const ext = path.extname(filePath).toLowerCase();
-  if (ext === '.yaml' || ext === '.yml') return yaml.parse(content) as RulesFile;
-  return JSON.parse(content) as RulesFile;
+  const parsed: unknown =
+    ext === '.yaml' || ext === '.yml' ? yaml.parse(content) : parseJsonRejectDuplicateKeys(content);
+  assertRulesFileShape(parsed);
+  assertSafeRuleNames(parsed);
+  assertCanonicalRuleNumerics(parsed);
+  return parsed;
 }
 
 // ─── Encoding ─────────────────────────────────────────────────────────────────
@@ -95,13 +184,13 @@ export function inferFlags(rule: RuleJson): number {
   );
 }
 
-export function encodeRule(rule: RuleJson): string {
+export function encodeRule(rule: RuleJson, ruleName?: string): string {
   const flags = inferFlags(rule);
   const selectorHex = packedSelectorToBytes4(packRuleSelector(rule.selector));
   const sender = rule.sender || ethers.ZeroAddress;
   const to = rule.to || ethers.ZeroAddress;
-  const value = rule.value !== undefined && rule.value !== '' ? BigInt(rule.value) : 0n;
-  const dataLength = rule.dataLength !== undefined ? Number(rule.dataLength) >>> 0 : 0;
+  const value = rule.value !== undefined && rule.value !== '' ? parseRuleValue(rule.value, ruleName) : 0n;
+  const dataLength = rule.dataLength !== undefined ? parseRuleDataLength(rule.dataLength, ruleName) : 0;
   const constraints = rule.constraints ?? [];
 
   const types: string[] = ['uint8', 'uint8', 'bytes4', 'address', 'address', 'uint256', 'uint32', 'uint16'];
@@ -138,7 +227,9 @@ export function buildTree(
   rules: RulesFile,
   domainSeparator: string
 ): { tree: StandardMerkleTree<TreeRow>; encoded: Record<string, string>; skipped: string[] } {
-  const encoded: Record<string, string> = {};
+  assertSafeRuleNames(rules);
+  assertCanonicalRuleNumerics(rules);
+  const encoded: Record<string, string> = Object.create(null);
   const rows: TreeRow[] = [];
   const skipped: string[] = [];
   for (const [name, rule] of Object.entries(rules)) {
@@ -152,12 +243,12 @@ export function buildTree(
       skipped.push(name);
       continue;
     }
-    const ruleEncoded = encodeRule(rule);
+    const ruleEncoded = encodeRule(rule, name);
     encoded[name] = ruleEncoded;
     rows.push([0, domainSeparator, ethers.getBytes(ruleEncoded)]);
   }
   if (rows.length === 0) throw new Error('Rules file is empty — cannot build a Merkle tree with no leaves.');
-  return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes']), encoded, skipped };
+  return { tree: StandardMerkleTree.of(rows, ['uint8', 'bytes32', 'bytes'], { sortLeaves: true }), encoded, skipped };
 }
 
 // ─── PPS-completeness validation (optional) ───────────────────────────────────
@@ -176,8 +267,8 @@ const PPS_VENUE_DESTINATION_TYPES = new Set<string>(['AAVE_v3', 'AAVE_v4', 'Morp
  * Offsets are relative to `data[4:]` (after the function selector) and match
  * the canonical layout documented in `pkg/ruleset/ccip_bridge.go`. The full
  * 32-byte word at each offset is parsed by the off-chain extractor — for PPS
- * completeness it's enough that a non-zero pin exists at each required
- * offset (chainSelector, token, AND one of the two recipient slots).
+ * completeness each required offset needs a full-word pin (chainSelector,
+ * token, AND one of the two recipient slots).
  */
 const CCIP_OFFSET_CHAIN_SELECTOR = 0;
 const CCIP_OFFSET_EVM_RECIPIENT = 256;
@@ -198,12 +289,19 @@ const MORPHO_BLUE_OFFSET_ORACLE = 64;
 const MORPHO_BLUE_OFFSET_IRM = 96;
 const MORPHO_BLUE_OFFSET_LLTV = 128;
 
-/** A constraint counts as a pin when its `expected` has at least one non-zero nibble. */
-function hasNonzeroPin(constraints: RuleConstraint[] | undefined, offset: number): boolean {
+const PPS_FULL_WORD_MASK = ('0x' + 'ff'.repeat(32)).toLowerCase();
+
+function normalizeBytes32Hex(hex: string): string {
+  const h = hex.trim().toLowerCase();
+  return h.startsWith('0x') ? h : '0x' + h;
+}
+
+/** Full-word `mask` (`0xff…ff`) and non-zero `expected`. */
+function hasFullWordPin(constraints: RuleConstraint[] | undefined, offset: number): boolean {
   if (!constraints) return false;
   for (const c of constraints) {
     if (c.offset !== offset) continue;
-    return /[1-9a-fA-F]/.test(c.expected);
+    return normalizeBytes32Hex(c.mask) === PPS_FULL_WORD_MASK && /[1-9a-fA-F]/.test(c.expected);
   }
   return false;
 }
@@ -217,10 +315,13 @@ function hasNonzeroPin(constraints: RuleConstraint[] | undefined, offset: number
  * Per-venue requirements (mirror `ruleset.ValidateForPPS` in vault-manager):
  *   - `AAVE_v3` / `AAVE_v4` / `Morpho` / `Morpho_blue` / `CcipBridge`:
  *     non-wildcard `to`.
- *   - `CcipBridge`: pinned chainSelector (offset 0), token (offset 352),
- *     and recipient (EVM offset 256 OR SVM offset 580).
- *   - `Morpho_blue`: pinned MarketParams — loanToken, collateralToken,
- *     oracle, irm, lltv at offsets 0 / 32 / 64 / 96 / 128.
+ *   - `CcipBridge`: full-word pinned chainSelector (offset 0), token
+ *     (offset 352), and recipient (EVM offset 256 OR SVM offset 580).
+ *   - `Morpho_blue`: full-word pinned MarketParams — loanToken,
+ *     collateralToken, oracle, irm, lltv at offsets 0 / 32 / 64 / 96 / 128.
+ *
+ * A "full-word pin" means `mask == 0xff…ff` and non-zero `expected`. Partial
+ * masks are rejected even when `expected` is non-zero.
  *
  * Disabled rules are intentionally excluded (they don't contribute to PPS).
  * Rules with no `destinationType` or a non-venue type (e.g. `ERC20`) are
@@ -239,10 +340,10 @@ export function validateForPPS(rules: RulesFile): string[] {
 
     if (dt === 'CcipBridge') {
       const missing: string[] = [];
-      if (!hasNonzeroPin(rule.constraints, CCIP_OFFSET_CHAIN_SELECTOR)) missing.push('chainSelector');
-      if (!hasNonzeroPin(rule.constraints, CCIP_OFFSET_TOKEN)) missing.push('token');
-      const evmRecv = hasNonzeroPin(rule.constraints, CCIP_OFFSET_EVM_RECIPIENT);
-      const svmRecv = hasNonzeroPin(rule.constraints, CCIP_OFFSET_SVM_RECIPIENT);
+      if (!hasFullWordPin(rule.constraints, CCIP_OFFSET_CHAIN_SELECTOR)) missing.push('chainSelector');
+      if (!hasFullWordPin(rule.constraints, CCIP_OFFSET_TOKEN)) missing.push('token');
+      const evmRecv = hasFullWordPin(rule.constraints, CCIP_OFFSET_EVM_RECIPIENT);
+      const svmRecv = hasFullWordPin(rule.constraints, CCIP_OFFSET_SVM_RECIPIENT);
       if (!evmRecv && !svmRecv) {
         missing.push(`recipient (EVM offset ${CCIP_OFFSET_EVM_RECIPIENT} or SVM offset ${CCIP_OFFSET_SVM_RECIPIENT})`);
       }
@@ -253,11 +354,11 @@ export function validateForPPS(rules: RulesFile): string[] {
 
     if (dt === 'Morpho_blue') {
       const missing: string[] = [];
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_LOAN_TOKEN)) missing.push('loanToken');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_COLLATERAL_TOKEN)) missing.push('collateralToken');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_ORACLE)) missing.push('oracle');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_IRM)) missing.push('irm');
-      if (!hasNonzeroPin(rule.constraints, MORPHO_BLUE_OFFSET_LLTV)) missing.push('lltv');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_LOAN_TOKEN)) missing.push('loanToken');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_COLLATERAL_TOKEN)) missing.push('collateralToken');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_ORACLE)) missing.push('oracle');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_IRM)) missing.push('irm');
+      if (!hasFullWordPin(rule.constraints, MORPHO_BLUE_OFFSET_LLTV)) missing.push('lltv');
       if (missing.length > 0) {
         issues.push(`rule "${name}" (Morpho_blue): unpinned MarketParams field(s): ${missing.join(', ')}`);
       }

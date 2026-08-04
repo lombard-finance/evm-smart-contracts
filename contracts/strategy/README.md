@@ -236,7 +236,7 @@ If a bit is **clear**, that field is **wildcard** and the canonical encoding **m
 
 ### Merkle leaf (for builders)
 
-Leaves must match **OpenZeppelin `StandardMerkleTree`** with row types `['uint8', 'bytes32', 'bytes']` and values:
+Leaves must match **OpenZeppelin `StandardMerkleTree`** with row types `['uint8', 'bytes32', 'bytes']`, **`sortLeaves: true`**, and values:
 
 `[uint8(0), domainSeparator, ruleEncoded]`
 
@@ -349,7 +349,7 @@ const ruleC = encodeMerkleRule({
 
 #### Building the tree and calling `isAllowed`
 
-Use `@openzeppelin/merkle-tree`'s `StandardMerkleTree.of` with type `['uint8', 'bytes32', 'bytes']` and rows `[0, domainSeparator, ethers.getBytes(ruleEncoded)]`. As **owner**, set the contract root to `tree.root` via `setAllowlistRoot`, then obtain `proof` with `tree.getProof(...)` for that row. See `test/strategy/MerkleCallAllowlist.ts` for a full flow.
+Use `@openzeppelin/merkle-tree`'s `StandardMerkleTree.of` with type `['uint8', 'bytes32', 'bytes']`, `{ sortLeaves: true }`, and rows `[0, domainSeparator, ethers.getBytes(ruleEncoded)]`. As **owner**, set the contract root to `tree.root` via `setAllowlistRoot`, then obtain `proof` with `tree.getProof(...)` for that row. See `test/strategy/MerkleCallAllowlist.ts` for a full flow.
 
 ---
 

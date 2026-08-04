@@ -2,7 +2,7 @@
   "transfer_any_sender": {
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "selector": "0xa9059cbb",
     "constraints": [
       {
@@ -20,7 +20,7 @@
   "transfer_any_contract": {
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "selector": "0xa9059cbb",
     "constraints": [
       {
@@ -40,7 +40,7 @@
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "1000000000000000000",
     "selector": "0xa9059cbb",
-    "dataLength": 68,
+    "dataLength": "68",
     "constraints": [
       {
         "offset": 0,
@@ -58,12 +58,12 @@
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "1000000000000000000",
-    "dataLength": 0
+    "dataLength": "0"
   },
   "transfer_native_any_value": {
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
-    "dataLength": 0
+    "dataLength": "0"
   },
 
   "any_calldata": {
@@ -82,7 +82,7 @@
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "constraints": [
       {
         "offset": 0,
@@ -100,7 +100,7 @@
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "constraints": [
       {
         "offset": 0,
@@ -130,7 +130,7 @@
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "constraints": [
       {
         "offset": 0,
@@ -143,7 +143,7 @@
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "constraints": [
       {
         "offset": 0,
@@ -157,7 +157,7 @@
     "sender": "0x251a604E8E8f6906d60f8dedC5aAeb8CD38F4892",
     "to": "0xB0F70C0bD6FD87dbEb7C10dC692a2a6106817072",
     "value": "0",
-    "dataLength": 68,
+    "dataLength": "68",
     "constraints": [
       {
         "offset": 0,
