@@ -103,6 +103,7 @@ This is **intentional**. Dilution fees transfer economics via new shares; they a
 - `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics, snapshotting after material fee mints and mid-epoch fulfills when surplus / netting bias matters.
 - Prefer a short gap between `fulfillRedeemRequests` and the next inclusive `postPricePerShare` when deposit is open.
 - Batch `harvestPerformanceFee` until `performanceFee().previewShares > 0` — dust harvests still raise HWM with zero mint (accepted; see [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Performance fee).
+- Deposit / redeem-request hooks that accrue a floored-zero management fee still advance `lastFeeHarvestAt` (accepted sub-share time discard; see [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Management fee).
 - Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
 
 ```text

@@ -6,7 +6,7 @@
 
 ## Goal
 
-1. **Shard** — Move any ERC-20 via **`pullFromStrategy`** / **`pushToStrategy`**, callable only by accounts holding **`STRATEGY_TOKEN_LIQUIDITY_ROLE`**. Pipe bypasses the validator. One strategy share token, many shard instances (**`IStrategy.requestFunding`** is the strategy-side hook).
+1. **Shard** — Move any ERC-20 via **`pullFromStrategy`** / **`pushToStrategy`**, callable only by accounts holding **`SHARD_TRANSFER_ROLE`**. Pipe bypasses the validator. One strategy share token, many shard instances (**`IStrategy.requestFunding`** is the strategy-side hook).
 2. **RemoteShard** — No §B pipe; **governed** external interaction via **`exec`** + validator; custody of other assets; one §B shard MAY map to many RemoteShard deployments.
 3. **Shared** — OpenZeppelin **one beacon per implementation** (**Shard** vs **RemoteShard**); exactly **one** validator contract per deployed instance, implementing **one** protocol-wide validator interface (**§A.2**); **Shard** / **RemoteShard** logic stays independent of Merkle vs other concrete validators behind that interface.
 
@@ -24,7 +24,7 @@ Deployments MUST use OpenZeppelin **`BeaconProxy`** and **`UpgradeableBeacon`**.
 
 **Initializer (minimum)** — Each proxy's **`initializer`** MUST wire at least:
 
-- **`Shard`**: immutable **`IStrategy strategy`**; **`IShardExecValidator validator`** implementing the agreed validator interface (**§A.2**); **`AccessControl`** admin (e.g. **`DEFAULT_ADMIN_ROLE`**); **`STRATEGY_TOKEN_LIQUIDITY_ROLE`** holder; optionally **`PRIVILEGED_EXECUTOR_ROLE`** per deployment docs.
+- **`Shard`**: immutable **`IStrategy strategy`**; **`IShardExecValidator validator`** implementing the agreed validator interface (**§A.2**); **`AccessControl`** admin (e.g. **`DEFAULT_ADMIN_ROLE`**); **`SHARD_TRANSFER_ROLE`** holder; optionally **`PRIVILEGED_EXECUTOR_ROLE`** per deployment docs.
 - **`RemoteShard`**: **`IShardExecValidator validator`**; **`defaultAdmin`** (and same optional role pattern as above). No **`strategy`** reference for the pipe.
 
 Replacing **`validator`** after init is supported via **`setValidator(IShardExecValidator)`** (see **§A.2**); it MUST be access-controlled (**`DEFAULT_ADMIN_ROLE`**).
@@ -126,16 +126,16 @@ Shard MUST hold an **immutable** **`IStrategy`**-typed reference to the strategy
 
 **Funding pipe:**
 
-- **`pullFromStrategy(IERC20 token, uint256 amount)`** — Calls **`strategy.requestFunding(token, amount)`**, triggering the strategy to transfer `amount` of `token` to this shard. Requires **`STRATEGY_TOKEN_LIQUIDITY_ROLE`**.
-- **`pushToStrategy(IERC20 token, uint256 amount)`** — **`token.safeTransfer(address(strategy), amount)`** (plain ERC-20 transfer of `token` to the strategy address). Requires **`STRATEGY_TOKEN_LIQUIDITY_ROLE`**. Accepts any ERC-20, not only `strategy.asset()`.
+- **`pullFromStrategy(IERC20 token, uint256 amount)`** — Calls **`strategy.requestFunding(token, amount)`**, triggering the strategy to transfer `amount` of `token` to this shard. Requires **`SHARD_TRANSFER_ROLE`**.
+- **`pushToStrategy(IERC20 token, uint256 amount)`** — **`token.safeTransfer(address(strategy), amount)`** (plain ERC-20 transfer of `token` to the strategy address). Requires **`SHARD_TRANSFER_ROLE`**. Accepts any ERC-20, not only `strategy.asset()`.
 - Both emit **`PulledFromStrategy`** / **`PushedToStrategy`** events.
 - Both MUST **`revert`** without role.
 - Neither MUST go through the validator.
 
-**RBAC** — **`AccessControlUpgradeable`**. Only **`DEFAULT_ADMIN_ROLE`** may **`grantRole`** / **`revokeRole`**. At deploy, assign **`DEFAULT_ADMIN_ROLE`** to protocol-controlled governance (e.g. multisig, timelock). **`STRATEGY_TOKEN_LIQUIDITY_ROLE`** MUST NOT gate **`exec`** unless the deployment explicitly documents that reuse.
+**RBAC** — **`AccessControlUpgradeable`**. Only **`DEFAULT_ADMIN_ROLE`** may **`grantRole`** / **`revokeRole`**. At deploy, assign **`DEFAULT_ADMIN_ROLE`** to protocol-controlled governance (e.g. multisig, timelock). **`SHARD_TRANSFER_ROLE`** MUST NOT gate **`exec`** unless the deployment explicitly documents that reuse.
 
 ```solidity
-bytes32 public constant STRATEGY_TOKEN_LIQUIDITY_ROLE = keccak256("STRATEGY_TOKEN_LIQUIDITY_ROLE");
+bytes32 public constant SHARD_TRANSFER_ROLE = keccak256("SHARD_TRANSFER_ROLE");
 bytes32 public constant PRIVILEGED_EXECUTOR_ROLE   = keccak256("PRIVILEGED_EXECUTOR_ROLE");
 ```
 

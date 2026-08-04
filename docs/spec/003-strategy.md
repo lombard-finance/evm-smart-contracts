@@ -122,6 +122,8 @@ shares = totalSupply * num / (den - num)   // floor
 - **`setManagementFeeTreasury(address treasury)`** — Recipient for management-fee share mints; must not be zero. Requires `MANAGER_ROLE`. Emits `ManagementFeeTreasurySet`.
 - **`managementFee()`** → `(feeBps, lastHarvestAt, managementFeeTreasury)`.
 
+**Accepted tradeoff — sub-share management-fee time discard:** `_accrueManagementFee` assigns `lastFeeHarvestAt = block.timestamp` before the `shares == 0` early-return. Short intervals that floor fee shares to 0 still reset the accrual clock, so frequent deposit / redeem-request hooks discard sub-share elapsed. Holder-favorable (less dilution); treasury under-collects vs a single accrual over the same wall-clock gap. The 1-share quantum is `≈ den / (totalSupply × bps)` seconds (`den = 10_000 × 365 days`); large TVL / higher bps shrinks it below typical block time.
+
 ### Performance fee
 
 HWM-based fee: triggers when `pricePerShare` exceeds the stored high-water mark. Computed on the gain above HWM:
@@ -331,6 +333,7 @@ Each successful update MUST emit **`PricePerShareUpdated(uint256 pricePerShare, 
 - **InsufficientNav vs split Floor/Ceil (accepted):** numerator compare differs by dust; near-equality may hit `Strategy_ZeroPricePerShare` instead. See **Exchange rate** § fused plain mul.
 - **OR pause gate (accepted):** deposit-only pause blocks PPS posts while redeem can stay open at stale PPS. See **Exchange rate** § Accepted tradeoff — OR pause gate.
 - **Dust HWM free-roll (accepted):** `harvestPerformanceFee` raises HWM even when fee shares floor to 0; repeated dust harvests forfeit that interval’s performance fee (holder-favorable). See **Performance fee** § Accepted tradeoff.
+- **Sub-share management-fee time discard (accepted):** zero-share accruals still advance `lastFeeHarvestAt`, discarding sub-share elapsed under high-frequency deposit/redeem-request hooks (holder-favorable). See **Management fee** § Accepted tradeoff.
 - **Explicit non-goals (unless added later):** bridge vendor / message format; shard `exec` / Merkle allowlist (**001**) beyond **002**; async deposits; `IRedemptionPolicy`; any ERC-4626 standard `deposit(assets, receiver)` / `withdraw` / `redeem` entrypoints; `requestDeposit`; `cancelRedeemRequest`; `claimableRedeemRequest`; on-chain gross-flow (per-leg) PPS reconciliation.
 
 ---
