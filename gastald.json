@@ -46,14 +46,14 @@
       "ChainlinkConverter_StakedLBTC": "0xf09F6637d83000cb24fA0f9531ACaA352704AF87"
     },
     "implementations": {
-      "MAWARS-0.0.1": "0xE9c5666154Ba65160b160fb83Dac56Ea6a2df72f",
+      "MAWARS-0.1.0": "0x6bA6323E85eF4BDAfF7FFE1B574AedfEb9e81d42",
       "Shard": "0x2086d6E17980F17f2b504A2C725C9D451A777A7f"
     },
     "strategies": [
       {
         "symbol": "BTCoc",
         "address": "0x22bB7F9FBa8Ca935E3d94732aFbF3bD38B3C2980",
-        "implementation": "MAWARS-0.0.1",
+        "implementation": "MAWARS-0.1.0",
         "shards": {
           "btcoc-main": {
             "network": "sepolia",

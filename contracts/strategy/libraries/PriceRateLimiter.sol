@@ -97,6 +97,7 @@ library PriceRateLimiter {
     }
 
     /// @dev Applies elapsed-time refill to a memory bucket; noop when `block.timestamp <= b.lastRefill`.
+    ///      Advances `lastRefill` to `ts` even when `(elapsed * refillRate) >> 32 == 0`.
     ///      Used by `_checkpoint` and by `pricePerShareRateLimiterState` (via `using` on storage bucket).
     function _refill(Bucket memory b) internal view returns (Bucket memory) {
         uint48 ts = uint48(block.timestamp);

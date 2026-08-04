@@ -38,10 +38,11 @@ On deposit, the gross `depositAsset` amount is pulled in first; then `depositFee
 uint256 requestId = strategy.requestRedeem(shares, owner);
 
 // caller needs PAY_REDEMPTIONS_ROLE; reverts if any id is still in its creation block
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.fulfillRedeemRequests([requestId1, requestId2]);
 ```
 
-Each `requestRedeem` accrues the management fee, prices `netShares` into `assets` via the posted rate (`_convertToAssets`, rounded down), and records a `RedeemRequest { pendingShares, pendingAssets, owner, requestBlock }`. It reverts `AsyncRedemption_FeeSharesGreaterThanShares` if the fee would consume the whole request and `AsyncRedemption_ZeroAssets` if the net redemption prices to zero assets. `fulfillRedeemRequests` reverts `AsyncRedemption_NothingToFulfill` for an unknown/already-paid id and `AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`. Read-only helpers: `redeemFee()`, `pendingRedeemRequest(requestId)`, `pendingAssetsOf(owner)`, and `totalPending()` → `(totalPendingShares, totalPendingAssets)`.
+Each `requestRedeem` accrues the management fee, prices `netShares` into `assets` via the posted rate (`_convertToAssets`, rounded down), and records a `RedeemRequest { pendingShares, pendingAssets, owner, requestBlock }` (`pendingAssets` is the request-time ceiling). It reverts `AsyncRedemption_FeeSharesGreaterThanShares` if the fee would consume the whole request and `AsyncRedemption_ZeroAssets` if the net redemption prices to zero assets. `fulfillRedeemRequests` pays `min(pendingAssets, shares × current pricePerShare)` so a PPS drop after the request cannot overpay current NAV; a PPS rise leaves surplus in the vault for remaining holders (later inclusive `postPricePerShare` — see [Posted NAV vs dilution fees](#posted-nav-vs-dilution-fees)). It reverts `AsyncRedemption_NothingToFulfill` for an unknown/already-paid id and `AsyncRedemption_FulfillTooEarly` if `block.number <= requestBlock`. Read-only helpers: `redeemFee()`, `pendingRedeemRequest(requestId)`, `pendingAssetsOf(owner)`, and `totalPending()` → `(totalPendingShares, totalPendingAssets)`.
 
 > There is **no** global per-request redemption cap; `requestRedeem` is unbounded in size (subject to the owner's balance). The `MaxRedeemRequestSet` event in `IAsyncRedemption` is reserved and currently unused.
 
@@ -65,7 +66,8 @@ All capabilities below reflect the exact `onlyRole` wiring in `StrategyBaseUpgra
 
 - `STRATEGY_PAUSER_ROLE` calls `pauseDeposit()` / `pauseRedeem()` (emit `DepositPaused` / `RedeemPaused`); `MANAGER_ROLE` clears each independently via `unpauseDeposit()` / `unpauseRedeem()`.
 - ERC-20 transfer pause: `TRANSFERS_PAUSER_ROLE` calls `pause()`; `MANAGER_ROLE` calls `unpause()`.
-- A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). `fulfillRedeemRequests` is **not** gated by any of these pauses.
+- A `postPricePerShare` call that overshoots the rate limiter with `revertOnRateLimit = false` automatically pauses **both** deposit and redeem (circuit breaker). Redeem pause (`whenRedeemNotPaused`) gates both `requestRedeem` and `fulfillRedeemRequests`.
+- While `depositPaused` or `redeemPaused`: `harvestPerformanceFee` / `setPerformanceFeeBps` (when PPS > HWM) and `setManagementFeeBps` revert `Strategy_PricePerSharePaused`. User deposit/redeem still accrue management fees under only their own pause flag.
 
 **Fees** — The strategy combines **two flow fees** (skim deposit tokens and redemption shares to treasury) with **two dilution fees** (mint new shares on accrual/harvest). They route to **different** destinations — this is the key correction versus older docs:
 
@@ -80,7 +82,7 @@ Governance sets fee **rates** via **`DEFAULT_ADMIN_ROLE`** (`setManagementFeeBps
 | **Per-asset deposit fee** | Lower effective deposit amount for the same share mint | `depositFeeBps` (strictly `< 10_000`) on **gross** deposit assets; the fee slice of the **deposit token** is rounded **up** and transferred to `feeTreasury` before shares are minted (reverts `StrategyDeposit_FeeTreasuryNotSet` if a fee is due and the treasury is unset).                                                             |
 | **Redemption redeem fee** | Fewer shares burned for the same redemption request    | `redeemFeeBps` on requested shares (rounded **up**); applied only when the rate is non-zero **and** a `feeTreasury` is set. Fee shares are **transferred** to `feeTreasury`, the remainder burned and booked for fulfillment.                                                                                                              |
 | **Management fee**        | Gradual dilution over time                             | Annualized **bps on total supply**, accrued since `lastFeeHarvestAt`. Accrual runs **automatically** inside every deposit / redeem-request (and on `setManagementFeeBps`) via the internal `_accrueManagementFee()` hook, which **mints** grossed-up dilution shares to `managementFeeTreasury`. There is no separate harvest transaction. |
-| **Performance fee**       | Dilution when NAV rises above the prior peak           | **High-water mark** on `pricePerShare`; when NAV clears it, `harvestPerformanceFee` raises the watermark to the current posted rate and **mints** a bps slice of the share gain to the chosen `feeRecipient` (mint skipped if the computed shares are zero).                                                                               |
+| **Performance fee**       | Dilution when NAV rises above the prior peak           | **High-water mark** on `pricePerShare`; when NAV clears it, `harvestPerformanceFee` raises the watermark to the current posted rate and **mints** a bps slice of the share gain to the chosen `feeRecipient` (mint skipped if shares floor to zero; HWM still rises). |
 
 Updating **management** fee bps first accrues at the prior rate, then resets the accrual clock. Updating **performance** fee bps first settles any accrued performance fee — but only if current `pricePerShare` is above the stored high-water mark, in which case it raises the watermark to that rate and (unless `forfeitAccrued` is set) mints the accrued shares to `feeRecipient`; if `pricePerShare` is at or below the watermark, nothing is settled and the watermark is left unchanged. Worth coordinating off-chain before changing parameters.
 
@@ -92,12 +94,16 @@ Fee mints increase `totalSupply` but leave `pricePerShare` unchanged, so `totalA
 
 This is **intentional**. Dilution fees transfer economics via new shares; they are not implemented as an internal `pricePerShare` rebase. Rebasing PPS inside `_accrueManagementFee` / `_harvestPerformanceFee` would bypass the rate limiter and mix fee dilution with oracle-posted NAV updates.
 
-**Between price posts**, deposit and redemption math all use the same posted rate; the interim gap is bounded and corrected on the **next** `postPricePerShare`. Operators SHOULD snapshot `supplyAtSnapshot` at NAV observation time and post true backing `navAtSnapshot`; reconciliation accounts for fee-minted supply (and same-epoch deposits / async redeem requests priced at stale PPS). Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV when fee accrual or harvest has run since the last post.
+**Between price posts**, deposit and redemption math use the same posted rate. Mid-epoch reconciliation values **net** effective-supply Δ at the still-stored PPS (deposits, fee mints, fulfill removals) — accepted vs per-leg accounting; fee dilution, fulfill surplus, and mixed-net bias land on a later inclusive snapshot. A deposit into an understated window can capture part of fulfill surplus. Normative detail: [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Exchange rate (Accepted tradeoff). A redeem requested while PPS is still overstated may lock a high `pendingAssets` ceiling; after the correcting post, fulfill pays `min(pendingAssets, shares × currentPPS)`. Integrators MUST NOT treat mid-epoch `totalAssets()` as exact economic NAV after fee mints or PPS-rise fulfills since the last inclusive snapshot.
 
 **Operational expectations:**
 
 - Configure total fees (flow + management + performance) so they remain **below** yield/rewards accruing to remaining holders.
-- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics.
+- Do **not** call `fulfillRedeemRequests`, `harvestPerformanceFee`, `setManagementFeeBps`, or `setPerformanceFeeBps` between the operator NAV/`effectiveSupply` snapshot and `postPricePerShare` (they move mid-epoch supply for reconciliation). User `deposit` / `mint` / `requestRedeem` are excluded from that rule.
+- `PRICE_SETTER_ROLE` should post NAV on a cadence that keeps posted `pricePerShare` aligned with strategy economics, snapshotting after material fee mints and mid-epoch fulfills when surplus / netting bias matters.
+- Prefer a short gap between `fulfillRedeemRequests` and the next inclusive `postPricePerShare` when deposit is open.
+- Batch `harvestPerformanceFee` until `performanceFee().previewShares > 0` — dust harvests still raise HWM with zero mint (accepted; see [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Performance fee).
+- Deposit / redeem-request hooks that accrue a floored-zero management fee still advance `lastFeeHarvestAt` (accepted sub-share time discard; see [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Management fee).
 - Integrators must treat `totalAssets()` as **posted** NAV, not instantaneous on-chain token balance.
 
 ```text
@@ -114,46 +120,65 @@ strategy.setManagementFeeTreasury(managementFeeTreasury);
 // MANAGER_ROLE: where deposit skims and redeem-fee shares go
 strategy.setFeeTreasury(feeTreasury);
 // DEFAULT_ADMIN_ROLE: accrues at the prior rate, then sets the new management bps (bps < 10_000)
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.setManagementFeeBps(bps);
 // DEFAULT_ADMIN_ROLE: settles accrued perf fee (only if pricePerShare > HWM), then sets the new performance bps
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.setPerformanceFeeBps(bps, feeRecipient, forfeitAccrued);
 // PERF_FEE_CLAIM_ROLE: mints performance-fee shares to feeRecipient when pricePerShare > HWM
+// Do not call between operator NAV snapshot and postPricePerShare
 strategy.harvestPerformanceFee(feeRecipient);
 // Management fees need no harvest call — they accrue automatically on deposit / redeem-request.
 ```
 
 ### Posting NAV and the price rate limiter
 
-`postPricePerShare` is the only way the posted exchange rate moves. It is **not** a raw price setter — the price is derived from a NAV/supply snapshot and reconciled against mid-epoch supply changes.
+`postPricePerShare` is the only way the posted exchange rate moves. It is **not** a raw price setter — the price is derived from a NAV/supply snapshot and reconciled against mid-epoch supply changes. Normative rules live in [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Exchange rate.
 
 ```solidity
-// PRICE_SETTER_ROLE; reverts if the ERC-20 transfer pause is active, or if BOTH deposit and redeem are paused
-strategy.postPricePerShare(navAtSnapshot, supplyAtSnapshot, revertOnRateLimit);
+// PRICE_SETTER_ROLE; reverts if the ERC-20 transfer pause is active, or if deposit or redeem is paused
+// (pendingShares,) = totalPending(); effectiveSupplyAtSnapshot = totalSupply() + pendingShares at nav snapshot
+strategy.postPricePerShare(navAtSnapshot, effectiveSupplyAtSnapshot, revertOnRateLimit);
 // MANAGER_ROLE: configure the rate-limiter bucket (micro-bps capacity + refill)
 strategy.setPricePerShareRateLimit(maxBucketBps, refillRate);
 ```
 
-- The new price is `declaredPricePerShare = navAtSnapshot × oneShare / supplyAtSnapshot` (`oneShare = 10 ** decimals()`), then **reconciled** for shares added/removed since the snapshot before being stored. Reverts `Strategy_ZeroNavAtSnapshot` / `Strategy_ZeroSharesAtSnapshot` on zero inputs.
-- The **`PriceRateLimiter`** is a leaky-bucket on the **declared** relative move (old → declared PPS), measured in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Gating on the declared move stops mid-epoch flow from masking a large NAV swing.
+**Inputs and reconciled PPS**
+
+- `navAtSnapshot` — true vault backing (asset units) at observation time. Reverts `Strategy_ZeroNavAtSnapshot` if zero.
+- `effectiveSupplyAtSnapshot` — effective share supply at that same instant; MUST match on-chain `_effectiveShareSupply` semantics. For async redemption that is `totalSupply() + pendingShares` from `totalPending()` (pending shares are burned out of `totalSupply()` but their backing is still in the vault). Passing `totalSupply()` alone concentrates any NAV loss/gain onto the residual circulating supply. Reverts `Strategy_ZeroSharesAtSnapshot` if zero.
+- `priceToSet` (stored) — when `effectiveSupplyNow == 0`, the pure snapshot ratio `navAtSnapshot × oneShare / effectiveSupplyAtSnapshot`; otherwise the **reconciled** rate with mid-epoch **net** Δ folded in at a single Floor: `(navAtSnapshot × oneShare ± Δ × oldPPS) / effectiveSupplyNow`. The rate limiter measures old → this stored value. Same-epoch deposits therefore cannot inflate post-update NAV, and a redeem *request* (circulating → pending) does not change effective supply so it cannot concentrate a loss onto residual holders. Fulfillment decreases effective supply and is reconciled at the **still-stored** PPS (even when payout was `min(request PPS, current PPS)`). Fee mints are valued the same way (no asset inflow), so dilution lands on a later inclusive snapshot; fulfill then clips via `min(pendingAssets, shares × currentPPS)`. Net-Δ can leave posted PPS stale under mixed mid-epoch legs (including deposit-into-surplus) until a later clean post — accepted; see spec § Accepted tradeoff. If removals valued at the stored PPS exceed `navAtSnapshot` (scaled), the call reverts `Strategy_InsufficientNavForReconciliation` — re-snapshot after fulfills (or avoid fulfilling between snapshot and post during a large drawdown). Near-equality dust may hit `Strategy_ZeroPricePerShare` instead (accepted; see spec § fused plain mul). Fused plain-`*` overflow on unrealistic NAV is accepted; see same section.
+
+**Pause gating**
+
+- Reverts `Strategy_PricePerSharePaused` when deposit or redeem is paused. Ops that hold both `MANAGER_ROLE` and `PRICE_SETTER_ROLE` are expected to unpause and post atomically after a circuit-breaker trip (same tx). **Accepted:** deposit-only pause blocks PPS while redeem can stay open — see spec § Exchange rate (OR pause gate).
+
+**Rate limiter**
+
+- Leaky bucket on the **reconciled** relative move (old → stored PPS), in **micro-basis-points** (`1_000_000 = 100%`, so `10_000` units = 1%). Mid-epoch flow can shrink or amplify that delta versus the pure snapshot (declared) move.
   - Within capacity → consume capacity, set the reconciled price, emit `PricePerShareUpdated`.
   - Over capacity with `revertOnRateLimit = true` → revert `PriceRateLimiterRateLimitExceeded`.
   - Over capacity with `revertOnRateLimit = false` → drain the bucket, **still set** the reconciled price, then **pause both** deposit and redeem (circuit breaker).
 - The bucket is **zeroed at init** (`maxBps = 0`), so `MANAGER_ROLE` MUST call `setPricePerShareRateLimit` before any non-zero price move is allowed. Inspect it with `pricePerShareRateLimiterState()`.
+- **Accepted:** a frontrun deposit can shrink the measured move vs declared and suppress auto-pause; no attacker profit (reconcile at stored PPS; async exit). See [`docs/spec/003-strategy.md`](../../docs/spec/003-strategy.md) § Rate limiter.
+- **Accepted:** sub-quantum successful posts discard refill remainder → one-shot under high-frequency posting; trusted `PRICE_SETTER`. See same spec § Rate limiter.
 
 ---
 
 ## BlocklistOracle
 
-A standalone, upgradeable **compliance gate**. The strategy consults it on every **deposit** and **redeem request** and reverts if any in-scope account is **manually blocklisted** or appears on an **external sanction list** (Chainalysis-style). It does **not** move funds, gate ERC-20 share transfers, or touch the shard `exec` path — it only answers _"is this account allowed to transact?"_ via a single reverting view.
+A standalone, upgradeable **compliance gate**. The strategy consults it on **every share balance change** — ERC-20 **transfer**, **mint**, and **burn** — via `StrategyBaseUpgradeable._update`, and reverts if either endpoint is **manually blocklisted** or appears on an **external sanction list** (Chainalysis-style). Deposit also checks the **`sender`** explicitly (needed when `sender ≠ receiver`, because mint only hits the receiver through `_update`). It does **not** move funds or touch the shard `exec` path — it only answers _"is this account allowed to transact?"_ via a single reverting view.
+
+**Ops note:** `check` is on the hot path for all share movement. Oracle **liveness** and **gas** (especially when `isSanctioned` iterates multiple external lists) are therefore a dependency for ordinary ERC-20 transfers, not only for deposit / redeem-request entrypoints. A reverting or out-of-gas `check` freezes the affected balance change.
 
 ### How it integrates
 
 `StrategyBaseUpgradeable` holds a **mandatory** `blocklistOracle` address — required at `initialize` and **never zero** (the oracle cannot be disabled on-chain). It is read via `blocklistOracle()` and replaced via `setBlocklistOracle(oracle_)` (**`DEFAULT_ADMIN_ROLE`**, rejects zero), which emits `BlocklistOracleSet(oracle)`. The strategy calls it through `_requireBlocklistAllows(account)` → `IBlocklistOracle.check(account)`:
 
-| Flow               | Accounts checked            |
-| ------------------ | --------------------------- |
-| **Deposit**        | `sender` **and** `receiver` |
-| **Redeem request** | `owner`                     |
+| Flow                         | Accounts checked                                      |
+| ---------------------------- | ----------------------------------------------------- |
+| **Share `_update`** (transfer / mint / burn) | `from` **and** `to` (includes `address(0)` on mint/burn) |
+| **Deposit** (extra)          | `sender` (in addition to receiver via mint → `_update`) |
 
 `check` reverts with `BlocklistOracle_NotAllowed(DenialReason.Blocklist)` if the account is on the **manual blocklist**, otherwise `BlocklistOracle_NotAllowed(DenialReason.Sanction)` if **any** registered sanction list reports it; otherwise it returns silently.
 
@@ -166,7 +191,7 @@ A standalone, upgradeable **compliance gate**. The strategy consults it on every
 oracle.check(account);                  // strategy gate (reverts on blocklist or sanction)
 
 oracle.blockAccount(account);           // BLOCKLIST_SETTER_ROLE
-oracle.unblockAccount(account);         // DEFAULT_ADMIN_ROLE
+oracle.unblockAccount(account);         // BLOCKLIST_REMOVER_ROLE
 oracle.addSanctionList(chainalysis);    // DEFAULT_ADMIN_ROLE
 oracle.removeSanctionList(chainalysis); // DEFAULT_ADMIN_ROLE
 ```
@@ -175,12 +200,13 @@ oracle.removeSanctionList(chainalysis); // DEFAULT_ADMIN_ROLE
 
 Built on `AccessControlDefaultAdminRulesUpgradeable` (two-step admin handover with a configurable delay set at `initialize`).
 
-| Role                    | Controls                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `BLOCKLIST_SETTER_ROLE` | `blockAccount` only. Granted to `defaultAdmin_` at init.                      |
-| `DEFAULT_ADMIN_ROLE`    | `unblockAccount`, `addSanctionList`, `removeSanctionList`; admin of all roles |
+| Role                     | Controls                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `BLOCKLIST_SETTER_ROLE`  | `blockAccount` only. Granted to `defaultAdmin_` at init.                                          |
+| `BLOCKLIST_REMOVER_ROLE` | `unblockAccount` only. Granted to `defaultAdmin_` at init. Sensitive — rotate if delegated.       |
+| `DEFAULT_ADMIN_ROLE`     | `allowAccount`, `disallowAccount`, `addSanctionList`, `removeSanctionList`; admin of all roles    |
 
-> **Asymmetric by design:** adding to the blocklist needs only `BLOCKLIST_SETTER_ROLE` (fast operational reaction), but **removing** an account needs `DEFAULT_ADMIN_ROLE`.
+> **Asymmetric by design:** adding to the blocklist needs only `BLOCKLIST_SETTER_ROLE` (fast operational reaction), but **removing** an account needs the separate `BLOCKLIST_REMOVER_ROLE` — do not grant remover when you only intend setter authority.
 
 View helpers: `isSanctioned(address)` (any registered list), `isBlocklisted(address)` (manual list only), `blocklistLength()`, `getBlocklistEntries(offset, limit)` (paginated; empty if `limit == 0` or `offset >= length`; ordering not stable across mutations), and `getSanctionLists()`. `DenialReason` is `{ Blocklist, Sanction }`; `ISanctionList` is a single `isSanctioned(address) returns (bool)` view (the Chainalysis sanctions-oracle shape).
 
@@ -232,7 +258,9 @@ The contract implements both `IMerkleCallAllowlist` (typed `CallVerificationInpu
 | 3   | `0x08` | `FLAG_DATA_LENGTH` | `data.length` must equal `dataLength` in the rule                                        |
 | 4   | `0x10` | `FLAG_SELECTOR`    | `bytes4(data[0:4])` must equal `selector` in the rule (also requires `data.length >= 4`) |
 
-If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, `dataLength == 0`, or **`selector == bytes4(0)`**).
+If a bit is **clear**, that field is **wildcard** and the canonical encoding **must** store zero there (`address(0)`, `value == 0`, `dataLength == 0`, or **`selector == bytes4(0)`**). Match-time checks only compare fields whose flags are **set** — a zero stored in a wildcard field is **not** an exact-match constraint.
+
+> **Warning:** Omitting `FLAG_VALUE` makes `value` a wildcard even when the encoded rule has `value: 0`. Callers can then reuse the Merkle proof with any ETH amount, and shard `exec` will forward ETH from the shard’s balance. Omit `FLAG_SENDER` only when any caller may reuse the proof; set it when the proof must be single-caller. Always OR in every flag for a field you intend to pin.
 
 ### Merkle leaf (for builders)
 
@@ -300,9 +328,11 @@ function encodeMerkleRule(p: {
 
 #### Example A — Allow any calldata to one contract, 0 ETH, any sender
 
+`flags: 0x02 | 0x04` pins **`to`** and **`value == 0`**. Leaving `FLAG_SENDER` clear intentionally allows any caller to reuse the proof.
+
 ```typescript
 const ruleA = encodeMerkleRule({
-  flags: 0x02, // exact `to` only
+  flags: 0x02 | 0x04, // FLAG_TO | FLAG_VALUE — exact `to`, exact 0 ETH
   sender: ethers.ZeroAddress,
   to: targetContract,
   value: 0n,
@@ -313,11 +343,11 @@ const ruleA = encodeMerkleRule({
 
 #### Example B — Fix selector only (e.g. ERC-20 `transfer(address,uint256)` = `0xa9059cbb`)
 
-Use **`flags | 0x10`** and set **`selector`**; leave **`constraints`** empty to allow any arguments.
+Use **`flags | 0x10`** and set **`selector`**; leave **`constraints`** empty to allow any arguments. Include **`0x04` (`FLAG_VALUE`)** when the call must send 0 ETH.
 
 ```typescript
 const ruleB = encodeMerkleRule({
-  flags: 0x02 | 0x10,
+  flags: 0x02 | 0x04 | 0x10, // FLAG_TO | FLAG_VALUE | FLAG_SELECTOR
   selector: 'transfer(address,uint256)',
   sender: ethers.ZeroAddress,
   to: tokenAddress,
@@ -329,7 +359,7 @@ const ruleB = encodeMerkleRule({
 
 #### Example C — Fix selector + full first argument word (e.g. recipient address)
 
-Pin **`selector`**, then constrain the first ABI argument word at **constraint offset `0`** (bytes `data[4..36)`).
+Pin **`selector`**, then constrain the first ABI argument word at **constraint offset `0`** (bytes `data[4..36)`). Same **`FLAG_VALUE`** requirement as above for 0 ETH.
 
 ```typescript
 const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [recipient]); // 32-byte hex string
@@ -337,7 +367,7 @@ const firstArgWord = ethers.AbiCoder.defaultAbiCoder().encode(['address'], [reci
 const ALL_ONES = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
 
 const ruleC = encodeMerkleRule({
-  flags: 0x02 | 0x10,
+  flags: 0x02 | 0x04 | 0x10, // FLAG_TO | FLAG_VALUE | FLAG_SELECTOR
   selector: 'transfer(address,uint256)',
   sender: ethers.ZeroAddress,
   to: tokenAddress,
@@ -415,8 +445,8 @@ The converters are **stateless / immutable** adapters — no roles, no events. T
 | `ChainlinkCompositeConverter` | two Chainlink feeds | Deposit token priced by a **ratio** of two feeds sharing a common quote (e.g. ETH/USD ÷ BTC/USD).      |
 
 - **`DirectConverter`** — identity mapping with no oracle (`toBaseUnits`/`fromBaseUnits` are `pure` and ignore the rounding arg).
-- **`ChainlinkConverter`** — wraps a single `AggregatorV3Interface` feed; an `inverted_` flag selects base-per-token vs token-per-base. Decimal normalization is stored as a rational `scaleNumerator / scaleDenominator` (exactly one is a power of ten) so a negative exponent never reverts. The feed read reverts on a zero/negative/future/stale answer (`ChainlinkConverterInvalidAnswer` / `ChainlinkConverterFutureAnswer` / `ChainlinkConverterStaleAnswer`), and an optional L2 sequencer-uptime feed adds `ChainlinkConverterSequencerDown` / `ChainlinkConverterGracePeriodNotOver`.
-- **`ChainlinkCompositeConverter`** — crosses **two** feeds as a ratio, netting decimals per direction. Same staleness / future / sequencer guards (underscore-style error names); note it does **not** check `roundId`.
+- **`ChainlinkConverter`** — wraps a single `AggregatorV3Interface` feed; an `inverted_` flag selects base-per-token vs token-per-base. Decimal normalization is stored as a rational `scaleNumerator / scaleDenominator` (exactly one is a power of ten) so a negative exponent never reverts. The feed read reverts on a zero/negative/future/stale answer (`ChainlinkConverterInvalidAnswer` / `ChainlinkConverterFutureAnswer` / `ChainlinkConverterStaleAnswer`), and an optional L2 sequencer-uptime feed adds `ChainlinkConverterSequencerDown` / `ChainlinkConverterGracePeriodNotOver`. After the grace period, each price answer must also have `updatedAt >=` the sequencer recovery `startedAt` (rejects pre-downtime answers that are still within `heartbeat`).
+- **`ChainlinkCompositeConverter`** — crosses **two** feeds as a ratio, netting decimals per direction. Same staleness / future / sequencer guards (underscore-style error names), including the post-recovery `updatedAt >= startedAt` check on **both** feeds; note it does **not** check `roundId`.
 
 In every converter, `baseDecimals_` MUST equal the strategy underlying's decimals (8 for BTC/LBTC, 18 for WETH).
 
@@ -447,7 +477,7 @@ strategy.migrate(blocklistOracle, asset, decimals, managementFeeTreasury, initia
 | `MultiAssetDepositUpgradeable.sol`          | Multi-token deposit logic with converter adapters and per-asset deposit fees                                                          |
 | `FeeManagerUpgradeable.sol`                 | Management (auto-accrued) / performance (HWM, harvested) fee module — share minting to treasuries                                     |
 | `AsyncRedemptionUpgradeable.sol`            | Async redemption, `PAY_REDEMPTIONS_ROLE` fulfillment, one-block delay                                                                 |
-| `BlocklistOracle.sol`                       | Compliance gate: manual blocklist + external sanction lists; strategy calls `check` on deposit/redeem                                 |
+| `BlocklistOracle.sol`                       | Compliance gate: manual blocklist + external sanction lists; strategy calls `check` on every share `_update` (+ deposit `sender`)     |
 | `libraries/PriceRateLimiter.sol`            | Micro-bps leaky-bucket limiting relative `pricePerShare` moves                                                                        |
 | `validators/MerkleAllowlistValidator.sol`   | Merkle call allowlist validator (`Ownable2Step`, owner-rotated root)                                                                  |
 | `interfaces/IMerkleCallAllowlist.sol`       | Interface + `CallVerificationInput` struct                                                                                            |

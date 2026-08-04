@@ -10,8 +10,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IStrategy {
     /// @notice Posted strategy exchange rate and NAV snapshot after an operator update.
     /// @param pricePerShare Asset wei per `10 ** decimals()` share unit.
-    /// @param nav Posted `totalAssets()` after reconciliation (may differ from on-chain token balances; may have been
-    ///            overstated before the post when fee shares were minted without asset inflow).
+    /// @param nav Posted `totalAssets()` after reconciliation (may differ from on-chain token balances).
     /// @param postedAt Block timestamp of the update.
     event PricePerShareUpdated(
         uint256 pricePerShare,
@@ -39,17 +38,20 @@ interface IStrategy {
     /// @dev Address argument was `address(0)` where forbidden.
     error Strategy_ZeroAddress();
 
-    /// @dev `postPricePerShare` was called with `newPricePerShare == 0`.
+    /// @dev `postPricePerShare` reconciliation produced a zero `pricePerShare`.
     error Strategy_ZeroPricePerShare();
 
     /// @dev Strategy initialized with a zero fallback decimals argument.
     error Strategy_ZeroDecimals();
 
-    /// @dev `postPricePerShare` was called with `sharesAtSnapshot == 0` while shares are outstanding.
+    /// @dev `postPricePerShare` was called with `effectiveSupplyAtSnapshot == 0` (must match on-chain `_effectiveShareSupply`).
     error Strategy_ZeroSharesAtSnapshot();
 
     /// @dev `postPricePerShare` was called with `navAtSnapshot == 0`.
     error Strategy_ZeroNavAtSnapshot();
+
+    /// @dev `postPricePerShare` reconciliation: removed shares valued at stored PPS exceed `navAtSnapshot` (scaled).
+    error Strategy_InsufficientNavForReconciliation();
 
     /// @notice Deposit entrypoints (`deposit` / `mint` / previews gated by pause) are paused.
     event DepositPaused(address indexed account);
@@ -57,7 +59,7 @@ interface IStrategy {
     /// @notice Deposit paths are active again.
     event DepositUnpaused(address indexed account);
 
-    /// @notice Redeem request entrypoints are paused.
+    /// @notice Redeem entrypoints (`requestRedeem` / `fulfillRedeemRequests`) are paused.
     event RedeemPaused(address indexed account);
 
     /// @notice Redeem paths are active again.
@@ -77,7 +79,7 @@ interface IStrategy {
     /// @dev Redeem operation invoked while redeem pause is active.
     error Strategy_EnforcedRedeemPause();
 
-    /// @dev Price per share post called while deposit and redeem pause is active.
+    /// @dev Deposit or redeem pause is active (`postPricePerShare`, fee HWM raise, or `setManagementFeeBps`).
     error Strategy_PricePerSharePaused();
 
     /// @dev Unpause deposit called while deposits were not paused.

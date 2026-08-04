@@ -6,11 +6,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {AsyncRedemptionUpgradeable} from "./AsyncRedemptionUpgradeable.sol";
 import {MultiAssetDepositUpgradeable} from "./MultiAssetDepositUpgradeable.sol";
+import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 
 /// @title MultiAssetWithAsyncRedemptionStrategy
 /// @notice Concrete strategy combining multi-asset deposits (`MultiAssetDepositUpgradeable`), fee module, and async redemption (`AsyncRedemptionUpgradeable`).
 /// @dev Linearization: `AsyncRedemptionUpgradeable` is listed last so diamond-like overrides resolve predictably; parent initializers run via `__StrategyBase_init` + module inits in C3 order.
-///      Fee share mints may overstate `totalAssets()` until the next `postPricePerShare`; see `StrategyBaseUpgradeable` / `IFeeManager` NatSpec.
+///      Fee share mints may overstate `totalAssets()` until a later `postPricePerShare` snapshot includes them.
 /// @custom:security-contact security@lombard.finance
 contract MultiAssetWithAsyncRedemptionStrategy is
     MultiAssetDepositUpgradeable,
@@ -56,6 +57,17 @@ contract MultiAssetWithAsyncRedemptionStrategy is
 
     /// @notice Human-readable build label for off-chain integrations.
     function version() external pure override returns (string memory) {
-        return "MAWARS-0.0.1";
+        return "MAWARS-0.1.0";
+    }
+
+    /// @dev Both parents define `_effectiveShareSupply`; `super` picks the async override
+    ///      (`totalSupply() + totalPendingShares`) because `AsyncRedemptionUpgradeable` is last.
+    function _effectiveShareSupply()
+        internal
+        view
+        override(StrategyBaseUpgradeable, AsyncRedemptionUpgradeable)
+        returns (uint256)
+    {
+        return super._effectiveShareSupply();
     }
 }

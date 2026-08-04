@@ -44,6 +44,20 @@ abstract contract AsyncRedemptionUpgradeable is
 
     function __AsyncRedemption_init() internal onlyInitializing {}
 
+    /// @dev Include burned-but-unfulfilled redemption shares in the economic supply for
+    ///      `postPricePerShare` reconciliation; their backing is still in the vault until fulfillment.
+    function _effectiveShareSupply()
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        return
+            super._effectiveShareSupply() +
+            _getAsyncRedemptionStorage().totalPendingShares;
+    }
+
     /// @notice Fee taken as shares from `owner` on each `requestRedeem` and sent to {getFeeTreasury}.
     function setRedeemFeeBps(uint16 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps >= _BPS_DENOMINATOR)
@@ -57,9 +71,9 @@ abstract contract AsyncRedemptionUpgradeable is
         return _getAsyncRedemptionStorage().redeemFeeBps;
     }
 
-    /// @notice Pending shares and underlying assets across all open redemption requests.
+    /// @notice Pending shares and request-time asset ceilings across all open redemption requests.
     /// @return totalPendingShares Aggregate burned shares not yet fulfilled.
-    /// @return totalPendingAssets Aggregate underlying amount owed for open requests.
+    /// @return totalPendingAssets Aggregate request-time ceilings; fulfillment may pay less via `min`.
     function totalPending() external view returns (uint256, uint256) {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         return ($.totalPendingShares, $.totalPendingAssets);
@@ -143,9 +157,10 @@ abstract contract AsyncRedemptionUpgradeable is
     /// @notice Pays underlying against queued requests; requires `PAY_REDEMPTIONS_ROLE`.
     /// @dev Payout per request is `min(pendingAssets, shares × current pricePerShare)` so a PPS drop
     ///      after the request cannot pay more than current NAV for the burned shares.
+    ///      MUST NOT be called between an operator NAV snapshot and `postPricePerShare` (removes effective supply).
     function fulfillRedeemRequests(
         uint256[] calldata requestIds
-    ) external onlyRole(PAY_REDEMPTIONS_ROLE) nonReentrant {
+    ) external nonReentrant onlyRole(PAY_REDEMPTIONS_ROLE) whenRedeemNotPaused {
         AsyncRedemptionStorage storage $ = _getAsyncRedemptionStorage();
         IERC20 asset_ = asset();
         address msgSender = _msgSender();

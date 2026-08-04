@@ -7,6 +7,7 @@ pragma solidity 0.8.24;
 /// @custom:security-contact security@lombard.finance
 interface IAsyncRedemption {
     /// @dev Per `requestRedeem` ticket; global totals mirror open requests.
+    /// @dev `pendingAssets` is a request-time ceiling.
     /// @dev `owner` and `requestBlock` pack into a single storage slot (160 + 96 bits).
     struct RedeemRequest {
         uint256 pendingShares;
@@ -16,7 +17,7 @@ interface IAsyncRedemption {
     }
 
     /// @dev Emitted when `requestRedeem` is called.
-    /// @param assets Net underlying assets owed on fulfillment (matches `RedeemRequest.pendingAssets`).
+    /// @param assets Request-time asset ceiling (`RedeemRequest.pendingAssets`); fulfillment may pay less via `min`.
     /// @param shares Net shares burned for the request (matches `RedeemRequest.pendingShares`); gross requested = `shares + feeShares`.
     /// @param feeShares Redeem fee shares transferred to {feeTreasury}.
     event RedeemRequested(
@@ -48,7 +49,7 @@ interface IAsyncRedemption {
         uint256 requestId
     ) external view returns (RedeemRequest memory request);
 
-    /// @notice Total underlying assets pending settlement for `owner` across all open requests.
+    /// @notice Sum of request-time asset ceilings for `owner`'s open requests; fulfillment may pay less via `min`.
     function pendingAssetsOf(
         address owner
     ) external view returns (uint256 assets);

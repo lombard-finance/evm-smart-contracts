@@ -4,9 +4,9 @@ pragma solidity 0.8.24;
 /// @title IFeeManager
 /// @notice Management fee (time-based, dilution) and performance fee (high-water-mark on `pricePerShare`) harvested as newly minted strategy shares.
 /// @dev Basis points use `10_000 = 100%`. Fees mint shares to `to` without pulling underlying assets or reducing
-///      posted `pricePerShare`; `totalAssets()` may overstate economic NAV until the next `postPricePerShare`
-///      reconciles fee-minted supply against operator NAV.
-///      Management fee share math uses full `totalSupply()`; treasury-held fee shares compound into later accruals.
+///      posted `pricePerShare`; `totalAssets()` may overstate economic NAV until a later `postPricePerShare`
+///      snapshot includes the fee-minted supply. Management fee share math uses full `totalSupply()`;
+///      treasury-held fee shares compound into later accruals.
 /// @custom:security-contact security@lombard.finance
 interface IFeeManager {
     /// @notice Annual management fee rate was updated (bps).
@@ -46,12 +46,6 @@ interface IFeeManager {
     error FeeManager_PerformanceFeeBpsTooHigh();
     /// @dev Accrued fee shares require a non-zero recipient when settling via fee `bps` setters.
     error FeeManager_FeeRecipientRequired();
-    /// @param pricePerShare Current `pricePerShare` when the harvest was attempted.
-    /// @param highWaterMark Stored high-water mark that was not exceeded.
-    error FeeManager_PriceAtOrBelowHighWaterMark(
-        uint256 pricePerShare,
-        uint256 highWaterMark
-    );
 
     /// @return feeBps Configured management fee in basis points.
     /// @return lastHarvestAt Last management fee accrual timestamp (unix seconds); accrual clock starts here.
@@ -66,7 +60,8 @@ interface IFeeManager {
         );
 
     /// @return feeBps Configured performance fee in basis points.
-    /// @return previewShares Shares that would be minted if `harvestPerformanceFee` succeeded now (0 if at/below HWM).
+    /// @return previewShares Shares that would be minted on `harvestPerformanceFee` now (0 if at/below HWM or if
+    ///         fee shares floor to 0).
     /// @return performanceHighWaterMark Stored high-water mark for performance fee (`pricePerShare` units).
     function performanceFee()
         external

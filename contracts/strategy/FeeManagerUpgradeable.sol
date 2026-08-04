@@ -12,7 +12,7 @@ import {StrategyBaseUpgradeable} from "./StrategyBaseUpgradeable.sol";
 ///      Management fee accrual uses `totalSupply()` as the share base, so prior management-fee mints held by
 ///      `managementFeeTreasury` compound into later accruals (intended; treasury balance is not excluded).
 ///      Fee mints dilute holders by increasing `totalSupply` without asset inflow; posted `pricePerShare` is unchanged,
-///      so `totalAssets()` may overstate backing until the next `postPricePerShare` reconciles against operator NAV.
+///      so `totalAssets()` may overstate backing until a later `postPricePerShare` snapshot includes the fee supply.
 /// @custom:security-contact security@lombard.finance
 abstract contract FeeManagerUpgradeable is
     StrategyBaseUpgradeable,
@@ -71,12 +71,14 @@ abstract contract FeeManagerUpgradeable is
     }
 
     /// @notice Sets management fee in basis points after accruing at the **prior** rate (updates `lastFeeHarvestAt`), so the new rate applies only from this timestamp onward.
+    /// @dev Accrual may mint shares; MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
     /// @param bps Fee rate; must be strictly less than 10000.
     function setManagementFeeBps(
         uint16 bps
     ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (bps >= _BPS_DENOMINATOR)
             revert FeeManager_ManagementFeeBpsTooHigh();
+        _requireStrategyOpsNotPaused();
         _accrueManagementFee();
         _getFeeManagerStorage().managementFeeBps = bps;
         emit ManagementFeeBpsSet(_msgSender(), bps);
@@ -84,9 +86,10 @@ abstract contract FeeManagerUpgradeable is
 
     /// @dev Exact management fee accrual hook. Call unconditionally before user share mint/burn operations.
     ///      Accrues at current `managementFeeBps` / `lastFeeHarvestAt`, minting dilution shares to
-    ///      `managementFeeTreasury` without changing `pricePerShare`. The share base is full `totalSupply()`,
-    ///      including shares already minted to the treasury on prior accruals, so the effective rate compounds
-    ///      on treasury holdings. Overvaluation of `totalAssets()` is corrected on the next `postPricePerShare`.
+    ///      `managementFeeTreasury` without changing `pricePerShare`. Advances `lastFeeHarvestAt` even when
+    ///      floored shares are 0. The share base is full `totalSupply()`, including shares already minted to
+    ///      the treasury on prior accruals, so the effective rate compounds on treasury holdings.
+    ///      Overvaluation of `totalAssets()` is corrected on a later `postPricePerShare`.
     function _accrueManagementFee() internal virtual {
         FeeManagerStorage storage $ = _getFeeManagerStorage();
         (uint256 shares, uint256 elapsed) = _computeManagementFeeShares(
@@ -102,10 +105,11 @@ abstract contract FeeManagerUpgradeable is
         emit ManagementFeeHarvested($.managementFeeTreasury, shares, elapsed);
     }
 
-    /// @notice Sets performance fee in basis points after handling accrued performance fee at the **prior** rate, then resets high-water mark to current `pricePerShare`.
+    /// @notice Sets performance fee bps after settling at the prior rate when above HWM (raises HWM); leaves HWM unchanged when at or below.
+    /// @dev May mint performance-fee shares; MUST NOT be called between an operator NAV snapshot and `postPricePerShare`.
     /// @param bps Fee rate; must be strictly less than 10000.
     /// @param feeRecipient Recipient when `forfeitAccrued` is false and accrued shares are non-zero.
-    /// @param forfeitAccrued If false, mint accrued performance fee to `feeRecipient`. If true, forfeit (reset HWM without minting that accrual).
+    /// @param forfeitAccrued If true, skip minting accrued shares when above HWM (HWM still raises).
     function setPerformanceFeeBps(
         uint16 bps,
         address feeRecipient,
@@ -119,7 +123,9 @@ abstract contract FeeManagerUpgradeable is
         emit PerformanceFeeBpsSet(_msgSender(), bps);
     }
 
-    /// @notice Mint performance fee shares if `pricePerShare` exceeds `highWaterMark`, then raise HWM.
+    /// @notice When `pricePerShare` exceeds `highWaterMark`, raise HWM to the current rate and mint fee shares if non-zero.
+    /// @dev Soft no-op at/below HWM. Zero-share harvests still raise HWM.
+    ///      MUST NOT be called between an operator NAV snapshot and `postPricePerShare` (mints change effective supply).
     /// @param feeRecipient Recipient of minted shares (must not be zero).
     function harvestPerformanceFee(
         address feeRecipient
@@ -127,10 +133,10 @@ abstract contract FeeManagerUpgradeable is
         _harvestPerformanceFee(_getFeeManagerStorage(), feeRecipient, false);
     }
 
-    /// @dev Harvests performance fee at current `performanceFeeBps` / `highWaterMark`. Mints shares without
-    ///      underlying transfer or reducing `pricePerShare`; raises HWM to the pre-mint posted rate.
-    ///      Overvaluation of `totalAssets()` is corrected on the next `postPricePerShare`.
-    /// @param forfeitAccrued If true and fee shares would be non-zero, skips mint; setter resets HWM.
+    /// @dev Harvests at current `performanceFeeBps` / `highWaterMark`. Mints shares without underlying transfer or
+    ///      reducing `pricePerShare`; raises HWM to the pre-mint posted rate even when shares floor to 0.
+    ///      Overvaluation of `totalAssets()` is corrected on a later `postPricePerShare`.
+    /// @param forfeitAccrued If true and fee shares would be non-zero, skips mint; HWM still raises when above.
     function _harvestPerformanceFee(
         FeeManagerStorage storage $,
         address to,
@@ -142,6 +148,7 @@ abstract contract FeeManagerUpgradeable is
         if (pps <= hwm) {
             return;
         }
+        _requireStrategyOpsNotPaused();
         uint256 shares = _computePerformanceFeeShares(
             pps,
             hwm,

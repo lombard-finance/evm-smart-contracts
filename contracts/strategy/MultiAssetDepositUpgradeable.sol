@@ -133,20 +133,20 @@ abstract contract MultiAssetDepositUpgradeable is
     }
 
     /// @return True if `depositAsset` is listed for deposits.
-    function isDepositAsset(address depositAsset) public view returns (bool) {
+    function isDepositAsset(address depositAsset) external view returns (bool) {
         return
             _getMultiAssetDepositStorage().depositAssets.contains(depositAsset);
     }
 
     /// @return Configured deposit fee in basis points for `depositAsset`.
-    function depositFee(address depositAsset) public view returns (uint16) {
+    function depositFee(address depositAsset) external view returns (uint16) {
         return _getMultiAssetDepositStorage().depositFeeBps[depositAsset];
     }
 
     /// @return Converter contract used for `depositAsset`.
     function converterOf(
         address depositAsset
-    ) public view returns (IAssetConverter) {
+    ) external view returns (IAssetConverter) {
         return _getMultiAssetDepositStorage().converters[depositAsset];
     }
 
@@ -350,7 +350,7 @@ abstract contract MultiAssetDepositUpgradeable is
     function convertToShares(
         address depositAsset,
         uint256 assets
-    ) public view virtual returns (uint256) {
+    ) external view virtual returns (uint256) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
             return 0;
@@ -366,7 +366,7 @@ abstract contract MultiAssetDepositUpgradeable is
     function convertToAssets(
         address depositAsset,
         uint256 shares
-    ) public view virtual returns (uint256) {
+    ) external view virtual returns (uint256) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         if (!$.depositAssets.contains(depositAsset)) {
             return 0;
@@ -388,7 +388,7 @@ abstract contract MultiAssetDepositUpgradeable is
     }
 
     /// @inheritdoc IMultiAssetDeposit
-    function getAssets() public view virtual returns (address[] memory) {
+    function getAssets() external view virtual returns (address[] memory) {
         MultiAssetDepositStorage storage $ = _getMultiAssetDepositStorage();
         return $.depositAssets.values();
     }

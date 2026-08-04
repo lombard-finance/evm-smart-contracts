@@ -164,7 +164,7 @@ contract ChainlinkConverter is IAssetConverter {
     }
 
     function _getAnswer() private view returns (uint256) {
-        _checkSequencer();
+        uint256 seqStartedAt = _checkSequencer();
         (uint80 roundId, int256 answer, , uint256 updatedAt, ) = feed
             .latestRoundData();
         if (roundId == 0) revert ChainlinkConverterInvalidAnswer();
@@ -173,20 +173,25 @@ contract ChainlinkConverter is IAssetConverter {
             revert ChainlinkConverterFutureAnswer();
         if (block.timestamp - updatedAt > heartbeat)
             revert ChainlinkConverterStaleAnswer();
+        // Reject pre-downtime answers that are still within heartbeat after recovery.
+        if (seqStartedAt != 0 && updatedAt < seqStartedAt)
+            revert ChainlinkConverterStaleAnswer();
         return uint256(answer);
     }
 
     /// @dev Reverts if the L2 sequencer is down or within the grace period after recovery.
     ///      Skipped when sequencerUptimeFeed is address(0) (mainnet / sequencer-less chains).
-    function _checkSequencer() private view {
-        if (address(sequencerUptimeFeed) == address(0)) return;
+    /// @return startedAt Sequencer recovery timestamp, or 0 when the check is disabled.
+    function _checkSequencer() private view returns (uint256 startedAt) {
+        if (address(sequencerUptimeFeed) == address(0)) return 0;
         // answer == 0: sequencer up; answer == 1: sequencer down
-        (, int256 answer, uint256 startedAt, , ) = sequencerUptimeFeed
+        (, int256 answer, uint256 seqStartedAt, , ) = sequencerUptimeFeed
             .latestRoundData();
         if (answer == 1) revert ChainlinkConverterSequencerDown();
         // startedAt == 0 would make block.timestamp - 0 silently pass any grace period.
-        if (startedAt == 0) revert ChainlinkConverterSequencerDown();
-        if (block.timestamp - startedAt < gracePeriod)
+        if (seqStartedAt == 0) revert ChainlinkConverterSequencerDown();
+        if (block.timestamp - seqStartedAt < gracePeriod)
             revert ChainlinkConverterGracePeriodNotOver();
+        return seqStartedAt;
     }
 }
