@@ -60,16 +60,34 @@ Fixed 129-byte header: `version | destinationToken | sender | recipient | amount
 
 ## Security controls
 
-| Control                 | Scope                                                                      |
-| ----------------------- | -------------------------------------------------------------------------- |
-| Owner config            | Peer bridges, token paths, sender whitelist, rate limits                   |
-| Sender whitelist        | Only approved contracts/EOAs can call `deposit`                            |
-| Peer bridge binding     | Inbound `msgSender` must match `bridgeContract[sourceChain]`               |
-| Token path allowlist    | Bidirectional mapping per `(chain, token)`                                 |
-| Payload replay          | `payloadSpent` on bridge; `deliveredPayload` / `handledPayload` on mailbox |
-| Withdraw rate limits    | Per `(sourceChain, localToken)` sliding window                             |
-| Consortium notarization | Mailbox verifies validator signatures before handler execution             |
-| `destinationCaller`     | Optional restriction on who executes inbound GMP message                   |
+| Control                 | Scope                                                                   |
+| ----------------------- | ----------------------------------------------------------------------- |
+| Owner config            | Peer bridges, token paths, sender whitelist, rate limits                |
+| Sender whitelist        | Only approved contracts/EOAs can call `deposit`                         |
+| Peer bridge binding     | Inbound `msgSender` must match `bridgeContract[sourceChain]`            |
+| Token path allowlist    | Bidirectional mapping per `(chain, token)`                              |
+| Payload replay          | `payloadSpent` on bridge — the mailbox deliberately does not guard this |
+| Withdraw rate limits    | Per `(sourceChain, localToken)` sliding window                          |
+| Consortium notarization | Mailbox verifies validator signatures before handler execution          |
+| `destinationCaller`     | Optional restriction on who executes inbound GMP message                |
+
+### Replay is the mailbox's job to allow, not to prevent
+
+A payload can be delivered to `Mailbox` any number of times, by design: if
+`handlePayload` reverts on the recipient, `_handle` catches it, emits
+`MessageHandleError` and returns `false` rather than bubbling up, so the same
+consortium-signed payload can simply be delivered again once whatever blocked it is
+resolved. Nothing in the mailbox reverts on a repeat delivery.
+
+**Each handler must therefore enforce its own replay protection.** `BridgeV2` does so
+with `payloadSpent[payload.id]`, reverting `BridgeV2_PayloadSpent` on a second attempt.
+
+The mailbox's two payload mappings are easy to mistake for that guard, and are not:
+
+- `deliveredPayload` is a verification cache. It is read only to _skip_ re-checking the
+  consortium proof on a redelivery, never to reject one.
+- `handledPayload` is only ever written, never read. It records that a payload was handled
+  successfully, for off-chain observers.
 
 ## CCIP integration (`providers/`)
 
