@@ -2,7 +2,7 @@
   "name": "lombard-smart-contracts",
   "version": "1.0.0",
   "main": "index.js",
-  "author": "Lombrad Finance",
+  "author": "Lombard Finance",
   "license": "MIT",
   "scripts": {
     "format": "prettier --write './**/*.{sol,ts,js,json}'",
